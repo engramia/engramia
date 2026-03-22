@@ -34,7 +34,7 @@ def _make_test_app(api_keys: str = "") -> FastAPI:
     from agent_brain.api.routes import router
 
     app = FastAPI()
-    app.include_router(router)
+    app.include_router(router, prefix="/v1")
     return app
 
 
@@ -53,7 +53,7 @@ class TestAuthDevMode:
         app.state.brain = tmp_brain
 
         client = TestClient(app)
-        resp = client.get("/health")
+        resp = client.get("/v1/health")
         assert resp.status_code == 200
 
     def test_request_with_token_also_works_in_dev(self, tmp_brain):
@@ -61,7 +61,7 @@ class TestAuthDevMode:
         app.state.brain = tmp_brain
 
         client = TestClient(app)
-        resp = client.get("/health", headers={"Authorization": "Bearer any-token"})
+        resp = client.get("/v1/health", headers={"Authorization": "Bearer any-token"})
         assert resp.status_code == 200
 
 
@@ -73,7 +73,7 @@ class TestAuthEnabled:
         app.state.brain = tmp_brain
 
         client = TestClient(app)
-        resp = client.get("/health")
+        resp = client.get("/v1/health")
         assert resp.status_code == 401
 
     def test_wrong_token_returns_401(self, tmp_brain):
@@ -81,7 +81,7 @@ class TestAuthEnabled:
         app.state.brain = tmp_brain
 
         client = TestClient(app)
-        resp = client.get("/health", headers={"Authorization": "Bearer wrong-key"})
+        resp = client.get("/v1/health", headers={"Authorization": "Bearer wrong-key"})
         assert resp.status_code == 401
 
     def test_valid_token_returns_200(self, tmp_brain):
@@ -89,7 +89,7 @@ class TestAuthEnabled:
         app.state.brain = tmp_brain
 
         client = TestClient(app)
-        resp = client.get("/health", headers={"Authorization": "Bearer secret-key-123"})
+        resp = client.get("/v1/health", headers={"Authorization": "Bearer secret-key-123"})
         assert resp.status_code == 200
 
     def test_multiple_keys_supported(self, tmp_brain):
@@ -98,7 +98,7 @@ class TestAuthEnabled:
 
         client = TestClient(app)
         for key in ("key-a", "key-b", "key-c"):
-            resp = client.get("/health", headers={"Authorization": f"Bearer {key}"})
+            resp = client.get("/v1/health", headers={"Authorization": f"Bearer {key}"})
             assert resp.status_code == 200
 
     def test_invalid_auth_scheme_returns_401(self, tmp_brain):
@@ -106,5 +106,5 @@ class TestAuthEnabled:
         app.state.brain = tmp_brain
 
         client = TestClient(app)
-        resp = client.get("/health", headers={"Authorization": "Basic dXNlcjpwYXNz"})
+        resp = client.get("/v1/health", headers={"Authorization": "Basic dXNlcjpwYXNz"})
         assert resp.status_code == 401

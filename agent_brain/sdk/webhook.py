@@ -75,7 +75,7 @@ class BrainWebhook:
         }
         if output is not None:
             body["output"] = output
-        return self._post("/learn", body)
+        return self._post("/v1/learn", body)
 
     def recall(
         self,
@@ -101,7 +101,7 @@ class BrainWebhook:
             "deduplicate": deduplicate,
             "eval_weighted": eval_weighted,
         }
-        resp = self._post("/recall", body)
+        resp = self._post("/v1/recall", body)
         return resp.get("matches", [])
 
     def evaluate(
@@ -129,7 +129,7 @@ class BrainWebhook:
         }
         if output is not None:
             body["output"] = output
-        return self._post("/evaluate", body)
+        return self._post("/v1/evaluate", body)
 
     def compose(self, task: str) -> dict:
         """Decompose a task into a pipeline.
@@ -140,7 +140,7 @@ class BrainWebhook:
         Returns:
             Response dict with stages and validation.
         """
-        return self._post("/compose", {"task": task})
+        return self._post("/v1/compose", {"task": task})
 
     def feedback(self, task_type: str | None = None, limit: int = 5) -> list[str]:
         """Get recurring quality issues.
@@ -155,7 +155,7 @@ class BrainWebhook:
         params = f"?limit={limit}"
         if task_type:
             params += f"&task_type={urllib.request.quote(task_type)}"
-        resp = self._get(f"/feedback{params}")
+        resp = self._get(f"/v1/feedback{params}")
         return resp.get("feedback", [])
 
     def metrics(self) -> dict:
@@ -164,7 +164,7 @@ class BrainWebhook:
         Returns:
             Metrics dict.
         """
-        return self._get("/metrics")
+        return self._get("/v1/metrics")
 
     def health(self) -> dict:
         """Health check.
@@ -172,7 +172,7 @@ class BrainWebhook:
         Returns:
             Health dict with status and storage type.
         """
-        return self._get("/health")
+        return self._get("/v1/health")
 
     def delete_pattern(self, pattern_key: str) -> bool:
         """Delete a stored pattern.
@@ -183,7 +183,7 @@ class BrainWebhook:
         Returns:
             True if the pattern was deleted.
         """
-        resp = self._delete(f"/patterns/{pattern_key}")
+        resp = self._delete(f"/v1/patterns/{pattern_key}")
         return resp.get("deleted", False)
 
     def run_aging(self) -> int:
@@ -192,7 +192,7 @@ class BrainWebhook:
         Returns:
             Number of patterns pruned.
         """
-        resp = self._post("/aging", {})
+        resp = self._post("/v1/aging", {})
         return resp.get("pruned", 0)
 
     def run_feedback_decay(self) -> int:
@@ -201,7 +201,7 @@ class BrainWebhook:
         Returns:
             Number of feedback patterns pruned.
         """
-        resp = self._post("/feedback/decay", {})
+        resp = self._post("/v1/feedback/decay", {})
         return resp.get("pruned", 0)
 
     # ------------------------------------------------------------------

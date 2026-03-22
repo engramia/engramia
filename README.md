@@ -2,11 +2,11 @@
 
 Self-learning memory layer for AI agent frameworks.
 
-[![Tests](https://img.shields.io/badge/tests-240%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-268%20passed-brightgreen)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 
-> **Status:** Phases 0–4 complete — core library + REST API + SDK plugins + prompt evolution + CLI + exceptions + export/import.
+> **Status:** Phases 0–4.5 complete — core library + REST API + SDK plugins + prompt evolution + CLI + exceptions + export/import + security hardening (OWASP ASVS Level 2/3).
 > See [roadmap.md](roadmap.md) for what's next.
 
 ---
@@ -368,41 +368,43 @@ Po startu: Swagger UI na [http://localhost:8000/docs](http://localhost:8000/docs
 
 ### Endpointy
 
+Všechny endpointy jsou dostupné pod prefixem `/v1/`:
+
 | Metoda | Cesta | Popis |
 |--------|-------|-------|
-| `POST` | `/learn` | Uloží success pattern |
-| `POST` | `/recall` | Najde relevantní patterny |
-| `POST` | `/compose` | Sestaví pipeline |
-| `POST` | `/evaluate` | Multi-eval scoring |
-| `POST` | `/aging` | Spustí pattern aging (decay + prune) |
-| `POST` | `/feedback/decay` | Spustí feedback decay |
-| `POST` | `/evolve` | Vygeneruje vylepšený prompt (Phase 3) |
-| `POST` | `/analyze-failures` | Seskupí failure patterny (Phase 3) |
-| `POST` | `/skills/register` | Registruje skill tagy na pattern (Phase 3) |
-| `POST` | `/skills/search` | Vyhledá patterny dle skill tagů (Phase 3) |
-| `GET` | `/feedback` | Top recurring feedback |
-| `GET` | `/metrics` | Statistiky |
-| `GET` | `/health` | Health check + storage type |
-| `DELETE` | `/patterns/{key}` | Smaže pattern |
+| `POST` | `/v1/learn` | Uloží success pattern |
+| `POST` | `/v1/recall` | Najde relevantní patterny |
+| `POST` | `/v1/compose` | Sestaví pipeline |
+| `POST` | `/v1/evaluate` | Multi-eval scoring |
+| `POST` | `/v1/aging` | Spustí pattern aging (decay + prune) |
+| `POST` | `/v1/feedback/decay` | Spustí feedback decay |
+| `POST` | `/v1/evolve` | Vygeneruje vylepšený prompt |
+| `POST` | `/v1/analyze-failures` | Seskupí failure patterny |
+| `POST` | `/v1/skills/register` | Registruje skill tagy na pattern |
+| `POST` | `/v1/skills/search` | Vyhledá patterny dle skill tagů |
+| `GET` | `/v1/feedback` | Top recurring feedback |
+| `GET` | `/v1/metrics` | Statistiky |
+| `GET` | `/v1/health` | Health check + storage type |
+| `DELETE` | `/v1/patterns/{key}` | Smaže pattern |
 
 ### Příklady
 
 ```bash
 # Learn
-curl -X POST http://localhost:8000/learn \
+curl -X POST http://localhost:8000/v1/learn \
   -H "Content-Type: application/json" \
   -d '{"task": "Parse CSV", "code": "import csv", "eval_score": 8.5}'
 
 # Recall
-curl -X POST http://localhost:8000/recall \
+curl -X POST http://localhost:8000/v1/recall \
   -H "Content-Type: application/json" \
   -d '{"task": "Read CSV and compute averages", "limit": 3}'
 
 # Metrics
-curl http://localhost:8000/metrics
+curl http://localhost:8000/v1/metrics
 
 # Health
-curl http://localhost:8000/health
+curl http://localhost:8000/v1/health
 ```
 
 ### Autentizace
@@ -412,8 +414,17 @@ curl http://localhost:8000/health
 BRAIN_API_KEYS=my-secret-key docker compose up
 
 # Use key
-curl -H "Authorization: Bearer my-secret-key" http://localhost:8000/metrics
+curl -H "Authorization: Bearer my-secret-key" http://localhost:8000/v1/metrics
 ```
+
+### Bezpečnostní konfigurace
+
+| Proměnná | Default | Popis |
+|----------|---------|-------|
+| `BRAIN_CORS_ORIGINS` | `*` | Povolené CORS origins (doporučeno omezit v produkci) |
+| `BRAIN_RATE_LIMIT_DEFAULT` | `60` | Max požadavků/min pro standardní endpointy |
+| `BRAIN_RATE_LIMIT_EXPENSIVE` | `10` | Max požadavků/min pro LLM-intensive endpointy |
+| `BRAIN_MAX_BODY_SIZE` | `1048576` | Max velikost request body v bytech (1 MB) |
 
 ---
 

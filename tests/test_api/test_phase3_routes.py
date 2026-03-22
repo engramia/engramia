@@ -35,7 +35,7 @@ def api_client(fake_embeddings, storage, mock_llm_evolve):
     async def _validation_error(request: Request, exc: BrainValidationError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
-    app.include_router(router)
+    app.include_router(router, prefix="/v1")
     return TestClient(app)
 
 
@@ -44,18 +44,18 @@ def api_client_no_llm(fake_embeddings, storage):
     app = FastAPI()
     brain = Brain(embeddings=fake_embeddings, storage=storage, llm=None)
     app.state.brain = brain
-    app.include_router(router)
+    app.include_router(router, prefix="/v1")
     return TestClient(app)
 
 
 # ---------------------------------------------------------------------------
-# POST /evolve
+# POST /v1/evolve
 # ---------------------------------------------------------------------------
 
 class TestEvolveEndpoint:
     def test_evolve_no_issues_returns_no_change(self, api_client):
         # No feedback stored — should return accepted=False, reason="no_issues"
-        resp = api_client.post("/evolve", json={
+        resp = api_client.post("/v1/evolve", json={
             "role": "coder",
             "current_prompt": "You are a helpful coder.",
         })
@@ -65,7 +65,7 @@ class TestEvolveEndpoint:
         assert data["reason"] == "no_issues"
 
     def test_evolve_no_llm_returns_501(self, api_client_no_llm):
-        resp = api_client_no_llm.post("/evolve", json={
+        resp = api_client_no_llm.post("/v1/evolve", json={
             "role": "coder",
             "current_prompt": "You are a helpful coder.",
         })
@@ -73,12 +73,12 @@ class TestEvolveEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# POST /analyze-failures
+# POST /v1/analyze-failures
 # ---------------------------------------------------------------------------
 
 class TestAnalyzeFailuresEndpoint:
     def test_analyze_failures_empty(self, api_client):
-        resp = api_client.post("/analyze-failures", json={"min_count": 1})
+        resp = api_client.post("/v1/analyze-failures", json={"min_count": 1})
         assert resp.status_code == 200
         data = resp.json()
         assert data["clusters"] == []
@@ -89,7 +89,7 @@ class TestAnalyzeFailuresEndpoint:
         brain._feedback_store.record("Always handle file I/O errors")
         brain._feedback_store.record("File I/O errors should always be handled")
 
-        resp = api_client.post("/analyze-failures", json={"min_count": 1})
+        resp = api_client.post("/v1/analyze-failures", json={"min_count": 1})
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["clusters"]) >= 1
@@ -99,7 +99,7 @@ class TestAnalyzeFailuresEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# POST /skills/register
+# POST /v1/skills/register
 # ---------------------------------------------------------------------------
 
 class TestRegisterSkillsEndpoint:
@@ -110,7 +110,7 @@ class TestRegisterSkillsEndpoint:
         matches = brain.recall(task="Parse CSV", limit=1)
         key = matches[0].pattern_key
 
-        resp = api_client.post("/skills/register", json={
+        resp = api_client.post("/v1/skills/register", json={
             "pattern_key": key,
             "skills": ["csv_parsing", "data_analysis"],
         })
@@ -119,7 +119,7 @@ class TestRegisterSkillsEndpoint:
         assert data["registered"] == 2
 
     def test_register_empty_skills(self, api_client):
-        resp = api_client.post("/skills/register", json={
+        resp = api_client.post("/v1/skills/register", json={
             "pattern_key": "patterns/any",
             "skills": [],
         })
@@ -128,12 +128,12 @@ class TestRegisterSkillsEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# POST /skills/search
+# POST /v1/skills/search
 # ---------------------------------------------------------------------------
 
 class TestSkillsSearchEndpoint:
     def test_search_skills_no_match(self, api_client):
-        resp = api_client.post("/skills/search", json={
+        resp = api_client.post("/v1/skills/search", json={
             "required": ["nonexistent_skill"],
             "match_all": True,
         })
@@ -147,7 +147,7 @@ class TestSkillsSearchEndpoint:
         key = matches[0].pattern_key
         brain.register_skills(key, ["machine_learning", "sklearn"])
 
-        resp = api_client.post("/skills/search", json={
+        resp = api_client.post("/v1/skills/search", json={
             "required": ["machine_learning"],
             "match_all": True,
         })
@@ -156,6 +156,6 @@ class TestSkillsSearchEndpoint:
         assert len(results) >= 1
 
     def test_search_skills_empty_required(self, api_client):
-        resp = api_client.post("/skills/search", json={"required": []})
+        resp = api_client.post("/v1/skills/search", json={"required": []})
         assert resp.status_code == 200
         assert resp.json()["matches"] == []
