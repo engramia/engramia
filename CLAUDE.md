@@ -109,8 +109,8 @@ Brain je **model-agnostic** a **storage-agnostic**:
 - **Failure clustering** — Jaccard-based seskupení opakujících se chyb pro identifikaci systémových problémů.
 - **Skill registry** — Explicitní capability tagging patternů; kombinuje s semantic search pro přesné matching.
 - **Custom exceptions** — `BrainError` hierarchie: `ProviderError`, `ValidationError`, `StorageError`. REST API mapuje ProviderError na HTTP 501.
-- **Security hardening** — OWASP ASVS Level 2/3: timing-safe auth (hmac.compare_digest), rate limiting (per-IP/path), security headers, CORS, body size limit, prompt injection delimiters, audit logging, Docker non-root user, API versioning /v1/.
-- **Input validation** — eval_score [0,10], import_data/delete_pattern prefix check, num_evals cap, SHA-256 pro key generation.
+- **Security hardening** — OWASP ASVS Level 2/3: timing-safe auth (hmac.compare_digest), rate limiting (per-IP/path), security headers, CORS (disabled by default), body size limit, prompt injection delimiters, audit logging (structured JSON), Docker non-root user, API versioning /v1/. Error sanitization (no internal details in HTTP responses). Path traversal prevention (`..` rejection). LIKE wildcard escaping in PostgreSQL. See `SECURITY.md` for known limitations and production checklist.
+- **Input validation** — eval_score [0,10], import_data/delete_pattern prefix check, num_evals cap, SHA-256 pro key generation, max_length on all API schema string fields.
 - **Export/Import** — JSONL-compatible backup a migrace patternů (`brain.export()` / `brain.import_data()`).
 - **CLI** — Typer + Rich CLI (`agent-brain init/serve/status/recall/aging`).
 - **Model routing** — Empirická analýza: najdi nejlevnější model, který dosahuje ≥90% kvality nejdražšího.
@@ -240,6 +240,7 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 | Soubor | Účel |
 |--------|------|
 | `roadmap.md` | Implementační roadmapa (5 fází) |
+| `SECURITY.md` | Security policy, known limitations, production deployment checklist |
 | `alembic.ini` | Alembic konfigurace pro DB migrace |
 | `docker-compose.yml` | Brain API + volitelný pgvector stack |
 | `Dockerfile` | Multi-stage build (builder + runtime) |

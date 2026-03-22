@@ -2,7 +2,7 @@
 
 Self-learning memory layer for AI agent frameworks.
 
-[![Tests](https://img.shields.io/badge/tests-268%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-270%20passed-brightgreen)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 
@@ -421,7 +421,7 @@ curl -H "Authorization: Bearer my-secret-key" http://localhost:8000/v1/metrics
 
 | Proměnná | Default | Popis |
 |----------|---------|-------|
-| `BRAIN_CORS_ORIGINS` | `*` | Povolené CORS origins (doporučeno omezit v produkci) |
+| `BRAIN_CORS_ORIGINS` | *(prázdné)* | Povolené CORS origins (CORS vypnutý pokud prázdné) |
 | `BRAIN_RATE_LIMIT_DEFAULT` | `60` | Max požadavků/min pro standardní endpointy |
 | `BRAIN_RATE_LIMIT_EXPENSIVE` | `10` | Max požadavků/min pro LLM-intensive endpointy |
 | `BRAIN_MAX_BODY_SIZE` | `1048576` | Max velikost request body v bytech (1 MB) |

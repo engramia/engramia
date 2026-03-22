@@ -154,6 +154,11 @@ class TestImportDataKeyPrefix:
         imported = brain.import_data(records)
         assert imported == 0
 
+    def test_path_traversal_key_rejected(self, brain):
+        records = [{"key": "patterns/../metrics/evil", "data": {"task": "x"}}]
+        imported = brain.import_data(records)
+        assert imported == 0
+
     def test_valid_patterns_key_accepted(self, brain):
         records = [
             {
@@ -184,6 +189,10 @@ class TestDeletePatternPrefix:
     def test_feedback_key_raises(self, brain):
         with pytest.raises(BrainValidationError, match="patterns/"):
             brain.delete_pattern("feedback/_list")
+
+    def test_path_traversal_rejected(self, brain):
+        with pytest.raises(BrainValidationError, match="\\.\\."):
+            brain.delete_pattern("patterns/../metrics/something")
 
     def test_valid_nonexistent_patterns_key_returns_false(self, brain):
         # Valid prefix, but key doesn't exist → False (no exception)

@@ -14,10 +14,10 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 
 class LearnRequest(BaseModel):
-    task: str = Field(description="Natural language description of the task.")
-    code: str = Field(description="Agent source code (the solution).")
+    task: str = Field(max_length=10_000, description="Natural language description of the task.")
+    code: str = Field(max_length=500_000, description="Agent source code (the solution).")
     eval_score: float = Field(ge=0.0, le=10.0, description="Quality score 0–10.")
-    output: str | None = Field(default=None, description="Optional captured stdout.")
+    output: str | None = Field(default=None, max_length=500_000, description="Optional captured stdout.")
 
 
 class LearnResponse(BaseModel):
@@ -30,7 +30,7 @@ class LearnResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class RecallRequest(BaseModel):
-    task: str = Field(description="Task to find relevant patterns for.")
+    task: str = Field(max_length=10_000, description="Task to find relevant patterns for.")
     limit: int = Field(default=5, ge=1, le=50)
     deduplicate: bool = Field(default=True)
     eval_weighted: bool = Field(default=True)
@@ -59,7 +59,7 @@ class RecallResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ComposeRequest(BaseModel):
-    task: str = Field(description="High-level task to decompose into a pipeline.")
+    task: str = Field(max_length=10_000, description="High-level task to decompose into a pipeline.")
 
 
 class StageOut(BaseModel):
@@ -84,9 +84,9 @@ class ComposeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class EvaluateRequest(BaseModel):
-    task: str
-    code: str
-    output: str | None = None
+    task: str = Field(max_length=10_000)
+    code: str = Field(max_length=500_000)
+    output: str | None = Field(default=None, max_length=500_000)
     num_evals: int = Field(default=3, ge=1, le=10)
 
 
@@ -164,8 +164,8 @@ class HealthResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class EvolveRequest(BaseModel):
-    role: str = Field(description="Agent role (e.g. 'coder', 'eval', 'architect').")
-    current_prompt: str = Field(description="Current system prompt to improve.")
+    role: str = Field(max_length=100, description="Agent role (e.g. 'coder', 'eval', 'architect').")
+    current_prompt: str = Field(max_length=50_000, description="Current system prompt to improve.")
     num_issues: int = Field(default=5, ge=1, le=20)
 
 
@@ -201,8 +201,8 @@ class AnalyzeFailuresResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class RegisterSkillsRequest(BaseModel):
-    pattern_key: str = Field(description="Storage key of the pattern to tag.")
-    skills: list[str] = Field(description="Skill tags to associate (e.g. ['csv_parsing']).")
+    pattern_key: str = Field(max_length=200, description="Storage key of the pattern to tag.")
+    skills: list[str] = Field(max_length=50, description="Skill tags to associate (e.g. ['csv_parsing']).")
 
 
 class RegisterSkillsResponse(BaseModel):
@@ -214,5 +214,5 @@ class RegisterSkillsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class SkillsSearchRequest(BaseModel):
-    required: list[str] = Field(description="Skill tags to search for.")
+    required: list[str] = Field(max_length=50, description="Skill tags to search for.")
     match_all: bool = Field(default=True, description="If True, pattern must have ALL skills.")

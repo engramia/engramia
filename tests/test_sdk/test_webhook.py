@@ -8,12 +8,22 @@ import pytest
 from agent_brain.sdk.webhook import BrainWebhook, BrainWebhookError
 
 
+class _FakeHeaders:
+    """Fake headers dict for FakeResponse."""
+
+    def get(self, name: str, default: str = "") -> str:
+        if name == "Content-Type":
+            return "application/json"
+        return default
+
+
 class FakeResponse:
     """Fake urllib response."""
 
     def __init__(self, data: dict, status: int = 200):
         self._data = json.dumps(data).encode()
         self.status = status
+        self.headers = _FakeHeaders()
 
     def read(self):
         return self._data

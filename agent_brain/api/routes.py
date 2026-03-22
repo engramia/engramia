@@ -105,8 +105,11 @@ def compose(body: ComposeRequest, brain: Brain = Depends(get_brain)) -> ComposeR
     """Decompose a task into a multi-stage pipeline from stored patterns."""
     try:
         pipeline = brain.compose(task=body.task)
-    except ProviderError as exc:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc))
+    except ProviderError:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="LLM provider not configured. compose() requires an LLM.",
+        )
 
     stages_out = [
         StageOut(
@@ -142,8 +145,11 @@ def evaluate(body: EvaluateRequest, brain: Brain = Depends(get_brain)) -> Evalua
             output=body.output,
             num_evals=body.num_evals,
         )
-    except ProviderError as exc:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc))
+    except ProviderError:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="LLM provider not configured. evaluate() requires an LLM.",
+        )
 
     scores_out = [
         EvalScoreOut(
@@ -217,7 +223,11 @@ def delete_pattern(
     try:
         deleted = brain.delete_pattern(pattern_key)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        _log.warning("delete_pattern failed for key %r: %s", pattern_key, exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid pattern key.",
+        )
     if deleted:
         ip = request.client.host if request.client else "unknown"
         log_event(AuditEvent.PATTERN_DELETED, pattern_key=pattern_key, ip=ip)
@@ -274,8 +284,11 @@ def evolve_prompt(body: EvolveRequest, brain: Brain = Depends(get_brain)) -> Evo
             current_prompt=body.current_prompt,
             num_issues=body.num_issues,
         )
-    except ProviderError as exc:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc))
+    except ProviderError:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="LLM provider not configured. evolve_prompt() requires an LLM.",
+        )
     return EvolveResponse(
         improved_prompt=result.improved_prompt,
         changes=result.changes,

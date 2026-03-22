@@ -265,7 +265,18 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [ ] Dependency pinning s hashi — CI/CD pipeline v Fázi 4.6
 - [ ] Embedding extraction riziko — výzkumné téma, nízké praktické riziko
 
-**Deliverable:** 268 testů (vč. 28 security testů), 81% coverage, OWASP ASVS Level 2 compliance.
+**Second security audit (hardening round 2):**
+- [x] **S26**: Sanitize exception details — generic error messages in HTTP responses, internal details logged server-side only
+- [x] **S27**: CORS disabled by default — `BRAIN_CORS_ORIGINS` defaults to empty (not `*`)
+- [x] **S28**: Path traversal prevention — `..` sequences rejected in pattern keys (delete + import)
+- [x] **S29**: LIKE wildcard escaping — `%` and `_` escaped in PostgreSQL `LIKE` queries
+- [x] **S30**: API schema `max_length` — all string fields have explicit length limits in Pydantic models
+- [x] **S31**: API key count removed from startup log (information leak)
+- [x] **S32**: Content-Type validation in webhook SDK client
+- [x] **S33**: Structured JSON audit logging — `json.dumps()` instead of dict repr
+- [x] **SECURITY.md** — documented 10 known limitations + production deployment checklist
+
+**Deliverable:** 270 testů (vč. 30 security testů), 81% coverage, OWASP ASVS Level 2 compliance, SECURITY.md.
 
 ---
 
@@ -319,8 +330,8 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 | 3 | Framework plugin adoption | ≥1 framework s fungujícím pluginem | ✅ LangChain BrainCallback |
 | 4 | Total tests after Phase 4 | 100% PASS | ✅ 240 testů, 81% coverage |
 | 4 | CLI tool | agent-brain CLI fungující | ✅ init, serve, status, recall, aging |
-| 4.5 | Security tests | OWASP ASVS Level 2/3 | ✅ 268 testů (28 security), 81% coverage |
-| 4.5 | STRIDE audit resolved | všechna HIGH/MEDIUM | ✅ 16 bodů implementováno |
+| 4.5 | Security tests | OWASP ASVS Level 2/3 | ✅ 270 testů (30 security), 81% coverage |
+| 4.5 | STRIDE audit resolved | všechna HIGH/MEDIUM | ✅ 24 bodů implementováno + SECURITY.md |
 | 4 | PyPI weekly downloads | tracking starts | — |
 | 4 | GitHub stars | tracking starts | — |
 | 4 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain | — |
@@ -422,7 +433,7 @@ agent-brain/
 │       ├── models.py            ✅ SQLAlchemy 2.x modely (BrainData, BrainEmbedding)
 │       └── migrations/          ✅ Alembic (001_initial: schema + HNSW index)
 │
-├── tests/                       ✅ 240 testů, 81% coverage
+├── tests/                       ✅ 270 testů, 81% coverage
 │   ├── conftest.py              ✅ FakeEmbeddings + fixtures
 │   ├── test_e2e.py              ✅ learn/recall end-to-end + deduplication
 │   ├── test_integration.py      ✅ full cycle (learn→eval→feedback→recall→compose)
