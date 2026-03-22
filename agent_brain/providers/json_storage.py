@@ -4,17 +4,23 @@ Stores data as individual JSON files on disk.
 Embedding index is loaded into memory on startup and persisted atomically.
 Suitable for single-machine development and small deployments.
 
+Thread-safe for concurrent reads and writes within a single process.
+For multi-process deployments, use PostgresStorage instead.
+
 No external dependencies beyond numpy (already a core dependency).
 """
 
 import json
+import logging
 import os
+import threading
 from pathlib import Path
 
 import numpy as np
 
 from agent_brain.providers.base import StorageBackend
 
+_log = logging.getLogger(__name__)
 _EMBEDDINGS_FILE = "_embeddings.json"
 
 
@@ -28,6 +34,9 @@ class JSONStorage(StorageBackend):
     Writes are atomic: data is written to a ``.tmp`` file first, then
     renamed over the target to prevent corruption on crash.
 
+    Thread-safe within a single process (threading.Lock on embedding index).
+    For concurrent multi-process access, use PostgresStorage.
+
     Args:
         path: Directory to use as the storage root. Created if it does not exist.
     """
@@ -35,6 +44,7 @@ class JSONStorage(StorageBackend):
     def __init__(self, path: str | Path) -> None:
         self._root = Path(path)
         self._root.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
         self._embeddings: dict[str, list[float]] = self._load_embeddings_index()
 
     # ------------------------------------------------------------------
@@ -42,12 +52,23 @@ class JSONStorage(StorageBackend):
     # ------------------------------------------------------------------
 
     def _key_to_path(self, key: str) -> Path:
-        """Convert a storage key to an absolute file path.
+        """Convert a storage key to a safe file path within the storage root.
 
-        Strips leading slashes and ``..`` segments to prevent path traversal.
+        Rejects keys that would escape the root directory (path traversal).
+        Segments consisting entirely of dots (``.``, ``..``, ``...``) are removed.
         """
-        clean = key.replace("..", "").strip("/").replace("\\", "/")
-        return self._root / (clean + ".json")
+        clean = key.replace("\\", "/")
+        # Drop any segment that is only dots (prevents .., ..., etc.)
+        parts = [p for p in clean.split("/") if p and not all(c == "." for c in p)]
+        if not parts:
+            raise ValueError(f"Invalid storage key: {key!r}")
+        path = self._root.joinpath(*parts).with_suffix(".json")
+        # Defense-in-depth: ensure the resolved path stays inside root
+        try:
+            path.resolve().relative_to(self._root.resolve())
+        except ValueError:
+            raise ValueError(f"Storage key escapes root directory: {key!r}")
+        return path
 
     def _embeddings_path(self) -> Path:
         return self._root / _EMBEDDINGS_FILE
@@ -71,6 +92,7 @@ class JSONStorage(StorageBackend):
         os.replace(tmp, path)
 
     def _save_embeddings_index(self) -> None:
+        # Caller must hold self._lock
         self._atomic_write(self._embeddings_path(), self._embeddings)
 
     # ------------------------------------------------------------------
@@ -103,17 +125,28 @@ class JSONStorage(StorageBackend):
         path = self._key_to_path(key)
         if path.exists():
             path.unlink()
-        if key in self._embeddings:
-            del self._embeddings[key]
-            self._save_embeddings_index()
+        with self._lock:
+            if key in self._embeddings:
+                del self._embeddings[key]
+                self._save_embeddings_index()
 
     # ------------------------------------------------------------------
     # StorageBackend: embedding index
     # ------------------------------------------------------------------
 
     def save_embedding(self, key: str, embedding: list[float]) -> None:
-        self._embeddings[key] = embedding
-        self._save_embeddings_index()
+        with self._lock:
+            # Dimension consistency check: all stored embeddings must share the same size
+            if self._embeddings and embedding:
+                stored_dim = len(next(iter(self._embeddings.values())))
+                new_dim = len(embedding)
+                if new_dim != stored_dim:
+                    raise ValueError(
+                        f"Embedding dimension mismatch: existing index uses {stored_dim}-dim vectors, "
+                        f"got {new_dim}-dim. Ensure all embeddings use the same provider and model."
+                    )
+            self._embeddings[key] = embedding
+            self._save_embeddings_index()
 
     def search_similar(
         self,
@@ -126,13 +159,24 @@ class JSONStorage(StorageBackend):
         O(n) over number of stored embeddings. Sufficient for thousands of
         patterns; switch to PostgresStorage + pgvector for larger scales.
         """
+        with self._lock:
+            if self._embeddings and embedding:
+                stored_dim = len(next(iter(self._embeddings.values())))
+                if len(embedding) != stored_dim:
+                    raise ValueError(
+                        f"Query embedding dimension {len(embedding)} does not match "
+                        f"stored dimension {stored_dim}."
+                    )
+            # Snapshot the index to avoid holding the lock during numpy ops
+            index_snapshot = dict(self._embeddings)
+
         query = np.array(embedding, dtype=np.float32)
         query_norm = np.linalg.norm(query)
         if query_norm == 0:
             return []
 
         results: list[tuple[str, float]] = []
-        for key, vec in self._embeddings.items():
+        for key, vec in index_snapshot.items():
             if prefix and not key.startswith(prefix):
                 continue
             v = np.array(vec, dtype=np.float32)

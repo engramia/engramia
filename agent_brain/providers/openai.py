@@ -7,9 +7,12 @@ Both providers use lazy imports so the module can be imported without the
 ``openai`` package installed — the ImportError is raised at instantiation.
 """
 
+import logging
 import time
 
 from agent_brain.providers.base import EmbeddingProvider, LLMProvider
+
+_log = logging.getLogger(__name__)
 
 _OPENAI_INSTALL_MSG = (
     "OpenAI providers require the openai package. "
@@ -71,9 +74,10 @@ class OpenAIProvider(LLMProvider):
             except Exception as exc:
                 last_exc = exc
                 if attempt < self._max_retries - 1:
+                    _log.warning("OpenAI call failed (attempt %d/%d): %s", attempt + 1, self._max_retries, exc)
                     time.sleep(2**attempt)
 
-        raise last_exc  # type: ignore[misc]
+        raise last_exc or RuntimeError(f"All {self._max_retries} retries exhausted with no exception recorded")
 
 
 class OpenAIEmbeddings(EmbeddingProvider):

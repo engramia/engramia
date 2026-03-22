@@ -5,8 +5,14 @@ Users interact exclusively with this class. All internal modules
 """
 
 import hashlib
+import logging
 import time
 from typing import Any, Literal
+
+_log = logging.getLogger(__name__)
+
+_MAX_TASK_LEN = 10_000
+_MAX_CODE_LEN = 500_000  # 500 KB
 
 from agent_brain.core.eval_feedback import EvalFeedbackStore
 from agent_brain.core.eval_store import EvalStore
@@ -124,6 +130,8 @@ class Brain:
         Returns:
             LearnResult with ``stored=True`` and the current pattern count.
         """
+        self._validate_task(task)
+        self._validate_code(code)
         design: dict[str, Any] = {"code": code}
         if output is not None:
             design["output"] = output
@@ -169,6 +177,8 @@ class Brain:
         Returns:
             List of Match objects sorted by (weighted) similarity descending.
         """
+        self._validate_task(task)
+        self._validate_limit(limit)
         fetch_limit = limit * _DEDUP_FETCH_MULTIPLIER if deduplicate else limit
 
         if eval_weighted:
@@ -183,7 +193,7 @@ class Brain:
                 if data is None:
                     continue
                 pattern = Pattern.model_validate(data)
-                matches.append(Match(pattern=pattern, similarity=min(similarity, 1.0), reuse_tier=_reuse_tier(similarity)))
+                matches.append(Match(pattern=pattern, similarity=min(similarity, 1.0), reuse_tier=_reuse_tier(similarity), pattern_key=key))
 
         if deduplicate:
             matches = _deduplicate_matches(matches)
@@ -218,6 +228,8 @@ class Brain:
         Raises:
             RuntimeError: If no LLM provider was configured.
         """
+        self._validate_task(task)
+        self._validate_code(code)
         self._require_llm("evaluate")
         evaluator = MultiEvaluator(self._llm, num_evals=num_evals)  # type: ignore[arg-type]
         result = evaluator.evaluate(task, code, output)
@@ -259,6 +271,7 @@ class Brain:
         Raises:
             RuntimeError: If no LLM provider was configured.
         """
+        self._validate_task(task)
         self._require_llm("compose")
         matcher = PatternMatcher(self._storage, self._embeddings, self._eval_store)
         composer = PipelineComposer(self._llm, matcher)  # type: ignore[arg-type]
@@ -280,6 +293,30 @@ class Brain:
             List of feedback strings sorted by relevance (score × count).
         """
         return self._feedback_store.get_top(n=limit, task_type=task_type)
+
+    # ------------------------------------------------------------------
+    # Delete
+    # ------------------------------------------------------------------
+
+    def delete_pattern(self, pattern_key: str) -> bool:
+        """Permanently delete a stored pattern by its key.
+
+        Removes the pattern data, its embedding, and its eval history.
+        Useful for removing low-quality or irrelevant patterns manually.
+
+        Args:
+            pattern_key: Full storage key (e.g. ``"patterns/abc12345_1234567890"``).
+                Keys are returned in the ``pattern.key`` field of Match objects
+                (not currently exposed on Pattern — use ``recall()`` to find keys).
+
+        Returns:
+            ``True`` if the pattern existed and was deleted, ``False`` if not found.
+        """
+        if self._storage.load(pattern_key) is None:
+            return False
+        self._storage.delete(pattern_key)
+        _log.info("Deleted pattern %r", pattern_key)
+        return True
 
     # ------------------------------------------------------------------
     # Aging
@@ -318,6 +355,25 @@ class Brain:
                 f"Brain.{method}() requires an LLM provider. "
                 "Pass llm=OpenAIProvider(...) or llm=AnthropicProvider(...) to Brain()."
             )
+
+    @staticmethod
+    def _validate_task(task: str) -> None:
+        if not task or not task.strip():
+            raise ValueError("task must be a non-empty string")
+        if len(task) > _MAX_TASK_LEN:
+            raise ValueError(f"task exceeds maximum length of {_MAX_TASK_LEN} characters")
+
+    @staticmethod
+    def _validate_code(code: str) -> None:
+        if not code or not code.strip():
+            raise ValueError("code must be a non-empty string")
+        if len(code) > _MAX_CODE_LEN:
+            raise ValueError(f"code exceeds maximum length of {_MAX_CODE_LEN} characters")
+
+    @staticmethod
+    def _validate_limit(limit: int) -> None:
+        if limit < 1:
+            raise ValueError(f"limit must be >= 1, got {limit}")
 
     @staticmethod
     def _pattern_key(task: str) -> str:

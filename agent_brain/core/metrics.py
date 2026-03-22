@@ -4,9 +4,12 @@ Tracks aggregate statistics across all Brain runs. Persisted as a single
 JSON document under the "metrics/_global" storage key.
 """
 
+import logging
 import time
 
 from agent_brain.providers.base import StorageBackend
+
+_log = logging.getLogger(__name__)
 from agent_brain.types import Metrics
 
 _KEY = "metrics/_global"

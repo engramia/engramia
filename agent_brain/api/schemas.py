@@ -1,0 +1,147 @@
+"""API request and response schemas.
+
+Separate from internal types (agent_brain/types.py) to allow the API
+surface to evolve independently from the Brain data models.
+"""
+
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# POST /learn
+# ---------------------------------------------------------------------------
+
+class LearnRequest(BaseModel):
+    task: str = Field(description="Natural language description of the task.")
+    code: str = Field(description="Agent source code (the solution).")
+    eval_score: float = Field(ge=0.0, le=10.0, description="Quality score 0–10.")
+    output: str | None = Field(default=None, description="Optional captured stdout.")
+
+
+class LearnResponse(BaseModel):
+    stored: bool
+    pattern_count: int
+
+
+# ---------------------------------------------------------------------------
+# POST /recall
+# ---------------------------------------------------------------------------
+
+class RecallRequest(BaseModel):
+    task: str = Field(description="Task to find relevant patterns for.")
+    limit: int = Field(default=5, ge=1, le=50)
+    deduplicate: bool = Field(default=True)
+    eval_weighted: bool = Field(default=True)
+
+
+class PatternOut(BaseModel):
+    task: str
+    code: str | None = None
+    success_score: float
+    reuse_count: int
+
+
+class MatchOut(BaseModel):
+    similarity: float
+    reuse_tier: str
+    pattern_key: str
+    pattern: PatternOut
+
+
+class RecallResponse(BaseModel):
+    matches: list[MatchOut]
+
+
+# ---------------------------------------------------------------------------
+# POST /compose
+# ---------------------------------------------------------------------------
+
+class ComposeRequest(BaseModel):
+    task: str = Field(description="High-level task to decompose into a pipeline.")
+
+
+class StageOut(BaseModel):
+    name: str
+    task: str
+    reads: list[str]
+    writes: list[str]
+    reuse_tier: str
+    similarity: float
+    code: str | None = None
+
+
+class ComposeResponse(BaseModel):
+    task: str
+    stages: list[StageOut]
+    valid: bool
+    contract_errors: list[str]
+
+
+# ---------------------------------------------------------------------------
+# POST /evaluate
+# ---------------------------------------------------------------------------
+
+class EvaluateRequest(BaseModel):
+    task: str
+    code: str
+    output: str | None = None
+    num_evals: int = Field(default=3, ge=1, le=10)
+
+
+class EvalScoreOut(BaseModel):
+    task_alignment: float
+    code_quality: float
+    workspace_usage: float
+    robustness: float
+    overall: float
+    feedback: str
+
+
+class EvaluateResponse(BaseModel):
+    median_score: float
+    variance: float
+    high_variance: bool
+    feedback: str
+    adversarial_detected: bool
+    scores: list[EvalScoreOut]
+
+
+# ---------------------------------------------------------------------------
+# GET /feedback
+# ---------------------------------------------------------------------------
+
+class FeedbackResponse(BaseModel):
+    feedback: list[str]
+
+
+# ---------------------------------------------------------------------------
+# GET /metrics
+# ---------------------------------------------------------------------------
+
+class MetricsResponse(BaseModel):
+    runs: int
+    success_rate: float
+    avg_eval_score: float | None
+    pattern_count: int
+    reuse_rate: float
+
+
+# ---------------------------------------------------------------------------
+# DELETE /patterns/{key}
+# ---------------------------------------------------------------------------
+
+class DeletePatternResponse(BaseModel):
+    deleted: bool
+    pattern_key: str
+
+
+# ---------------------------------------------------------------------------
+# GET /health
+# ---------------------------------------------------------------------------
+
+class HealthResponse(BaseModel):
+    status: str
+    storage: str
+    pattern_count: int

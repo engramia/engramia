@@ -7,7 +7,11 @@ Brain.metrics to report average eval scores.
 Rolling window of MAX_EVALS=200 entries to avoid unbounded growth.
 """
 
+import logging
+
 from agent_brain.providers.base import StorageBackend
+
+_log = logging.getLogger(__name__)
 
 _KEY = "evals/_list"
 _MAX_EVALS = 200

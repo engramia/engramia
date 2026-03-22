@@ -7,10 +7,13 @@ Patterns decay faster than success patterns (10% per week) so only current
 issues stay surfaced. Patterns appearing fewer than 2 times are not surfaced.
 """
 
+import logging
 import re
 import time
 
 from agent_brain.providers.base import StorageBackend
+
+_log = logging.getLogger(__name__)
 
 _KEY = "feedback/_list"
 _MAX_KEEP = 50
@@ -140,10 +143,16 @@ class EvalFeedbackStore:
 
 
 def _parse_iso(iso: str) -> float:
-    """Parse an ISO 8601 datetime string to a Unix timestamp. Returns 0 on failure."""
+    """Parse an ISO 8601 datetime string to a Unix timestamp.
+
+    Returns 0.0 (Unix epoch) if parsing fails and logs a warning so the
+    issue is visible rather than silently biasing decay calculations.
+    """
+    import datetime
     try:
-        import datetime
         dt = datetime.datetime.strptime(iso, "%Y-%m-%dT%H:%M:%S")
         return dt.replace(tzinfo=datetime.timezone.utc).timestamp()
     except Exception:
+        if iso:
+            _log.warning("Could not parse ISO timestamp %r; treating as epoch (decay may be inaccurate)", iso)
         return 0.0
