@@ -19,6 +19,10 @@ FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
+# Create a non-root user — never run services as root
+RUN addgroup --gid 1001 --system brain \
+    && adduser --uid 1001 --system --ingroup brain --no-create-home --shell /bin/false brain
+
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
@@ -26,6 +30,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application source
 COPY agent_brain/ ./agent_brain/
 COPY alembic.ini ./
+
+# Create data directory and set ownership before switching user
+RUN mkdir -p /data/brain_data && chown -R brain:brain /data /app
 
 # Default configuration (override via env vars or docker-compose)
 ENV BRAIN_STORAGE=json
@@ -37,5 +44,8 @@ ENV BRAIN_PORT=8000
 VOLUME ["/data"]
 
 EXPOSE 8000
+
+# Drop privileges — run as non-root brain user
+USER brain
 
 CMD ["uvicorn", "agent_brain.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

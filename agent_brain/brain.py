@@ -9,6 +9,10 @@ import logging
 import time
 from typing import Any
 
+_MAX_EVAL_SCORE = 10.0
+_MIN_EVAL_SCORE = 0.0
+_MAX_NUM_EVALS = 10
+
 _log = logging.getLogger(__name__)
 
 _MAX_TASK_LEN = 10_000
@@ -120,6 +124,7 @@ class Brain:
         """
         self._validate_task(task)
         self._validate_code(code)
+        self._validate_eval_score(eval_score)
         design: dict[str, Any] = {"code": code}
         if output is not None:
             design["output"] = output
@@ -222,10 +227,11 @@ class Brain:
         self._validate_task(task)
         self._validate_code(code)
         self._require_llm("evaluate")
+        num_evals = min(num_evals, _MAX_NUM_EVALS)
         evaluator = MultiEvaluator(self._llm, num_evals=num_evals)  # type: ignore[arg-type]
         result = evaluator.evaluate(task, code, output)
 
-        agent_key = hashlib.md5(code.encode()).hexdigest()[:12]
+        agent_key = hashlib.sha256(code.encode()).hexdigest()[:12]
         self._eval_store.save(
             agent_name=agent_key,
             task=task,
@@ -302,7 +308,14 @@ class Brain:
 
         Returns:
             ``True`` if the pattern existed and was deleted, ``False`` if not found.
+
+        Raises:
+            ValidationError: If pattern_key does not start with the patterns/ prefix.
         """
+        if not pattern_key.startswith(f"{PATTERNS_PREFIX}/"):
+            raise BrainValidationError(
+                f"pattern_key must start with '{PATTERNS_PREFIX}/'; got {pattern_key!r}"
+            )
         if self._storage.load(pattern_key) is None:
             return False
         self._storage.delete(pattern_key)
@@ -467,6 +480,13 @@ class Brain:
             if not key or not isinstance(data, dict):
                 _log.warning("Skipping malformed import record: %r", record)
                 continue
+            if not key.startswith(f"{PATTERNS_PREFIX}/"):
+                _log.warning(
+                    "Skipping import record with invalid key prefix %r — "
+                    "only patterns/ keys are allowed",
+                    key,
+                )
+                continue
             if not overwrite and self._storage.load(key) is not None:
                 continue
             self._storage.save(key, data)
@@ -522,7 +542,15 @@ class Brain:
             raise BrainValidationError(f"limit must be >= 1, got {limit}")
 
     @staticmethod
+    def _validate_eval_score(score: float) -> None:
+        if not (_MIN_EVAL_SCORE <= score <= _MAX_EVAL_SCORE):
+            raise BrainValidationError(
+                f"eval_score must be between {_MIN_EVAL_SCORE} and {_MAX_EVAL_SCORE}, got {score}"
+            )
+
+    @staticmethod
     def _pattern_key(task: str) -> str:
-        task_hash = hashlib.md5(task.encode()).hexdigest()[:8]
+        # SHA-256 (first 8 hex chars) — MD5 is cryptographically broken
+        task_hash = hashlib.sha256(task.encode()).hexdigest()[:8]
         ts = int(time.time() * 1000)
         return f"{PATTERNS_PREFIX}/{task_hash}_{ts}"

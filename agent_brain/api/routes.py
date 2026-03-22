@@ -7,9 +7,10 @@ Async is deferred until a concrete bottleneck is identified.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from agent_brain import Brain
+from agent_brain.api.audit import AuditEvent, log_event
 from agent_brain.api.auth import require_auth
 from agent_brain.exceptions import ProviderError
 from agent_brain.api.deps import get_brain
@@ -207,9 +208,19 @@ def get_metrics(brain: Brain = Depends(get_brain)) -> MetricsResponse:
     response_model=DeletePatternResponse,
     status_code=status.HTTP_200_OK,
 )
-def delete_pattern(pattern_key: str, brain: Brain = Depends(get_brain)) -> DeletePatternResponse:
+def delete_pattern(
+    pattern_key: str,
+    request: Request,
+    brain: Brain = Depends(get_brain),
+) -> DeletePatternResponse:
     """Permanently delete a stored pattern by its key."""
-    deleted = brain.delete_pattern(pattern_key)
+    try:
+        deleted = brain.delete_pattern(pattern_key)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    if deleted:
+        ip = request.client.host if request.client else "unknown"
+        log_event(AuditEvent.PATTERN_DELETED, pattern_key=pattern_key, ip=ip)
     return DeletePatternResponse(deleted=deleted, pattern_key=pattern_key)
 
 

@@ -22,6 +22,15 @@ services:
 
       # API authentication (comma-separated keys; empty = dev mode, no auth)
       BRAIN_API_KEYS: ${BRAIN_API_KEYS:-}
+
+      # Security hardening (see docs for production values)
+      # CORS — restrict to your frontend origin in production:
+      BRAIN_CORS_ORIGINS: ${BRAIN_CORS_ORIGINS:-*}
+      # Rate limiting (requests/minute):
+      BRAIN_RATE_LIMIT_DEFAULT: ${BRAIN_RATE_LIMIT_DEFAULT:-60}
+      BRAIN_RATE_LIMIT_EXPENSIVE: ${BRAIN_RATE_LIMIT_EXPENSIVE:-10}
+      # Max request body size in bytes (default: 1 MB):
+      BRAIN_MAX_BODY_SIZE: ${BRAIN_MAX_BODY_SIZE:-1048576}
     volumes:
       - brain_data:/data
     restart: unless-stopped

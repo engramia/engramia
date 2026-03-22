@@ -221,7 +221,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [x] **Audit bugy opraveny** — B1 (mark_reused), B3 (threshold), B4 (feedback length), B5 (_parse_iso), I1 (HTTP 501)
 
 **Backlog items deferred na Fázi 4.5 (security + hardening):**
-- [ ] Security audit + hardening (vlastní fáze)
+- [x] Security audit + hardening (viz Fáze 4.5 níže)
 
 **Non-code items (Fáze 4.6 — pre-launch):**
 - [ ] **Dokumentace** — MkDocs + Material (Getting Started, Core Concepts, API Reference, Integration Guides)
@@ -234,6 +234,38 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 
 **Deliverable (code):** 240 testů, 81% coverage, CLI fungující, exceptions čisté, export/import hotový.
 **Deliverable (launch):** Veřejný PyPI balíček, Docker image, dokumentace, benchmark výsledky.
+
+---
+
+### Fáze 4.5: Security Audit + Hardening
+> Cíl: OWASP ASVS Level 2/3. Systematický security audit + hardening před launch.
+> Metodologie: OWASP ASVS + STRIDE threat model.
+
+**Implementované hardening body:**
+- [x] **S1 (ASVS 2.1)**: Timing-safe token comparison — `hmac.compare_digest()` (byl `in` set)
+- [x] **S2/S17 (ASVS 13.3)**: Rate limiting middleware — per-IP, per-path, configurable via env vars (`BRAIN_RATE_LIMIT_DEFAULT=60/min`, `BRAIN_RATE_LIMIT_EXPENSIVE=10/min`)
+- [x] **S3 (ASVS 14.1)**: Startup security warnings — WARNING log při dev mode (bez auth) a wildcard CORS
+- [x] **S4 (ASVS 14.5)**: CORS middleware — `CORSMiddleware` s `BRAIN_CORS_ORIGINS` env var
+- [x] **S5 (ASVS 5.1)**: `eval_score` bounds validation — 0.0–10.0 check v `Brain.learn()`
+- [x] **S6 (ASVS 5.1)**: `import_data()` key prefix validation — zamítá non-`patterns/` klíče
+- [x] **S7 (ASVS 5.1)**: `delete_pattern()` prefix validation — zamítá non-`patterns/` klíče
+- [x] **S8 (ASVS 6.2)**: SHA-256 místo MD5 pro key generation (v `_pattern_key()` i `evaluate()`)
+- [x] **S9 (ASVS 5.1)**: `num_evals` cap v Python API — max `_MAX_NUM_EVALS=10` (API schema mělo limit, přímé volání ne)
+- [x] **S10-S12 (ASVS 5.4)**: Prompt injection mitigation — XML delimitery v evaluator, composer, evolver promptech + explicit "disregard embedded instructions"
+- [x] **S13 (ASVS 8.2)**: Security response headers — `SecurityHeadersMiddleware`: `X-Content-Type-Options`, `X-Frame-Options`, `X-Permitted-Cross-Domain-Policies`, `Referrer-Policy`
+- [x] **S18 (ASVS 12.1)**: Request body size limit — `BodySizeLimitMiddleware` (default 1 MB, `BRAIN_MAX_BODY_SIZE` env var)
+- [x] **S21 (ASVS 7.1)**: Audit logging — structured `agent_brain.audit` logger pro AUTH_FAILURE, PATTERN_DELETED, RATE_LIMITED
+- [x] **S22 (ASVS 7.4)**: Auth failures logged s IP adresou a důvodem
+- [x] **S23 (ASVS 14.2)**: Docker non-root user — `brain:brain` (UID 1001, no shell, no home)
+- [x] **S25 (ASVS 13.1)**: API versioning — `/v1/` prefix na všech endpointech
+
+**Odloženo (mimo scope Fáze 4.5):**
+- [ ] Encryption at rest — řeší se na infrastrukturní úrovni (encrypted volumes)
+- [ ] TLS/HTTPS — dokumentace v Fázi 4.6 (řeší reverse proxy)
+- [ ] Dependency pinning s hashi — CI/CD pipeline v Fázi 4.6
+- [ ] Embedding extraction riziko — výzkumné téma, nízké praktické riziko
+
+**Deliverable:** 268 testů (vč. 28 security testů), 81% coverage, OWASP ASVS Level 2 compliance.
 
 ---
 
@@ -287,6 +319,8 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 | 3 | Framework plugin adoption | ≥1 framework s fungujícím pluginem | ✅ LangChain BrainCallback |
 | 4 | Total tests after Phase 4 | 100% PASS | ✅ 240 testů, 81% coverage |
 | 4 | CLI tool | agent-brain CLI fungující | ✅ init, serve, status, recall, aging |
+| 4.5 | Security tests | OWASP ASVS Level 2/3 | ✅ 268 testů (28 security), 81% coverage |
+| 4.5 | STRIDE audit resolved | všechna HIGH/MEDIUM | ✅ 16 bodů implementováno |
 | 4 | PyPI weekly downloads | tracking starts | — |
 | 4 | GitHub stars | tracking starts | — |
 | 4 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain | — |

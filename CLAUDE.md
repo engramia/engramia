@@ -29,7 +29,7 @@ Agent Brain poskytuje **paměťovou vrstvu** pro libovolný agent framework:
 
 ## Architektura
 
-Implementovaný stav (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4):
+Implementovaný stav (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 4.5):
 
 ```
 agent_brain/
@@ -38,6 +38,10 @@ agent_brain/
 ├── types.py                 # Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
 ├── _util.py                 # Shared utility (extract_json_from_llm, jaccard, reuse_tier, PATTERNS_PREFIX)
 ├── exceptions.py            # ✅ Custom exceptions (BrainError, ProviderError, ValidationError, StorageError) (Phase 4)
+│
+├── api/
+│   ├── audit.py             # ✅ Structured audit logging (AUTH_FAILURE, PATTERN_DELETED, RATE_LIMITED) (Phase 4.5)
+│   └── middleware.py        # ✅ SecurityHeadersMiddleware, RateLimitMiddleware, BodySizeLimitMiddleware (Phase 4.5)
 │
 ├── core/                    # ✅ Implementováno
 │   ├── success_patterns.py  # Pattern storage, aging (2%/týden), reuse tracking (+0.1, max 10.0)
@@ -105,6 +109,8 @@ Brain je **model-agnostic** a **storage-agnostic**:
 - **Failure clustering** — Jaccard-based seskupení opakujících se chyb pro identifikaci systémových problémů.
 - **Skill registry** — Explicitní capability tagging patternů; kombinuje s semantic search pro přesné matching.
 - **Custom exceptions** — `BrainError` hierarchie: `ProviderError`, `ValidationError`, `StorageError`. REST API mapuje ProviderError na HTTP 501.
+- **Security hardening** — OWASP ASVS Level 2/3: timing-safe auth (hmac.compare_digest), rate limiting (per-IP/path), security headers, CORS, body size limit, prompt injection delimiters, audit logging, Docker non-root user, API versioning /v1/.
+- **Input validation** — eval_score [0,10], import_data/delete_pattern prefix check, num_evals cap, SHA-256 pro key generation.
 - **Export/Import** — JSONL-compatible backup a migrace patternů (`brain.export()` / `brain.import_data()`).
 - **CLI** — Typer + Rich CLI (`agent-brain init/serve/status/recall/aging`).
 - **Model routing** — Empirická analýza: najdi nejlevnější model, který dosahuje ≥90% kvality nejdražšího.

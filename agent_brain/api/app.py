@@ -13,8 +13,14 @@ Configuration is entirely via environment variables:
     BRAIN_HOST           0.0.0.0                  (default)
     BRAIN_PORT           8000                     (default)
 
+Security configuration (env vars):
+    BRAIN_CORS_ORIGINS       comma-separated allowed origins (default: * in dev)
+    BRAIN_RATE_LIMIT_DEFAULT requests/min for regular endpoints (default: 60)
+    BRAIN_RATE_LIMIT_EXPENSIVE requests/min for LLM endpoints (default: 10)
+    BRAIN_MAX_BODY_SIZE      max request body in bytes (default: 1048576 = 1MB)
+
 Run:
-    uvicorn agent_brain.api.app:app
+    uvicorn agent_brain.api.app:create_app --factory
     # or with docker compose up
 """
 
@@ -22,10 +28,12 @@ import logging
 import os
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from agent_brain import Brain
 from agent_brain.api.routes import router
+from agent_brain.exceptions import ValidationError as BrainValidationError
 
 _log = logging.getLogger(__name__)
 
@@ -57,11 +65,43 @@ def _make_llm():
     return None
 
 
+def _log_security_config() -> None:
+    """Emit startup warnings for insecure defaults."""
+    api_keys_set = bool(os.environ.get("BRAIN_API_KEYS", "").strip())
+    if not api_keys_set:
+        _log.warning(
+            "SECURITY WARNING: Running in dev mode — API is unauthenticated. "
+            "Set BRAIN_API_KEYS=key1,key2 to require Bearer token authentication."
+        )
+    else:
+        _log.info("SECURITY: API authentication enabled (%d key(s)).",
+                  len([k for k in os.environ.get("BRAIN_API_KEYS", "").split(",") if k.strip()]))
+
+    cors_origins = os.environ.get("BRAIN_CORS_ORIGINS", "*")
+    if cors_origins.strip() == "*":
+        _log.warning(
+            "SECURITY WARNING: CORS allows all origins (*). "
+            "Set BRAIN_CORS_ORIGINS=https://yourapp.example.com for production."
+        )
+    else:
+        _log.info("SECURITY: CORS restricted to: %s", cors_origins)
+
+    max_body = int(os.environ.get("BRAIN_MAX_BODY_SIZE", str(1024 * 1024)))
+    rate_default = int(os.environ.get("BRAIN_RATE_LIMIT_DEFAULT", "60"))
+    rate_expensive = int(os.environ.get("BRAIN_RATE_LIMIT_EXPENSIVE", "10"))
+    _log.info(
+        "SECURITY: rate_limit=%d/min (LLM-intensive=%d/min), max_body=%d bytes",
+        rate_default, rate_expensive, max_body,
+    )
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
     Called once at startup. The Brain singleton is stored on ``app.state.brain``
     and retrieved per-request via the ``get_brain`` dependency.
+
+    All routes are mounted under the ``/v1`` prefix for API versioning.
     """
     app = FastAPI(
         title="Agent Brain API",
@@ -69,11 +109,56 @@ def create_app() -> FastAPI:
             "Self-learning memory layer for AI agent frameworks. "
             "Provides learn, recall, evaluate, compose, and feedback endpoints."
         ),
-        version="0.2.0",
+        version="0.5.0",
         docs_url="/docs",
         redoc_url="/redoc",
     )
 
+    # ------------------------------------------------------------------
+    # Security middleware
+    # Order matters: middleware is applied LIFO (last added = outermost).
+    # Stack (outermost → innermost): CORS → SecurityHeaders → BodySize → RateLimit → routes
+    # ------------------------------------------------------------------
+    from agent_brain.api.middleware import (
+        BodySizeLimitMiddleware,
+        RateLimitMiddleware,
+        SecurityHeadersMiddleware,
+    )
+
+    cors_origins_raw = os.environ.get("BRAIN_CORS_ORIGINS", "*")
+    cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+    # SecurityHeaders added after CORS so headers appear on all responses
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    max_body = int(os.environ.get("BRAIN_MAX_BODY_SIZE", str(1024 * 1024)))
+    app.add_middleware(BodySizeLimitMiddleware, max_body_size=max_body)
+
+    rate_default = int(os.environ.get("BRAIN_RATE_LIMIT_DEFAULT", "60"))
+    rate_expensive = int(os.environ.get("BRAIN_RATE_LIMIT_EXPENSIVE", "10"))
+    app.add_middleware(RateLimitMiddleware, default_limit=rate_default, expensive_limit=rate_expensive)
+
+    # ------------------------------------------------------------------
+    # Error handlers
+    # ------------------------------------------------------------------
+    @app.exception_handler(ValueError)
+    async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(BrainValidationError)
+    async def brain_validation_error_handler(
+        request: Request, exc: BrainValidationError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    # ------------------------------------------------------------------
+    # Brain instance
+    # ------------------------------------------------------------------
     storage = _make_storage()
     embeddings = _make_embeddings()
     llm = _make_llm()
@@ -84,11 +169,15 @@ def create_app() -> FastAPI:
         llm=llm,
     )
 
-    @app.exception_handler(ValueError)
-    async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+    # ------------------------------------------------------------------
+    # API v1 routes
+    # ------------------------------------------------------------------
+    app.include_router(router, prefix="/v1")
 
-    app.include_router(router)
+    # ------------------------------------------------------------------
+    # Startup security diagnostics
+    # ------------------------------------------------------------------
+    _log_security_config()
 
     _log.info(
         "Agent Brain API started — storage=%s, llm=%s",
