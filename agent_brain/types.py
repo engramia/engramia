@@ -18,6 +18,8 @@ SIMILARITY_DUPLICATE = 0.92   # use agent as-is
 SIMILARITY_ADAPT = 0.70       # adapt to new task
 # below SIMILARITY_ADAPT → "fresh" (generate new agent)
 
+JACCARD_DEDUP_THRESHOLD = 0.7  # task word overlap to consider "same task" in recall grouping
+
 
 # ---------------------------------------------------------------------------
 # Learn / Recall

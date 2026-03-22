@@ -87,8 +87,8 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [x] `JSONStorage` implementace (extrakce atomic write patternu z agent_factory_v2)
 - [x] `Brain` třída — minimální facade:
   - `brain.learn(task, code, score)` → uloží success pattern
-  - `brain.recall(task) -> list[Match]` → semantic search
-- [x] Jeden end-to-end test: learn → recall → assert match
+  - `brain.recall(task, limit, deduplicate) -> list[Match]` → semantic search s dedup groupingem (Jaccard > 0.7 = same task, vrací top-scoring per group)
+- [x] Jeden end-to-end test: learn → recall → assert match (vč. dedup testy)
 - [x] README.md s quick-start příkladem
 
 **Deliverable:** `pip install -e .` funguje, learn/recall funguje s OpenAI embeddings + JSON storage.
@@ -98,41 +98,15 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 ### Fáze 1: Core Brain
 > Cíl: Plný learning cyklus — learn, recall, evaluate, compose, improve.
 
-- [ ] **Success patterns** modul:
-  - Extrakce z agent_factory_v2/memory/success_patterns.py
-  - Pattern aging (time decay 2%/týden)
-  - Jaccard similarity matching
-  - Reuse tracking (mark_reused, reuse_count boost)
-- [ ] **Eval store** modul:
-  - Extrakce z agent_factory_v2/memory/eval_store.py
-  - Eval-weighted agent scoring
-  - Rolling window (max 200 entries)
-- [ ] **Eval feedback patterns** modul:
-  - Extrakce z agent_factory_v2/memory/eval_feedback_patterns.py
-  - Recurring issue tracking
-  - Faster decay (10%/týden)
-  - `brain.get_feedback(task_type, limit)` API
-- [ ] **Multi-evaluator** modul:
-  - Extrakce z agent_factory_v2/agents/eval_agent.py
-  - N concurrent LLM calls, median aggregace
-  - Variance detection (>1.5 = warning)
-  - Adversarial check (hardcoded output detection)
-  - `brain.evaluate(task, code, output)` API
-- [ ] **Reuse engine** modul:
-  - Extrakce z agent_factory_v2/agents/composer.py + stage_composer.py
-  - Semantic search + eval weighting
-  - Three-tier: duplicate (>0.92) / adapt (0.70-0.92) / fresh (<0.70)
-  - Contract validation (reads/writes chain)
-  - `brain.compose(task)` API
-- [ ] **Metrics** modul:
-  - Extrakce z agent_factory_v2/memory/factory_metrics.py
-  - Run/success/failure tracking
-  - `brain.metrics` property
-- [ ] **Brain facade** rozšíření:
-  - `brain.learn()`, `brain.recall()`, `brain.evaluate()`, `brain.compose()`
-  - `brain.get_feedback()`, `brain.metrics`, `brain.run_aging()`
-- [ ] Unit testy pro každý modul (target: 80% coverage)
-- [ ] Integration test: full learn→eval→feedback→recall→compose cyklus
+- [x] **Success patterns** modul — aging (2%/týden), reuse tracking (+0.1 boost, max 10.0)
+- [x] **Eval store** modul — rolling window 200, eval-weighted multiplier [0.5, 1.0]
+- [x] **Eval feedback patterns** modul — Jaccard clustering (>0.4), decay 10%/týden
+- [x] **Multi-evaluator** modul — N concurrent LLM calls, median, variance >1.5 = warning, feedback z nejhoršího runu
+- [x] **Reuse engine** — PatternMatcher (eval-weighted), PipelineComposer (LLM decompose + contract validation), contracts.py
+- [x] **Metrics** modul — runs/success/failures/pipeline_reuse, rolling history
+- [x] **Brain facade** rozšíření — evaluate(), compose(), get_feedback(), run_aging(), metrics property; recall() s eval_weighted=True
+- [x] Unit testy pro každý modul — 107 testů, 92.4% coverage
+- [x] Integration test: full learn→eval→feedback→recall→compose cyklus
 
 **Deliverable:** Kompletní Brain knihovna použitelná z Pythonu. Všech 5 core API funguje.
 
@@ -142,27 +116,32 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 > Cíl: Brain jako služba. PostgreSQL pro produkci.
 
 - [ ] **FastAPI server**:
-  - `POST /learn` — zaznamenej výsledek běhu
-  - `GET /recall?task=...&limit=5` — najdi relevantní agenty
-  - `POST /compose` — navrhni pipeline (JSON body: task, constraints, ...)
-  - `POST /evaluate` — multi-eval scoring
-  - `GET /feedback?task_type=...&limit=4` — top feedback patterns
-  - `GET /routing` — model routing doporučení
-  - `GET /metrics` — factory metrics
-  - `GET /health` — health check
-- [ ] **Auth** — API key autentizace (Bearer token)
-- [ ] **PostgreSQL storage backend**:
-  - SQLAlchemy 2.x modely (runs, evals, patterns, embeddings) v `agent_brain/db/`
-  - pgvector pro embedding search (`<=>` cosine distance) — implementuje `search_similar()` přes vector index
+  - Konfigurace: env vars (`BRAIN_STORAGE`, `BRAIN_DATABASE_URL`, `BRAIN_LLM_PROVIDER`, ...)
+  - App factory pattern, dependency injection Brain instance
+  - Sync endpointy (FastAPI threadpool), async odložen na potřebu
+  - Endpoints:
+    - `POST /learn` — zaznamenej výsledek běhu
+    - `POST /recall` — najdi relevantní agenty (POST kvůli dlouhým task popisům)
+    - `POST /compose` — navrhni pipeline (JSON body: task, constraints, ...)
+    - `POST /evaluate` — multi-eval scoring
+    - `GET /feedback?task_type=...&limit=4` — top feedback patterns
+    - `GET /routing?role=...&task_type=...` — model routing doporučení
+    - `GET /metrics` — factory metrics
+    - `GET /health` — health check
+- [ ] **Auth** — Bearer token, validní klíče z env var `BRAIN_API_KEYS`
+- [ ] **Logging** — `logging.getLogger(__name__)` pro interní ladění API
+- [ ] **PostgreSQL storage backend** (generický KV + pgvector):
+  - SQLAlchemy 2.x: `brain_data` (key TEXT PK, data JSONB) + `brain_embeddings` (key TEXT PK, embedding vector(1536))
+  - HNSW/IVFFlat index pro `search_similar()` přes pgvector
   - Alembic migrace v `agent_brain/db/migrations/`
   - `PostgresStorage` implementuje `StorageBackend` ABC
-- [ ] **Docker compose** — brain-api + postgres + pgvector
+- [ ] **Docker compose** — brain-api + pgvector/pgvector:pg16
 - [ ] **Model routing** modul:
   - Extrakce z agent_factory_v2/agents/routing_analyzer.py
   - Empirická analýza: nejlevnější model s ≥90% kvality
   - `GET /routing` endpoint
 - [ ] API testy (httpx + pytest)
-- [ ] OpenAPI dokumentace (auto-generated)
+- [ ] OpenAPI dokumentace (auto-generated z Pydantic modelů)
 
 **Deliverable:** `docker compose up` spustí Brain API s PostgreSQL. Swagger UI na `/docs`.
 
@@ -247,6 +226,8 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - Team brain sharing (multi-tenant)
 - RBAC (admin, developer, viewer)
 - Webhook notifications (Slack, Discord)
+- Zvážit: PostgresStorage optimalizace (relační schema místo generického KV)
+- Research topic: grafová DB (Neo4j/ArangoDB) pro vizualizaci agent → skill → task vztahů
 
 ### Fáze 6: Marketplace
 - Sdílení success patterns mezi uživateli
@@ -256,12 +237,21 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 ### Fáze 7: Další embedding providery
 - Voyage AI embedding provider (`pip install agent-brain[voyage]`)
 - Cohere embeddings
+- Dedikovaná vektorová DB (Qdrant/Milvus) jako StorageBackend — pokud scale překročí 100k+ patternů
 - Další providery dle poptávky
 
 ### Fáze 8: Advanced Learning
 - Reinforcement learning z eval scores (ne jen pattern matching)
 - Auto-tuning eval promptů (meta-learning)
 - Cross-project knowledge transfer
+
+### Pre-launch security checklist
+- [ ] API key rotation mechanismus
+- [ ] Rate limiting na API endpointech
+- [ ] HTTPS enforcement dokumentace (reverse proxy)
+- [ ] Rozhodnout: propagovat logging výstupy uživatelům? (aktuálně jen interní)
+- [ ] Config file (YAML/TOML) jako optional override pro komplexní konfigurace (model routing per-role)
+- [ ] Custom exception hierarchy (`BrainError`, `ProviderError`) — rozhodnout zda exponovat
 
 ---
 
