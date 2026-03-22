@@ -125,6 +125,11 @@ class JSONStorage(StorageBackend):
         path = self._key_to_path(key)
         if path.exists():
             path.unlink()
+        # Clean up leftover atomic-write artifacts
+        for suffix in (".bak", ".tmp"):
+            artifact = path.with_suffix(suffix)
+            if artifact.exists():
+                artifact.unlink()
         with self._lock:
             if key in self._embeddings:
                 del self._embeddings[key]

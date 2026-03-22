@@ -29,20 +29,21 @@ Agent Brain poskytuje **paměťovou vrstvu** pro libovolný agent framework:
 
 ## Architektura
 
-Implementovaný stav (Phase 0 + Phase 1 + Phase 2):
+Implementovaný stav (Phase 0 + Phase 1 + Phase 2 + Phase 3):
 
 ```
 agent_brain/
 ├── __init__.py              # Brain class (public facade)
 ├── brain.py                 # Brain implementation
 ├── types.py                 # Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
-├── _util.py                 # Shared interní utility (extract_json_from_llm)
+├── _util.py                 # Shared utility (extract_json_from_llm, jaccard, reuse_tier, PATTERNS_PREFIX)
 │
 ├── core/                    # ✅ Implementováno
 │   ├── success_patterns.py  # Pattern storage, aging (2%/týden), reuse tracking (+0.1, max 10.0)
 │   ├── eval_store.py        # Eval výsledky, eval-weighted multiplier [0.5, 1.0]
 │   ├── eval_feedback.py     # Recurring feedback clustering (Jaccard >0.4, decay 10%/týden)
-│   └── metrics.py           # Run/success/failure/reuse metriky, rolling history 100
+│   ├── metrics.py           # Run/success/failure/reuse metriky, rolling history 100
+│   └── skill_registry.py    # ✅ Capability-based pattern tagging (Phase 3)
 │
 ├── reuse/                   # ✅ Implementováno
 │   ├── matcher.py           # Semantic search + eval weighting (fetch limit*3, re-sort)
@@ -52,16 +53,18 @@ agent_brain/
 ├── eval/                    # ✅ Implementováno
 │   └── evaluator.py         # MultiEvaluator (ThreadPoolExecutor, median, variance >1.5)
 │
-├── providers/               # ✅ OpenAI + JSON + Postgres; Anthropic, local — Phase 3
+├── providers/               # ✅ OpenAI + Anthropic + Local + JSON + Postgres
 │   ├── base.py              # ABC: LLMProvider, EmbeddingProvider, StorageBackend
 │   ├── openai.py            # OpenAI LLM (retry 3x) + OpenAIEmbeddings (native batch)
+│   ├── anthropic.py         # ✅ Anthropic/Claude LLM (retry, lazy import) (Phase 3)
+│   ├── local_embeddings.py  # ✅ sentence-transformers (no API key) (Phase 3)
 │   ├── json_storage.py      # JSON atomic writes, in-memory index, threading.Lock
 │   └── postgres.py          # PostgreSQL + pgvector (SQLAlchemy, HNSW index)
 │
 ├── api/                     # ✅ Implementováno (Phase 2)
 │   ├── app.py               # App factory (create_app), env var konfigurace
-│   ├── routes.py            # POST /learn /recall /compose /evaluate, GET /feedback /metrics /health, DELETE /patterns/{key}
-│   ├── auth.py              # Bearer token middleware (BRAIN_API_KEYS)
+│   ├── routes.py            # POST /learn /recall /compose /evaluate /aging /feedback/decay, GET /feedback /metrics /health, DELETE /patterns/{key}
+│   ├── auth.py              # Bearer token middleware (BRAIN_API_KEYS, per-request)
 │   ├── deps.py              # Dependency injection (Brain singleton)
 │   └── schemas.py           # Request/Response Pydantic modely
 │
@@ -69,8 +72,14 @@ agent_brain/
 │   ├── models.py            # SQLAlchemy 2.x modely (BrainData, BrainEmbedding)
 │   └── migrations/          # Alembic (env.py, script.py.mako, 001_initial.py)
 │
-├── evolution/               # 🔲 Phase 3 (stub only)
-├── sdk/                     # 🔲 Phase 3 (stub only)
+├── evolution/               # ✅ Implementováno (Phase 3)
+│   ├── prompt_evolver.py    # LLM-based prompt improvement + A/B testing
+│   └── failure_cluster.py   # Failure pattern clustering (Jaccard-based)
+│
+├── sdk/                     # ✅ Implementováno (Phase 3)
+│   ├── langchain.py         # LangChain BrainCallback (auto-learn, auto-recall)
+│   └── webhook.py           # Lightweight HTTP SDK client (urllib, no deps)
+│
 └── cli/                     # 🔲 Phase 4 (stub only)
 ```
 
@@ -90,6 +99,9 @@ Brain je **model-agnostic** a **storage-agnostic**:
 - **Multi-eval scoring** — N nezávislých LLM evaluací, median agregace, variance detection (>1.5 = warning).
 - **Semantic agent search** — Task-based embeddings pro přesné vyhledávání podobných agentů.
 - **Pattern aging** — Staré patterny přirozeně klesají na skóre, nové je vytlačují.
+- **Prompt evolution** — LLM generuje vylepšené prompty na základě recurring failure patterns; volitelné A/B testování.
+- **Failure clustering** — Jaccard-based seskupení opakujících se chyb pro identifikaci systémových problémů.
+- **Skill registry** — Explicitní capability tagging patternů; kombinuje s semantic search pro přesné matching.
 - **Model routing** — Empirická analýza: najdi nejlevnější model, který dosahuje ≥90% kvality nejdražšího.
 
 ## Použití
@@ -123,6 +135,26 @@ result = brain.evaluate(task=task, code=code, output=stdout)
 
 # Feedback for prompt injection
 feedback = brain.get_feedback(task_type="csv", limit=4)
+
+# Prompt evolution (Phase 3)
+result = brain.evolve_prompt(role="coder", current_prompt="You are a coder...")
+
+# Failure analysis (Phase 3)
+clusters = brain.analyze_failures(min_count=2)
+
+# Skill registry (Phase 3)
+brain.register_skills(matches[0].pattern_key, ["csv_parsing", "statistics"])
+results = brain.find_by_skills(["csv_parsing"])
+```
+
+### Jako LangChain plugin (Phase 3)
+
+```python
+from agent_brain.sdk.langchain import BrainCallback
+
+callback = BrainCallback(brain, auto_learn=True, auto_recall=True)
+chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
+# Brain se automaticky učí z chain runs a recalluje relevantní kontext
 ```
 
 ### Jako REST API
@@ -140,6 +172,8 @@ POST /learn                 — zaznamenej výsledek běhu
 POST /recall                — najdi relevantní agenty
 POST /compose               — navrhni pipeline
 POST /evaluate              — multi-eval scoring
+POST /aging                 — spusť pattern aging (decay + prune)
+POST /feedback/decay        — spusť feedback decay
 GET  /feedback              — top feedback patterns
 GET  /metrics               — statistiky
 GET  /health                — health check + storage type
@@ -194,7 +228,7 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 | `agent_brain/__init__.py` | Public API surface (Brain class) |
 | `agent_brain/brain.py` | Brain facade — wiring všech internal stores |
 | `agent_brain/types.py` | Pydantic modely — Pattern, Match, EvalResult, Pipeline, Metrics, ... |
-| `agent_brain/_util.py` | Shared utility: `extract_json_from_llm()` |
+| `agent_brain/_util.py` | Shared utility: `extract_json_from_llm()`, `jaccard()`, `reuse_tier()`, `PATTERNS_PREFIX` |
 | `agent_brain/providers/base.py` | ABC pro LLM, Embedding, Storage (vč. `search_similar()`) |
 | `agent_brain/providers/openai.py` | OpenAI LLM + Embeddings (lazy import, retry, native batch) |
 | `agent_brain/providers/json_storage.py` | JSON atomic storage + threading.Lock + cosine similarity |
@@ -211,5 +245,12 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 | `agent_brain/api/routes.py` | Všechny API endpointy |
 | `agent_brain/api/auth.py` | Bearer token middleware |
 | `agent_brain/api/schemas.py` | API request/response modely |
+| `agent_brain/providers/anthropic.py` | Anthropic/Claude LLM (lazy import, retry) |
+| `agent_brain/providers/local_embeddings.py` | sentence-transformers (no API key, 384-dim) |
+| `agent_brain/core/skill_registry.py` | Capability-based pattern tagging |
+| `agent_brain/evolution/prompt_evolver.py` | LLM-based prompt improvement + A/B testing |
+| `agent_brain/evolution/failure_cluster.py` | Failure pattern clustering |
+| `agent_brain/sdk/langchain.py` | LangChain BrainCallback (auto-learn, auto-recall) |
+| `agent_brain/sdk/webhook.py` | Lightweight HTTP SDK client (urllib, no deps) |
 | `agent_brain/db/models.py` | SQLAlchemy modely (brain_data + brain_embeddings) |
 | `agent_brain/db/migrations/` | Alembic migrace (001_initial: schema + HNSW index) |

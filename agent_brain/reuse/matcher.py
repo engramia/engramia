@@ -9,21 +9,12 @@ where eval_multiplier ∈ [0.5, 1.0] based on stored eval score.
 
 import logging
 
+from agent_brain._util import PATTERNS_PREFIX, reuse_tier
 from agent_brain.core.eval_store import EvalStore
 from agent_brain.providers.base import EmbeddingProvider, StorageBackend
-from agent_brain.types import Match, Pattern, SIMILARITY_ADAPT, SIMILARITY_DUPLICATE
+from agent_brain.types import Match, Pattern
 
 _log = logging.getLogger(__name__)
-
-_PATTERNS_PREFIX = "patterns"
-
-
-def _reuse_tier(similarity: float) -> str:
-    if similarity >= SIMILARITY_DUPLICATE:
-        return "duplicate"
-    if similarity >= SIMILARITY_ADAPT:
-        return "adapt"
-    return "fresh"
 
 
 class PatternMatcher:
@@ -59,7 +50,7 @@ class PatternMatcher:
         raw_results = self._storage.search_similar(
             embedding,
             limit=limit * 3,
-            prefix=_PATTERNS_PREFIX,
+            prefix=PATTERNS_PREFIX,
         )
 
         weighted: list[tuple[float, Match]] = []
@@ -77,7 +68,7 @@ class PatternMatcher:
             match = Match(
                 pattern=pattern,
                 similarity=round(min(similarity, 1.0), 6),
-                reuse_tier=_reuse_tier(similarity),
+                reuse_tier=reuse_tier(similarity),
                 pattern_key=key,
             )
             weighted.append((effective, match))

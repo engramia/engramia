@@ -19,17 +19,7 @@ _log = logging.getLogger(__name__)
 
 def _load_api_keys() -> set[str]:
     raw = os.environ.get("BRAIN_API_KEYS", "")
-    keys = {k.strip() for k in raw.split(",") if k.strip()}
-    if not keys:
-        _log.warning(
-            "BRAIN_API_KEYS is not set — API is running in unauthenticated dev mode. "
-            "Set BRAIN_API_KEYS=key1,key2 before exposing this service publicly."
-        )
-    return keys
-
-
-# Loaded once at import time; restart required to pick up new keys
-_API_KEYS: set[str] = _load_api_keys()
+    return {k.strip() for k in raw.split(",") if k.strip()}
 
 
 async def require_auth(request: Request) -> None:
@@ -38,7 +28,8 @@ async def require_auth(request: Request) -> None:
     Attach to a route with ``dependencies=[Depends(require_auth)]``.
     No-op when ``BRAIN_API_KEYS`` is empty (dev mode).
     """
-    if not _API_KEYS:
+    api_keys = _load_api_keys()
+    if not api_keys:
         return  # dev mode — no auth
 
     auth_header = request.headers.get("Authorization", "")
@@ -48,8 +39,8 @@ async def require_auth(request: Request) -> None:
             detail="Missing or malformed Authorization header. Expected: Bearer <key>",
         )
     token = auth_header[len("Bearer "):]
-    if token not in _API_KEYS:
+    if token not in api_keys:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key.",
         )

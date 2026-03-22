@@ -2,6 +2,54 @@
 
 import json
 import re
+from typing import Literal
+
+# ---------------------------------------------------------------------------
+# Shared constants
+# ---------------------------------------------------------------------------
+
+PATTERNS_PREFIX = "patterns"
+"""Storage key prefix for all success patterns."""
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def jaccard(a: str, b: str) -> float:
+    """Word-level Jaccard similarity between two strings.
+
+    Args:
+        a: First string.
+        b: Second string.
+
+    Returns:
+        Jaccard index (0.0–1.0).
+    """
+    wa = set(a.lower().split())
+    wb = set(b.lower().split())
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / len(wa | wb)
+
+
+def reuse_tier(similarity: float) -> Literal["duplicate", "adapt", "fresh"]:
+    """Classify a similarity score into a reuse tier.
+
+    Args:
+        similarity: Cosine similarity (0.0–1.0).
+
+    Returns:
+        One of ``"duplicate"``, ``"adapt"``, or ``"fresh"``.
+    """
+    from agent_brain.types import SIMILARITY_ADAPT, SIMILARITY_DUPLICATE
+
+    if similarity >= SIMILARITY_DUPLICATE:
+        return "duplicate"
+    if similarity >= SIMILARITY_ADAPT:
+        return "adapt"
+    return "fresh"
 
 
 def extract_json_from_llm(text: str) -> dict:

@@ -9,20 +9,13 @@ Rolling window of MAX_EVALS=200 entries to avoid unbounded growth.
 
 import logging
 
+from agent_brain._util import jaccard
 from agent_brain.providers.base import StorageBackend
 
 _log = logging.getLogger(__name__)
 
 _KEY = "evals/_list"
 _MAX_EVALS = 200
-
-
-def _jaccard(a: str, b: str) -> float:
-    wa = set(a.lower().split())
-    wb = set(b.lower().split())
-    if not wa or not wb:
-        return 0.0
-    return len(wa & wb) / len(wa | wb)
 
 
 class EvalStore:
@@ -90,7 +83,7 @@ class EvalStore:
         """
         evals = self._load_raw()
         for e in reversed(evals):
-            if e["agent_name"] == agent_name and _jaccard(e["task"], task) >= min_jaccard:
+            if e["agent_name"] == agent_name and jaccard(e["task"], task) >= min_jaccard:
                 return e["scores"].get("overall")
         return None
 

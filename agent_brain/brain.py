@@ -7,18 +7,22 @@ Users interact exclusively with this class. All internal modules
 import hashlib
 import logging
 import time
-from typing import Any, Literal
+from typing import Any
 
 _log = logging.getLogger(__name__)
 
 _MAX_TASK_LEN = 10_000
 _MAX_CODE_LEN = 500_000  # 500 KB
 
+from agent_brain._util import PATTERNS_PREFIX, jaccard, reuse_tier
 from agent_brain.core.eval_feedback import EvalFeedbackStore
 from agent_brain.core.eval_store import EvalStore
 from agent_brain.core.metrics import MetricsStore
+from agent_brain.core.skill_registry import SkillRegistry
 from agent_brain.core.success_patterns import SuccessPatternStore
 from agent_brain.eval.evaluator import MultiEvaluator
+from agent_brain.evolution.failure_cluster import FailureCluster, FailureClusterer
+from agent_brain.evolution.prompt_evolver import EvolutionResult, PromptEvolver
 from agent_brain.providers.base import EmbeddingProvider, LLMProvider, StorageBackend
 from agent_brain.reuse.composer import PipelineComposer
 from agent_brain.reuse.matcher import PatternMatcher
@@ -30,28 +34,9 @@ from agent_brain.types import (
     Metrics,
     Pattern,
     Pipeline,
-    SIMILARITY_ADAPT,
-    SIMILARITY_DUPLICATE,
 )
 
-_PATTERNS_PREFIX = "patterns"
 _DEDUP_FETCH_MULTIPLIER = 3
-
-
-def _reuse_tier(similarity: float) -> Literal["duplicate", "adapt", "fresh"]:
-    if similarity >= SIMILARITY_DUPLICATE:
-        return "duplicate"
-    if similarity >= SIMILARITY_ADAPT:
-        return "adapt"
-    return "fresh"
-
-
-def _jaccard(a: str, b: str) -> float:
-    wa = set(a.lower().split())
-    wb = set(b.lower().split())
-    if not wa or not wb:
-        return 0.0
-    return len(wa & wb) / len(wa | wb)
 
 
 def _deduplicate_matches(matches: list[Match]) -> list[Match]:
@@ -60,7 +45,7 @@ def _deduplicate_matches(matches: list[Match]) -> list[Match]:
     for match in matches:
         merged = False
         for i, best in enumerate(groups):
-            if _jaccard(match.pattern.task, best.pattern.task) > JACCARD_DEDUP_THRESHOLD:
+            if jaccard(match.pattern.task, best.pattern.task) > JACCARD_DEDUP_THRESHOLD:
                 if match.pattern.success_score > best.pattern.success_score:
                     groups[i] = match
                 merged = True
@@ -107,6 +92,7 @@ class Brain:
         self._eval_store = EvalStore(storage)
         self._feedback_store = EvalFeedbackStore(storage)
         self._pattern_store = SuccessPatternStore(storage)
+        self._skill_registry = SkillRegistry(storage)
 
     # ------------------------------------------------------------------
     # Learn
@@ -151,7 +137,7 @@ class Brain:
         )
         self._metrics_store.record_run(success=True, eval_score=eval_score)
 
-        pattern_count = len(self._storage.list_keys(prefix=_PATTERNS_PREFIX))
+        pattern_count = len(self._storage.list_keys(prefix=PATTERNS_PREFIX))
         return LearnResult(stored=True, pattern_count=pattern_count)
 
     # ------------------------------------------------------------------
@@ -186,14 +172,14 @@ class Brain:
             matches = matcher.find(task, limit=fetch_limit)
         else:
             embedding = self._embeddings.embed(task)
-            results = self._storage.search_similar(embedding, limit=fetch_limit, prefix=_PATTERNS_PREFIX)
+            results = self._storage.search_similar(embedding, limit=fetch_limit, prefix=PATTERNS_PREFIX)
             matches = []
             for key, similarity in results:
                 data = self._storage.load(key)
                 if data is None:
                     continue
                 pattern = Pattern.model_validate(data)
-                matches.append(Match(pattern=pattern, similarity=min(similarity, 1.0), reuse_tier=_reuse_tier(similarity), pattern_key=key))
+                matches.append(Match(pattern=pattern, similarity=min(similarity, 1.0), reuse_tier=reuse_tier(similarity), pattern_key=key))
 
         if deduplicate:
             matches = _deduplicate_matches(matches)
@@ -333,9 +319,117 @@ class Brain:
         """
         return self._pattern_store.run_aging()
 
+    def run_feedback_decay(self) -> int:
+        """Apply time-based decay to feedback patterns.
+
+        Feedback decays at 10% per week. Those below score 0.15 are pruned.
+
+        Returns:
+            Number of feedback patterns pruned.
+        """
+        return self._feedback_store.run_decay()
+
+    # ------------------------------------------------------------------
+    # Prompt Evolution (Phase 3)
+    # ------------------------------------------------------------------
+
+    def evolve_prompt(
+        self,
+        role: str,
+        current_prompt: str,
+        num_issues: int = 5,
+    ) -> EvolutionResult:
+        """Generate an improved prompt based on recurring feedback.
+
+        Analyzes top failure patterns and produces a candidate prompt
+        that addresses them. Does NOT run A/B evaluation.
+
+        Args:
+            role: Agent role (e.g. "coder", "eval", "architect").
+            current_prompt: The current system prompt to improve.
+            num_issues: Number of top issues to address.
+
+        Returns:
+            EvolutionResult with the candidate prompt and changes.
+
+        Raises:
+            RuntimeError: If no LLM provider was configured.
+        """
+        self._require_llm("evolve_prompt")
+        evolver = PromptEvolver(self._llm, self._feedback_store)  # type: ignore[arg-type]
+        return evolver.evolve(role, current_prompt, num_issues=num_issues)
+
+    # ------------------------------------------------------------------
+    # Failure Analysis (Phase 3)
+    # ------------------------------------------------------------------
+
+    def analyze_failures(self, min_count: int = 1) -> list[FailureCluster]:
+        """Cluster failure patterns to identify systemic issues.
+
+        Args:
+            min_count: Minimum occurrence count for inclusion.
+
+        Returns:
+            List of FailureCluster objects sorted by total count descending.
+        """
+        clusterer = FailureClusterer(self._feedback_store)
+        return clusterer.analyze(min_count=min_count)
+
+    # ------------------------------------------------------------------
+    # Skill Registry (Phase 3)
+    # ------------------------------------------------------------------
+
+    def register_skills(self, pattern_key: str, skills: list[str]) -> None:
+        """Associate skill tags with a stored pattern.
+
+        Args:
+            pattern_key: Storage key of the pattern.
+            skills: List of skill tags (e.g. ["csv_parsing", "statistics"]).
+        """
+        self._skill_registry.register(pattern_key, skills)
+
+    def find_by_skills(
+        self,
+        required: list[str],
+        match_all: bool = True,
+    ) -> list[Match]:
+        """Find patterns that have the required skills.
+
+        Args:
+            required: Skill tags to search for.
+            match_all: If True, pattern must have ALL required skills.
+
+        Returns:
+            List of Match objects for patterns with matching skills.
+        """
+        keys = self._skill_registry.find_by_skills(required, match_all=match_all)
+        matches: list[Match] = []
+        for key in keys:
+            data = self._storage.load(key)
+            if data is None:
+                continue
+            try:
+                pattern = Pattern.model_validate(data)
+            except Exception:
+                continue
+            matches.append(
+                Match(
+                    pattern=pattern,
+                    similarity=1.0,
+                    reuse_tier="duplicate",
+                    pattern_key=key,
+                )
+            )
+        return matches
+
     # ------------------------------------------------------------------
     # Metrics
     # ------------------------------------------------------------------
+
+    @property
+    def storage_type(self) -> str:
+        """Return the class name of the active storage backend."""
+        return type(self._storage).__name__
 
     @property
     def metrics(self) -> Metrics:
@@ -379,4 +473,4 @@ class Brain:
     def _pattern_key(task: str) -> str:
         task_hash = hashlib.md5(task.encode()).hexdigest()[:8]
         ts = int(time.time() * 1000)
-        return f"{_PATTERNS_PREFIX}/{task_hash}_{ts}"
+        return f"{PATTERNS_PREFIX}/{task_hash}_{ts}"

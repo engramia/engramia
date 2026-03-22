@@ -141,6 +141,18 @@ class DeletePatternResponse(BaseModel):
 # GET /health
 # ---------------------------------------------------------------------------
 
+class AgingResponse(BaseModel):
+    pruned: int
+
+
+class FeedbackDecayResponse(BaseModel):
+    pruned: int
+
+
+# ---------------------------------------------------------------------------
+# GET /health
+# ---------------------------------------------------------------------------
+
 class HealthResponse(BaseModel):
     status: str
     storage: str

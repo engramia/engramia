@@ -13,12 +13,14 @@ from agent_brain import Brain
 from agent_brain.api.auth import require_auth
 from agent_brain.api.deps import get_brain
 from agent_brain.api.schemas import (
+    AgingResponse,
     ComposeRequest,
     ComposeResponse,
     DeletePatternResponse,
     EvalScoreOut,
     EvaluateRequest,
     EvaluateResponse,
+    FeedbackDecayResponse,
     FeedbackResponse,
     HealthResponse,
     LearnRequest,
@@ -29,7 +31,6 @@ from agent_brain.api.schemas import (
     RecallRequest,
     RecallResponse,
     StageOut,
-    ComposeResponse,
 )
 
 _log = logging.getLogger(__name__)
@@ -204,13 +205,35 @@ def delete_pattern(pattern_key: str, brain: Brain = Depends(get_brain)) -> Delet
 
 
 # ---------------------------------------------------------------------------
+# POST /aging
+# ---------------------------------------------------------------------------
+
+@router.post("/aging", response_model=AgingResponse, status_code=status.HTTP_200_OK)
+def run_aging(brain: Brain = Depends(get_brain)) -> AgingResponse:
+    """Apply time-based decay to all patterns. Prune those below threshold."""
+    pruned = brain.run_aging()
+    return AgingResponse(pruned=pruned)
+
+
+# ---------------------------------------------------------------------------
+# POST /feedback/decay
+# ---------------------------------------------------------------------------
+
+@router.post("/feedback/decay", response_model=FeedbackDecayResponse, status_code=status.HTTP_200_OK)
+def run_feedback_decay(brain: Brain = Depends(get_brain)) -> FeedbackDecayResponse:
+    """Apply time-based decay to feedback patterns. Prune those below threshold."""
+    pruned = brain.run_feedback_decay()
+    return FeedbackDecayResponse(pruned=pruned)
+
+
+# ---------------------------------------------------------------------------
 # GET /health
 # ---------------------------------------------------------------------------
 
 @router.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
 def health(brain: Brain = Depends(get_brain)) -> HealthResponse:
     """Health check — returns storage backend type and pattern count."""
-    storage_type = type(brain._storage).__name__
+    storage_type = brain.storage_type
     return HealthResponse(
         status="ok",
         storage=storage_type,

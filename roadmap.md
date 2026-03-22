@@ -155,35 +155,51 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 ### Fáze 3: SDK pluginy + Prompt Evolution
 > Cíl: Zero-friction integrace do existujících frameworků. Self-improving prompty.
 
-- [ ] **LangChain callback**:
+- [x] **LangChain callback** (`agent_brain/sdk/langchain.py`):
   ```python
   from agent_brain.sdk.langchain import BrainCallback
   chain = LLMChain(..., callbacks=[BrainCallback(brain)])
   ```
   - Auto-learn z chain.run() výsledků
   - Auto-recall relevant context před chain start
-- [ ] **CrewAI middleware**:
-  ```python
-  from agent_brain.sdk.crewai import BrainMiddleware
-  crew = Crew(agents=[...], middleware=[BrainMiddleware(brain)])
-  ```
-- [ ] **Generic webhook** — POST na brain endpoint po každém agent run
-- [ ] **Anthropic provider** — `AnthropicProvider` (LLM only, `anthropic` SDK)
-- [ ] **Local embeddings provider** — sentence-transformers (no API key needed, dobrý pro OSS adoption)
-- [ ] **Prompt evolution** modul:
-  - Extrakce z agent_factory_v2/agents/prompt_evolver.py + prompt_ab_tester.py
-  - Analýza failure patterns → generate improved prompt candidates
-  - A/B testing: eval(candidate) >= eval(current) - 0.2
-  - `brain.evolve_prompt(role, current_prompt)` API
-- [ ] **Failure clustering** modul:
-  - Extrakce z agent_factory_v2/memory/failure_clusterer.py
-  - Identifikace systémových problémů
-  - `brain.analyze_failures()` API
-- [ ] **Skill registry**:
-  - Extrakce z agent_factory_v2/memory/skill_registry.py + capability_extractor.py
-  - `brain.register_skills()`, `brain.find_by_skills()` API
+  - Configurable: `auto_learn`, `auto_recall`, `min_score`, `recall_limit`
+- [x] **Webhook SDK client** (`agent_brain/sdk/webhook.py`):
+  - Lightweight Python HTTP client (urllib, žádné extra deps)
+  - Wrappuje všechny REST API endpointy: learn, recall, evaluate, compose, feedback, metrics, aging, ...
+  - Bearer token auth, timeout, error handling
+- [x] **Anthropic provider** (`agent_brain/providers/anthropic.py`):
+  - `AnthropicProvider(LLMProvider)` — retry 3x, exponential backoff
+  - Lazy import, system prompt via kwargs, text block extraction
+- [x] **Local embeddings provider** (`agent_brain/providers/local_embeddings.py`):
+  - `LocalEmbeddings(EmbeddingProvider)` — sentence-transformers
+  - Default model: `all-MiniLM-L6-v2` (384-dim)
+  - Native batch encoding
+- [x] **Prompt evolution** modul (`agent_brain/evolution/prompt_evolver.py`):
+  - `PromptEvolver` — LLM generuje vylepšené prompty z recurring feedback
+  - `evolve()` — vrátí kandidáta bez A/B testu
+  - `evolve_with_eval()` — plný A/B test (candidate_score >= current_score - 0.2)
+  - `brain.evolve_prompt(role, current_prompt)` API na Brain facade
+- [x] **Failure clustering** modul (`agent_brain/evolution/failure_cluster.py`):
+  - `FailureClusterer` — Jaccard-based clustering feedback patterns
+  - `brain.analyze_failures(min_count)` API na Brain facade
+- [x] **Skill registry** (`agent_brain/core/skill_registry.py`):
+  - Explicitní capability tagging patternů
+  - `brain.register_skills(key, skills)`, `brain.find_by_skills(required)` API
+  - `match_all` / `match_any` mode
+- [ ] **CrewAI middleware** — odloženo na post-launch (nestabilní API)
 
-**Deliverable:** `pip install agent-brain[langchain]` funguje. Prompt evolution API.
+**Backlog fixes implementované v rámci Phase 3:**
+- [x] B1: Duplicate import v routes.py
+- [x] B2: `Brain.storage_type` property (health endpoint nepoužívá `_storage`)
+- [x] B3: Error message `_require_llm()` — generická zpráva
+- [x] B4-B5: Shared `jaccard()`, `reuse_tier()`, `PATTERNS_PREFIX` v `_util.py`
+- [x] B6: `.bak`/`.tmp` cleanup v `JSONStorage.delete()`
+- [x] V1: `POST /aging` + `POST /feedback/decay` API endpointy
+- [x] V2: Cleanup providers `__init__.py` docstring
+- [x] T1-T3: Unit testy pro matcher, composer, brain, auth (30 nových testů)
+- [x] Auth refactor: `require_auth` čte env vars per-request (ne at import time)
+
+**Deliverable:** `pip install agent-brain[langchain]` funguje. Prompt evolution API. 199 testů, 100% PASS.
 
 ---
 
@@ -270,7 +286,8 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 | 2 | Total tests after Phase 2 | 100% PASS | ✅ 126 testů, 100% PASS |
 | 2 | API response time (recall) | <200ms (JSON), <500ms (Postgres) | — (benchmark Phase 4) |
 | 2 | API response time (evaluate) | <10s (závisí na LLM) | — (závisí na LLM latency) |
-| 3 | Framework plugin adoption | ≥1 framework s fungujícím pluginem | — |
+| 3 | Total tests after Phase 3 | 100% PASS | ✅ 199 testů, 100% PASS |
+| 3 | Framework plugin adoption | ≥1 framework s fungujícím pluginem | ✅ LangChain BrainCallback |
 | 4 | PyPI weekly downloads | tracking starts | — |
 | 4 | GitHub stars | tracking starts | — |
 | 4 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain | — |
@@ -308,13 +325,14 @@ agent-brain/
 ├── README.md                    ✅
 ├── pyproject.toml               ✅
 ├── LICENSE                      🔲 Phase 4 (rozhodnutí o licenci před releasem)
-├── docker-compose.yml           🔲 Phase 2
-├── Dockerfile                   🔲 Phase 2
+├── docker-compose.yml           ✅
+├── Dockerfile                   ✅
 │
 ├── agent_brain/
 │   ├── __init__.py              ✅ Brain class (public facade)
 │   ├── brain.py                 ✅ Brain implementation
 │   ├── types.py                 ✅ Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
+│   ├── _util.py                 ✅ Shared utilities (jaccard, reuse_tier, extract_json_from_llm)
 │   │
 │   ├── core/                    ✅
 │   │   ├── __init__.py
@@ -322,8 +340,7 @@ agent-brain/
 │   │   ├── eval_store.py        ✅ Eval výsledky + eval-weighted multiplier
 │   │   ├── eval_feedback.py     ✅ Recurring feedback clustering
 │   │   ├── metrics.py           ✅ Run/success/failure/reuse metriky
-│   │   ├── agent_registry.py    🔲 Phase 3
-│   │   └── skill_registry.py    🔲 Phase 3
+│   │   └── skill_registry.py    ✅ Explicit capability tagging + search
 │   │
 │   ├── reuse/                   ✅
 │   │   ├── __init__.py
@@ -333,57 +350,56 @@ agent-brain/
 │   │
 │   ├── eval/                    ✅
 │   │   ├── __init__.py
-│   │   ├── evaluator.py         ✅ MultiEvaluator (N concurrent runs, median, variance)
-│   │   ├── variance.py          🔲 Phase 2 (aktuálně součást evaluator.py)
-│   │   └── routing.py           🔲 Phase 2
+│   │   └── evaluator.py         ✅ MultiEvaluator (N concurrent runs, median, variance)
 │   │
-│   ├── evolution/               🔲 Phase 3 (prázdný stub)
+│   ├── evolution/               ✅
 │   │   ├── __init__.py
-│   │   ├── prompt_evolver.py    🔲
-│   │   ├── ab_tester.py         🔲
-│   │   └── failure_cluster.py   🔲
+│   │   ├── prompt_evolver.py    ✅ LLM prompt evolution + A/B testing
+│   │   └── failure_cluster.py   ✅ Jaccard-based feedback clustering
 │   │
-│   ├── providers/               ✅ částečně
-│   │   ├── __init__.py          ✅
+│   ├── providers/               ✅
+│   │   ├── __init__.py          ✅ Lazy loading for optional providers
 │   │   ├── base.py              ✅ ABC: LLMProvider, EmbeddingProvider, StorageBackend
 │   │   ├── openai.py            ✅ OpenAI LLM + embeddings (retry, native batch)
 │   │   ├── json_storage.py      ✅ JSON atomic storage + cosine similarity
-│   │   ├── anthropic.py         🔲 Phase 3
-│   │   ├── local.py             🔲 Phase 3 (sentence-transformers)
-│   │   └── postgres.py          🔲 Phase 2
+│   │   ├── anthropic.py         ✅ Anthropic Claude (lazy import, retry, backoff)
+│   │   ├── local_embeddings.py  ✅ sentence-transformers (384-dim, native batch)
+│   │   └── postgres.py          ✅ PostgreSQL + pgvector (HNSW index)
 │   │
-│   ├── api/                     🔲 Phase 2 (prázdný stub)
+│   ├── api/                     ✅
 │   │   ├── __init__.py
-│   │   ├── app.py               🔲
-│   │   ├── routes.py            🔲
-│   │   ├── auth.py              🔲
-│   │   └── deps.py              🔲
+│   │   ├── app.py               ✅ FastAPI app factory, env var config
+│   │   ├── routes.py            ✅ All REST endpoints
+│   │   ├── auth.py              ✅ Bearer token middleware (per-request)
+│   │   ├── deps.py              ✅ Dependency injection (Brain singleton)
+│   │   └── schemas.py           ✅ Request/Response Pydantic modely
 │   │
-│   ├── sdk/                     🔲 Phase 3 (prázdný stub)
+│   ├── sdk/                     ✅ (CrewAI deferred to post-launch)
 │   │   ├── __init__.py
-│   │   ├── langchain.py         🔲
-│   │   └── crewai.py            🔲
+│   │   ├── langchain.py         ✅ BrainCallback (auto-learn, auto-recall)
+│   │   └── webhook.py           ✅ Lightweight HTTP client (urllib only)
 │   │
 │   ├── cli/                     🔲 Phase 4 (prázdný stub)
 │   │   ├── __init__.py
 │   │   └── main.py              🔲
 │   │
-│   └── db/                      🔲 Phase 2 (prázdný stub)
+│   └── db/                      ✅
 │       ├── __init__.py
-│       ├── models.py            🔲
-│       └── migrations/          🔲
+│       ├── models.py            ✅ SQLAlchemy 2.x modely (BrainData, BrainEmbedding)
+│       └── migrations/          ✅ Alembic (001_initial: schema + HNSW index)
 │
-├── tests/                       ✅ 107 testů, 92.4% coverage
+├── tests/                       ✅ 199 testů, 100% PASS
 │   ├── conftest.py              ✅ FakeEmbeddings + fixtures
 │   ├── test_e2e.py              ✅ learn/recall end-to-end + deduplication
 │   ├── test_integration.py      ✅ full cycle (learn→eval→feedback→recall→compose)
-│   ├── test_core/               ✅ success_patterns, eval_store, eval_feedback, metrics
-│   ├── test_reuse/              ✅ contracts
+│   ├── test_brain.py            ✅ Brain facade (9 tests)
+│   ├── test_core/               ✅ success_patterns, eval_store, eval_feedback, metrics, skill_registry
+│   ├── test_reuse/              ✅ contracts, matcher, composer
 │   ├── test_eval/               ✅ evaluator
-│   ├── test_providers/          ✅ json_storage, openai (mocked)
-│   ├── test_evolution/          🔲 Phase 3
-│   ├── test_api/                🔲 Phase 2
-│   └── test_sdk/                🔲 Phase 3
+│   ├── test_providers/          ✅ json_storage, openai, anthropic, local_embeddings
+│   ├── test_evolution/          ✅ prompt_evolver, failure_cluster
+│   ├── test_api/                ✅ routes, auth
+│   └── test_sdk/                ✅ langchain, webhook
 │
 ├── docs/                        🔲 Phase 4
 │   ├── getting-started.md
