@@ -2,11 +2,11 @@
 
 Self-learning memory layer for AI agent frameworks.
 
-[![Tests](https://img.shields.io/badge/tests-199%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-80%25%2B-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-240%20passed-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 
-> **Status:** Phases 0–3 complete — core Brain library + REST API + SDK plugins + prompt evolution.
+> **Status:** Phases 0–4 complete — core library + REST API + SDK plugins + prompt evolution + CLI + exceptions + export/import.
 > See [roadmap.md](roadmap.md) for what's next.
 
 ---
@@ -52,7 +52,7 @@ pip install "agent-brain[openai,api,postgres]"
 | `local` | sentence-transformers embeddings, bez API klíče | ✅ |
 | `langchain` | LangChain BrainCallback | ✅ |
 | `crewai` | CrewAI BrainMiddleware | Post-launch |
-| `cli` | CLI tool (Typer) | Phase 4 |
+| `cli` | CLI tool (Typer + Rich) | ✅ |
 | `dev` | pytest, coverage, vývojové nástroje | ✅ |
 
 ---
@@ -265,6 +265,52 @@ results = brain.find_by_skills(["csv_parsing"], match_all=True)
 
 ---
 
+### `brain.export() → list[dict]` / `brain.import_data(records, overwrite=False) → int`
+
+Záloha a migrace patternů (JSON storage → PostgreSQL nebo naopak).
+
+```python
+# Export všech patternů do JSONL souboru
+import json
+
+records = brain.export()
+with open("backup.jsonl", "w") as f:
+    for r in records:
+        f.write(json.dumps(r) + "\n")
+
+# Import ze zálohy do nové instance
+with open("backup.jsonl") as f:
+    records = [json.loads(line) for line in f]
+
+new_brain = Brain(embeddings=embeddings, storage=postgres_storage)
+imported = new_brain.import_data(records)
+print(f"Importováno {imported} patternů")
+```
+
+---
+
+### Exceptions
+
+Brain používá vlastní hierarchii výjimek pro přesné error handling:
+
+```python
+from agent_brain import BrainError, ProviderError, ValidationError, StorageError
+
+try:
+    result = brain.evaluate(task, code)
+except ProviderError:
+    # LLM provider není nakonfigurován
+    pass
+except ValidationError:
+    # Neplatný vstup (prázdný task, příliš dlouhý kód, ...)
+    pass
+except BrainError:
+    # Jakákoli Brain výjimka
+    pass
+```
+
+---
+
 ### LangChain integrace
 
 ```python
@@ -330,6 +376,10 @@ Po startu: Swagger UI na [http://localhost:8000/docs](http://localhost:8000/docs
 | `POST` | `/evaluate` | Multi-eval scoring |
 | `POST` | `/aging` | Spustí pattern aging (decay + prune) |
 | `POST` | `/feedback/decay` | Spustí feedback decay |
+| `POST` | `/evolve` | Vygeneruje vylepšený prompt (Phase 3) |
+| `POST` | `/analyze-failures` | Seskupí failure patterny (Phase 3) |
+| `POST` | `/skills/register` | Registruje skill tagy na pattern (Phase 3) |
+| `POST` | `/skills/search` | Vyhledá patterny dle skill tagů (Phase 3) |
 | `GET` | `/feedback` | Top recurring feedback |
 | `GET` | `/metrics` | Statistiky |
 | `GET` | `/health` | Health check + storage type |
@@ -423,7 +473,31 @@ brain = Brain(
 
 brain.learn(...)    # ✅ funguje
 brain.recall(...)   # ✅ funguje
-brain.evaluate(...) # ❌ RuntimeError: evaluate() requires llm=...
+brain.evaluate(...) # ❌ ProviderError: evaluate() requires llm=...
+```
+
+---
+
+## CLI
+
+```bash
+# Instalace
+pip install "agent-brain[cli]"
+
+# Inicializace
+agent-brain init --path ./brain_data
+
+# Spuštění REST API serveru
+agent-brain serve --host 0.0.0.0 --port 8000
+
+# Metriky a statistiky
+agent-brain status --path ./brain_data
+
+# Sémantické vyhledávání
+agent-brain recall "Parse CSV and compute statistics" --limit 5
+
+# Pattern aging (decay + prune)
+agent-brain aging --path ./brain_data
 ```
 
 ---
@@ -478,7 +552,9 @@ agent_brain/
 │   ├── langchain.py         # LangChain BrainCallback
 │   └── webhook.py           # Lightweight HTTP SDK client
 │
-└── cli/                 # (Phase 4) Typer CLI
+├── exceptions.py        # Custom exception hierarchy (BrainError, ProviderError, ...)
+│
+└── cli/                 # CLI tool (Typer + Rich)
 ```
 
 ---
@@ -498,17 +574,19 @@ agent_brain/
 | `brain.analyze_failures()` | ✅ Phase 3 |
 | `brain.register_skills()` / `find_by_skills()` | ✅ Phase 3 |
 | `brain.metrics` | ✅ |
+| `brain.export()` / `brain.import_data()` | ✅ Phase 4 |
+| Custom exception hierarchy | ✅ Phase 4 |
 | OpenAI provider | ✅ |
 | Anthropic provider | ✅ Phase 3 |
 | Local embeddings (sentence-transformers) | ✅ Phase 3 |
 | JSON storage (thread-safe) | ✅ |
-| REST API (FastAPI) | ✅ Phase 2 |
+| REST API (FastAPI) — 14 endpoints | ✅ Phase 2+3+4 |
 | PostgreSQL + pgvector | ✅ Phase 2 |
 | Docker + docker-compose | ✅ Phase 2 |
 | LangChain BrainCallback | ✅ Phase 3 |
 | Webhook SDK client | ✅ Phase 3 |
+| CLI (Typer + Rich) | ✅ Phase 4 |
 | CrewAI plugin | Post-launch |
-| CLI (Typer) | Phase 4 |
 
 ---
 

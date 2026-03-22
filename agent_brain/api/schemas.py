@@ -157,3 +157,62 @@ class HealthResponse(BaseModel):
     status: str
     storage: str
     pattern_count: int
+
+
+# ---------------------------------------------------------------------------
+# POST /evolve
+# ---------------------------------------------------------------------------
+
+class EvolveRequest(BaseModel):
+    role: str = Field(description="Agent role (e.g. 'coder', 'eval', 'architect').")
+    current_prompt: str = Field(description="Current system prompt to improve.")
+    num_issues: int = Field(default=5, ge=1, le=20)
+
+
+class EvolveResponse(BaseModel):
+    improved_prompt: str
+    changes: list[str]
+    issues_addressed: list[str]
+    accepted: bool
+    reason: str
+
+
+# ---------------------------------------------------------------------------
+# POST /analyze-failures
+# ---------------------------------------------------------------------------
+
+class AnalyzeFailuresRequest(BaseModel):
+    min_count: int = Field(default=1, ge=1)
+
+
+class FailureClusterOut(BaseModel):
+    representative: str
+    members: list[str]
+    total_count: int
+    avg_score: float
+
+
+class AnalyzeFailuresResponse(BaseModel):
+    clusters: list[FailureClusterOut]
+
+
+# ---------------------------------------------------------------------------
+# POST /skills/register
+# ---------------------------------------------------------------------------
+
+class RegisterSkillsRequest(BaseModel):
+    pattern_key: str = Field(description="Storage key of the pattern to tag.")
+    skills: list[str] = Field(description="Skill tags to associate (e.g. ['csv_parsing']).")
+
+
+class RegisterSkillsResponse(BaseModel):
+    registered: int = Field(description="Number of unique skills now registered for the pattern.")
+
+
+# ---------------------------------------------------------------------------
+# POST /skills/search
+# ---------------------------------------------------------------------------
+
+class SkillsSearchRequest(BaseModel):
+    required: list[str] = Field(description="Skill tags to search for.")
+    match_all: bool = Field(default=True, description="If True, pattern must have ALL skills.")

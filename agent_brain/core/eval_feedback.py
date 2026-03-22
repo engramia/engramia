@@ -7,6 +7,7 @@ Patterns decay faster than success patterns (10% per week) so only current
 issues stay surfaced. Patterns appearing fewer than 2 times are not surfaced.
 """
 
+import datetime
 import logging
 import re
 import time
@@ -18,6 +19,7 @@ _log = logging.getLogger(__name__)
 
 _KEY = "feedback/_list"
 _MAX_KEEP = 50
+_MAX_FEEDBACK_LEN = 5000
 _DECAY_PER_WEEK = 0.90   # 10% decay per week (faster than success patterns)
 _MIN_SCORE = 0.15
 _CLUSTER_THRESHOLD = 0.4  # Jaccard threshold for grouping similar feedback
@@ -53,7 +55,14 @@ class EvalFeedbackStore:
 
         Args:
             feedback_text: Raw feedback string from evaluator.
+
+        Raises:
+            ValueError: If feedback_text exceeds maximum length.
         """
+        if len(feedback_text) > _MAX_FEEDBACK_LEN:
+            raise ValueError(
+                f"feedback_text exceeds maximum length of {_MAX_FEEDBACK_LEN} characters"
+            )
         norm = _normalize(feedback_text)
         if not norm:
             return
@@ -138,14 +147,15 @@ class EvalFeedbackStore:
 def _parse_iso(iso: str) -> float:
     """Parse an ISO 8601 datetime string to a Unix timestamp.
 
-    Returns 0.0 (Unix epoch) if parsing fails and logs a warning so the
-    issue is visible rather than silently biasing decay calculations.
+    - Empty string → returns current time (treat as "just created", no decay).
+    - Malformed string → returns 0.0 (falsy) and logs a warning; the caller's
+      ``if last_decayed_ts else 0`` guard then sets elapsed_weeks to 0.
     """
-    import datetime
+    if not iso:
+        return time.time()
     try:
         dt = datetime.datetime.strptime(iso, "%Y-%m-%dT%H:%M:%S")
         return dt.replace(tzinfo=datetime.timezone.utc).timestamp()
     except Exception:
-        if iso:
-            _log.warning("Could not parse ISO timestamp %r; treating as epoch (decay may be inaccurate)", iso)
+        _log.warning("Could not parse ISO timestamp %r; skipping decay for this pattern", iso)
         return 0.0

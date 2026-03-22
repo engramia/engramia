@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from agent_brain import Brain
 from agent_brain.api.routes import router
+from agent_brain.exceptions import ValidationError as BrainValidationError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -52,6 +53,10 @@ def api_client(fake_embeddings, storage, mock_llm):
 
     @app.exception_handler(ValueError)
     async def _value_error(request: Request, exc: ValueError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(BrainValidationError)
+    async def _brain_validation_error(request: Request, exc: BrainValidationError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
     app.include_router(router)

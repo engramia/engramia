@@ -11,15 +11,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from agent_brain import Brain
 from agent_brain.api.auth import require_auth
+from agent_brain.exceptions import ProviderError
 from agent_brain.api.deps import get_brain
 from agent_brain.api.schemas import (
     AgingResponse,
+    AnalyzeFailuresRequest,
+    AnalyzeFailuresResponse,
     ComposeRequest,
     ComposeResponse,
     DeletePatternResponse,
     EvalScoreOut,
     EvaluateRequest,
     EvaluateResponse,
+    EvolveRequest,
+    EvolveResponse,
+    FailureClusterOut,
     FeedbackDecayResponse,
     FeedbackResponse,
     HealthResponse,
@@ -30,6 +36,9 @@ from agent_brain.api.schemas import (
     PatternOut,
     RecallRequest,
     RecallResponse,
+    RegisterSkillsRequest,
+    RegisterSkillsResponse,
+    SkillsSearchRequest,
     StageOut,
 )
 
@@ -95,8 +104,8 @@ def compose(body: ComposeRequest, brain: Brain = Depends(get_brain)) -> ComposeR
     """Decompose a task into a multi-stage pipeline from stored patterns."""
     try:
         pipeline = brain.compose(task=body.task)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc))
 
     stages_out = [
         StageOut(
@@ -132,8 +141,8 @@ def evaluate(body: EvaluateRequest, brain: Brain = Depends(get_brain)) -> Evalua
             output=body.output,
             num_evals=body.num_evals,
         )
-    except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc))
 
     scores_out = [
         EvalScoreOut(
@@ -239,3 +248,104 @@ def health(brain: Brain = Depends(get_brain)) -> HealthResponse:
         storage=storage_type,
         pattern_count=brain.metrics.pattern_count,
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /evolve  (Phase 3)
+# ---------------------------------------------------------------------------
+
+@router.post("/evolve", response_model=EvolveResponse, status_code=status.HTTP_200_OK)
+def evolve_prompt(body: EvolveRequest, brain: Brain = Depends(get_brain)) -> EvolveResponse:
+    """Generate an improved prompt based on recurring feedback patterns."""
+    try:
+        result = brain.evolve_prompt(
+            role=body.role,
+            current_prompt=body.current_prompt,
+            num_issues=body.num_issues,
+        )
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc))
+    return EvolveResponse(
+        improved_prompt=result.improved_prompt,
+        changes=result.changes,
+        issues_addressed=result.issues_addressed,
+        accepted=result.accepted,
+        reason=result.reason,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /analyze-failures  (Phase 3)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/analyze-failures",
+    response_model=AnalyzeFailuresResponse,
+    status_code=status.HTTP_200_OK,
+)
+def analyze_failures(
+    body: AnalyzeFailuresRequest, brain: Brain = Depends(get_brain)
+) -> AnalyzeFailuresResponse:
+    """Cluster failure patterns to identify systemic issues."""
+    clusters = brain.analyze_failures(min_count=body.min_count)
+    out = [
+        FailureClusterOut(
+            representative=c.representative,
+            members=c.members,
+            total_count=c.total_count,
+            avg_score=c.avg_score,
+        )
+        for c in clusters
+    ]
+    return AnalyzeFailuresResponse(clusters=out)
+
+
+# ---------------------------------------------------------------------------
+# POST /skills/register  (Phase 3)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/skills/register",
+    response_model=RegisterSkillsResponse,
+    status_code=status.HTTP_200_OK,
+)
+def register_skills(
+    body: RegisterSkillsRequest, brain: Brain = Depends(get_brain)
+) -> RegisterSkillsResponse:
+    """Associate skill tags with a stored pattern."""
+    brain.register_skills(body.pattern_key, body.skills)
+    registered = len(brain._skill_registry.get_skills(body.pattern_key))
+    return RegisterSkillsResponse(registered=registered)
+
+
+# ---------------------------------------------------------------------------
+# POST /skills/search  (Phase 3)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/skills/search",
+    response_model=RecallResponse,
+    status_code=status.HTTP_200_OK,
+)
+def skills_search(
+    body: SkillsSearchRequest, brain: Brain = Depends(get_brain)
+) -> RecallResponse:
+    """Find patterns that have the required skills."""
+    matches = brain.find_by_skills(required=body.required, match_all=body.match_all)
+    out: list[MatchOut] = []
+    for m in matches:
+        code = m.pattern.design.get("code") if m.pattern.design else None
+        out.append(
+            MatchOut(
+                similarity=m.similarity,
+                reuse_tier=m.reuse_tier,
+                pattern_key=m.pattern_key,
+                pattern=PatternOut(
+                    task=m.pattern.task,
+                    code=code,
+                    success_score=m.pattern.success_score,
+                    reuse_count=m.pattern.reuse_count,
+                ),
+            )
+        )
+    return RecallResponse(matches=out)

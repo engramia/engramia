@@ -9,6 +9,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from agent_brain.exceptions import ProviderError
+
 from agent_brain import Brain
 from agent_brain.types import EvalResult, Pipeline
 
@@ -87,12 +89,12 @@ class TestFullCycle:
 
     def test_compose_without_llm_raises(self, fake_embeddings, storage):
         brain = Brain(embeddings=fake_embeddings, storage=storage, llm=None)
-        with pytest.raises(RuntimeError, match="compose()"):
+        with pytest.raises(ProviderError, match="compose()"):
             brain.compose("some task")
 
     def test_evaluate_without_llm_raises(self, fake_embeddings, storage):
         brain = Brain(embeddings=fake_embeddings, storage=storage, llm=None)
-        with pytest.raises(RuntimeError, match="evaluate()"):
+        with pytest.raises(ProviderError, match="evaluate()"):
             brain.evaluate("task", "code")
 
     def test_recall_eval_weighted(self, full_brain):

@@ -5,6 +5,7 @@ import time
 import pytest
 
 from agent_brain.brain import Brain
+from agent_brain.exceptions import ValidationError
 from agent_brain.types import Pattern
 
 
@@ -91,17 +92,17 @@ class TestInputValidation:
     """Tests for input validation on Brain methods."""
 
     def test_learn_empty_task(self, brain):
-        with pytest.raises(ValueError, match="non-empty"):
+        with pytest.raises(ValidationError, match="non-empty"):
             brain.learn(task="", code="pass", eval_score=5.0)
 
     def test_learn_empty_code(self, brain):
-        with pytest.raises(ValueError, match="non-empty"):
+        with pytest.raises(ValidationError, match="non-empty"):
             brain.learn(task="Valid task", code="", eval_score=5.0)
 
     def test_recall_empty_task(self, brain):
-        with pytest.raises(ValueError, match="non-empty"):
+        with pytest.raises(ValidationError, match="non-empty"):
             brain.recall(task="")
 
     def test_recall_zero_limit(self, brain):
-        with pytest.raises(ValueError, match="limit"):
+        with pytest.raises(ValidationError, match="limit"):
             brain.recall(task="Valid task", limit=0)
