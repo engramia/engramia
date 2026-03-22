@@ -15,6 +15,8 @@ _MAX_TASK_LEN = 10_000
 _MAX_CODE_LEN = 500_000  # 500 KB
 
 from agent_brain._util import PATTERNS_PREFIX, jaccard, reuse_tier
+from agent_brain.exceptions import ProviderError
+from agent_brain.exceptions import ValidationError as BrainValidationError
 from agent_brain.core.eval_feedback import EvalFeedbackStore
 from agent_brain.core.eval_store import EvalStore
 from agent_brain.core.metrics import MetricsStore
@@ -184,7 +186,10 @@ class Brain:
         if deduplicate:
             matches = _deduplicate_matches(matches)
 
-        return matches[:limit]
+        result = matches[:limit]
+        for m in result:
+            self._pattern_store.mark_reused(m.pattern_key)
+        return result
 
     # ------------------------------------------------------------------
     # Evaluate
@@ -423,6 +428,53 @@ class Brain:
         return matches
 
     # ------------------------------------------------------------------
+    # Export / Import
+    # ------------------------------------------------------------------
+
+    def export(self) -> list[dict]:
+        """Export all stored patterns as a list of dicts (JSONL-compatible).
+
+        Each record has ``"key"`` (the storage key) and ``"data"`` (the
+        pattern dict). Pass to :meth:`import_data` to restore.
+
+        Returns:
+            List of ``{"key": str, "data": dict}`` records for all patterns.
+        """
+        keys = self._storage.list_keys(prefix=PATTERNS_PREFIX)
+        records = []
+        for key in keys:
+            data = self._storage.load(key)
+            if data is not None:
+                records.append({"key": key, "data": data})
+        return records
+
+    def import_data(self, records: list[dict], overwrite: bool = False) -> int:
+        """Import patterns from previously exported data.
+
+        Args:
+            records: List of ``{"key": str, "data": dict}`` records as
+                returned by :meth:`export`.
+            overwrite: If ``False`` (default), skip patterns whose key
+                already exists. If ``True``, overwrite existing patterns.
+
+        Returns:
+            Number of patterns successfully imported.
+        """
+        imported = 0
+        for record in records:
+            key = record.get("key")
+            data = record.get("data")
+            if not key or not isinstance(data, dict):
+                _log.warning("Skipping malformed import record: %r", record)
+                continue
+            if not overwrite and self._storage.load(key) is not None:
+                continue
+            self._storage.save(key, data)
+            imported += 1
+        _log.info("Imported %d patterns (overwrite=%s)", imported, overwrite)
+        return imported
+
+    # ------------------------------------------------------------------
     # Metrics
     # ------------------------------------------------------------------
 
@@ -445,7 +497,7 @@ class Brain:
 
     def _require_llm(self, method: str) -> None:
         if self._llm is None:
-            raise RuntimeError(
+            raise ProviderError(
                 f"Brain.{method}() requires an LLM provider. "
                 "Pass llm=OpenAIProvider(...) or llm=AnthropicProvider(...) to Brain()."
             )
@@ -453,21 +505,21 @@ class Brain:
     @staticmethod
     def _validate_task(task: str) -> None:
         if not task or not task.strip():
-            raise ValueError("task must be a non-empty string")
+            raise BrainValidationError("task must be a non-empty string")
         if len(task) > _MAX_TASK_LEN:
-            raise ValueError(f"task exceeds maximum length of {_MAX_TASK_LEN} characters")
+            raise BrainValidationError(f"task exceeds maximum length of {_MAX_TASK_LEN} characters")
 
     @staticmethod
     def _validate_code(code: str) -> None:
         if not code or not code.strip():
-            raise ValueError("code must be a non-empty string")
+            raise BrainValidationError("code must be a non-empty string")
         if len(code) > _MAX_CODE_LEN:
-            raise ValueError(f"code exceeds maximum length of {_MAX_CODE_LEN} characters")
+            raise BrainValidationError(f"code exceeds maximum length of {_MAX_CODE_LEN} characters")
 
     @staticmethod
     def _validate_limit(limit: int) -> None:
         if limit < 1:
-            raise ValueError(f"limit must be >= 1, got {limit}")
+            raise BrainValidationError(f"limit must be >= 1, got {limit}")
 
     @staticmethod
     def _pattern_key(task: str) -> str:

@@ -203,40 +203,37 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 
 ---
 
-### Fáze 4: Polish + Launch
-> Cíl: Production-ready, publikovatelný na PyPI.
+### Fáze 4: Polish + Launch (code items)
+> Cíl: Production-ready codebase, čistá exception handling, export/import, CLI.
 
-- [ ] **CLI tool**:
+- [x] **CLI tool** (Typer + Rich):
   ```bash
   agent-brain init          # inicializace brain_data/
   agent-brain serve         # spustí REST API
   agent-brain status        # metriky, success rate, pattern count
-  agent-brain learn <file>  # batch learn z JSONL
   agent-brain recall "task" # semantic search z CLI
   agent-brain aging         # ruční spuštění pattern aging
   ```
-  - Implementace: Typer (type hints → CLI automaticky, Rich output, Pydantic synergie)
-- [ ] **Dokumentace** — MkDocs + Material:
-  - Getting Started (5 min)
-  - Core Concepts (patterns, aging, multi-eval, reuse)
-  - API Reference (auto-generated)
-  - Integration Guides (LangChain, CrewAI, custom)
-  - Self-hosting Guide
-- [ ] **Benchmark suite** — reprodukce Agent Factory V2 výsledků:
-  - 8 standardních tasků, porovnání s/bez Brain
-  - Metriky: success rate, reuse rate, avg eval score, LLM cost
-  - Publikovat jako "proof that Brain works"
+- [x] **Custom exception hierarchy** — `BrainError`, `ProviderError`, `ValidationError`, `StorageError`; REST API mapuje ProviderError → HTTP 501
+- [x] **Export/Import** — `brain.export()` / `brain.import_data()` v JSONL-compatible formátu
+- [x] **PyPI metadata** — classifiers, `[project.urls]`, `__version__ = "0.4.0"`
+- [x] **Phase 3 REST endpointy** — `POST /evolve`, `/analyze-failures`, `/skills/register`, `/skills/search`
+- [x] **Audit bugy opraveny** — B1 (mark_reused), B3 (threshold), B4 (feedback length), B5 (_parse_iso), I1 (HTTP 501)
+
+**Backlog items deferred na Fázi 4.5 (security + hardening):**
+- [ ] Security audit + hardening (vlastní fáze)
+
+**Non-code items (Fáze 4.6 — pre-launch):**
+- [ ] **Dokumentace** — MkDocs + Material (Getting Started, Core Concepts, API Reference, Integration Guides)
+- [ ] **Benchmark suite** — reprodukce Agent Factory V2 výsledků
 - [ ] **PyPI release** — `pip install agent-brain`
 - [ ] **Docker image** — `ghcr.io/agent-brain/agent-brain:latest`
-- [ ] **Licence** — finální rozhodnutí před releasem:
-  - Záměr: nekomerční použití zdarma, komerční vyžaduje platformu nebo on-prem licenci
-  - Zvážit: BSL, AGPL + dual-licensing, custom licence
-  - Konzultace s právníkem před zveřejněním
-- [ ] **GitHub repo** — README, LICENSE, CONTRIBUTING, CI/CD
+- [ ] **Licence** — BSL / AGPL + dual-licensing (konzultace s právníkem před releasem)
+- [ ] **GitHub repo** — LICENSE, CONTRIBUTING, CI/CD
 - [ ] **Launch blog post** — "How self-learning agents achieve 93% success rate"
-- [ ] **Security audit** — dependency scan, API key handling, input validation
 
-**Deliverable:** Veřejný PyPI balíček, Docker image, dokumentace, benchmark výsledky.
+**Deliverable (code):** 240 testů, 81% coverage, CLI fungující, exceptions čisté, export/import hotový.
+**Deliverable (launch):** Veřejný PyPI balíček, Docker image, dokumentace, benchmark výsledky.
 
 ---
 
@@ -288,6 +285,8 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 | 2 | API response time (evaluate) | <10s (závisí na LLM) | — (závisí na LLM latency) |
 | 3 | Total tests after Phase 3 | 100% PASS | ✅ 199 testů, 100% PASS |
 | 3 | Framework plugin adoption | ≥1 framework s fungujícím pluginem | ✅ LangChain BrainCallback |
+| 4 | Total tests after Phase 4 | 100% PASS | ✅ 240 testů, 81% coverage |
+| 4 | CLI tool | agent-brain CLI fungující | ✅ init, serve, status, recall, aging |
 | 4 | PyPI weekly downloads | tracking starts | — |
 | 4 | GitHub stars | tracking starts | — |
 | 4 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain | — |
@@ -329,10 +328,11 @@ agent-brain/
 ├── Dockerfile                   ✅
 │
 ├── agent_brain/
-│   ├── __init__.py              ✅ Brain class (public facade)
+│   ├── __init__.py              ✅ Brain class + exceptions + __version__
 │   ├── brain.py                 ✅ Brain implementation
 │   ├── types.py                 ✅ Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
 │   ├── _util.py                 ✅ Shared utilities (jaccard, reuse_tier, extract_json_from_llm)
+│   ├── exceptions.py            ✅ BrainError, ProviderError, ValidationError, StorageError
 │   │
 │   ├── core/                    ✅
 │   │   ├── __init__.py
@@ -369,7 +369,7 @@ agent-brain/
 │   ├── api/                     ✅
 │   │   ├── __init__.py
 │   │   ├── app.py               ✅ FastAPI app factory, env var config
-│   │   ├── routes.py            ✅ All REST endpoints
+│   │   ├── routes.py            ✅ 14 REST endpoints (incl. Phase 3+4)
 │   │   ├── auth.py              ✅ Bearer token middleware (per-request)
 │   │   ├── deps.py              ✅ Dependency injection (Brain singleton)
 │   │   └── schemas.py           ✅ Request/Response Pydantic modely
@@ -379,27 +379,31 @@ agent-brain/
 │   │   ├── langchain.py         ✅ BrainCallback (auto-learn, auto-recall)
 │   │   └── webhook.py           ✅ Lightweight HTTP client (urllib only)
 │   │
-│   ├── cli/                     🔲 Phase 4 (prázdný stub)
+│   ├── cli/                     ✅ Phase 4
 │   │   ├── __init__.py
-│   │   └── main.py              🔲
+│   │   └── main.py              ✅ Typer CLI — init, serve, status, recall, aging
 │   │
 │   └── db/                      ✅
 │       ├── __init__.py
 │       ├── models.py            ✅ SQLAlchemy 2.x modely (BrainData, BrainEmbedding)
 │       └── migrations/          ✅ Alembic (001_initial: schema + HNSW index)
 │
-├── tests/                       ✅ 199 testů, 100% PASS
+├── tests/                       ✅ 240 testů, 81% coverage
 │   ├── conftest.py              ✅ FakeEmbeddings + fixtures
 │   ├── test_e2e.py              ✅ learn/recall end-to-end + deduplication
 │   ├── test_integration.py      ✅ full cycle (learn→eval→feedback→recall→compose)
-│   ├── test_brain.py            ✅ Brain facade (9 tests)
+│   ├── test_brain.py            ✅ Brain facade
+│   ├── test_brain_export.py     ✅ export/import (Phase 4)
+│   ├── test_brain_reuse.py      ✅ mark_reused on recall (Phase 4)
+│   ├── test_exceptions.py       ✅ exception hierarchy (Phase 4)
 │   ├── test_core/               ✅ success_patterns, eval_store, eval_feedback, metrics, skill_registry
 │   ├── test_reuse/              ✅ contracts, matcher, composer
 │   ├── test_eval/               ✅ evaluator
 │   ├── test_providers/          ✅ json_storage, openai, anthropic, local_embeddings
 │   ├── test_evolution/          ✅ prompt_evolver, failure_cluster
-│   ├── test_api/                ✅ routes, auth
-│   └── test_sdk/                ✅ langchain, webhook
+│   ├── test_api/                ✅ routes, auth, phase3_routes
+│   ├── test_sdk/                ✅ langchain, webhook
+│   └── test_cli/                ✅ CLI commands (Phase 4)
 │
 ├── docs/                        🔲 Phase 4
 │   ├── getting-started.md

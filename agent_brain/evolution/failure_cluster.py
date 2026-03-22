@@ -15,7 +15,7 @@ from agent_brain.core.eval_feedback import EvalFeedbackStore
 
 _log = logging.getLogger(__name__)
 
-_CLUSTER_THRESHOLD = 0.35  # Jaccard threshold for grouping failures
+_CLUSTER_THRESHOLD = 0.4  # Jaccard threshold for grouping failures (matches eval_feedback.py)
 
 
 class FailureCluster:

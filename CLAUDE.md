@@ -29,14 +29,15 @@ Agent Brain poskytuje **paměťovou vrstvu** pro libovolný agent framework:
 
 ## Architektura
 
-Implementovaný stav (Phase 0 + Phase 1 + Phase 2 + Phase 3):
+Implementovaný stav (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4):
 
 ```
 agent_brain/
-├── __init__.py              # Brain class (public facade)
+├── __init__.py              # Brain class + exceptions (public facade)
 ├── brain.py                 # Brain implementation
 ├── types.py                 # Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
 ├── _util.py                 # Shared utility (extract_json_from_llm, jaccard, reuse_tier, PATTERNS_PREFIX)
+├── exceptions.py            # ✅ Custom exceptions (BrainError, ProviderError, ValidationError, StorageError) (Phase 4)
 │
 ├── core/                    # ✅ Implementováno
 │   ├── success_patterns.py  # Pattern storage, aging (2%/týden), reuse tracking (+0.1, max 10.0)
@@ -80,7 +81,8 @@ agent_brain/
 │   ├── langchain.py         # LangChain BrainCallback (auto-learn, auto-recall)
 │   └── webhook.py           # Lightweight HTTP SDK client (urllib, no deps)
 │
-└── cli/                     # 🔲 Phase 4 (stub only)
+└── cli/                     # ✅ Implementováno (Phase 4)
+    └── main.py              # Typer CLI — init, serve, status, recall, aging
 ```
 
 ### Provider abstrakce
@@ -102,6 +104,9 @@ Brain je **model-agnostic** a **storage-agnostic**:
 - **Prompt evolution** — LLM generuje vylepšené prompty na základě recurring failure patterns; volitelné A/B testování.
 - **Failure clustering** — Jaccard-based seskupení opakujících se chyb pro identifikaci systémových problémů.
 - **Skill registry** — Explicitní capability tagging patternů; kombinuje s semantic search pro přesné matching.
+- **Custom exceptions** — `BrainError` hierarchie: `ProviderError`, `ValidationError`, `StorageError`. REST API mapuje ProviderError na HTTP 501.
+- **Export/Import** — JSONL-compatible backup a migrace patternů (`brain.export()` / `brain.import_data()`).
+- **CLI** — Typer + Rich CLI (`agent-brain init/serve/status/recall/aging`).
 - **Model routing** — Empirická analýza: najdi nejlevnější model, který dosahuje ≥90% kvality nejdražšího.
 
 ## Použití
@@ -145,6 +150,17 @@ clusters = brain.analyze_failures(min_count=2)
 # Skill registry (Phase 3)
 brain.register_skills(matches[0].pattern_key, ["csv_parsing", "statistics"])
 results = brain.find_by_skills(["csv_parsing"])
+
+# Export / Import (Phase 4)
+records = brain.export()   # list[dict] — JSONL-compatible
+imported = brain.import_data(records, overwrite=False)
+
+# Custom exceptions (Phase 4)
+from agent_brain import ProviderError, ValidationError
+try:
+    brain.evaluate(task, code)
+except ProviderError:
+    pass  # no LLM configured
 ```
 
 ### Jako LangChain plugin (Phase 3)
@@ -174,6 +190,10 @@ POST /compose               — navrhni pipeline
 POST /evaluate              — multi-eval scoring
 POST /aging                 — spusť pattern aging (decay + prune)
 POST /feedback/decay        — spusť feedback decay
+POST /evolve                — vygeneruj vylepšený prompt (Phase 3)
+POST /analyze-failures      — seskupí failure patterny (Phase 3)
+POST /skills/register       — registruje skill tagy na pattern (Phase 3)
+POST /skills/search         — vyhledá patterny dle skill tagů (Phase 3)
 GET  /feedback              — top feedback patterns
 GET  /metrics               — statistiky
 GET  /health                — health check + storage type
@@ -181,15 +201,6 @@ DELETE /patterns/{key}      — smaž pattern
 ```
 
 Swagger UI: `http://localhost:8000/docs`
-
-### Jako LangChain plugin (Phase 3 — není ještě implementováno)
-
-```python
-from agent_brain.sdk.langchain import BrainCallback
-
-chain = LLMChain(llm=llm, prompt=prompt, callbacks=[BrainCallback(brain)])
-# Brain se automaticky učí z každého chain run
-```
 
 ## Původ
 
@@ -200,6 +211,7 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 
 - Python 3.12+
 - FastAPI + uvicorn (REST API)
+- Typer + Rich (CLI)
 - SQLAlchemy 2.x + pgvector (optional Postgres backend)
 - Alembic (migrace)
 - OpenAI / Anthropic SDK (provider-agnostic)
@@ -225,7 +237,8 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 | `alembic.ini` | Alembic konfigurace pro DB migrace |
 | `docker-compose.yml` | Brain API + volitelný pgvector stack |
 | `Dockerfile` | Multi-stage build (builder + runtime) |
-| `agent_brain/__init__.py` | Public API surface (Brain class) |
+| `agent_brain/__init__.py` | Public API surface (Brain class + exceptions + `__version__`) |
+| `agent_brain/exceptions.py` | Custom exceptions (BrainError, ProviderError, ValidationError, StorageError) |
 | `agent_brain/brain.py` | Brain facade — wiring všech internal stores |
 | `agent_brain/types.py` | Pydantic modely — Pattern, Match, EvalResult, Pipeline, Metrics, ... |
 | `agent_brain/_util.py` | Shared utility: `extract_json_from_llm()`, `jaccard()`, `reuse_tier()`, `PATTERNS_PREFIX` |
@@ -254,3 +267,4 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 | `agent_brain/sdk/webhook.py` | Lightweight HTTP SDK client (urllib, no deps) |
 | `agent_brain/db/models.py` | SQLAlchemy modely (brain_data + brain_embeddings) |
 | `agent_brain/db/migrations/` | Alembic migrace (001_initial: schema + HNSW index) |
+| `agent_brain/cli/main.py` | Typer CLI — init, serve, status, recall, aging |
