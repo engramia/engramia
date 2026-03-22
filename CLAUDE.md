@@ -239,7 +239,8 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 
 | Soubor | Účel |
 |--------|------|
-| `roadmap.md` | Implementační roadmapa (5 fází) |
+| `roadmap.md` | Implementační roadmapa (fáze 0–4.6) |
+| `CHANGELOG.md` | Release notes pro všechny verze (Keep a Changelog formát) |
 | `SECURITY.md` | Security policy, known limitations, production deployment checklist |
 | `alembic.ini` | Alembic konfigurace pro DB migrace |
 | `docker-compose.yml` | Brain API + volitelný pgvector stack |

@@ -223,17 +223,50 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 **Backlog items deferred na Fázi 4.5 (security + hardening):**
 - [x] Security audit + hardening (viz Fáze 4.5 níže)
 
-**Non-code items (Fáze 4.6 — pre-launch):**
-- [ ] **Dokumentace** — MkDocs + Material (Getting Started, Core Concepts, API Reference, Integration Guides)
-- [ ] **Benchmark suite** — reprodukce Agent Factory V2 výsledků
+**Deliverable (code):** 270 testů, 81% coverage, CLI fungující, exceptions čisté, export/import hotový, security hardened.
+
+---
+
+### Fáze 4.6: Pre-launch
+> Cíl: Vše potřebné pro veřejný release na PyPI, Docker Hub / GHCR a GitHub.
+
+#### Fáze 4.6.1: Changelog + repo infrastruktura
+- [x] **CHANGELOG.md** — Keep a Changelog formát, release notes pro v0.1.0–v0.5.0
+- [x] **.dockerignore** — vyloučení testů, docs, .git z Docker kontextu
+- [x] **py.typed** — PEP 561 marker pro type checking support
+
+#### Fáze 4.6.2: Licence + právní základ
+- [ ] **Rozhodnout licenci** — Apache 2.0 / MIT / BSL (konzultace s právníkem pro komerční model)
+- [ ] **LICENSE** soubor s plným textem licence
+- [ ] **CONTRIBUTING.md** — contribution guidelines, PR process, code of conduct
+- [ ] **Aktualizovat pyproject.toml** — `license` field (TBD → reálná licence), `project.urls` (placeholder → reálné GitHub URL)
+
+#### Fáze 4.6.3: Kvalita kódu + linting
+- [ ] **Linting config** — ruff + mypy konfigurace v `pyproject.toml`
+- [ ] **Přidat linting nástroje** do `[dev]` extras (ruff, mypy)
+- [ ] **Opravit linting/type chyby** — first pass ruff + mypy
+- [ ] **Volitelně: .pre-commit-config.yaml** — pre-commit hooks pro lokální vývoj
+
+#### Fáze 4.6.4: CI/CD pipeline
+- [ ] **.github/workflows/test.yml** — pytest + ruff + mypy na push/PR, Python 3.12 matrix
+- [ ] **.github/workflows/publish.yml** — build wheel + sdist, publish na PyPI on GitHub release
+- [ ] **.github/workflows/docker.yml** — Docker image build + push na GHCR on release
+
+#### Fáze 4.6.5: Dokumentace
+- [ ] **mkdocs.yml** — MkDocs + Material konfigurace
+- [ ] **docs/** — Getting Started, Architecture, API Reference, Providers, SDK Integrations, Security
+- [ ] **.readthedocs.yml** — ReadTheDocs integrace
+- [ ] **Aktualizovat pyproject.toml URLs** — docs URL na ReadTheDocs
+
+#### Fáze 4.6.6: Examples + launch
+- [ ] **examples/** — 4–5 runnable příkladů (basic, REST API, LangChain, PostgreSQL, local embeddings)
+- [ ] **Benchmark suite** — reprodukce Agent Factory V2 výsledků (93% success rate)
+- [ ] **Finální README review** — ověřit vše aktuální
 - [ ] **PyPI release** — `pip install agent-brain`
 - [ ] **Docker image** — `ghcr.io/agent-brain/agent-brain:latest`
-- [ ] **Licence** — BSL / AGPL + dual-licensing (konzultace s právníkem před releasem)
-- [ ] **GitHub repo** — LICENSE, CONTRIBUTING, CI/CD
 - [ ] **Launch blog post** — "How self-learning agents achieve 93% success rate"
 
-**Deliverable (code):** 240 testů, 81% coverage, CLI fungující, exceptions čisté, export/import hotový.
-**Deliverable (launch):** Veřejný PyPI balíček, Docker image, dokumentace, benchmark výsledky.
+**Deliverable (launch):** Veřejný PyPI balíček, Docker image, dokumentace, benchmark výsledky, examples.
 
 ---
 
@@ -306,14 +339,13 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - Auto-tuning eval promptů (meta-learning)
 - Cross-project knowledge transfer
 
-### Pre-launch security checklist
-- [ ] API key rotation mechanismus
-- [ ] Rate limiting na API endpointech
-- [ ] HTTPS enforcement dokumentace (reverse proxy)
-- [ ] Rozhodnout: propagovat logging výstupy uživatelům? (aktuálně jen interní)
-- [ ] Config file (YAML/TOML) jako optional override pro komplexní konfigurace (model routing per-role)
-- [ ] **Custom exception hierarchy** (`BrainError`, `StorageError`, `ProviderError`, `ValidationError`) — nahradit mix `RuntimeError`/`ValueError` v public API; rozhodnout zda exponovat jako public (A1)
-- [ ] **brain.export() / brain.import()** — backup/migrate JSON→Postgres; zvážit formát (JSONL, ZIP) (N4)
+### Pre-launch checklist (backlog z dřívějších fází)
+- [x] ~~Rate limiting na API endpointech~~ — implementováno v Phase 4.5
+- [x] ~~Custom exception hierarchy~~ — implementováno v Phase 4 (`BrainError`, `ProviderError`, `ValidationError`, `StorageError`)
+- [x] ~~brain.export() / brain.import()~~ — implementováno v Phase 4
+- [x] ~~HTTPS enforcement dokumentace~~ — zdokumentováno v SECURITY.md
+- [ ] API key rotation mechanismus — post-launch (Phase 5+)
+- [ ] Config file (YAML/TOML) jako optional override — post-launch (Phase 5+)
 
 ---
 
@@ -332,9 +364,10 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 | 4 | CLI tool | agent-brain CLI fungující | ✅ init, serve, status, recall, aging |
 | 4.5 | Security tests | OWASP ASVS Level 2/3 | ✅ 270 testů (30 security), 81% coverage |
 | 4.5 | STRIDE audit resolved | všechna HIGH/MEDIUM | ✅ 24 bodů implementováno + SECURITY.md |
-| 4 | PyPI weekly downloads | tracking starts | — |
-| 4 | GitHub stars | tracking starts | — |
-| 4 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain | — |
+| 4.6.1 | CHANGELOG + repo infra | CHANGELOG, .dockerignore, py.typed | ✅ |
+| 4.6 | PyPI weekly downloads | tracking starts | — |
+| 4.6 | GitHub stars | tracking starts | — |
+| 4.6 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain | — |
 
 ---
 
@@ -367,8 +400,13 @@ agent-brain/
 ├── CLAUDE.md                    ✅
 ├── roadmap.md                   ✅
 ├── README.md                    ✅
+├── CHANGELOG.md                 ✅ Phase 4.6.1
+├── SECURITY.md                  ✅ Phase 4.5
 ├── pyproject.toml               ✅
-├── LICENSE                      🔲 Phase 4 (rozhodnutí o licenci před releasem)
+├── LICENSE                      🔲 Phase 4.6.2 (rozhodnutí o licenci)
+├── CONTRIBUTING.md              🔲 Phase 4.6.2
+├── .dockerignore                ✅ Phase 4.6.1
+├── .github/workflows/           🔲 Phase 4.6.4
 ├── docker-compose.yml           ✅
 ├── Dockerfile                   ✅
 │
