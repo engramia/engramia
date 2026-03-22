@@ -11,6 +11,7 @@ import logging
 import re
 import time
 
+from agent_brain._util import jaccard
 from agent_brain.providers.base import StorageBackend
 
 _log = logging.getLogger(__name__)
@@ -28,14 +29,6 @@ def _normalize(text: str) -> str:
     text = re.sub(r"[^\w\s]", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
-
-
-def _jaccard(a: str, b: str) -> float:
-    wa = set(a.split())
-    wb = set(b.split())
-    if not wa or not wb:
-        return 0.0
-    return len(wa & wb) / len(wa | wb)
 
 
 class EvalFeedbackStore:
@@ -69,7 +62,7 @@ class EvalFeedbackStore:
         now_iso = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
 
         for p in patterns:
-            if _jaccard(_normalize(p["pattern"]), norm) > _CLUSTER_THRESHOLD:
+            if jaccard(_normalize(p["pattern"]), norm) > _CLUSTER_THRESHOLD:
                 p["count"] += 1
                 p["score"] = min(p["score"] + 0.1, 1.0)
                 p["last_seen"] = now_iso

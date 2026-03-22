@@ -2,11 +2,11 @@
 
 Self-learning memory layer for AI agent frameworks.
 
-[![Tests](https://img.shields.io/badge/tests-126%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-92%25%2B-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-199%20passed-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-80%25%2B-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 
-> **Status:** Phases 0, 1 and 2 complete — core Brain library + REST API are fully functional.
+> **Status:** Phases 0–3 complete — core Brain library + REST API + SDK plugins + prompt evolution.
 > See [roadmap.md](roadmap.md) for what's next.
 
 ---
@@ -48,10 +48,10 @@ pip install "agent-brain[openai,api,postgres]"
 | `openai` | OpenAI LLM + embeddings provider | ✅ |
 | `postgres` | PostgreSQL + pgvector storage backend | ✅ |
 | `api` | FastAPI REST server | ✅ |
-| `anthropic` | Anthropic/Claude LLM provider | Phase 3 |
-| `local` | sentence-transformers embeddings, bez API klíče | Phase 3 |
-| `langchain` | LangChain BrainCallback | Phase 3 |
-| `crewai` | CrewAI BrainMiddleware | Phase 3 |
+| `anthropic` | Anthropic/Claude LLM provider | ✅ |
+| `local` | sentence-transformers embeddings, bez API klíče | ✅ |
+| `langchain` | LangChain BrainCallback | ✅ |
+| `crewai` | CrewAI BrainMiddleware | Post-launch |
 | `cli` | CLI tool (Typer) | Phase 4 |
 | `dev` | pytest, coverage, vývojové nástroje | ✅ |
 
@@ -221,6 +221,74 @@ print(m.pipeline_reuse)  # počet běhů kde byl použit existující pattern
 
 ---
 
+### `brain.evolve_prompt(role, current_prompt) → EvolutionResult`
+
+Vygeneruje vylepšený prompt na základě opakujících se kvalitativních problémů.
+
+```python
+result = brain.evolve_prompt(role="coder", current_prompt="You are a coder...")
+if result.accepted:
+    print(result.improved_prompt)
+    print(f"Changes: {result.changes}")
+```
+
+- Analyzuje top feedback patterny z eval history
+- LLM generuje vylepšenou verzi promptu
+- Vrátí kandidáta pro ruční/automatické A/B testování
+
+---
+
+### `brain.analyze_failures(min_count=1) → list[FailureCluster]`
+
+Seskupí opakující se chyby do clusterů pro identifikaci systémových problémů.
+
+```python
+clusters = brain.analyze_failures(min_count=2)
+for c in clusters:
+    print(f"{c.representative} (count={c.total_count}, members={len(c.members)})")
+```
+
+---
+
+### `brain.register_skills(pattern_key, skills)` / `brain.find_by_skills(required)`
+
+Skill registry pro capability-based vyhledávání patternů.
+
+```python
+# Register
+matches = brain.recall(task="Parse CSV")
+brain.register_skills(matches[0].pattern_key, ["csv_parsing", "statistics"])
+
+# Find
+results = brain.find_by_skills(["csv_parsing"], match_all=True)
+```
+
+---
+
+### LangChain integrace
+
+```python
+from agent_brain.sdk.langchain import BrainCallback
+
+callback = BrainCallback(brain, auto_learn=True, auto_recall=True)
+chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
+# Brain se automaticky učí z chain runs a recalluje relevantní kontext
+```
+
+---
+
+### Webhook SDK klient
+
+```python
+from agent_brain.sdk.webhook import BrainWebhook
+
+hook = BrainWebhook(url="http://localhost:8000", api_key="sk-...")
+hook.learn(task="Parse CSV", code=code, eval_score=8.5)
+matches = hook.recall(task="Read CSV and compute averages")
+```
+
+---
+
 ## REST API
 
 ### Spuštění
@@ -260,6 +328,8 @@ Po startu: Swagger UI na [http://localhost:8000/docs](http://localhost:8000/docs
 | `POST` | `/recall` | Najde relevantní patterny |
 | `POST` | `/compose` | Sestaví pipeline |
 | `POST` | `/evaluate` | Multi-eval scoring |
+| `POST` | `/aging` | Spustí pattern aging (decay + prune) |
+| `POST` | `/feedback/decay` | Spustí feedback decay |
 | `GET` | `/feedback` | Top recurring feedback |
 | `GET` | `/metrics` | Statistiky |
 | `GET` | `/health` | Health check + storage type |
@@ -370,7 +440,8 @@ agent_brain/
 │   ├── success_patterns.py   # Aging, reuse boost
 │   ├── eval_store.py         # Eval history + quality multiplier
 │   ├── eval_feedback.py      # Feedback clustering + decay
-│   └── metrics.py            # Run statistics
+│   ├── metrics.py            # Run statistics
+│   └── skill_registry.py     # Capability-based pattern tagging
 │
 ├── reuse/               # Reuse engine
 │   ├── matcher.py            # Semantic search + eval weighting
@@ -383,6 +454,8 @@ agent_brain/
 ├── providers/
 │   ├── base.py               # ABC: LLMProvider, EmbeddingProvider, StorageBackend
 │   ├── openai.py             # OpenAI LLM + embeddings
+│   ├── anthropic.py          # Anthropic/Claude LLM provider
+│   ├── local_embeddings.py   # sentence-transformers (no API key)
 │   ├── json_storage.py       # JSON storage (thread-safe, atomic writes)
 │   └── postgres.py           # PostgreSQL + pgvector
 │
@@ -397,8 +470,14 @@ agent_brain/
 │   ├── models.py             # SQLAlchemy modely
 │   └── migrations/           # Alembic
 │
-├── evolution/           # (Phase 3) Prompt evolution
-├── sdk/                 # (Phase 3) LangChain, CrewAI pluginy
+├── evolution/           # Prompt evolution + failure clustering (Phase 3)
+│   ├── prompt_evolver.py    # LLM-based prompt improvement
+│   └── failure_cluster.py   # Failure pattern clustering
+│
+├── sdk/                 # Framework integrations (Phase 3)
+│   ├── langchain.py         # LangChain BrainCallback
+│   └── webhook.py           # Lightweight HTTP SDK client
+│
 └── cli/                 # (Phase 4) Typer CLI
 ```
 
@@ -415,16 +494,20 @@ agent_brain/
 | `brain.get_feedback()` | ✅ |
 | `brain.run_aging()` | ✅ |
 | `brain.delete_pattern()` | ✅ |
+| `brain.evolve_prompt()` | ✅ Phase 3 |
+| `brain.analyze_failures()` | ✅ Phase 3 |
+| `brain.register_skills()` / `find_by_skills()` | ✅ Phase 3 |
 | `brain.metrics` | ✅ |
 | OpenAI provider | ✅ |
+| Anthropic provider | ✅ Phase 3 |
+| Local embeddings (sentence-transformers) | ✅ Phase 3 |
 | JSON storage (thread-safe) | ✅ |
 | REST API (FastAPI) | ✅ Phase 2 |
 | PostgreSQL + pgvector | ✅ Phase 2 |
 | Docker + docker-compose | ✅ Phase 2 |
-| Anthropic provider | Phase 3 |
-| LangChain plugin | Phase 3 |
-| CrewAI plugin | Phase 3 |
-| Local embeddings | Phase 3 |
+| LangChain BrainCallback | ✅ Phase 3 |
+| Webhook SDK client | ✅ Phase 3 |
+| CrewAI plugin | Post-launch |
 | CLI (Typer) | Phase 4 |
 
 ---

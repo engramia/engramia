@@ -12,12 +12,11 @@ Reuse boost: +0.1 score per reuse, capped at 10.0.
 import logging
 import time
 
+from agent_brain._util import PATTERNS_PREFIX
 from agent_brain.providers.base import StorageBackend
 
 _log = logging.getLogger(__name__)
 from agent_brain.types import Pattern
-
-_PATTERNS_PREFIX = "patterns"
 _DECAY_PER_WEEK = 0.98
 _MIN_SCORE = 0.1
 _REUSE_BOOST = 0.1
@@ -63,7 +62,7 @@ class SuccessPatternStore:
         Returns:
             Number of patterns pruned.
         """
-        keys = self._storage.list_keys(prefix=_PATTERNS_PREFIX)
+        keys = self._storage.list_keys(prefix=PATTERNS_PREFIX)
         now = time.time()
         pruned = 0
 
@@ -89,4 +88,4 @@ class SuccessPatternStore:
 
     def get_count(self) -> int:
         """Return the total number of stored patterns."""
-        return len(self._storage.list_keys(prefix=_PATTERNS_PREFIX))
+        return len(self._storage.list_keys(prefix=PATTERNS_PREFIX))
