@@ -312,9 +312,9 @@ class Brain:
         Raises:
             ValidationError: If pattern_key does not start with the patterns/ prefix.
         """
-        if not pattern_key.startswith(f"{PATTERNS_PREFIX}/"):
+        if not pattern_key.startswith(f"{PATTERNS_PREFIX}/") or ".." in pattern_key:
             raise BrainValidationError(
-                f"pattern_key must start with '{PATTERNS_PREFIX}/'; got {pattern_key!r}"
+                f"pattern_key must start with '{PATTERNS_PREFIX}/' and must not contain '..'"
             )
         if self._storage.load(pattern_key) is None:
             return False
@@ -480,10 +480,10 @@ class Brain:
             if not key or not isinstance(data, dict):
                 _log.warning("Skipping malformed import record: %r", record)
                 continue
-            if not key.startswith(f"{PATTERNS_PREFIX}/"):
+            if not key.startswith(f"{PATTERNS_PREFIX}/") or ".." in key:
                 _log.warning(
-                    "Skipping import record with invalid key prefix %r — "
-                    "only patterns/ keys are allowed",
+                    "Skipping import record with invalid key %r — "
+                    "only patterns/ keys without path traversal are allowed",
                     key,
                 )
                 continue

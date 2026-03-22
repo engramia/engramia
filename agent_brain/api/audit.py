@@ -13,6 +13,7 @@ Output goes to the ``agent_brain.audit`` logger at WARNING level so that
 standard logging configuration captures it separately from debug noise.
 """
 
+import json
 import logging
 import time
 from enum import Enum
@@ -30,6 +31,8 @@ class AuditEvent(str, Enum):
 def log_event(event: AuditEvent, **kwargs: Any) -> None:
     """Emit a structured audit log entry at WARNING level.
 
+    The entry is serialized as JSON for machine-parseable audit trails.
+
     Args:
         event: The audit event type.
         **kwargs: Additional context fields (ip, path, reason, etc.).
@@ -40,4 +43,4 @@ def log_event(event: AuditEvent, **kwargs: Any) -> None:
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         **kwargs,
     }
-    _audit_log.warning("AUDIT %s", entry)
+    _audit_log.warning("AUDIT %s", json.dumps(entry, default=str))

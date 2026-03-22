@@ -110,9 +110,10 @@ class PostgresStorage(StorageBackend):
     def list_keys(self, prefix: str = "") -> list[str]:
         with self._engine.connect() as conn:
             if prefix:
+                safe_prefix = _escape_like(prefix)
                 rows = conn.execute(
-                    self._text("SELECT key FROM brain_data WHERE key LIKE :prefix ORDER BY key"),
-                    {"prefix": f"{prefix}%"},
+                    self._text("SELECT key FROM brain_data WHERE key LIKE :prefix ESCAPE '\\' ORDER BY key"),
+                    {"prefix": f"{safe_prefix}%"},
                 ).fetchall()
             else:
                 rows = conn.execute(
@@ -175,17 +176,18 @@ class PostgresStorage(StorageBackend):
         vec_str = _vec_to_pg(embedding)
         with self._engine.connect() as conn:
             if prefix:
+                safe_prefix = _escape_like(prefix)
                 rows = conn.execute(
                     self._text(
                         """
                         SELECT key, 1 - (embedding <=> :vec::vector) AS similarity
                         FROM brain_embeddings
-                        WHERE key LIKE :prefix
+                        WHERE key LIKE :prefix ESCAPE '\\'
                         ORDER BY embedding <=> :vec::vector
                         LIMIT :limit
                         """
                     ),
-                    {"vec": vec_str, "prefix": f"{prefix}%", "limit": limit},
+                    {"vec": vec_str, "prefix": f"{safe_prefix}%", "limit": limit},
                 ).fetchall()
             else:
                 rows = conn.execute(
@@ -205,6 +207,11 @@ class PostgresStorage(StorageBackend):
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
+def _escape_like(value: str) -> str:
+    """Escape SQL LIKE wildcard characters (%, _, \\) in *value*."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
 
 def _vec_to_pg(embedding: list[float]) -> str:
     """Convert a Python float list to pgvector literal: ``[0.1,0.2,...]``."""

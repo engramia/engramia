@@ -14,7 +14,7 @@ Configuration is entirely via environment variables:
     BRAIN_PORT           8000                     (default)
 
 Security configuration (env vars):
-    BRAIN_CORS_ORIGINS       comma-separated allowed origins (default: * in dev)
+    BRAIN_CORS_ORIGINS       comma-separated allowed origins (default: none — CORS disabled)
     BRAIN_RATE_LIMIT_DEFAULT requests/min for regular endpoints (default: 60)
     BRAIN_RATE_LIMIT_EXPENSIVE requests/min for LLM endpoints (default: 10)
     BRAIN_MAX_BODY_SIZE      max request body in bytes (default: 1048576 = 1MB)
@@ -74,17 +74,18 @@ def _log_security_config() -> None:
             "Set BRAIN_API_KEYS=key1,key2 to require Bearer token authentication."
         )
     else:
-        _log.info("SECURITY: API authentication enabled (%d key(s)).",
-                  len([k for k in os.environ.get("BRAIN_API_KEYS", "").split(",") if k.strip()]))
+        _log.info("SECURITY: API authentication enabled.")
 
-    cors_origins = os.environ.get("BRAIN_CORS_ORIGINS", "*")
-    if cors_origins.strip() == "*":
+    cors_origins = os.environ.get("BRAIN_CORS_ORIGINS", "")
+    if not cors_origins.strip():
+        _log.info("SECURITY: CORS disabled (no origins configured).")
+    elif cors_origins.strip() == "*":
         _log.warning(
             "SECURITY WARNING: CORS allows all origins (*). "
             "Set BRAIN_CORS_ORIGINS=https://yourapp.example.com for production."
         )
     else:
-        _log.info("SECURITY: CORS restricted to: %s", cors_origins)
+        _log.info("SECURITY: CORS restricted to configured origins.")
 
     max_body = int(os.environ.get("BRAIN_MAX_BODY_SIZE", str(1024 * 1024)))
     rate_default = int(os.environ.get("BRAIN_RATE_LIMIT_DEFAULT", "60"))
@@ -125,14 +126,15 @@ def create_app() -> FastAPI:
         SecurityHeadersMiddleware,
     )
 
-    cors_origins_raw = os.environ.get("BRAIN_CORS_ORIGINS", "*")
+    cors_origins_raw = os.environ.get("BRAIN_CORS_ORIGINS", "")
     cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_methods=["GET", "POST", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
-    )
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_methods=["GET", "POST", "DELETE"],
+            allow_headers=["Authorization", "Content-Type"],
+        )
     # SecurityHeaders added after CORS so headers appear on all responses
     app.add_middleware(SecurityHeadersMiddleware)
 
@@ -148,13 +150,15 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+        _log.warning("ValueError in request %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(status_code=422, content={"detail": "Invalid request parameters."})
 
     @app.exception_handler(BrainValidationError)
     async def brain_validation_error_handler(
         request: Request, exc: BrainValidationError
     ) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+        _log.warning("ValidationError in request %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(status_code=422, content={"detail": "Validation error in request."})
 
     # ------------------------------------------------------------------
     # Brain instance

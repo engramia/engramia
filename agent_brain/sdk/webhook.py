@@ -230,6 +230,12 @@ class BrainWebhook:
 
         try:
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                content_type = resp.headers.get("Content-Type", "")
+                if "json" not in content_type:
+                    raise BrainWebhookError(
+                        resp.status,
+                        f"Unexpected Content-Type: {content_type}",
+                    )
                 return json.loads(resp.read().decode())
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode() if exc.fp else str(exc)
