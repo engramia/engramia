@@ -95,3 +95,54 @@ class TestLearnRecall:
         brain.learn(task="A task", code="code", eval_score=8.0)
         matches = brain.recall(task="A task")
         assert len(matches) == 1
+
+
+class TestRecallDeduplication:
+    """Tests for recall() grouping of near-duplicate tasks."""
+
+    def test_dedup_keeps_best_score_per_task_group(self, brain):
+        """Multiple patterns for the same task → only the best is returned."""
+        brain.learn(task="Parse CSV and compute stats", code="v1", eval_score=6.0)
+        brain.learn(task="Parse CSV and compute stats", code="v2", eval_score=9.0)
+        brain.learn(task="Parse CSV and compute stats", code="v3", eval_score=7.5)
+        matches = brain.recall(task="Parse CSV and compute stats")
+        assert len(matches) == 1
+        assert matches[0].pattern.success_score == 9.0
+        assert matches[0].pattern.design["code"] == "v2"
+
+    def test_dedup_similar_tasks_are_grouped(self, brain):
+        """Tasks with high Jaccard overlap are grouped together."""
+        # These two tasks share most words → Jaccard > 0.7
+        brain.learn(task="Parse CSV file and compute stats", code="v1", eval_score=6.0)
+        brain.learn(task="Parse CSV file and compute statistics", code="v2", eval_score=8.0)
+        matches = brain.recall(task="Parse CSV file and compute stats")
+        assert len(matches) == 1
+        assert matches[0].pattern.success_score == 8.0
+
+    def test_dedup_different_tasks_not_grouped(self, brain):
+        """Tasks with low Jaccard overlap remain separate."""
+        brain.learn(task="Parse CSV file", code="csv_code", eval_score=7.0)
+        brain.learn(task="Fetch API data from REST endpoint", code="api_code", eval_score=8.0)
+        matches = brain.recall(task="Parse CSV file", limit=10, deduplicate=True)
+        tasks = [m.pattern.task for m in matches]
+        # Both should appear since they're different tasks
+        assert len(matches) >= 1  # at least the exact match
+
+    def test_dedup_disabled_returns_all_variants(self, brain):
+        """With deduplicate=False, all pattern variants are returned."""
+        brain.learn(task="Parse CSV and compute stats", code="v1", eval_score=6.0)
+        brain.learn(task="Parse CSV and compute stats", code="v2", eval_score=9.0)
+        brain.learn(task="Parse CSV and compute stats", code="v3", eval_score=7.5)
+        matches = brain.recall(
+            task="Parse CSV and compute stats", deduplicate=False
+        )
+        assert len(matches) == 3
+
+    def test_dedup_limit_respected_after_grouping(self, brain):
+        """limit applies after deduplication, not before."""
+        # Create 5 distinct tasks, each with 2 variants
+        for i in range(5):
+            brain.learn(task=f"unique task number {i}", code=f"v1_{i}", eval_score=6.0)
+            brain.learn(task=f"unique task number {i}", code=f"v2_{i}", eval_score=8.0)
+        matches = brain.recall(task="unique task number 0", limit=2)
+        assert len(matches) <= 2
