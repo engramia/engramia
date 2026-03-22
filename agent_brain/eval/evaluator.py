@@ -12,13 +12,18 @@ Evaluation dimensions:
 - overall:          Weighted composite (0–10).
 """
 
-import json
-import re
+import logging
 import statistics
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from agent_brain._util import extract_json_from_llm
 from agent_brain.providers.base import LLMProvider
+
+# Backward-compatible alias for tests that import _extract_json directly
+_extract_json = extract_json_from_llm
 from agent_brain.types import EvalResult, EvalScore
+
+_log = logging.getLogger(__name__)
 
 _DEFAULT_NUM_EVALS = 3
 _HIGH_VARIANCE_THRESHOLD = 1.5
@@ -51,26 +56,6 @@ Output:
 
 Evaluate the code against the task. Be strict — scores above 8 require excellent handling of edge cases."""
 
-
-def _extract_json(text: str) -> dict:
-    """Extract a JSON object from LLM response text.
-
-    Handles raw JSON, markdown code blocks, and embedded JSON objects.
-    """
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    # Markdown code block
-    m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if m:
-        return json.loads(m.group(1))
-    # Any JSON object in the text
-    m = re.search(r"\{[^{}]*\}", text, re.DOTALL)
-    if m:
-        return json.loads(m.group())
-    raise ValueError(f"No valid JSON found in LLM response: {text[:300]}")
 
 
 def _parse_score(raw: dict) -> EvalScore:
@@ -106,6 +91,8 @@ class MultiEvaluator:
     """
 
     def __init__(self, llm: LLMProvider, num_evals: int = _DEFAULT_NUM_EVALS) -> None:
+        if num_evals < 1:
+            raise ValueError(f"num_evals must be >= 1, got {num_evals}")
         self._llm = llm
         self._num_evals = num_evals
 
@@ -165,9 +152,10 @@ class MultiEvaluator:
         for attempt in range(2):
             try:
                 raw_text = self._llm.call(prompt=prompt, system=_EVAL_SYSTEM, role="eval")
-                raw = _extract_json(raw_text)
+                raw = extract_json_from_llm(raw_text)
                 return _parse_score(raw)
-            except Exception:
+            except Exception as exc:
+                _log.debug("Eval attempt %d failed: %s", attempt + 1, exc)
                 if attempt == 1:
                     return None
         return None

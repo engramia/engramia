@@ -3,11 +3,13 @@
 Each pipeline stage declares which workspace files it reads and writes.
 A valid pipeline has no broken data-flow: every file a stage reads must
 be either an initial input or produced by a prior stage's writes.
+
+Also detects circular file dependencies across stages.
 """
 
 
 def validate_contracts(stages: list[dict], initial_inputs: list[str] | None = None) -> list[str]:
-    """Check that reads/writes form a consistent chain.
+    """Check that reads/writes form a consistent, acyclic chain.
 
     Args:
         stages: List of dicts, each with "reads" and "writes" keys
@@ -21,16 +23,43 @@ def validate_contracts(stages: list[dict], initial_inputs: list[str] | None = No
     available: set[str] = set(initial_inputs or [])
     errors: list[str] = []
 
+    # Detect circular file dependencies:
+    # A cycle occurs when a file written by stage N is also written by an
+    # earlier stage AND later read back — i.e. a file appears in both
+    # the writes of two different stages, creating ambiguity.
+    # More precisely: if a stage reads a file that it also writes, that is
+    # a self-cycle; if stage B writes a file that stage A (before B) wrote
+    # and stage B also reads it, that is a re-write loop.
+    written_by: dict[str, str] = {}  # filename → stage name that first wrote it
+
     for i, stage in enumerate(stages):
         reads: list[str] = stage.get("reads") or []
         writes: list[str] = stage.get("writes") or []
         name: str = stage.get("name") or stage.get("task") or f"stage_{i}"
 
-        missing = [f for f in reads if f not in available]
+        # Self-cycle: stage reads what it writes
+        self_cycle = [f for f in reads if f in writes]
+        if self_cycle:
+            errors.append(
+                f"Stage '{name}' has a self-cycle: it both reads and writes {self_cycle}."
+            )
+
+        missing = [f for f in reads if f not in available and f not in writes]
         if missing:
             errors.append(
                 f"Stage '{name}' reads {missing} but these files are not produced by any prior stage."
             )
+
+        # Cross-stage write conflict: detect if this stage overwrites a file
+        # that a later stage will need to read from a different source.
+        for f in writes:
+            if f in written_by:
+                errors.append(
+                    f"Stage '{name}' writes '{f}' which was already written by stage '{written_by[f]}'. "
+                    "This creates a circular or ambiguous data-flow."
+                )
+            else:
+                written_by[f] = name
 
         available.update(writes)
 

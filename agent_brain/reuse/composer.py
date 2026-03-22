@@ -7,10 +7,12 @@ the resulting pipeline with contract checking.
 Max pipeline stages: 4.
 """
 
-import json
-import re
+import logging
 
+from agent_brain._util import extract_json_from_llm
 from agent_brain.providers.base import LLMProvider
+
+_log = logging.getLogger(__name__)
 from agent_brain.reuse.contracts import infer_initial_inputs, validate_contracts
 from agent_brain.reuse.matcher import PatternMatcher
 from agent_brain.types import Pipeline, PipelineStage
@@ -36,20 +38,6 @@ Respond with:
   ]
 }}"""
 
-
-def _extract_json(text: str) -> dict:
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if m:
-        return json.loads(m.group(1))
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if m:
-        return json.loads(m.group())
-    raise ValueError(f"No valid JSON in LLM response: {text[:300]}")
 
 
 class PipelineComposer:
@@ -124,11 +112,11 @@ class PipelineComposer:
         prompt = _DECOMPOSE_USER.format(task=task)
         response = self._llm.call(prompt=prompt, system=_DECOMPOSE_SYSTEM, role="architect")
         try:
-            parsed = _extract_json(response)
+            parsed = extract_json_from_llm(response)
             stages = parsed.get("stages", [])
             if not isinstance(stages, list) or not stages:
                 raise ValueError("No stages returned")
             return stages
-        except Exception:
-            # Fallback: treat task as single stage
+        except Exception as exc:
+            _log.warning("LLM decomposition failed, falling back to single stage: %s", exc)
             return [{"task": task, "reads": [], "writes": ["output.json"]}]

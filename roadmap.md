@@ -115,35 +115,40 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 ### Fáze 2: REST API + Storage backends
 > Cíl: Brain jako služba. PostgreSQL pro produkci.
 
-- [ ] **FastAPI server**:
+- [x] **FastAPI server**:
   - Konfigurace: env vars (`BRAIN_STORAGE`, `BRAIN_DATABASE_URL`, `BRAIN_LLM_PROVIDER`, ...)
-  - App factory pattern, dependency injection Brain instance
-  - Sync endpointy (FastAPI threadpool), async odložen na potřebu
+  - App factory pattern (`create_app()`), dependency injection Brain instance
+  - Sync endpointy (FastAPI threadpool)
   - Endpoints:
     - `POST /learn` — zaznamenej výsledek běhu
-    - `POST /recall` — najdi relevantní agenty (POST kvůli dlouhým task popisům)
-    - `POST /compose` — navrhni pipeline (JSON body: task, constraints, ...)
+    - `POST /recall` — najdi relevantní agenty
+    - `POST /compose` — navrhni pipeline
     - `POST /evaluate` — multi-eval scoring
     - `GET /feedback?task_type=...&limit=4` — top feedback patterns
-    - `GET /routing?role=...&task_type=...` — model routing doporučení
     - `GET /metrics` — factory metrics
     - `GET /health` — health check
-- [ ] **Auth** — Bearer token, validní klíče z env var `BRAIN_API_KEYS`
-- [ ] **Logging** — `logging.getLogger(__name__)` pro interní ladění API
-- [ ] **PostgreSQL storage backend** (generický KV + pgvector):
+    - `DELETE /patterns/{key}` — smaž pattern (N3)
+- [x] **Auth** — Bearer token middleware, validní klíče z env var `BRAIN_API_KEYS`; dev mode pokud prázdné
+- [x] **Logging** — `logging.getLogger(__name__)` ve všech modulech (A2)
+- [x] **PostgreSQL storage backend** (generický KV + pgvector):
   - SQLAlchemy 2.x: `brain_data` (key TEXT PK, data JSONB) + `brain_embeddings` (key TEXT PK, embedding vector(1536))
-  - HNSW/IVFFlat index pro `search_similar()` přes pgvector
+  - HNSW index pro `search_similar()` přes pgvector
   - Alembic migrace v `agent_brain/db/migrations/`
   - `PostgresStorage` implementuje `StorageBackend` ABC
-- [ ] **Docker compose** — brain-api + pgvector/pgvector:pg16
-- [ ] **Model routing** modul:
-  - Extrakce z agent_factory_v2/agents/routing_analyzer.py
-  - Empirická analýza: nejlevnější model s ≥90% kvality
-  - `GET /routing` endpoint
-- [ ] API testy (httpx + pytest)
-- [ ] OpenAPI dokumentace (auto-generated z Pydantic modelů)
+- [x] **Docker compose** — brain-api + komentovaný pgvector/pgvector:pg16 (opt-in)
+- [x] **Dockerfile** — multi-stage build (builder + runtime)
+- [ ] **Model routing** modul — odloženo na Phase 2.5 nebo Phase 3 (není zdrojový kód z Factory V2)
+- [x] **API testy** — 19 testů, TestClient + FakeEmbeddings + mocked LLM
+- [x] **OpenAPI dokumentace** — auto-generated z Pydantic modelů, Swagger UI na `/docs`
 
-**Deliverable:** `docker compose up` spustí Brain API s PostgreSQL. Swagger UI na `/docs`.
+**Bugfixes a architectural improvements implementovány v rámci Phase 2:**
+- [x] B1-B4: evaluator num_evals, future timestamps, malformed ISO, last_exc None
+- [x] V1-V3: input validation na Brain API, max-length limits, path sanitization
+- [x] A3-A5: thread safety (JSONStorage Lock), corrupted storage recovery, shared _extract_json util
+- [x] N1-N3: circular pipeline detection, embedding dimension mismatch, delete_pattern API
+- [x] A1, N4: roadmap notes pro Phase 4 (custom exceptions, export/import)
+
+**Deliverable:** `docker compose up` spustí Brain API. Swagger UI na `/docs`. 126 testů, pokrytí ≥80%.
 
 ---
 
@@ -251,22 +256,24 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [ ] HTTPS enforcement dokumentace (reverse proxy)
 - [ ] Rozhodnout: propagovat logging výstupy uživatelům? (aktuálně jen interní)
 - [ ] Config file (YAML/TOML) jako optional override pro komplexní konfigurace (model routing per-role)
-- [ ] Custom exception hierarchy (`BrainError`, `ProviderError`) — rozhodnout zda exponovat
+- [ ] **Custom exception hierarchy** (`BrainError`, `StorageError`, `ProviderError`, `ValidationError`) — nahradit mix `RuntimeError`/`ValueError` v public API; rozhodnout zda exponovat jako public (A1)
+- [ ] **brain.export() / brain.import()** — backup/migrate JSON→Postgres; zvážit formát (JSONL, ZIP) (N4)
 
 ---
 
 ## Metriky úspěchu
 
-| Fáze | KPI | Target |
-|------|-----|--------|
-| 0-1 | End-to-end test PASS | 100% |
-| 1 | Unit test coverage | ≥80% |
-| 2 | API response time (recall) | <200ms (JSON), <500ms (Postgres) |
-| 2 | API response time (evaluate) | <10s (závisí na LLM) |
-| 3 | Framework plugin adoption | ≥1 framework s fungujícím pluginem |
-| 4 | PyPI weekly downloads | tracking starts |
-| 4 | GitHub stars | tracking starts |
-| 4 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain |
+| Fáze | KPI | Target | Výsledek |
+|------|-----|--------|---------|
+| 0-1 | End-to-end test PASS | 100% | ✅ 107 testů, 100% PASS |
+| 0-1 | Unit test coverage | ≥80% | ✅ 92.4% |
+| 2 | Total tests after Phase 2 | 100% PASS | ✅ 126 testů, 100% PASS |
+| 2 | API response time (recall) | <200ms (JSON), <500ms (Postgres) | — (benchmark Phase 4) |
+| 2 | API response time (evaluate) | <10s (závisí na LLM) | — (závisí na LLM latency) |
+| 3 | Framework plugin adoption | ≥1 framework s fungujícím pluginem | — |
+| 4 | PyPI weekly downloads | tracking starts | — |
+| 4 | GitHub stars | tracking starts | — |
+| 4 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain | — |
 
 ---
 
@@ -290,97 +297,101 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 
 ---
 
-## Struktura projektu (target)
+## Struktura projektu
+
+Legenda: ✅ implementováno | 🔲 plánováno
 
 ```
 agent-brain/
-├── CLAUDE.md
-├── roadmap.md
-├── README.md
-├── pyproject.toml
-├── LICENSE
-├── docker-compose.yml
-├── Dockerfile
+├── CLAUDE.md                    ✅
+├── roadmap.md                   ✅
+├── README.md                    ✅
+├── pyproject.toml               ✅
+├── LICENSE                      🔲 Phase 4 (rozhodnutí o licenci před releasem)
+├── docker-compose.yml           🔲 Phase 2
+├── Dockerfile                   🔲 Phase 2
 │
 ├── agent_brain/
-│   ├── __init__.py              # Brain class (public facade)
-│   ├── types.py                 # Pydantic models (Match, EvalResult, Pattern, ...)
+│   ├── __init__.py              ✅ Brain class (public facade)
+│   ├── brain.py                 ✅ Brain implementation
+│   ├── types.py                 ✅ Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
 │   │
-│   ├── core/
+│   ├── core/                    ✅
 │   │   ├── __init__.py
-│   │   ├── success_patterns.py  # Pattern storage + aging + matching
-│   │   ├── eval_store.py        # Eval results storage
-│   │   ├── eval_feedback.py     # Recurring quality issue tracking
-│   │   ├── metrics.py           # Run/success/failure tracking
-│   │   ├── agent_registry.py    # Agent metadata (reads/writes/capabilities)
-│   │   └── skill_registry.py    # Skill → agent mapping
+│   │   ├── success_patterns.py  ✅ Pattern storage + aging + reuse tracking
+│   │   ├── eval_store.py        ✅ Eval výsledky + eval-weighted multiplier
+│   │   ├── eval_feedback.py     ✅ Recurring feedback clustering
+│   │   ├── metrics.py           ✅ Run/success/failure/reuse metriky
+│   │   ├── agent_registry.py    🔲 Phase 3
+│   │   └── skill_registry.py    🔲 Phase 3
 │   │
-│   ├── reuse/
+│   ├── reuse/                   ✅
 │   │   ├── __init__.py
-│   │   ├── matcher.py           # Semantic search + eval weighting
-│   │   ├── composer.py          # Multi-agent pipeline composition
-│   │   └── contracts.py         # reads/writes contract validation
+│   │   ├── matcher.py           ✅ Semantic search + eval weighting
+│   │   ├── composer.py          ✅ LLM pipeline decompose + contract validation
+│   │   └── contracts.py         ✅ reads/writes chain validation
 │   │
-│   ├── eval/
+│   ├── eval/                    ✅
 │   │   ├── __init__.py
-│   │   ├── evaluator.py         # Multi-eval scoring engine
-│   │   ├── variance.py          # Variance detection + adversarial check
-│   │   └── routing.py           # Model routing analyzer
+│   │   ├── evaluator.py         ✅ MultiEvaluator (N concurrent runs, median, variance)
+│   │   ├── variance.py          🔲 Phase 2 (aktuálně součást evaluator.py)
+│   │   └── routing.py           🔲 Phase 2
 │   │
-│   ├── evolution/
+│   ├── evolution/               🔲 Phase 3 (prázdný stub)
 │   │   ├── __init__.py
-│   │   ├── prompt_evolver.py    # Prompt improvement from failure patterns
-│   │   ├── ab_tester.py         # A/B test prompt candidates
-│   │   ├── failure_cluster.py   # Failure pattern clustering
-│   │   └── aging.py             # Pattern aging orchestration
+│   │   ├── prompt_evolver.py    🔲
+│   │   ├── ab_tester.py         🔲
+│   │   └── failure_cluster.py   🔲
 │   │
-│   ├── providers/
+│   ├── providers/               ✅ částečně
+│   │   ├── __init__.py          ✅
+│   │   ├── base.py              ✅ ABC: LLMProvider, EmbeddingProvider, StorageBackend
+│   │   ├── openai.py            ✅ OpenAI LLM + embeddings (retry, native batch)
+│   │   ├── json_storage.py      ✅ JSON atomic storage + cosine similarity
+│   │   ├── anthropic.py         🔲 Phase 3
+│   │   ├── local.py             🔲 Phase 3 (sentence-transformers)
+│   │   └── postgres.py          🔲 Phase 2
+│   │
+│   ├── api/                     🔲 Phase 2 (prázdný stub)
 │   │   ├── __init__.py
-│   │   ├── base.py              # ABC: LLMProvider, EmbeddingProvider, StorageBackend (vč. search_similar)
-│   │   ├── openai.py            # OpenAI LLM + embeddings
-│   │   ├── anthropic.py         # Claude LLM (anthropic SDK)
-│   │   ├── local.py             # sentence-transformers embeddings (no API key)
-│   │   ├── json_storage.py      # JSON file storage (default)
-│   │   └── postgres.py          # PostgreSQL + pgvector storage
+│   │   ├── app.py               🔲
+│   │   ├── routes.py            🔲
+│   │   ├── auth.py              🔲
+│   │   └── deps.py              🔲
 │   │
-│   ├── api/
+│   ├── sdk/                     🔲 Phase 3 (prázdný stub)
 │   │   ├── __init__.py
-│   │   ├── app.py               # FastAPI application
-│   │   ├── routes.py            # API endpoints
-│   │   ├── auth.py              # API key auth
-│   │   └── deps.py              # Dependency injection (Brain instance)
+│   │   ├── langchain.py         🔲
+│   │   └── crewai.py            🔲
 │   │
-│   ├── sdk/
+│   ├── cli/                     🔲 Phase 4 (prázdný stub)
 │   │   ├── __init__.py
-│   │   ├── langchain.py         # LangChain BrainCallback
-│   │   └── crewai.py            # CrewAI BrainMiddleware
+│   │   └── main.py              🔲
 │   │
-│   ├── cli/
-│   │   ├── __init__.py
-│   │   └── main.py              # CLI entry point (Typer)
-│   │
-│   └── db/
+│   └── db/                      🔲 Phase 2 (prázdný stub)
 │       ├── __init__.py
-│       ├── models.py            # SQLAlchemy models
-│       └── migrations/          # Alembic
+│       ├── models.py            🔲
+│       └── migrations/          🔲
 │
-├── tests/
-│   ├── conftest.py
-│   ├── test_core/
-│   ├── test_reuse/
-│   ├── test_eval/
-│   ├── test_evolution/
-│   ├── test_providers/
-│   ├── test_api/
-│   └── test_sdk/
+├── tests/                       ✅ 107 testů, 92.4% coverage
+│   ├── conftest.py              ✅ FakeEmbeddings + fixtures
+│   ├── test_e2e.py              ✅ learn/recall end-to-end + deduplication
+│   ├── test_integration.py      ✅ full cycle (learn→eval→feedback→recall→compose)
+│   ├── test_core/               ✅ success_patterns, eval_store, eval_feedback, metrics
+│   ├── test_reuse/              ✅ contracts
+│   ├── test_eval/               ✅ evaluator
+│   ├── test_providers/          ✅ json_storage, openai (mocked)
+│   ├── test_evolution/          🔲 Phase 3
+│   ├── test_api/                🔲 Phase 2
+│   └── test_sdk/                🔲 Phase 3
 │
-├── docs/
+├── docs/                        🔲 Phase 4
 │   ├── getting-started.md
 │   ├── concepts.md
 │   ├── api-reference.md
 │   └── integrations.md
 │
-└── examples/
+└── examples/                    🔲 Phase 4
     ├── basic_usage.py
     ├── langchain_integration.py
     └── benchmark.py

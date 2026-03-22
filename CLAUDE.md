@@ -29,17 +29,49 @@ Agent Brain poskytuje **paměťovou vrstvu** pro libovolný agent framework:
 
 ## Architektura
 
+Implementovaný stav (Phase 0 + Phase 1 + Phase 2):
+
 ```
 agent_brain/
-├── core/               # Jádro: patterns, evaluations, embeddings, metrics, skills
-├── reuse/              # Reuse engine: matching, composition, contract validation
-├── eval/               # Evaluation: multi-eval scoring, feedback, model routing
-├── evolution/          # Self-improvement: prompt evolution, failure analysis, aging
-├── providers/          # Abstrakce: LLM, Embedding, Storage (OpenAI, Claude, JSON, Postgres)
-├── db/                 # SQLAlchemy modely + Alembic migrace (součást package)
-├── api/                # REST API (FastAPI)
-├── sdk/                # Python SDK + pluginy (LangChain, CrewAI)
-└── cli/                # CLI tool (Typer)
+├── __init__.py              # Brain class (public facade)
+├── brain.py                 # Brain implementation
+├── types.py                 # Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
+├── _util.py                 # Shared interní utility (extract_json_from_llm)
+│
+├── core/                    # ✅ Implementováno
+│   ├── success_patterns.py  # Pattern storage, aging (2%/týden), reuse tracking (+0.1, max 10.0)
+│   ├── eval_store.py        # Eval výsledky, eval-weighted multiplier [0.5, 1.0]
+│   ├── eval_feedback.py     # Recurring feedback clustering (Jaccard >0.4, decay 10%/týden)
+│   └── metrics.py           # Run/success/failure/reuse metriky, rolling history 100
+│
+├── reuse/                   # ✅ Implementováno
+│   ├── matcher.py           # Semantic search + eval weighting (fetch limit*3, re-sort)
+│   ├── composer.py          # LLM pipeline decompose + PatternMatcher per stage + validation
+│   └── contracts.py         # reads/writes chain validation + circular detection
+│
+├── eval/                    # ✅ Implementováno
+│   └── evaluator.py         # MultiEvaluator (ThreadPoolExecutor, median, variance >1.5)
+│
+├── providers/               # ✅ OpenAI + JSON + Postgres; Anthropic, local — Phase 3
+│   ├── base.py              # ABC: LLMProvider, EmbeddingProvider, StorageBackend
+│   ├── openai.py            # OpenAI LLM (retry 3x) + OpenAIEmbeddings (native batch)
+│   ├── json_storage.py      # JSON atomic writes, in-memory index, threading.Lock
+│   └── postgres.py          # PostgreSQL + pgvector (SQLAlchemy, HNSW index)
+│
+├── api/                     # ✅ Implementováno (Phase 2)
+│   ├── app.py               # App factory (create_app), env var konfigurace
+│   ├── routes.py            # POST /learn /recall /compose /evaluate, GET /feedback /metrics /health, DELETE /patterns/{key}
+│   ├── auth.py              # Bearer token middleware (BRAIN_API_KEYS)
+│   ├── deps.py              # Dependency injection (Brain singleton)
+│   └── schemas.py           # Request/Response Pydantic modely
+│
+├── db/                      # ✅ Implementováno (Phase 2)
+│   ├── models.py            # SQLAlchemy 2.x modely (BrainData, BrainEmbedding)
+│   └── migrations/          # Alembic (env.py, script.py.mako, 001_initial.py)
+│
+├── evolution/               # 🔲 Phase 3 (stub only)
+├── sdk/                     # 🔲 Phase 3 (stub only)
+└── cli/                     # 🔲 Phase 4 (stub only)
 ```
 
 ### Provider abstrakce
@@ -47,14 +79,14 @@ agent_brain/
 Brain je **model-agnostic** a **storage-agnostic**:
 
 - **LLM**: OpenAI, Anthropic, libovolný provider implementující `LLMProvider` ABC
-- **Embeddings**: OpenAI (`text-embedding-3-small` jako default), lokální modely (sentence-transformers). Rozšiřitelné přes `EmbeddingProvider` ABC — další providery (Voyage AI, Cohere, apod.) lze přidat jako optional dependency.
-- **Storage**: JSON soubory (single-machine) nebo PostgreSQL + pgvector (SaaS). Storage abstrakce zahrnuje vector search (`search_similar(embedding, limit)`) — JSON backend dělá brute-force cosine similarity, Postgres využívá pgvector index.
+- **Embeddings**: OpenAI (`text-embedding-3-small` jako default), lokální modely (sentence-transformers). Rozšiřitelné přes `EmbeddingProvider` ABC.
+- **Storage**: JSON soubory (single-machine, thread-safe) nebo PostgreSQL + pgvector (SaaS). Storage abstrakce zahrnuje vector search (`search_similar(embedding, limit, prefix)`) — JSON backend dělá brute-force cosine similarity, Postgres využívá pgvector HNSW index.
 
 ### Klíčové koncepty
 
 - **Success patterns** — Úspěšné agent designy s time-based decay (2%/týden). Automatické zapomínání zastaralého.
 - **Eval feedback injection** — Recurring quality issues se automaticky injektují do coder promptu.
-- **Contract validation** — Pipeline stages deklarují reads/writes. Brain validuje, že data flow je konzistentní.
+- **Contract validation** — Pipeline stages deklarují reads/writes. Brain validuje konzistenci data flow i cyklické závislosti.
 - **Multi-eval scoring** — N nezávislých LLM evaluací, median agregace, variance detection (>1.5 = warning).
 - **Semantic agent search** — Task-based embeddings pro přesné vyhledávání podobných agentů.
 - **Pattern aging** — Staré patterny přirozeně klesají na skóre, nové je vytlačují.
@@ -77,8 +109,11 @@ brain = Brain(
 # Learn
 brain.learn(task="Parse CSV and compute stats", code=code, eval_score=8.5, output=stdout)
 
-# Recall
+# Recall — vrátí Match objekty s pattern_key pro případné smazání
 matches = brain.recall(task="Read CSV and calculate averages", limit=5)
+
+# Delete pattern
+brain.delete_pattern(matches[0].pattern_key)
 
 # Compose pipeline
 pipeline = brain.compose(task="Fetch stock data, analyze, write report")
@@ -93,19 +128,27 @@ feedback = brain.get_feedback(task_type="csv", limit=4)
 ### Jako REST API
 
 ```bash
-docker run -p 8000:8000 agent-brain
+# JSON storage (dev)
+docker compose up
+
+# PostgreSQL storage (prod)
+BRAIN_STORAGE=postgres BRAIN_DATABASE_URL=postgresql://... docker compose up
 ```
 
 ```
-POST /learn      — zaznamenej výsledek běhu
-GET  /recall     — najdi relevantní agenty
-POST /compose    — navrhni pipeline
-POST /evaluate   — multi-eval scoring
-GET  /feedback   — top feedback patterns
-GET  /routing    — model routing doporučení
+POST /learn                 — zaznamenej výsledek běhu
+POST /recall                — najdi relevantní agenty
+POST /compose               — navrhni pipeline
+POST /evaluate              — multi-eval scoring
+GET  /feedback              — top feedback patterns
+GET  /metrics               — statistiky
+GET  /health                — health check + storage type
+DELETE /patterns/{key}      — smaž pattern
 ```
 
-### Jako LangChain plugin
+Swagger UI: `http://localhost:8000/docs`
+
+### Jako LangChain plugin (Phase 3 — není ještě implementováno)
 
 ```python
 from agent_brain.sdk.langchain import BrainCallback
@@ -122,10 +165,12 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 ## Technologie
 
 - Python 3.12+
-- FastAPI (REST API)
+- FastAPI + uvicorn (REST API)
 - SQLAlchemy 2.x + pgvector (optional Postgres backend)
+- Alembic (migrace)
 - OpenAI / Anthropic SDK (provider-agnostic)
-- Pydantic (data validation)
+- Pydantic v2 (data validation)
+- numpy (cosine similarity v JSON backend)
 
 ## Konvence
 
@@ -135,12 +180,36 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 - Testy pro každý modul — pytest, fail_under=80%
 - Type hints na všech public API
 - Docstrings na public functions (Google style)
+- `logging.getLogger(__name__)` v každém modulu — žádné print() v produkčním kódu
+- Input validace na Brain API boundary (task/code délky, limit bounds, num_evals ≥ 1)
 
 ## Klíčové soubory
 
 | Soubor | Účel |
 |--------|------|
 | `roadmap.md` | Implementační roadmapa (5 fází) |
+| `alembic.ini` | Alembic konfigurace pro DB migrace |
+| `docker-compose.yml` | Brain API + volitelný pgvector stack |
+| `Dockerfile` | Multi-stage build (builder + runtime) |
 | `agent_brain/__init__.py` | Public API surface (Brain class) |
-| `agent_brain/types.py` | Pydantic modely — Match, EvalResult, Pattern, Pipeline, ... |
-| `agent_brain/providers/base.py` | ABC pro LLM, Embedding, Storage (vč. vector search) |
+| `agent_brain/brain.py` | Brain facade — wiring všech internal stores |
+| `agent_brain/types.py` | Pydantic modely — Pattern, Match, EvalResult, Pipeline, Metrics, ... |
+| `agent_brain/_util.py` | Shared utility: `extract_json_from_llm()` |
+| `agent_brain/providers/base.py` | ABC pro LLM, Embedding, Storage (vč. `search_similar()`) |
+| `agent_brain/providers/openai.py` | OpenAI LLM + Embeddings (lazy import, retry, native batch) |
+| `agent_brain/providers/json_storage.py` | JSON atomic storage + threading.Lock + cosine similarity |
+| `agent_brain/providers/postgres.py` | PostgreSQL + pgvector (HNSW, connection pool) |
+| `agent_brain/core/success_patterns.py` | Pattern storage, aging, reuse boost |
+| `agent_brain/core/eval_store.py` | Eval history, eval-weighted multiplier |
+| `agent_brain/core/eval_feedback.py` | Feedback clustering (Jaccard), decay, surfacing |
+| `agent_brain/core/metrics.py` | Run metriky, rolling history |
+| `agent_brain/reuse/matcher.py` | Semantic search + eval weighting |
+| `agent_brain/reuse/composer.py` | Pipeline decomposition + contract validation |
+| `agent_brain/reuse/contracts.py` | reads/writes chain validation + circular detection |
+| `agent_brain/eval/evaluator.py` | MultiEvaluator (N concurrent runs, median, variance) |
+| `agent_brain/api/app.py` | FastAPI app factory, env var konfigurace |
+| `agent_brain/api/routes.py` | Všechny API endpointy |
+| `agent_brain/api/auth.py` | Bearer token middleware |
+| `agent_brain/api/schemas.py` | API request/response modely |
+| `agent_brain/db/models.py` | SQLAlchemy modely (brain_data + brain_embeddings) |
+| `agent_brain/db/migrations/` | Alembic migrace (001_initial: schema + HNSW index) |

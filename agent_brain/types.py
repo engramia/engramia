@@ -53,11 +53,14 @@ class Match(BaseModel):
             - "duplicate": similarity >= 0.92, use as-is.
             - "adapt": similarity 0.70–0.92, adapt prompt/code for new task.
             - "fresh": similarity < 0.70, generate new agent (pattern is context only).
+        pattern_key: Storage key for this pattern. Pass to ``brain.delete_pattern()``
+            to permanently remove it.
     """
 
     pattern: Pattern
     similarity: float = Field(ge=0.0, le=1.0)
     reuse_tier: Literal["duplicate", "adapt", "fresh"]
+    pattern_key: str = ""
 
 
 class LearnResult(BaseModel):

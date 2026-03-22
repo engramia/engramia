@@ -7,9 +7,13 @@ Effective score = cosine_similarity × eval_multiplier
 where eval_multiplier ∈ [0.5, 1.0] based on stored eval score.
 """
 
+import logging
+
 from agent_brain.core.eval_store import EvalStore
 from agent_brain.providers.base import EmbeddingProvider, StorageBackend
 from agent_brain.types import Match, Pattern, SIMILARITY_ADAPT, SIMILARITY_DUPLICATE
+
+_log = logging.getLogger(__name__)
 
 _PATTERNS_PREFIX = "patterns"
 
@@ -63,13 +67,18 @@ class PatternMatcher:
             data = self._storage.load(key)
             if data is None:
                 continue
-            pattern = Pattern.model_validate(data)
+            try:
+                pattern = Pattern.model_validate(data)
+            except Exception as exc:
+                _log.warning("Skipping corrupted pattern at %r: %s", key, exc)
+                continue
             multiplier = self._eval_store.get_eval_multiplier(key, task)
             effective = similarity * multiplier
             match = Match(
                 pattern=pattern,
                 similarity=round(min(similarity, 1.0), 6),
                 reuse_tier=_reuse_tier(similarity),
+                pattern_key=key,
             )
             weighted.append((effective, match))
 

@@ -9,9 +9,12 @@ Prune threshold: MIN_SCORE = 0.1.
 Reuse boost: +0.1 score per reuse, capped at 10.0.
 """
 
+import logging
 import time
 
 from agent_brain.providers.base import StorageBackend
+
+_log = logging.getLogger(__name__)
 from agent_brain.types import Pattern
 
 _PATTERNS_PREFIX = "patterns"
@@ -69,7 +72,8 @@ class SuccessPatternStore:
             if data is None:
                 continue
             pattern = Pattern.model_validate(data)
-            elapsed_weeks = (now - pattern.timestamp) / (7 * 24 * 3600)
+            # Clamp to 0 to handle accidental future timestamps without inflating scores
+            elapsed_weeks = max(0.0, (now - pattern.timestamp) / (7 * 24 * 3600))
             decayed = pattern.success_score * (_DECAY_PER_WEEK**elapsed_weeks)
 
             if decayed < _MIN_SCORE:
