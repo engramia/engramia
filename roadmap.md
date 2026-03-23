@@ -216,7 +216,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
   ```
 - [x] **Custom exception hierarchy** — `BrainError`, `ProviderError`, `ValidationError`, `StorageError`; REST API mapuje ProviderError → HTTP 501
 - [x] **Export/Import** — `brain.export()` / `brain.import_data()` v JSONL-compatible formátu
-- [x] **PyPI metadata** — classifiers, `[project.urls]`, `__version__ = "0.4.0"`
+- [x] **PyPI metadata** — classifiers, `[project.urls]`, `__version__ = "0.5.0"`
 - [x] **Phase 3 REST endpointy** — `POST /evolve`, `/analyze-failures`, `/skills/register`, `/skills/search`
 - [x] **Audit bugy opraveny** — B1 (mark_reused), B3 (threshold), B4 (feedback length), B5 (_parse_iso), I1 (HTTP 501)
 
@@ -236,10 +236,32 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [x] **py.typed** — PEP 561 marker pro type checking support
 
 #### Fáze 4.6.2: Licence + právní základ
-- [ ] **Rozhodnout licenci** — Apache 2.0 / MIT / BSL (konzultace s právníkem pro komerční model)
-- [ ] **LICENSE** soubor s plným textem licence
-- [ ] **CONTRIBUTING.md** — contribution guidelines, PR process, code of conduct
-- [ ] **Aktualizovat pyproject.toml** — `license` field (TBD → reálná licence), `project.urls` (placeholder → reálné GitHub URL)
+- [x] **Rozhodnout licenci** — BSL 1.1 → Apache 2.0 (change date 4 roky)
+- [x] **LICENSE.md** — BSL 1.1 plný text s parametry (Licensor, Change Date, Additional Use Grant)
+- [x] **Terms of Service** — draft v `docs/legal/TERMS_OF_SERVICE.md` (B2B/B2C, AI Act klauzule, arbitráž Praha)
+- [x] **Privacy Policy** — draft v `docs/legal/PRIVACY_POLICY.md` (GDPR, data processing, cookies)
+- [x] **Key design decisions** — `docs/legal/key-design-decisions.md` (licenční Q&A, trademark, ToS, AI Act)
+- [x] **EU AI Act analýza** — Agent Brain = minimal/limited risk, compliance klauzule v ToS
+- [x] **Žádní externí přispěvatelé** — CONTRIBUTING.md nepotřeba, README note
+- [x] **Aktualizovat pyproject.toml** — `license` field (BSL 1.1), classifier `License :: Other/Proprietary License`
+- [x] **Cookie Policy** — draft v `docs/legal/COOKIE_POLICY.md` (strictly necessary + opt-in analytics)
+- [x] **DPA template** — draft v `docs/legal/DPA_TEMPLATE.md` (GDPR Art. 28, sub-processors, breach notification)
+
+**Deliverable:** LICENSE.md, ToS, Privacy Policy, Cookie Policy, DPA template, EU AI Act analýza, key design decisions. Vše draft — právní review v Fázi 4.6.2.1.
+
+#### Fáze 4.6.2.1: Právní review + finalizace (post-launch nebo před Cloud tier)
+> Cíl: Profesionální právní review všech dokumentů před komerčním nasazením.
+
+- [ ] **Právní review ToS** — český advokát: B2C spotřebitelské klauzule, GDPR compliance, arbitrážní doložka
+- [ ] **Právní review Privacy Policy** — GDPR compliance, retence, international transfers
+- [ ] **Právní review Cookie Policy** — ePrivacy compliance, consent mechanism
+- [ ] **Právní review DPA template** — GDPR Art. 28 compliance, sub-processor flow
+- [ ] **Právní review LICENSE.md** — ověření BSL 1.1 parametrů, enforceability
+- [ ] **Trademark** — registrace EUIPO (třída 42) po finalizaci názvu produktu
+- [ ] **EU AI Act** — monitoring regulatorních updates, delegated acts
+- [ ] **Ověřit živnost** — aktivní IČO pro fakturaci
+- [ ] **Finální název produktu** — neologismus, doménová dostupnost, trademark search
+- [ ] **Doplnit placeholdery** — kontaktní email, pricing URL v ToS, Privacy Policy, Cookie Policy, DPA
 
 #### Fáze 4.6.3: Kvalita kódu + linting
 - [ ] **Linting config** — ruff + mypy konfigurace v `pyproject.toml`
@@ -267,6 +289,30 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [ ] **Launch blog post** — "How self-learning agents achieve 93% success rate"
 
 **Deliverable (launch):** Veřejný PyPI balíček, Docker image, dokumentace, benchmark výsledky, examples.
+
+#### Fáze 4.6.7: Quick fixes
+- [ ] **API version DRY** — `app.py` importuje `__version__` místo hardcoded `"0.5.0"`
+- [ ] **Missing `__init__.py`** — v `agent_brain/db/migrations/` a `agent_brain/db/migrations/versions/`
+- [ ] **Rich explicitní závislost** — přidat `rich>=13.0` do `[cli]` extra v pyproject.toml
+- [ ] **Placeholder URLs** — aktualizovat `[project.urls]` v pyproject.toml na skutečný repo (TODO: repo ještě neexistuje)
+
+#### Fáze 4.6.8: CrewAI integrace
+- [ ] **CrewAI middleware** (`agent_brain/sdk/crewai.py`) — BrainMiddleware pro CrewAI agents
+- [ ] **Auto-learn** z crew task výsledků, **auto-recall** relevant patterns před task start
+- [ ] **Testy** — unit testy + příklad v `examples/`
+- [ ] **Dokumentace** — quick start guide pro CrewAI integraci
+
+**Deliverable:** `pip install agent-brain[crewai]` s fungující integrací.
+
+#### Fáze 4.6.9: MCP Server
+> Cíl: Table stakes pro 2026. MCP je standard pro interoperabilitu agentů.
+
+- [ ] **MCP server** (`agent_brain/mcp/server.py`) — expose Brain API jako MCP tools
+- [ ] **MCP tools**: learn, recall, evaluate, compose, feedback, metrics, aging
+- [ ] **Kompatibilita**: Claude Desktop, Cursor, Windsurf, VS Code Copilot
+- [ ] **Dokumentace**: MCP setup guide + příklad konfigurace
+
+**Deliverable:** `agent-brain` jako MCP server použitelný z Claude Desktop a dalších MCP klientů.
 
 ---
 
@@ -315,29 +361,75 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 
 ## Budoucí fáze (po launch)
 
-### Fáze 5: Dashboard + Team features
-- Web UI pro vizualizaci patterns, evals, metrics
-- Team brain sharing (multi-tenant)
-- RBAC (admin, developer, viewer)
-- Webhook notifications (Slack, Discord)
-- Zvážit: PostgresStorage optimalizace (relační schema místo generického KV)
-- Research topic: grafová DB (Neo4j/ArangoDB) pro vizualizaci agent → skill → task vztahů
+### Fáze 5: Platform + Enterprise
+> Cíl: Team features, observability, compliance. Enterprise-ready.
 
-### Fáze 6: Marketplace
-- Sdílení success patterns mezi uživateli
-- "Community patterns" — best practices pro běžné task typy
-- Monetizace: premium patterns, verified integrations
+- [ ] Web UI / Dashboard — vizualizace patterns, evals, metrics
+- [ ] Team brain sharing (multi-tenant)
+- [ ] RBAC (admin, developer, viewer)
+- [ ] SSO/SAML integrace
+- [ ] OpenTelemetry integrace — traces/spans pro Langfuse, Datadog, Grafana
+- [ ] GDPR compliance — right to erasure s provenance, data residency controls (EU/US/APAC), DPA enforcement
+- [ ] Webhook notifications (Slack, Discord)
+- [ ] API key rotation mechanismus
+- [ ] Config file (YAML/TOML) jako optional override
+- [ ] SOC 2 security controls — implementace kontrol bez certifikace (viz Security Requirements níže)
+- [ ] Zvážit: PostgresStorage optimalizace (relační schema místo generického KV)
 
-### Fáze 7: Další embedding providery
-- Voyage AI embedding provider (`pip install agent-brain[voyage]`)
-- Cohere embeddings
-- Dedikovaná vektorová DB (Qdrant/Milvus) jako StorageBackend — pokud scale překročí 100k+ patternů
-- Další providery dle poptávky
+### Fáze 6: Memory Architecture
+> Cíl: Cutting-edge memory systém. Knowledge graph, memory taxonomie, komprese.
 
-### Fáze 8: Advanced Learning
-- Reinforcement learning z eval scores (ne jen pattern matching)
-- Auto-tuning eval promptů (meta-learning)
-- Cross-project knowledge transfer
+- [ ] **Knowledge Graph** — entity/relationship vrstva nad patterny (task → skill → pattern vztahy)
+- [ ] **Memory taxonomie** — explicitní separace episodic (konkrétní běhy), semantic (fakta, entity), procedural (naučené dovednosti/pravidla)
+- [ ] **Memory compression / summarization** — shrnutí starých patternů místo pouhého decay na skóre
+- [ ] **Multi-agent memory sharing** — sdílené pattern pools s access control a conflict resolution
+- [ ] Research topic: grafová DB (Neo4j/ArangoDB) pro vizualizaci agent → skill → task vztahů
+
+### Fáze 7: Multimodal + Providers
+> Cíl: Rozšíření za text-only. Další embedding a storage providery.
+
+- [ ] **Multimodal memory** — ukládání referencí na obrázky/audio/video s textovými popisy
+- [ ] Voyage AI embedding provider (`pip install agent-brain[voyage]`)
+- [ ] Cohere embeddings
+- [ ] Dedikovaná vektorová DB (Qdrant/Milvus) jako StorageBackend — pokud scale překročí 100k+ patternů
+
+### Fáze 8: Marketplace
+> Cíl: Community-driven pattern sharing a monetizace.
+
+- [ ] Sdílení success patterns mezi uživateli
+- [ ] "Community patterns" — best practices pro běžné task typy
+- [ ] Monetizace: premium patterns, verified integrations
+
+### Fáze 9: Advanced Learning
+> Cíl: RL, meta-learning, cross-project transfer.
+
+- [ ] Reinforcement learning z eval scores (ne jen pattern matching)
+- [ ] Auto-tuning eval promptů (meta-learning)
+- [ ] Cross-project knowledge transfer
+
+---
+
+### Security Requirements (SOC 2 Trust Criteria — bez certifikace)
+> Cíl: Dodržovat bezpečnostní kontroly SOC 2 Type 2 bez formální certifikace.
+> Implementace průběžně v Phase 5+.
+
+**Implementováno (Phase 4.5):**
+- [x] CC6.1: Logické přístupové kontroly (Bearer token auth, timing-safe comparison)
+- [x] CC6.6: Security headers, CORS, rate limiting, body size limit
+- [x] CC7.1: Audit logging (structured JSON — AUTH_FAILURE, PATTERN_DELETED, RATE_LIMITED)
+- [x] CC8.1: Input validation, path traversal prevention, SQL injection prevention
+
+**Plánováno (Phase 5+):**
+- [ ] CC6.2: Multi-factor authentication (SSO/SAML)
+- [ ] CC6.3: Role-based access control (RBAC) — per-team, per-project isolation
+- [ ] CC7.2: Incident response — dokumentovaný IR playbook, kontaktní body, eskalace
+- [ ] CC7.3: Change management — povinný code review, approval flow, audit trail
+- [ ] CC7.4: Vulnerability management — dependency scanning (Dependabot/Snyk), CVE monitoring
+- [ ] A1.2: Backup and recovery — automatické zálohy, definované RTO/RPO cíle
+- [ ] C1.1: Data classification — kategorizace dat (public, internal, confidential, restricted)
+- [ ] C1.2: Encryption at rest — customer-managed encryption keys (CMEK), encrypted volumes
+- [ ] P1–P4: Privacy — data collection, use, retention, disposal policies (GDPR Art. 5, 6, 17)
+- [ ] P6–P8: Privacy — access controls, disclosure safeguards, data quality
 
 ### Pre-launch checklist (backlog z dřívějších fází)
 - [x] ~~Rate limiting na API endpointech~~ — implementováno v Phase 4.5
@@ -368,6 +460,11 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 | 4.6 | PyPI weekly downloads | tracking starts | — |
 | 4.6 | GitHub stars | tracking starts | — |
 | 4.6 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain | — |
+| 4.6.8 | CrewAI integrace | Fungující `pip install agent-brain[crewai]` | — |
+| 4.6.9 | MCP server | Fungující MCP integrace s Claude Desktop | — |
+| 5 | Enterprise features | RBAC + SSO + OTEL + GDPR | — |
+| 6 | Memory architecture | Knowledge graph + taxonomie + compression | — |
+| 7 | Multimodal | ≥1 non-text modality podporována | — |
 
 ---
 
@@ -488,13 +585,13 @@ agent-brain/
 │   ├── test_sdk/                ✅ langchain, webhook
 │   └── test_cli/                ✅ CLI commands (Phase 4)
 │
-├── docs/                        🔲 Phase 4
+├── docs/                        🔲 Phase 4.6.5
 │   ├── getting-started.md
 │   ├── concepts.md
 │   ├── api-reference.md
 │   └── integrations.md
 │
-└── examples/                    🔲 Phase 4
+└── examples/                    🔲 Phase 4.6.6
     ├── basic_usage.py
     ├── langchain_integration.py
     └── benchmark.py

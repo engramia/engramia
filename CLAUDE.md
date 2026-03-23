@@ -29,7 +29,7 @@ Agent Brain poskytuje **paměťovou vrstvu** pro libovolný agent framework:
 
 ## Architektura
 
-Implementovaný stav (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 4.5):
+Implementovaný stav (Phase 0–4.5, Phase 4.6 probíhá):
 
 ```
 agent_brain/
@@ -38,10 +38,6 @@ agent_brain/
 ├── types.py                 # Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
 ├── _util.py                 # Shared utility (extract_json_from_llm, jaccard, reuse_tier, PATTERNS_PREFIX)
 ├── exceptions.py            # ✅ Custom exceptions (BrainError, ProviderError, ValidationError, StorageError) (Phase 4)
-│
-├── api/
-│   ├── audit.py             # ✅ Structured audit logging (AUTH_FAILURE, PATTERN_DELETED, RATE_LIMITED) (Phase 4.5)
-│   └── middleware.py        # ✅ SecurityHeadersMiddleware, RateLimitMiddleware, BodySizeLimitMiddleware (Phase 4.5)
 │
 ├── core/                    # ✅ Implementováno
 │   ├── success_patterns.py  # Pattern storage, aging (2%/týden), reuse tracking (+0.1, max 10.0)
@@ -66,12 +62,14 @@ agent_brain/
 │   ├── json_storage.py      # JSON atomic writes, in-memory index, threading.Lock
 │   └── postgres.py          # PostgreSQL + pgvector (SQLAlchemy, HNSW index)
 │
-├── api/                     # ✅ Implementováno (Phase 2)
+├── api/                     # ✅ Implementováno (Phase 2 + Phase 4.5)
 │   ├── app.py               # App factory (create_app), env var konfigurace
 │   ├── routes.py            # POST /learn /recall /compose /evaluate /aging /feedback/decay, GET /feedback /metrics /health, DELETE /patterns/{key}
 │   ├── auth.py              # Bearer token middleware (BRAIN_API_KEYS, per-request)
 │   ├── deps.py              # Dependency injection (Brain singleton)
-│   └── schemas.py           # Request/Response Pydantic modely
+│   ├── schemas.py           # Request/Response Pydantic modely
+│   ├── audit.py             # Structured audit logging (AUTH_FAILURE, PATTERN_DELETED, RATE_LIMITED)
+│   └── middleware.py        # SecurityHeadersMiddleware, RateLimitMiddleware, BodySizeLimitMiddleware
 │
 ├── db/                      # ✅ Implementováno (Phase 2)
 │   ├── models.py            # SQLAlchemy 2.x modely (BrainData, BrainEmbedding)
@@ -85,8 +83,11 @@ agent_brain/
 │   ├── langchain.py         # LangChain BrainCallback (auto-learn, auto-recall)
 │   └── webhook.py           # Lightweight HTTP SDK client (urllib, no deps)
 │
-└── cli/                     # ✅ Implementováno (Phase 4)
-    └── main.py              # Typer CLI — init, serve, status, recall, aging
+├── cli/                     # ✅ Implementováno (Phase 4)
+│   └── main.py              # Typer CLI — init, serve, status, recall, aging
+│
+└── mcp/                     # 🔲 Plánováno (Phase 4.6.9)
+    └── server.py            # MCP server — Brain API jako MCP tools
 ```
 
 ### Provider abstrakce
@@ -114,6 +115,19 @@ Brain je **model-agnostic** a **storage-agnostic**:
 - **Export/Import** — JSONL-compatible backup a migrace patternů (`brain.export()` / `brain.import_data()`).
 - **CLI** — Typer + Rich CLI (`agent-brain init/serve/status/recall/aging`).
 - **Model routing** — Empirická analýza: najdi nejlevnější model, který dosahuje ≥90% kvality nejdražšího.
+
+### Plánované features (roadmap)
+
+- **MCP Server** (Phase 4.6.9) — Brain API jako MCP tools pro Claude Desktop, Cursor, Windsurf.
+- **Knowledge Graph** (Phase 6) — Entity/relationship vrstva nad patterny pro grafové dotazy a vizualizaci.
+- **Memory taxonomie** (Phase 6) — Explicitní separace episodic (konkrétní běhy), semantic (fakta, entity), procedural (naučené dovednosti).
+- **Memory compression** (Phase 6) — Shrnutí starých patternů místo pouhého score decay.
+- **Multi-agent sharing** (Phase 6) — Sdílené pattern pools s access control a conflict resolution.
+- **OpenTelemetry** (Phase 5) — Traces/spans pro observability stacky (Langfuse, Datadog, Grafana).
+- **RBAC + SSO/SAML** (Phase 5) — Enterprise access control, per-team memory isolation.
+- **GDPR compliance** (Phase 5) — Right to erasure, data residency, DPA.
+- **Multimodal** (Phase 7) — Image/audio/video reference s textovými popisy.
+- **Marketplace** (Phase 8) — Community pattern sharing a monetizace.
 
 ## Použití
 
@@ -239,7 +253,7 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 
 | Soubor | Účel |
 |--------|------|
-| `roadmap.md` | Implementační roadmapa (fáze 0–4.6) |
+| `roadmap.md` | Implementační roadmapa (fáze 0–9 + security requirements) |
 | `CHANGELOG.md` | Release notes pro všechny verze (Keep a Changelog formát) |
 | `SECURITY.md` | Security policy, known limitations, production deployment checklist |
 | `alembic.ini` | Alembic konfigurace pro DB migrace |
@@ -266,6 +280,8 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 | `agent_brain/api/routes.py` | Všechny API endpointy |
 | `agent_brain/api/auth.py` | Bearer token middleware |
 | `agent_brain/api/schemas.py` | API request/response modely |
+| `agent_brain/api/audit.py` | Structured audit logging (security events) |
+| `agent_brain/api/middleware.py` | Security headers, rate limiting, body size limit middleware |
 | `agent_brain/providers/anthropic.py` | Anthropic/Claude LLM (lazy import, retry) |
 | `agent_brain/providers/local_embeddings.py` | sentence-transformers (no API key, 384-dim) |
 | `agent_brain/core/skill_registry.py` | Capability-based pattern tagging |

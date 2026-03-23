@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_eval/test_evaluator.py -x -q)",
+      "Bash(python -m pytest /c/Users/soulf/agent-brain/tests -v --co)",
+      "Bash(python -m pytest tests/test_reuse/test_matcher.py tests/test_reuse/test_composer.py tests/test_brain.py tests/test_api/test_auth.py --tb=short -q)",
+      "Bash(python -m pytest --tb=short -q)",
+      "Bash(python -m pytest tests/ -q)",
+      "WebSearch"
+    ]
+  }
+}
