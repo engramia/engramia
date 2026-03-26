@@ -230,6 +230,34 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 ### Fáze 4.6: Pre-launch
 > Cíl: Vše potřebné pro veřejný release na PyPI, Docker Hub / GHCR a GitHub.
 
+#### Fáze 4.6.0: Branding + Launch infrastruktura
+> Blocking fáze — bez těchto kroků nelze nic veřejně publikovat.
+
+**Název a identita:**
+- [ ] **Finální název produktu** — neologismus s dostupnou PyPI + .dev/.ai doménou + EUIPO třída 42 volná; kandidáti: `engramia`, `anamnex`, `latenta`, `ecphory` (viz key-design-decisions.md)
+- [ ] **Doménová registrace** — {název}.dev nebo {název}.ai (nebo obojí); registrar Cloudflare / Namecheap
+- [ ] **Přejmenovat codebase** — opakovat rename workflow (git mv + sed) po finalizaci názvu
+
+**Účty a repozitář:**
+- [ ] **GitHub organizace** — `{název}-ai` nebo `{název}` org; public repo s MIT-licensed examples
+- [ ] **PyPI účet** — registrace na pypi.org + Trusted Publisher nastavení (GitHub Actions OIDC, bez API tokenů)
+- [ ] **Docker Hub / GHCR** — namespace pro Docker image (`ghcr.io/{název}/{název}:latest`)
+
+**LLM API přístup (nutné pro produkci i beta testování):**
+- [ ] **OpenAI API klíč** — `text-embedding-3-small` (default embeddings) + GPT-4.1 pro compose/evaluate/evolve; odhadovaný cost při beta: ~$5–20/měsíc
+- [ ] **Anthropic API klíč** — volitelný, pro Anthropic provider; stejná cost úroveň
+
+**Hosting REST API:**
+- [ ] **PaaS deploy** — Railway / Render / Fly.io; min. 512 MB RAM, 0.5 vCPU; free tier stačí pro beta (~$5–7/měsíc při placené)
+- [ ] **PostgreSQL + pgvector** — Supabase nebo Neon (free tier 500 MB pro beta); produkce: dedicated instance s encrypted volumes
+- [ ] **Reverse proxy + TLS** — Caddy nebo Nginx před API serverem; HTTPS nutné pro produkci (viz SECURITY.md)
+
+**Kontaktní a právní základ:**
+- [ ] **Projektový email** — pro ToS/Privacy Policy/DPA placeholdery (`hello@{název}.dev` nebo Proton Mail alias)
+- [ ] **Doplnit placeholdery v docs/legal/** — kontaktní email, pricing URL, Change Date v LICENSE.md po finalizaci názvu
+
+**Deliverable:** Zaregistrovaná doména, GitHub org + repo, PyPI namespace, funkční beta deploy s HTTPS, API klíče v env.
+
 #### Fáze 4.6.1: Changelog + repo infrastruktura
 - [x] **CHANGELOG.md** — Keep a Changelog formát, release notes pro v0.1.0–v0.5.0
 - [x] **.dockerignore** — vyloučení testů, docs, .git z Docker kontextu
