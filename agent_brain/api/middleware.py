@@ -99,9 +99,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if count > limit:
             _log.warning(
                 "Rate limit exceeded: ip=%s path=%s count=%d limit=%d",
-                ip, path, count, limit,
+                ip,
+                path,
+                count,
+                limit,
             )
             from agent_brain.api.audit import AuditEvent, log_event  # deferred to avoid circular import
+
             log_event(AuditEvent.RATE_LIMITED, ip=ip, path=path, count=count, limit=limit)
             return JSONResponse(
                 status_code=429,
@@ -137,12 +141,7 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
                 if size > self._max:
                     return JSONResponse(
                         status_code=413,
-                        content={
-                            "detail": (
-                                f"Request body too large. "
-                                f"Maximum allowed: {self._max} bytes."
-                            )
-                        },
+                        content={"detail": (f"Request body too large. Maximum allowed: {self._max} bytes.")},
                     )
             except ValueError:
                 pass  # Malformed Content-Length — let FastAPI handle it

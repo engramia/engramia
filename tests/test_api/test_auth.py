@@ -6,7 +6,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from agent_brain.api.deps import get_brain
 from agent_brain.brain import Brain
 from agent_brain.providers.json_storage import JSONStorage
 from tests.conftest import FakeEmbeddings

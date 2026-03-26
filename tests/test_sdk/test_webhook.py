@@ -1,7 +1,7 @@
 """Tests for BrainWebhook SDK client."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -52,9 +52,7 @@ class TestBrainWebhook:
 
     @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
     def test_recall(self, mock_urlopen):
-        mock_urlopen.return_value = FakeResponse({
-            "matches": [{"similarity": 0.95, "reuse_tier": "duplicate"}]
-        })
+        mock_urlopen.return_value = FakeResponse({"matches": [{"similarity": 0.95, "reuse_tier": "duplicate"}]})
         client = self._client()
 
         matches = client.recall(task="Parse CSV")
@@ -111,6 +109,7 @@ class TestBrainWebhook:
     @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
     def test_http_error_raises(self, mock_urlopen):
         import urllib.error
+
         mock_urlopen.side_effect = urllib.error.HTTPError(
             url="http://localhost:8000/health",
             code=401,

@@ -1,6 +1,7 @@
 """Tests for EvalStore."""
 
 import pytest
+
 from agent_brain.core.eval_store import EvalStore
 
 
@@ -20,6 +21,7 @@ def test_rolling_window(store):
     for i in range(210):
         store.save(f"agent_{i}", f"task {i}", {"overall": 7.0})
     from agent_brain.core.eval_store import _MAX_EVALS
+
     raw = store._load_raw()
     assert len(raw) <= _MAX_EVALS
 

@@ -22,21 +22,25 @@ from agent_brain.exceptions import ValidationError as BrainValidationError
 # Fixtures
 # ---------------------------------------------------------------------------
 
-EVAL_RESPONSE = json.dumps({
-    "task_alignment": 8,
-    "code_quality": 7,
-    "workspace_usage": 8,
-    "robustness": 6,
-    "overall": 7.5,
-    "feedback": "Add error handling for missing input files.",
-})
+EVAL_RESPONSE = json.dumps(
+    {
+        "task_alignment": 8,
+        "code_quality": 7,
+        "workspace_usage": 8,
+        "robustness": 6,
+        "overall": 7.5,
+        "feedback": "Add error handling for missing input files.",
+    }
+)
 
-COMPOSE_RESPONSE = json.dumps({
-    "stages": [
-        {"task": "Read CSV file", "reads": ["input.csv"], "writes": ["data.json"]},
-        {"task": "Compute statistics", "reads": ["data.json"], "writes": ["report.txt"]},
-    ]
-})
+COMPOSE_RESPONSE = json.dumps(
+    {
+        "stages": [
+            {"task": "Read CSV file", "reads": ["input.csv"], "writes": ["data.json"]},
+            {"task": "Compute statistics", "reads": ["data.json"], "writes": ["report.txt"]},
+        ]
+    }
+)
 
 
 @pytest.fixture
@@ -69,13 +73,17 @@ def api_client(fake_embeddings, storage, mock_llm):
 # POST /v1/learn
 # ---------------------------------------------------------------------------
 
+
 class TestLearnEndpoint:
     def test_learn_returns_200(self, api_client):
-        resp = api_client.post("/v1/learn", json={
-            "task": "Parse CSV file",
-            "code": "import csv",
-            "eval_score": 8.5,
-        })
+        resp = api_client.post(
+            "/v1/learn",
+            json={
+                "task": "Parse CSV file",
+                "code": "import csv",
+                "eval_score": 8.5,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["stored"] is True
@@ -88,21 +96,18 @@ class TestLearnEndpoint:
         assert resp.json()["pattern_count"] == 3
 
     def test_learn_invalid_score_returns_422(self, api_client):
-        resp = api_client.post("/v1/learn", json={
-            "task": "Task", "code": "code", "eval_score": 11.0
-        })
+        resp = api_client.post("/v1/learn", json={"task": "Task", "code": "code", "eval_score": 11.0})
         assert resp.status_code == 422
 
     def test_learn_empty_task_returns_422(self, api_client):
-        resp = api_client.post("/v1/learn", json={
-            "task": "", "code": "import csv", "eval_score": 7.0
-        })
+        resp = api_client.post("/v1/learn", json={"task": "", "code": "import csv", "eval_score": 7.0})
         assert resp.status_code in (422, 400, 500)  # depends on validation depth
 
 
 # ---------------------------------------------------------------------------
 # POST /v1/recall
 # ---------------------------------------------------------------------------
+
 
 class TestRecallEndpoint:
     def test_recall_returns_matches(self, api_client):
@@ -134,31 +139,27 @@ class TestRecallEndpoint:
 # POST /v1/evaluate
 # ---------------------------------------------------------------------------
 
+
 class TestEvaluateEndpoint:
     def test_evaluate_returns_median_score(self, api_client):
-        resp = api_client.post("/v1/evaluate", json={
-            "task": "Parse CSV", "code": "import csv", "num_evals": 1
-        })
+        resp = api_client.post("/v1/evaluate", json={"task": "Parse CSV", "code": "import csv", "num_evals": 1})
         assert resp.status_code == 200
         data = resp.json()
         assert data["median_score"] == pytest.approx(7.5)
 
     def test_evaluate_returns_feedback(self, api_client):
-        resp = api_client.post("/v1/evaluate", json={
-            "task": "Parse CSV", "code": "import csv", "num_evals": 1
-        })
+        resp = api_client.post("/v1/evaluate", json={"task": "Parse CSV", "code": "import csv", "num_evals": 1})
         assert "error handling" in resp.json()["feedback"].lower()
 
     def test_evaluate_num_evals_zero_returns_422(self, api_client):
-        resp = api_client.post("/v1/evaluate", json={
-            "task": "Task", "code": "code", "num_evals": 0
-        })
+        resp = api_client.post("/v1/evaluate", json={"task": "Task", "code": "code", "num_evals": 0})
         assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------
 # POST /v1/compose
 # ---------------------------------------------------------------------------
+
 
 class TestComposeEndpoint:
     def test_compose_returns_pipeline(self, api_client, mock_llm):
@@ -174,6 +175,7 @@ class TestComposeEndpoint:
 # ---------------------------------------------------------------------------
 # GET /v1/feedback
 # ---------------------------------------------------------------------------
+
 
 class TestFeedbackEndpoint:
     def test_feedback_returns_list(self, api_client):
@@ -194,6 +196,7 @@ class TestFeedbackEndpoint:
 # GET /v1/metrics
 # ---------------------------------------------------------------------------
 
+
 class TestMetricsEndpoint:
     def test_metrics_returns_structure(self, api_client):
         resp = api_client.get("/v1/metrics")
@@ -212,6 +215,7 @@ class TestMetricsEndpoint:
 # ---------------------------------------------------------------------------
 # DELETE /v1/patterns/{key}
 # ---------------------------------------------------------------------------
+
 
 class TestDeletePatternEndpoint:
     def test_delete_existing_pattern(self, api_client):
@@ -236,6 +240,7 @@ class TestDeletePatternEndpoint:
 # ---------------------------------------------------------------------------
 # GET /v1/health
 # ---------------------------------------------------------------------------
+
 
 class TestHealthEndpoint:
     def test_health_returns_ok(self, api_client):

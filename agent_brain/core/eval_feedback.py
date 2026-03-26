@@ -20,7 +20,7 @@ _log = logging.getLogger(__name__)
 _KEY = "feedback/_list"
 _MAX_KEEP = 50
 _MAX_FEEDBACK_LEN = 5000
-_DECAY_PER_WEEK = 0.90   # 10% decay per week (faster than success patterns)
+_DECAY_PER_WEEK = 0.90  # 10% decay per week (faster than success patterns)
 _MIN_SCORE = 0.15
 _CLUSTER_THRESHOLD = 0.4  # Jaccard threshold for grouping similar feedback
 
@@ -60,9 +60,7 @@ class EvalFeedbackStore:
             ValueError: If feedback_text exceeds maximum length.
         """
         if len(feedback_text) > _MAX_FEEDBACK_LEN:
-            raise ValueError(
-                f"feedback_text exceeds maximum length of {_MAX_FEEDBACK_LEN} characters"
-            )
+            raise ValueError(f"feedback_text exceeds maximum length of {_MAX_FEEDBACK_LEN} characters")
         norm = _normalize(feedback_text)
         if not norm:
             return
@@ -78,7 +76,9 @@ class EvalFeedbackStore:
                 self._storage.save(_KEY, patterns)
                 return
 
-        patterns.append({"pattern": feedback_text.strip(), "count": 1, "score": 0.5, "last_seen": now_iso, "last_decayed": now_iso})
+        patterns.append(
+            {"pattern": feedback_text.strip(), "count": 1, "score": 0.5, "last_seen": now_iso, "last_decayed": now_iso}
+        )
         patterns = patterns[-_MAX_KEEP:]
         self._storage.save(_KEY, patterns)
 
@@ -155,7 +155,7 @@ def _parse_iso(iso: str) -> float:
         return time.time()
     try:
         dt = datetime.datetime.strptime(iso, "%Y-%m-%dT%H:%M:%S")
-        return dt.replace(tzinfo=datetime.timezone.utc).timestamp()
-    except Exception:
+        return dt.replace(tzinfo=datetime.UTC).timestamp()
+    except (ValueError, TypeError):
         _log.warning("Could not parse ISO timestamp %r; skipping decay for this pattern", iso)
         return 0.0

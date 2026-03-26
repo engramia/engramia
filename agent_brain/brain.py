@@ -9,18 +9,7 @@ import logging
 import time
 from typing import Any
 
-_MAX_EVAL_SCORE = 10.0
-_MIN_EVAL_SCORE = 0.0
-_MAX_NUM_EVALS = 10
-
-_log = logging.getLogger(__name__)
-
-_MAX_TASK_LEN = 10_000
-_MAX_CODE_LEN = 500_000  # 500 KB
-
 from agent_brain._util import PATTERNS_PREFIX, jaccard, reuse_tier
-from agent_brain.exceptions import ProviderError
-from agent_brain.exceptions import ValidationError as BrainValidationError
 from agent_brain.core.eval_feedback import EvalFeedbackStore
 from agent_brain.core.eval_store import EvalStore
 from agent_brain.core.metrics import MetricsStore
@@ -29,6 +18,8 @@ from agent_brain.core.success_patterns import SuccessPatternStore
 from agent_brain.eval.evaluator import MultiEvaluator
 from agent_brain.evolution.failure_cluster import FailureCluster, FailureClusterer
 from agent_brain.evolution.prompt_evolver import EvolutionResult, PromptEvolver
+from agent_brain.exceptions import ProviderError
+from agent_brain.exceptions import ValidationError as BrainValidationError
 from agent_brain.providers.base import EmbeddingProvider, LLMProvider, StorageBackend
 from agent_brain.reuse.composer import PipelineComposer
 from agent_brain.reuse.matcher import PatternMatcher
@@ -41,6 +32,16 @@ from agent_brain.types import (
     Pattern,
     Pipeline,
 )
+
+_MAX_EVAL_SCORE = 10.0
+_MIN_EVAL_SCORE = 0.0
+_MAX_NUM_EVALS = 10
+
+_log = logging.getLogger(__name__)
+
+_MAX_TASK_LEN = 10_000
+_MAX_CODE_LEN = 500_000  # 500 KB
+_MAX_PATTERN_COUNT = 100_000  # safety cap -- prevents unbounded storage growth
 
 _DEDUP_FETCH_MULTIPLIER = 3
 
@@ -116,7 +117,7 @@ class Brain:
         Args:
             task: Natural language description of what the agent does.
             code: Agent source code (the solution).
-            eval_score: Quality score 0.0–10.0 (from evaluate() or manual).
+            eval_score: Quality score 0.0-10.0 (from evaluate() or manual).
             output: Optional captured stdout/output for reference.
 
         Returns:
@@ -125,6 +126,14 @@ class Brain:
         self._validate_task(task)
         self._validate_code(code)
         self._validate_eval_score(eval_score)
+
+        current_count = len(self._storage.list_keys(prefix=PATTERNS_PREFIX))
+        if current_count >= _MAX_PATTERN_COUNT:
+            raise BrainValidationError(
+                f"Pattern store is full ({current_count}/{_MAX_PATTERN_COUNT}). "
+                "Run aging or delete patterns before learning new ones."
+            )
+
         design: dict[str, Any] = {"code": code}
         if output is not None:
             design["output"] = output
@@ -186,7 +195,14 @@ class Brain:
                 if data is None:
                     continue
                 pattern = Pattern.model_validate(data)
-                matches.append(Match(pattern=pattern, similarity=min(similarity, 1.0), reuse_tier=reuse_tier(similarity), pattern_key=key))
+                matches.append(
+                    Match(
+                        pattern=pattern,
+                        similarity=min(similarity, 1.0),
+                        reuse_tier=reuse_tier(similarity),
+                        pattern_key=key,
+                    )
+                )
 
         if deduplicate:
             matches = _deduplicate_matches(matches)
@@ -287,7 +303,7 @@ class Brain:
             limit: Maximum number of feedback strings.
 
         Returns:
-            List of feedback strings sorted by relevance (score × count).
+            List of feedback strings sorted by relevance (score * count).
         """
         return self._feedback_store.get_top(n=limit, task_type=task_type)
 
@@ -313,9 +329,7 @@ class Brain:
             ValidationError: If pattern_key does not start with the patterns/ prefix.
         """
         if not pattern_key.startswith(f"{PATTERNS_PREFIX}/") or ".." in pattern_key:
-            raise BrainValidationError(
-                f"pattern_key must start with '{PATTERNS_PREFIX}/' and must not contain '..'"
-            )
+            raise BrainValidationError(f"pattern_key must start with '{PATTERNS_PREFIX}/' and must not contain '..'")
         if self._storage.load(pattern_key) is None:
             return False
         self._storage.delete(pattern_key)
@@ -428,7 +442,7 @@ class Brain:
                 continue
             try:
                 pattern = Pattern.model_validate(data)
-            except Exception:
+            except (ValueError, KeyError):
                 continue
             matches.append(
                 Match(
@@ -458,7 +472,7 @@ class Brain:
         for key in keys:
             data = self._storage.load(key)
             if data is not None:
-                records.append({"key": key, "data": data})
+                records.append({"version": 1, "key": key, "data": data})
         return records
 
     def import_data(self, records: list[dict], overwrite: bool = False) -> int:

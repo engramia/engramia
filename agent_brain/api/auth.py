@@ -43,17 +43,19 @@ async def require_auth(request: Request) -> None:
 
     if not auth_header.startswith("Bearer "):
         from agent_brain.api.audit import AuditEvent, log_event  # deferred to avoid circular import
+
         log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="missing_or_malformed_header")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or malformed Authorization header. Expected: Bearer <key>",
         )
 
-    token = auth_header[len("Bearer "):]
+    token = auth_header[len("Bearer ") :]
     # Timing-safe comparison: iterate all keys to avoid leaking which key matched
     # or how many keys exist via response timing differences.
     if not any(hmac.compare_digest(token, key) for key in api_keys):
         from agent_brain.api.audit import AuditEvent, log_event  # deferred to avoid circular import
+
         log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="invalid_key")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

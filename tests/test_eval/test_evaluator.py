@@ -7,15 +7,16 @@ import pytest
 
 from agent_brain.eval.evaluator import MultiEvaluator, _check_adversarial, _extract_json
 
-
-VALID_EVAL_JSON = json.dumps({
-    "task_alignment": 8,
-    "code_quality": 7,
-    "workspace_usage": 9,
-    "robustness": 6,
-    "overall": 7.5,
-    "feedback": "Add error handling for missing files.",
-})
+VALID_EVAL_JSON = json.dumps(
+    {
+        "task_alignment": 8,
+        "code_quality": 7,
+        "workspace_usage": 9,
+        "robustness": 6,
+        "overall": 7.5,
+        "feedback": "Add error handling for missing files.",
+    }
+)
 
 
 def _make_llm(response: str = VALID_EVAL_JSON) -> MagicMock:
@@ -50,7 +51,6 @@ class TestAdversarialCheck:
 
     def test_computed_output_not_flagged(self):
         code = "import csv\nresult = sum(row) / len(rows)"
-        output = "42.0"
         assert _check_adversarial(code, "42.0") is False  # too short
 
     def test_none_output_returns_false(self):
@@ -67,9 +67,36 @@ class TestMultiEvaluator:
 
     def test_high_variance_detected(self):
         responses = [
-            json.dumps({"task_alignment": 9, "code_quality": 9, "workspace_usage": 9, "robustness": 9, "overall": 9.0, "feedback": "good"}),
-            json.dumps({"task_alignment": 4, "code_quality": 4, "workspace_usage": 4, "robustness": 4, "overall": 4.0, "feedback": "poor"}),
-            json.dumps({"task_alignment": 7, "code_quality": 7, "workspace_usage": 7, "robustness": 7, "overall": 7.0, "feedback": "ok"}),
+            json.dumps(
+                {
+                    "task_alignment": 9,
+                    "code_quality": 9,
+                    "workspace_usage": 9,
+                    "robustness": 9,
+                    "overall": 9.0,
+                    "feedback": "good",
+                }
+            ),
+            json.dumps(
+                {
+                    "task_alignment": 4,
+                    "code_quality": 4,
+                    "workspace_usage": 4,
+                    "robustness": 4,
+                    "overall": 4.0,
+                    "feedback": "poor",
+                }
+            ),
+            json.dumps(
+                {
+                    "task_alignment": 7,
+                    "code_quality": 7,
+                    "workspace_usage": 7,
+                    "robustness": 7,
+                    "overall": 7.0,
+                    "feedback": "ok",
+                }
+            ),
         ]
         llm = MagicMock()
         llm.call.side_effect = responses
@@ -80,8 +107,26 @@ class TestMultiEvaluator:
 
     def test_feedback_from_worst_run(self):
         responses = [
-            json.dumps({"task_alignment": 9, "code_quality": 9, "workspace_usage": 9, "robustness": 9, "overall": 9.0, "feedback": "great"}),
-            json.dumps({"task_alignment": 3, "code_quality": 3, "workspace_usage": 3, "robustness": 3, "overall": 3.0, "feedback": "needs work"}),
+            json.dumps(
+                {
+                    "task_alignment": 9,
+                    "code_quality": 9,
+                    "workspace_usage": 9,
+                    "robustness": 9,
+                    "overall": 9.0,
+                    "feedback": "great",
+                }
+            ),
+            json.dumps(
+                {
+                    "task_alignment": 3,
+                    "code_quality": 3,
+                    "workspace_usage": 3,
+                    "robustness": 3,
+                    "overall": 3.0,
+                    "feedback": "needs work",
+                }
+            ),
         ]
         llm = MagicMock()
         llm.call.side_effect = responses

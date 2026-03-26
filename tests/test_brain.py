@@ -4,7 +4,6 @@ import time
 
 import pytest
 
-from agent_brain.brain import Brain
 from agent_brain.exceptions import ValidationError
 from agent_brain.types import Pattern
 

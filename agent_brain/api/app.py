@@ -31,7 +31,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from agent_brain import Brain
+from agent_brain import Brain, __version__
 from agent_brain.api.routes import router
 from agent_brain.exceptions import ValidationError as BrainValidationError
 
@@ -42,9 +42,11 @@ def _make_storage():
     backend = os.environ.get("BRAIN_STORAGE", "json").lower()
     if backend == "postgres":
         from agent_brain.providers.postgres import PostgresStorage
+
         return PostgresStorage()  # reads BRAIN_DATABASE_URL from env
     # Default: JSON storage
     from agent_brain.providers.json_storage import JSONStorage
+
     path = os.environ.get("BRAIN_DATA_PATH", "./brain_data")
     return JSONStorage(path=path)
 
@@ -52,6 +54,7 @@ def _make_storage():
 def _make_embeddings():
     model = os.environ.get("BRAIN_EMBEDDING_MODEL", "text-embedding-3-small")
     from agent_brain.providers.openai import OpenAIEmbeddings
+
     return OpenAIEmbeddings(model=model)
 
 
@@ -60,6 +63,7 @@ def _make_llm():
     model = os.environ.get("BRAIN_LLM_MODEL", "gpt-4.1")
     if provider == "openai":
         from agent_brain.providers.openai import OpenAIProvider
+
         return OpenAIProvider(model=model)
     _log.warning("Unknown BRAIN_LLM_PROVIDER %r — LLM features will be unavailable", provider)
     return None
@@ -92,7 +96,9 @@ def _log_security_config() -> None:
     rate_expensive = int(os.environ.get("BRAIN_RATE_LIMIT_EXPENSIVE", "10"))
     _log.info(
         "SECURITY: rate_limit=%d/min (LLM-intensive=%d/min), max_body=%d bytes",
-        rate_default, rate_expensive, max_body,
+        rate_default,
+        rate_expensive,
+        max_body,
     )
 
 
@@ -110,7 +116,7 @@ def create_app() -> FastAPI:
             "Self-learning memory layer for AI agent frameworks. "
             "Provides learn, recall, evaluate, compose, and feedback endpoints."
         ),
-        version="0.5.0",
+        version=__version__,
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -154,9 +160,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=422, content={"detail": "Invalid request parameters."})
 
     @app.exception_handler(BrainValidationError)
-    async def brain_validation_error_handler(
-        request: Request, exc: BrainValidationError
-    ) -> JSONResponse:
+    async def brain_validation_error_handler(request: Request, exc: BrainValidationError) -> JSONResponse:
         _log.warning("ValidationError in request %s %s: %s", request.method, request.url.path, exc)
         return JSONResponse(status_code=422, content={"detail": "Validation error in request."})
 
@@ -198,6 +202,7 @@ def create_app() -> FastAPI:
 # Or: from agent_brain.api.app import app  (triggers creation)
 try:
     import os
+
     _skip_auto_create = os.environ.get("BRAIN_SKIP_AUTO_APP", "0") == "1"
 except Exception:
     _skip_auto_create = True

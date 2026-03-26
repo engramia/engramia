@@ -14,6 +14,7 @@ For advanced use cases (async, streaming), use httpx or requests directly.
 import json
 import logging
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -62,7 +63,7 @@ class BrainWebhook:
         Args:
             task: Task description.
             code: Agent source code.
-            eval_score: Quality score 0–10.
+            eval_score: Quality score 0-10.
             output: Optional captured output.
 
         Returns:
@@ -154,7 +155,7 @@ class BrainWebhook:
         """
         params = f"?limit={limit}"
         if task_type:
-            params += f"&task_type={urllib.request.quote(task_type)}"
+            params += f"&task_type={urllib.parse.quote(task_type)}"
         resp = self._get(f"/v1/feedback{params}")
         return resp.get("feedback", [])
 
@@ -203,6 +204,85 @@ class BrainWebhook:
         """
         resp = self._post("/v1/feedback/decay", {})
         return resp.get("pruned", 0)
+
+    def evolve_prompt(
+        self,
+        role: str,
+        current_prompt: str,
+        num_issues: int = 5,
+    ) -> dict:
+        """Generate an improved prompt based on recurring feedback.
+
+        Args:
+            role: Agent role (e.g. "coder", "eval", "architect").
+            current_prompt: Current system prompt to improve.
+            num_issues: Number of top issues to address.
+
+        Returns:
+            Response dict with improved_prompt, changes, accepted, reason.
+        """
+        return self._post(
+            "/v1/evolve",
+            {
+                "role": role,
+                "current_prompt": current_prompt,
+                "num_issues": num_issues,
+            },
+        )
+
+    def analyze_failures(self, min_count: int = 1) -> list[dict]:
+        """Cluster failure patterns to identify systemic issues.
+
+        Args:
+            min_count: Minimum occurrence count for inclusion.
+
+        Returns:
+            List of cluster dicts with representative, members, total_count, avg_score.
+        """
+        resp = self._post("/v1/analyze-failures", {"min_count": min_count})
+        return resp.get("clusters", [])
+
+    def register_skills(self, pattern_key: str, skills: list[str]) -> int:
+        """Associate skill tags with a stored pattern.
+
+        Args:
+            pattern_key: Storage key of the pattern to tag.
+            skills: Skill tags to associate (e.g. ["csv_parsing", "statistics"]).
+
+        Returns:
+            Number of unique skills now registered for the pattern.
+        """
+        resp = self._post(
+            "/v1/skills/register",
+            {
+                "pattern_key": pattern_key,
+                "skills": skills,
+            },
+        )
+        return resp.get("registered", 0)
+
+    def find_by_skills(
+        self,
+        required: list[str],
+        match_all: bool = True,
+    ) -> list[dict]:
+        """Find patterns that have the required skills.
+
+        Args:
+            required: Skill tags to search for.
+            match_all: If True, pattern must have ALL required skills.
+
+        Returns:
+            List of match dicts.
+        """
+        resp = self._post(
+            "/v1/skills/search",
+            {
+                "required": required,
+                "match_all": match_all,
+            },
+        )
+        return resp.get("matches", [])
 
     # ------------------------------------------------------------------
     # Internal HTTP helpers

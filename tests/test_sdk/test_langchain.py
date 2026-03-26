@@ -25,8 +25,11 @@ class TestBrainCallback:
     def _make_callback(self, brain, **kwargs):
         # Mock langchain_core so import works
         mock_lccore = MagicMock()
-        with patch.dict("sys.modules", {"langchain_core": mock_lccore, "langchain_core.callbacks": mock_lccore.callbacks}):
+        with patch.dict(
+            "sys.modules", {"langchain_core": mock_lccore, "langchain_core.callbacks": mock_lccore.callbacks}
+        ):
             from agent_brain.sdk.langchain import BrainCallback
+
             return BrainCallback(brain, **kwargs)
 
     def test_on_chain_start_recalls_context(self, brain_with_llm):

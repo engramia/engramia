@@ -40,15 +40,11 @@ def validate_contracts(stages: list[dict], initial_inputs: list[str] | None = No
         # Self-cycle: stage reads what it writes
         self_cycle = [f for f in reads if f in writes]
         if self_cycle:
-            errors.append(
-                f"Stage '{name}' has a self-cycle: it both reads and writes {self_cycle}."
-            )
+            errors.append(f"Stage '{name}' has a self-cycle: it both reads and writes {self_cycle}.")
 
         missing = [f for f in reads if f not in available and f not in writes]
         if missing:
-            errors.append(
-                f"Stage '{name}' reads {missing} but these files are not produced by any prior stage."
-            )
+            errors.append(f"Stage '{name}' reads {missing} but these files are not produced by any prior stage.")
 
         # Cross-stage write conflict: detect if this stage overwrites a file
         # that a later stage will need to read from a different source.

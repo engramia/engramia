@@ -14,8 +14,8 @@ from pydantic import BaseModel, Field
 # Thresholds (single source of truth)
 # ---------------------------------------------------------------------------
 
-SIMILARITY_DUPLICATE = 0.92   # use agent as-is
-SIMILARITY_ADAPT = 0.70       # adapt to new task
+SIMILARITY_DUPLICATE = 0.92  # use agent as-is
+SIMILARITY_ADAPT = 0.70  # adapt to new task
 # below SIMILARITY_ADAPT → "fresh" (generate new agent)
 
 JACCARD_DEDUP_THRESHOLD = 0.7  # task word overlap to consider "same task" in recall grouping
@@ -25,13 +25,14 @@ JACCARD_DEDUP_THRESHOLD = 0.7  # task word overlap to consider "same task" in re
 # Learn / Recall
 # ---------------------------------------------------------------------------
 
+
 class Pattern(BaseModel):
     """A successful agent design stored in Brain memory.
 
     Args:
         task: Natural language description of what the agent does.
         design: Free-form dict with agent design (code, files, reads/writes, ...).
-        success_score: Quality score, 0.0–10.0. Subject to time-based decay.
+        success_score: Quality score, 0.0-10.0. Subject to time-based decay.
         reuse_count: Number of times this pattern was reused. Boosts ranking.
         timestamp: Unix timestamp of when the pattern was stored.
     """
@@ -48,10 +49,10 @@ class Match(BaseModel):
 
     Args:
         pattern: The matched Pattern.
-        similarity: Cosine similarity of task embeddings, 0.0–1.0.
+        similarity: Cosine similarity of task embeddings, 0.0-1.0.
         reuse_tier: How to treat the match.
             - "duplicate": similarity >= 0.92, use as-is.
-            - "adapt": similarity 0.70–0.92, adapt prompt/code for new task.
+            - "adapt": similarity 0.70-0.92, adapt prompt/code for new task.
             - "fresh": similarity < 0.70, generate new agent (pattern is context only).
         pattern_key: Storage key for this pattern. Pass to ``brain.delete_pattern()``
             to permanently remove it.
@@ -79,15 +80,16 @@ class LearnResult(BaseModel):
 # Evaluate
 # ---------------------------------------------------------------------------
 
+
 class EvalScore(BaseModel):
     """Scores from a single LLM evaluator run.
 
     Args:
-        task_alignment: How well the agent solves the given task (0–10).
-        code_quality: Code clarity, correctness, style (0–10).
-        workspace_usage: Correct use of reads/writes/tools (0–10).
-        robustness: Error handling, edge cases (0–10).
-        overall: Weighted overall score (0–10).
+        task_alignment: How well the agent solves the given task (0-10).
+        code_quality: Code clarity, correctness, style (0-10).
+        workspace_usage: Correct use of reads/writes/tools (0-10).
+        robustness: Error handling, edge cases (0-10).
+        overall: Weighted overall score (0-10).
         feedback: Short text explanation of the main quality issues.
     """
 
@@ -105,7 +107,7 @@ class EvalResult(BaseModel):
     Args:
         scores: Individual scores from each evaluator run.
         median_score: Median of overall scores — robust against outliers.
-        variance: Max–min spread across overall scores.
+        variance: Max-min spread across overall scores.
         high_variance: True if variance > 1.5 (evaluators disagree — review manually).
         feedback: Feedback string from the run closest to the median score.
         adversarial_detected: True if a hardcoded/trivial output was detected.
@@ -122,6 +124,7 @@ class EvalResult(BaseModel):
 # ---------------------------------------------------------------------------
 # Compose
 # ---------------------------------------------------------------------------
+
 
 class PipelineStage(BaseModel):
     """One stage in a composed multi-agent pipeline.
@@ -165,6 +168,7 @@ class Pipeline(BaseModel):
 # Feedback & Evolution
 # ---------------------------------------------------------------------------
 
+
 class FeedbackPattern(BaseModel):
     """A recurring quality issue tracked by Brain.
 
@@ -184,6 +188,7 @@ class FeedbackPattern(BaseModel):
 # ---------------------------------------------------------------------------
 # Metrics
 # ---------------------------------------------------------------------------
+
 
 class Metrics(BaseModel):
     """Aggregate runtime statistics from brain.metrics.
@@ -210,6 +215,7 @@ class Metrics(BaseModel):
 # ---------------------------------------------------------------------------
 # Model Routing
 # ---------------------------------------------------------------------------
+
 
 class ModelRoutingRecommendation(BaseModel):
     """A data-driven model routing recommendation.

@@ -1,13 +1,10 @@
 """Tests for B1 — mark_reused() called on recall()."""
 
-import pytest
-
-from agent_brain.brain import Brain
-
 
 def _get_reuse_count(brain, task: str) -> int:
     """Read reuse_count from storage for a pattern matching the task."""
     from agent_brain._util import PATTERNS_PREFIX
+
     for key in brain._storage.list_keys(prefix=PATTERNS_PREFIX):
         data = brain._storage.load(key)
         if data and data.get("task") == task:

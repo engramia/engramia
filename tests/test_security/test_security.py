@@ -25,10 +25,10 @@ from agent_brain import Brain
 from agent_brain.api.routes import router
 from agent_brain.exceptions import ValidationError as BrainValidationError
 
-
 # ---------------------------------------------------------------------------
 # Shared fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def api_client(fake_embeddings, storage):
@@ -52,22 +52,23 @@ def api_client(fake_embeddings, storage):
 # S1: Timing-safe token comparison
 # ---------------------------------------------------------------------------
 
+
 class TestTimingSafeAuth:
     def test_hmac_compare_digest_used(self):
         """auth.py must use hmac.compare_digest, not ==."""
-        import inspect
         from agent_brain.api import auth
+
         source = inspect.getsource(auth)
-        assert "hmac.compare_digest" in source, (
-            "auth.py must use hmac.compare_digest for token comparison"
-        )
+        assert "hmac.compare_digest" in source, "auth.py must use hmac.compare_digest for token comparison"
 
     def test_valid_token_accepted(self, tmp_path):
         import os
+
         os.environ["BRAIN_API_KEYS"] = "test-key-abc"
         try:
             from agent_brain.providers.json_storage import JSONStorage
             from tests.conftest import FakeEmbeddings
+
             app = FastAPI()
             app.state.brain = Brain(
                 embeddings=FakeEmbeddings(),
@@ -84,6 +85,7 @@ class TestTimingSafeAuth:
 # ---------------------------------------------------------------------------
 # S2/S17: Rate limiting
 # ---------------------------------------------------------------------------
+
 
 class TestRateLimiting:
     def test_rate_limit_returns_429_on_burst(self, fake_embeddings, storage):
@@ -121,6 +123,7 @@ class TestRateLimiting:
 # S5: eval_score bounds
 # ---------------------------------------------------------------------------
 
+
 class TestEvalScoreBounds:
     def test_negative_eval_score_rejected(self, brain):
         with pytest.raises(BrainValidationError, match="eval_score"):
@@ -142,6 +145,7 @@ class TestEvalScoreBounds:
 # ---------------------------------------------------------------------------
 # S6: import_data key prefix validation
 # ---------------------------------------------------------------------------
+
 
 class TestImportDataKeyPrefix:
     def test_non_patterns_key_rejected(self, brain):
@@ -181,6 +185,7 @@ class TestImportDataKeyPrefix:
 # S7: delete_pattern prefix validation
 # ---------------------------------------------------------------------------
 
+
 class TestDeletePatternPrefix:
     def test_non_patterns_key_raises(self, brain):
         with pytest.raises(BrainValidationError, match="patterns/"):
@@ -204,10 +209,12 @@ class TestDeletePatternPrefix:
 # S9: num_evals capped at MAX_NUM_EVALS
 # ---------------------------------------------------------------------------
 
+
 class TestNumEvalsCap:
     def test_num_evals_capped_in_evaluate(self):
         """brain.evaluate() should cap num_evals at _MAX_NUM_EVALS silently."""
         from agent_brain.brain import _MAX_NUM_EVALS
+
         assert _MAX_NUM_EVALS <= 20, "Sanity: cap must be reasonable"
 
         call_count = []
@@ -215,13 +222,17 @@ class TestNumEvalsCap:
 
         def counting_call(*args, **kwargs):
             call_count.append(1)
-            return '{"task_alignment":7,"code_quality":7,"workspace_usage":7,"robustness":7,"overall":7.0,"feedback":"ok"}'
+            return (
+                '{"task_alignment":7,"code_quality":7,"workspace_usage":7,"robustness":7,"overall":7.0,"feedback":"ok"}'
+            )
 
         mock_llm.call.side_effect = counting_call
 
+        import tempfile
+
         from agent_brain.providers.json_storage import JSONStorage
         from tests.conftest import FakeEmbeddings
-        import tempfile, os
+
         with tempfile.TemporaryDirectory() as td:
             b = Brain(
                 embeddings=FakeEmbeddings(),
@@ -237,20 +248,24 @@ class TestNumEvalsCap:
 # S10-S12: Prompt injection delimiters
 # ---------------------------------------------------------------------------
 
+
 class TestPromptInjectionDelimiters:
     def test_evaluator_uses_xml_delimiters(self):
         from agent_brain.eval.evaluator import _EVAL_USER
+
         assert "<task>" in _EVAL_USER and "</task>" in _EVAL_USER
         assert "<code>" in _EVAL_USER and "</code>" in _EVAL_USER
         assert "disregard" in _EVAL_USER.lower() or "ignore" in _EVAL_USER.lower()
 
     def test_composer_uses_xml_delimiters(self):
         from agent_brain.reuse.composer import _DECOMPOSE_USER
+
         assert "<task>" in _DECOMPOSE_USER and "</task>" in _DECOMPOSE_USER
         assert "disregard" in _DECOMPOSE_USER.lower() or "ignore" in _DECOMPOSE_USER.lower()
 
     def test_evolver_uses_xml_delimiters(self):
         from agent_brain.evolution.prompt_evolver import _EVOLVE_USER
+
         assert "<current_prompt>" in _EVOLVE_USER
         assert "disregard" in _EVOLVE_USER.lower() or "ignore" in _EVOLVE_USER.lower()
 
@@ -258,6 +273,7 @@ class TestPromptInjectionDelimiters:
 # ---------------------------------------------------------------------------
 # Security response headers
 # ---------------------------------------------------------------------------
+
 
 class TestSecurityHeaders:
     def test_security_headers_present(self, fake_embeddings, storage):
@@ -279,6 +295,7 @@ class TestSecurityHeaders:
 # Body size limit
 # ---------------------------------------------------------------------------
 
+
 class TestBodySizeLimit:
     def test_large_body_returns_413(self, fake_embeddings, storage):
         from agent_brain.api.middleware import BodySizeLimitMiddleware
@@ -292,6 +309,7 @@ class TestBodySizeLimit:
         # Send a payload larger than 100 bytes
         large_payload = {"task": "x" * 200, "code": "pass", "eval_score": 7.0}
         import json
+
         body = json.dumps(large_payload).encode()
         resp = client.post(
             "/v1/learn",
@@ -301,15 +319,14 @@ class TestBodySizeLimit:
         assert resp.status_code == 413
 
     def test_normal_body_accepted(self, api_client):
-        resp = api_client.post("/v1/learn", json={
-            "task": "Normal task", "code": "pass", "eval_score": 7.0
-        })
+        resp = api_client.post("/v1/learn", json={"task": "Normal task", "code": "pass", "eval_score": 7.0})
         assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
 # API versioning
 # ---------------------------------------------------------------------------
+
 
 class TestApiVersioning:
     def test_v1_health_reachable(self, api_client):
@@ -321,9 +338,7 @@ class TestApiVersioning:
         assert resp.status_code == 404
 
     def test_v1_learn_reachable(self, api_client):
-        resp = api_client.post("/v1/learn", json={
-            "task": "Versioned task", "code": "pass", "eval_score": 7.0
-        })
+        resp = api_client.post("/v1/learn", json={"task": "Versioned task", "code": "pass", "eval_score": 7.0})
         assert resp.status_code == 200
 
 
@@ -331,18 +346,19 @@ class TestApiVersioning:
 # SHA-256 key generation (not MD5)
 # ---------------------------------------------------------------------------
 
+
 class TestPatternKeyGeneration:
     def test_pattern_key_uses_sha256(self):
         """Brain._pattern_key() must use SHA-256, not hashlib.md5()."""
-        import inspect
         from agent_brain import brain as brain_module
+
         source = inspect.getsource(brain_module)
         assert "sha256" in source
         # No hashlib.md5 call (comments mentioning MD5 are fine)
         assert "hashlib.md5" not in source
 
     def test_pattern_keys_start_with_patterns_prefix(self, brain):
-        result = brain.learn(task="SHA key test", code="pass", eval_score=7.0)
+        brain.learn(task="SHA key test", code="pass", eval_score=7.0)
         matches = brain.recall(task="SHA key test", limit=1)
         assert matches[0].pattern_key.startswith("patterns/")
 
@@ -351,9 +367,12 @@ class TestPatternKeyGeneration:
 # Audit logging
 # ---------------------------------------------------------------------------
 
+
 class TestAuditLogging:
     def test_auth_failure_logged(self, caplog, tmp_path):
-        import logging, os
+        import logging
+        import os
+
         os.environ["BRAIN_API_KEYS"] = "real-key"
         try:
             from agent_brain.providers.json_storage import JSONStorage
@@ -376,6 +395,7 @@ class TestAuditLogging:
 
     def test_pattern_deleted_logged(self, caplog, brain):
         import logging
+
         brain.learn(task="Audit delete test", code="pass", eval_score=7.0)
         matches = brain.recall(task="Audit delete test", limit=1)
         key = matches[0].pattern_key

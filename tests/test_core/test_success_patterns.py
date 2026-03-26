@@ -1,7 +1,9 @@
 """Tests for SuccessPatternStore (aging and reuse tracking)."""
 
 import time
+
 import pytest
+
 from agent_brain.core.success_patterns import SuccessPatternStore
 from agent_brain.types import Pattern
 
@@ -9,6 +11,7 @@ from agent_brain.types import Pattern
 def _store_pattern(storage, embeddings, task, score, ts=None):
     """Helper: store a pattern directly into storage."""
     import hashlib
+
     pattern = Pattern(task=task, design={"code": "pass"}, success_score=score)
     if ts is not None:
         pattern = pattern.model_copy(update={"timestamp": ts})

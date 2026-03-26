@@ -77,9 +77,8 @@ class TestOpenAIProvider:
         provider = self._make_provider()
         provider._max_retries = 2
         provider._client.chat.completions.create.side_effect = ConnectionError("fail")
-        with patch("time.sleep"):
-            with pytest.raises(ConnectionError):
-                provider.call("prompt")
+        with patch("time.sleep"), pytest.raises(ConnectionError):
+            provider.call("prompt")
 
     def test_import_error_without_openai(self, monkeypatch):
         import builtins
@@ -101,9 +100,7 @@ class TestOpenAIEmbeddings:
         emb = OpenAIEmbeddings.__new__(OpenAIEmbeddings)
         emb._model = "text-embedding-3-small"
         mock_client = MagicMock()
-        mock_client.embeddings.create.return_value = MagicMock(
-            data=[MagicMock(embedding=[0.1, 0.2, 0.3])]
-        )
+        mock_client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[0.1, 0.2, 0.3])])
         emb._client = mock_client
         return emb
 

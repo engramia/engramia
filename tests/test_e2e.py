@@ -6,8 +6,6 @@ Covers the full Brain.learn() → Brain.recall() cycle.
 
 import pytest
 
-from agent_brain.types import SIMILARITY_DUPLICATE
-
 
 class TestLearnRecall:
     def test_learn_returns_stored_true(self, brain):
@@ -124,7 +122,6 @@ class TestRecallDeduplication:
         brain.learn(task="Parse CSV file", code="csv_code", eval_score=7.0)
         brain.learn(task="Fetch API data from REST endpoint", code="api_code", eval_score=8.0)
         matches = brain.recall(task="Parse CSV file", limit=10, deduplicate=True)
-        tasks = [m.pattern.task for m in matches]
         # Both should appear since they're different tasks
         assert len(matches) >= 1  # at least the exact match
 
@@ -133,9 +130,7 @@ class TestRecallDeduplication:
         brain.learn(task="Parse CSV and compute stats", code="v1", eval_score=6.0)
         brain.learn(task="Parse CSV and compute stats", code="v2", eval_score=9.0)
         brain.learn(task="Parse CSV and compute stats", code="v3", eval_score=7.5)
-        matches = brain.recall(
-            task="Parse CSV and compute stats", deduplicate=False
-        )
+        matches = brain.recall(task="Parse CSV and compute stats", deduplicate=False)
         assert len(matches) == 3
 
     def test_dedup_limit_respected_after_grouping(self, brain):

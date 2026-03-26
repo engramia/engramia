@@ -14,10 +14,7 @@ from agent_brain.providers.base import EmbeddingProvider, LLMProvider
 
 _log = logging.getLogger(__name__)
 
-_OPENAI_INSTALL_MSG = (
-    "OpenAI providers require the openai package. "
-    "Install it with: pip install agent-brain[openai]"
-)
+_OPENAI_INSTALL_MSG = "OpenAI providers require the openai package. Install it with: pip install agent-brain[openai]"
 
 #: Errors that should not be retried (client-side mistakes).
 _NO_RETRY_STATUS = {400, 401, 403}
@@ -40,11 +37,11 @@ class OpenAIProvider(LLMProvider):
         max_retries: int = 3,
     ) -> None:
         try:
-            from openai import OpenAI  # noqa: PLC0415
+            from openai import OpenAI
 
             self._client = OpenAI()
         except ImportError:
-            raise ImportError(_OPENAI_INSTALL_MSG)
+            raise ImportError(_OPENAI_INSTALL_MSG) from None
         self._model = model
         self._max_retries = max_retries
 
@@ -54,9 +51,9 @@ class OpenAIProvider(LLMProvider):
         system: str | None = None,
         role: str = "default",
     ) -> str:
-        from openai import AuthenticationError, BadRequestError, PermissionDeniedError  # noqa: PLC0415
+        from openai import AuthenticationError, BadRequestError, PermissionDeniedError
 
-        messages: list[dict] = []
+        messages: list[dict] = []  # type: ignore[type-arg]
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
@@ -66,7 +63,7 @@ class OpenAIProvider(LLMProvider):
             try:
                 response = self._client.chat.completions.create(
                     model=self._model,
-                    messages=messages,
+                    messages=messages,  # type: ignore[arg-type]
                 )
                 return response.choices[0].message.content or ""
             except (AuthenticationError, BadRequestError, PermissionDeniedError):
@@ -93,11 +90,11 @@ class OpenAIEmbeddings(EmbeddingProvider):
 
     def __init__(self, model: str = "text-embedding-3-small") -> None:
         try:
-            from openai import OpenAI  # noqa: PLC0415
+            from openai import OpenAI
 
             self._client = OpenAI()
         except ImportError:
-            raise ImportError(_OPENAI_INSTALL_MSG)
+            raise ImportError(_OPENAI_INSTALL_MSG) from None
         self._model = model
 
     def embed(self, text: str) -> list[float]:

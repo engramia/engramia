@@ -15,7 +15,6 @@ Provider selection (for recall):
 
 import logging
 import os
-import sys
 
 import typer
 from rich.console import Console
@@ -51,11 +50,8 @@ def _make_embeddings():
 
             return LocalEmbeddings()
         except ImportError:
-            console.print(
-                "[red]LocalEmbeddings requires sentence-transformers:[/red] "
-                "pip install agent-brain[local]"
-            )
-            raise typer.Exit(1)
+            console.print("[red]LocalEmbeddings requires sentence-transformers:[/red] pip install agent-brain[local]")
+            raise typer.Exit(1) from None
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -105,19 +101,15 @@ def serve(
     host: str = typer.Option("0.0.0.0", help="Host to listen on."),
     port: int = typer.Option(8000, help="Port to listen on."),
     reload: bool = typer.Option(False, help="Enable auto-reload (dev mode)."),
-    storage: str = typer.Option(
-        "json", "--storage", help="Storage backend: 'json' or 'postgres'."
-    ),
+    storage: str = typer.Option("json", "--storage", help="Storage backend: 'json' or 'postgres'."),
     path: str = typer.Option("./brain_data", "--path", "-p", help="Brain data path (json only)."),
 ) -> None:
     """Start the Brain REST API server."""
     try:
         import uvicorn
     except ImportError:
-        console.print(
-            "[red]uvicorn not installed.[/red] Install with: pip install agent-brain[api]"
-        )
-        raise typer.Exit(1)
+        console.print("[red]uvicorn not installed.[/red] Install with: pip install agent-brain[api]")
+        raise typer.Exit(1) from None
 
     # Set storage env var so create_app() picks it up
     if storage == "json":
@@ -126,10 +118,7 @@ def serve(
     else:
         os.environ.setdefault("BRAIN_STORAGE", storage)
 
-    console.print(
-        f"[green]Starting Brain API[/green] on [bold]http://{host}:{port}[/bold]  "
-        f"(storage={storage})"
-    )
+    console.print(f"[green]Starting Brain API[/green] on [bold]http://{host}:{port}[/bold]  (storage={storage})")
     console.print(f"  Swagger UI: [cyan]http://{host}:{port}/docs[/cyan]")
 
     uvicorn.run(
@@ -252,6 +241,7 @@ def aging(
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     """Entry point for ``agent-brain`` CLI command."""

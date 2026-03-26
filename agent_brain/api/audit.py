@@ -16,16 +16,17 @@ standard logging configuration captures it separately from debug noise.
 import json
 import logging
 import time
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 _audit_log = logging.getLogger("agent_brain.audit")
 
 
-class AuditEvent(str, Enum):
+class AuditEvent(StrEnum):
     AUTH_FAILURE = "auth_failure"
     PATTERN_DELETED = "pattern_deleted"
     RATE_LIMITED = "rate_limited"
+    BULK_IMPORT = "bulk_import"
 
 
 def log_event(event: AuditEvent, **kwargs: Any) -> None:

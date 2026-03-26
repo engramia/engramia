@@ -264,10 +264,10 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [ ] **Doplnit placeholdery** — kontaktní email, pricing URL v ToS, Privacy Policy, Cookie Policy, DPA
 
 #### Fáze 4.6.3: Kvalita kódu + linting
-- [ ] **Linting config** — ruff + mypy konfigurace v `pyproject.toml`
-- [ ] **Přidat linting nástroje** do `[dev]` extras (ruff, mypy)
-- [ ] **Opravit linting/type chyby** — first pass ruff + mypy
-- [ ] **Volitelně: .pre-commit-config.yaml** — pre-commit hooks pro lokální vývoj
+- [x] **Linting config** — ruff + mypy konfigurace v `pyproject.toml`
+- [x] **Přidat linting nástroje** do `[dev]` extras (ruff, mypy)
+- [x] **Opravit linting/type chyby** — first pass ruff + mypy
+- [x] **Volitelně: .pre-commit-config.yaml** — pre-commit hooks pro lokální vývoj
 
 #### Fáze 4.6.4: CI/CD pipeline
 - [ ] **.github/workflows/test.yml** — pytest + ruff + mypy na push/PR, Python 3.12 matrix

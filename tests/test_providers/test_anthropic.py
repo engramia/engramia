@@ -9,6 +9,7 @@ import pytest
 def _make_provider(mock_client):
     """Create an AnthropicProvider with a mock client, bypassing __init__."""
     from agent_brain.providers.anthropic import AnthropicProvider
+
     provider = AnthropicProvider.__new__(AnthropicProvider)
     provider._client = mock_client
     provider._model = "claude-sonnet-4-20250514"

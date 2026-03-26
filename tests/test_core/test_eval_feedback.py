@@ -1,6 +1,7 @@
 """Tests for EvalFeedbackStore."""
 
 import pytest
+
 from agent_brain.core.eval_feedback import EvalFeedbackStore
 
 
@@ -61,7 +62,15 @@ def test_decay_reduces_scores(store):
 
 
 def test_decay_prunes_low_score(store):
-    patterns = [{"pattern": "stale feedback", "count": 2, "score": 0.01, "last_seen": "2020-01-01T00:00:00", "last_decayed": "2020-01-01T00:00:00"}]
+    patterns = [
+        {
+            "pattern": "stale feedback",
+            "count": 2,
+            "score": 0.01,
+            "last_seen": "2020-01-01T00:00:00",
+            "last_decayed": "2020-01-01T00:00:00",
+        }
+    ]
     store._storage.save("feedback/_list", patterns)
     pruned = store.run_decay()
     assert pruned == 1
