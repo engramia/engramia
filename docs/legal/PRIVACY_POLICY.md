@@ -18,7 +18,7 @@ The data controller for the purposes of GDPR is:
 
 **Marek Čermák**
 Czech Republic
-Email: [to be added]
+Email: support@engramia.dev
 
 If you have questions about this Privacy Policy or wish to exercise your data protection rights, contact us at the email address above.
 
@@ -226,7 +226,7 @@ Continued use of the Service after the effective date of changes constitutes acc
 For questions about this Privacy Policy, to exercise your data protection rights, or to report a privacy concern:
 
 **Marek Čermák**
-Email: [to be added]
+Email: support@engramia.dev
 Czech Republic
 
 For complaints, you may also contact your local data protection authority.

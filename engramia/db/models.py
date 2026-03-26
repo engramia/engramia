@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """SQLAlchemy 2.x models for PostgreSQL + pgvector storage backend.
 
 Schema design:

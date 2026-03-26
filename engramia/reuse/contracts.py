@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Pipeline contract validation.
 
 Each pipeline stage declares which workspace files it reads and writes.

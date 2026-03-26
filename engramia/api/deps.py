@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """FastAPI dependency injection for the Memory singleton.
 
 The Memory instance is created once at app startup (in ``create_app()``)

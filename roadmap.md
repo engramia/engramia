@@ -234,27 +234,28 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 > Blocking fáze — bez těchto kroků nelze nic veřejně publikovat.
 
 **Název a identita:**
-- [ ] **Finální název produktu** — neologismus s dostupnou PyPI + .dev/.ai doménou + EUIPO třída 42 volná; kandidáti: `engramia`, `anamnex`, `latenta`, `ecphory` (viz key-design-decisions.md)
-- [ ] **Doménová registrace** — {název}.dev nebo {název}.ai (nebo obojí); registrar Cloudflare / Namecheap
-- [ ] **Přejmenovat codebase** — opakovat rename workflow (git mv + sed) po finalizaci názvu
+- [x] **Finální název produktu** — `engramia` (PyPI + .dev doména volné, EUIPO třída 42 volná)
+- [x] **Doménová registrace** — `engramia.dev`
+- [x] **Přejmenovat codebase** — rename workflow dokončen (agent_brain → remanence → engramia)
 
 **Účty a repozitář:**
-- [ ] **GitHub organizace** — `{název}-ai` nebo `{název}` org; public repo s MIT-licensed examples
-- [ ] **PyPI účet** — registrace na pypi.org + Trusted Publisher nastavení (GitHub Actions OIDC, bez API tokenů)
-- [ ] **Docker Hub / GHCR** — namespace pro Docker image (`ghcr.io/{název}/{název}:latest`)
+- [x] **GitHub organizace** — `engramia` org; repo `https://github.com/engramia/engramia`
+- [x] **PyPI účet** — registrace na pypi.org + Trusted Publisher nastavení (GitHub Actions OIDC, bez API tokenů); environments `pypi` + `testpypi` vytvořeny s `v*` tag protection
+- [ ] **Docker Hub / GHCR** — namespace pro Docker image (`ghcr.io/engramia/engramia:latest`)
 
 **LLM API přístup (nutné pro produkci i beta testování):**
 - [ ] **OpenAI API klíč** — `text-embedding-3-small` (default embeddings) + GPT-4.1 pro compose/evaluate/evolve; odhadovaný cost při beta: ~$5–20/měsíc
 - [ ] **Anthropic API klíč** — volitelný, pro Anthropic provider; stejná cost úroveň
 
-**Hosting REST API:**
-- [ ] **PaaS deploy** — Railway / Render / Fly.io; min. 512 MB RAM, 0.5 vCPU; free tier stačí pro beta (~$5–7/měsíc při placené)
-- [ ] **PostgreSQL + pgvector** — Supabase nebo Neon (free tier 500 MB pro beta); produkce: dedicated instance s encrypted volumes
-- [ ] **Reverse proxy + TLS** — Caddy nebo Nginx před API serverem; HTTPS nutné pro produkci (viz SECURITY.md)
+**Hosting REST API (Hetzner VPS + Coolify):**
+- [ ] **Hetzner VPS** — CX23 (2 vCPU, 4 GB RAM, €3.49/měsíc), region DE/FI (EU data residency)
+- [ ] **Coolify** — open-source self-hosted PaaS (GitHub auto-deploy, SSL, monitoring); install na Hetzner VPS
+- [ ] **PostgreSQL + pgvector** — Docker image `pgvector/pgvector:pg16` na stejném VPS; produkce: encrypted volumes, automated backups
+- [ ] **TLS/HTTPS** — Coolify built-in (Let's Encrypt auto-cert pro `api.engramia.dev`)
 
 **Kontaktní a právní základ:**
-- [ ] **Projektový email** — pro ToS/Privacy Policy/DPA placeholdery (`hello@{název}.dev` nebo Proton Mail alias)
-- [ ] **Doplnit placeholdery v docs/legal/** — kontaktní email, pricing URL, Change Date v LICENSE.md po finalizaci názvu
+- [x] **Projektový email** — `support@engramia.dev`
+- [ ] **Doplnit placeholdery v docs/legal/** — pricing URL, Change Date v LICENSE.txt
 
 **Deliverable:** Zaregistrovaná doména, GitHub org + repo, PyPI namespace, funkční beta deploy s HTTPS, API klíče v env.
 
@@ -265,7 +266,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 
 #### Fáze 4.6.2: Licence + právní základ
 - [x] **Rozhodnout licenci** — BSL 1.1 → Apache 2.0 (change date 4 roky)
-- [x] **LICENSE.md** — BSL 1.1 plný text s parametry (Licensor, Change Date, Additional Use Grant)
+- [x] **LICENSE.txt** — BSL 1.1 plný text s parametry (Licensor, Change Date, Additional Use Grant)
 - [x] **Terms of Service** — draft v `docs/legal/TERMS_OF_SERVICE.md` (B2B/B2C, AI Act klauzule, arbitráž Praha)
 - [x] **Privacy Policy** — draft v `docs/legal/PRIVACY_POLICY.md` (GDPR, data processing, cookies)
 - [x] **Key design decisions** — `docs/legal/key-design-decisions.md` (licenční Q&A, trademark, ToS, AI Act)
@@ -275,21 +276,35 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [x] **Cookie Policy** — draft v `docs/legal/COOKIE_POLICY.md` (strictly necessary + opt-in analytics)
 - [x] **DPA template** — draft v `docs/legal/DPA_TEMPLATE.md` (GDPR Art. 28, sub-processors, breach notification)
 
-**Deliverable:** LICENSE.md, ToS, Privacy Policy, Cookie Policy, DPA template, EU AI Act analýza, key design decisions. Vše draft — právní review v Fázi 4.6.2.1.
+**Deliverable:** LICENSE.txt, ToS, Privacy Policy, Cookie Policy, DPA template, EU AI Act analýza, key design decisions. Vše draft — právní review v Fázi 4.6.2.1.
 
 #### Fáze 4.6.2.1: Právní review + finalizace (post-launch nebo před Cloud tier)
 > Cíl: Profesionální právní review všech dokumentů před komerčním nasazením.
+
+- [] **Revize LICENSE.md**:
+1) Bod 2 — LICENSE.md strukturální změny (co kam přesunout)
+Oficiální BSL 1.1 template má tento závazný pořadí v Parameters (Covenant #4 říká "Not to modify this License in any way"):
+2) Přesunout Additional Use Grant z pozice za Change License na pozici před Change Date — správné pořadí je: Licensor → Licensed Work → Additional Use Grant → Change Date → Change License
+Přidat copyright inline k Licensed Work — správně: Licensed Work: Engramia, version 0.5.0 (c) 2026 Marek Čermák (aktuální samostatný řádek Copyright (c)... nad Parameters je nestandardní)
+3) Celou sekci ## Terms (od "Definitions." po "This License shall be interpreted in good faith.") — smazat a nahradit oficiálním BSL 1.1 boilerplate textem z mariadb.com/bsl11 (aktuální custom text je zásadní porušení Covenant #4 — BSL 1.1 zakazuje modifikaci svého textu)
+4) Sekci ## Disclaimer — smazat celou, warranty disclaimer je součástí oficiálního boilerplate ("TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON AN 'AS IS' BASIS...")
+5) Sekci ## Notice — rozšířit o celou sadu "Covenants of Licensor" která je součástí oficiálního textu
+
 
 - [ ] **Právní review ToS** — český advokát: B2C spotřebitelské klauzule, GDPR compliance, arbitrážní doložka
 - [ ] **Právní review Privacy Policy** — GDPR compliance, retence, international transfers
 - [ ] **Právní review Cookie Policy** — ePrivacy compliance, consent mechanism
 - [ ] **Právní review DPA template** — GDPR Art. 28 compliance, sub-processor flow
-- [ ] **Právní review LICENSE.md** — ověření BSL 1.1 parametrů, enforceability
+- [ ] **Právní review LICENSE.txt** — ověření BSL 1.1 parametrů, enforceability
 - [ ] **Trademark** — registrace EUIPO (třída 42) po finalizaci názvu produktu
 - [ ] **EU AI Act** — monitoring regulatorních updates, delegated acts
 - [ ] **Ověřit živnost** — aktivní IČO pro fakturaci
-- [ ] **Finální název produktu** — neologismus, doménová dostupnost, trademark search
-- [ ] **Doplnit placeholdery** — kontaktní email, pricing URL v ToS, Privacy Policy, Cookie Policy, DPA
+- [x] **Finální název produktu** — `engramia`, doména `engramia.dev` registrována
+- [ ] **Doplnit placeholdery** — pricing URL v ToS, Privacy Policy, Cookie Policy, DPA (kontaktní email `support@engramia.dev` již doplněn)
+- [ ] **Privacy Policy — šifrování at rest** — doplnit do sekce 7 (Data Security) zmínku o šifrování databáze at rest (PostgreSQL encrypted volumes); aktuálně chybí, přestože TLS in-transit je popsán
+- [ ] **Privacy Policy — anonymizace dat** — doplnit do sekce 4.3 popis metody anonymizace (co konkrétně se stripuje, jak se zabrání re-identifikaci); „cannot be re-identified" je právní tvrzení bez technického základu
+- [ ] **DPA — doplnit seznam sub-procesorů** — vyplnit konkrétní hosting provider a payment processor v tabulce sub-procesorů (Sec. 4.4); DPA nelze podepsat s TBD položkami
+- [ ] **Sub-processor registry stránka** (`/legal/subprocessors`) — veřejná stránka nebo statická stránka v dokumentaci se seznamem aktuálních sub-procesorů, jejich účelem, lokací a datem přidání; vyžadováno DPA Sec. 4.4 (GDPR Art. 28); URL `https://engramia.dev/legal/subprocessors` je již zakotvena v DPA šabloně
 
 #### Fáze 4.6.3: Kvalita kódu + linting
 - [x] **Linting config** — ruff + mypy konfigurace v `pyproject.toml`
@@ -298,20 +313,22 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [x] **Volitelně: .pre-commit-config.yaml** — pre-commit hooks pro lokální vývoj
 
 #### Fáze 4.6.4: CI/CD pipeline
-- [ ] **.github/workflows/test.yml** — pytest + ruff + mypy na push/PR, Python 3.12 matrix
-- [ ] **.github/workflows/publish.yml** — build wheel + sdist, publish na PyPI on GitHub release
-- [ ] **.github/workflows/docker.yml** — Docker image build + push na GHCR on release
+- [x] **.github/workflows/ci.yml** — pytest + ruff + mypy na push/PR, Python 3.12 matrix
+- [x] **.github/workflows/publish.yml** — build + verify + TestPyPI + PyPI on GitHub release (Trusted Publisher OIDC)
+- [x] **.github/workflows/docker.yml** — Docker image build + push na GHCR on release (semver tags)
 
 #### Fáze 4.6.5: Dokumentace
-- [ ] **mkdocs.yml** — MkDocs + Material konfigurace
-- [ ] **docs/** — Getting Started, Architecture, API Reference, Providers, SDK Integrations, Security
-- [ ] **.readthedocs.yml** — ReadTheDocs integrace
-- [ ] **Aktualizovat pyproject.toml URLs** — docs URL na ReadTheDocs
+- [x] **mkdocs.yml** — MkDocs + Material konfigurace
+- [x] **docs/** — Getting Started, Architecture, API Reference, Providers, SDK Integrations, Security
+- [x] **.readthedocs.yml** — ReadTheDocs integrace
+- [x] **Aktualizovat pyproject.toml URLs** — docs URL na ReadTheDocs
 
 #### Fáze 4.6.6: Examples + launch
 - [ ] **examples/** — 4–5 runnable příkladů (basic, REST API, LangChain, PostgreSQL, local embeddings)
 - [ ] **Benchmark suite** — reprodukce Agent Factory V2 výsledků (93% success rate)
 - [ ] **Finální README review** — ověřit vše aktuální
+- [ ] **Přepnout repo na public**
+- [ ] **PyPI environment protection** — po přepnutí na public: Settings → Environments → `pypi` → Required reviewers (přidat sebe)
 - [ ] **PyPI release** — `pip install engramia`
 - [ ] **Docker image** — `ghcr.io/engramia/engramia:latest`
 - [ ] **Launch blog post** — "How self-learning agents achieve 93% success rate"
@@ -322,7 +339,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [x] **API version DRY** — `app.py` importuje `__version__` místo hardcoded `"0.5.0"`
 - [x] **Missing `__init__.py`** — v `engramia/db/migrations/` a `engramia/db/migrations/versions/`
 - [x] **Rich explicitní závislost** — přidat `rich>=13.0` do `[cli]` extra v pyproject.toml
-- [ ] **Placeholder URLs** — aktualizovat `[project.urls]` v pyproject.toml na skutečný repo (TODO přidán, čeká na vytvoření repo)
+- [x] **Placeholder URLs** — `[project.urls]` aktualizovány na `https://github.com/engramia/engramia`
 
 #### Fáze 4.6.8: CrewAI integrace
 - [ ] **CrewAI middleware** (`engramia/sdk/crewai.py`) — BrainMiddleware pro CrewAI agents
@@ -398,6 +415,11 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [ ] SSO/SAML integrace
 - [ ] OpenTelemetry integrace — traces/spans pro Langfuse, Datadog, Grafana
 - [ ] GDPR compliance — right to erasure s provenance, data residency controls (EU/US/APAC), DPA enforcement
+- [ ] B2C ToS consent flow — aktivní opt-in pro materiální změny ToS (Sec. 15.5.2):
+  - Při materiální změně ToS systém vygeneruje consent request — uživatel dostane email s odkazem na diff změn a tlačítkem "I accept the updated Terms"
+  - Consent se uloží do DB s timestampem, verzí ToS a user ID (auditovatelný trail)
+  - Uživatelé, kteří nepotvrdí do 30 dní, mají přístup dál za podmínek předchozí verze, ale nemohou upgradovat tier ani prodloužit subscription
+  - Fallback: při neudělení souhlasu do 60 dní = výzva k ukončení, nebo automatické downgrade na Free tier
 - [ ] Webhook notifications (Slack, Discord)
 - [ ] API key rotation mechanismus
 - [ ] Config file (YAML/TOML) jako optional override
@@ -613,11 +635,20 @@ engramia/
 │   ├── test_sdk/                ✅ langchain, webhook
 │   └── test_cli/                ✅ CLI commands (Phase 4)
 │
-├── docs/                        🔲 Phase 4.6.5
+├── docs/                        ✅ Phase 4.6.5
+│   ├── index.md
 │   ├── getting-started.md
 │   ├── concepts.md
 │   ├── api-reference.md
-│   └── integrations.md
+│   ├── rest-api.md
+│   ├── providers.md
+│   ├── cli.md
+│   ├── deployment.md
+│   ├── security.md
+│   └── integrations/
+│       ├── langchain.md
+│       ├── mcp.md
+│       └── webhook.md
 │
 └── examples/                    🔲 Phase 4.6.6
     ├── basic_usage.py

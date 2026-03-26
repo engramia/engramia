@@ -1,0 +1,75 @@
+site_name: Engramia
+site_description: Self-learning memory layer for AI agent frameworks
+site_url: https://engramia.readthedocs.io
+repo_url: https://github.com/engramia/engramia
+repo_name: engramia/engramia
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Concepts & Architecture: concepts.md
+  - Python API Reference: api-reference.md
+  - REST API: rest-api.md
+  - Providers: providers.md
+  - Integrations:
+      - LangChain: integrations/langchain.md
+      - MCP Server: integrations/mcp.md
+      - Webhook SDK: integrations/webhook.md
+  - CLI: cli.md
+  - Deployment: deployment.md
+  - Security: security.md
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/engramia/engramia

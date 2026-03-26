@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Integration test: full learn → evaluate → feedback → recall → compose cycle.
 
 Uses FakeEmbeddings + JSONStorage (no API keys).

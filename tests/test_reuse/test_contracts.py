@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Tests for pipeline contract validation."""
 
 from engramia.reuse.contracts import infer_initial_inputs, validate_contracts

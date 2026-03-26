@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Thread-safety tests for JSONStorage.
 
 Proves that concurrent save/load/save_embedding operations on a shared

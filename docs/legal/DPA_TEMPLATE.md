@@ -107,6 +107,8 @@ For a complete description, see the Engramia [Security Policy](../../SECURITY.md
 - When general authorization is granted, inform the Controller of any intended addition or replacement of Sub-processors, giving the Controller the opportunity to object.
 - Ensure Sub-processors are bound by data protection obligations no less protective than those in this DPA.
 
+The Processor maintains a current list of Sub-processors at **https://engramia.dev/legal/subprocessors**, including each Sub-processor's name, purpose, location, and the date it was added. The Processor will notify the Controller by email at least **30 days** before adding or replacing a Sub-processor. The Controller may object in writing within **14 days** of such notification. If no commercially reasonable alternative can be found to address the objection, either party may terminate the affected services with 30 days' written notice.
+
 **Current Sub-processors:**
 
 | Sub-processor | Purpose | Location |

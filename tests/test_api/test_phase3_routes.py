@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Tests for Phase 3 REST endpoints: /evolve, /analyze-failures, /skills/register, /skills/search."""
 
 import json

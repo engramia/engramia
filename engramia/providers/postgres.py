@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """PostgreSQL + pgvector storage backend.
 
 Requires the ``postgres`` extra:

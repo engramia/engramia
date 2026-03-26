@@ -238,6 +238,16 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 - Pydantic v2 (data validation)
 - numpy (cosine similarity v JSON backend)
 
+## Licence — důležité při vydání nové verze
+
+Při každém novém releasu (bump verze v `pyproject.toml`) je nutné aktualizovat `LICENSE.md`:
+
+- **`Licensed Work`** — změnit na novou verzi (např. `Engramia, version 0.6.0`)
+- **`Change Date`** — nastavit na **4 roky od data releasu** (ne pevné datum)
+- Datum v záhlaví souboru aktualizovat na datum releasu
+
+Vzorec: `Change Date = datum releasu + 4 roky`. Každá verze má svůj vlastní Change Date.
+
 ## Konvence
 
 - Provider abstrakce přes ABC — každý nový provider implementuje base interface

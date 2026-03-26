@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Memory — the central facade for Engramia.
 
 Users interact exclusively with this class. All internal modules

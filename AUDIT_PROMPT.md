@@ -236,7 +236,7 @@ Porovnej implementovaný stav s `roadmap.md`:
 ## 7. COMPLIANCE A LEGAL AUDIT
 
 ### 7.1 Licence
-- Je BSL 1.1 licence správně aplikována? (LICENSE.md, pyproject.toml header)
+- Je BSL 1.1 licence správně aplikována? (LICENSE.txt, pyproject.toml header)
 - Jsou všechny third-party dependencies kompatibilní s BSL 1.1?
 - Obsahují zdrojové soubory licence header? (pokud je to konvence projektu)
 

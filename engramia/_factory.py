@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Shared Brain provider factory helpers.
 
 Used by both the REST API (api/app.py) and the MCP server (mcp/server.py)

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Evaluation results store.
 
 Persists individual LLM evaluation results and provides quality-weighted

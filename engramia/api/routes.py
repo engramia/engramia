@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Engramia API endpoint definitions.
 
 All endpoints use sync FastAPI handlers (FastAPI runs them in a threadpool),

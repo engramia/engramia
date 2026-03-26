@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Unit tests for EngramiaWebhook — mocks urllib to avoid live HTTP calls."""
 
 import json

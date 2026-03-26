@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Local embedding provider using sentence-transformers.
 
 Requires the ``local`` extra:

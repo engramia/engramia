@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Security middleware for the Engramia API.
 
 Three Starlette BaseHTTPMiddleware components:

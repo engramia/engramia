@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """JSON file-based storage backend.
 
 Stores data as individual JSON files on disk.

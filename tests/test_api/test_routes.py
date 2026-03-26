@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """API endpoint tests using FastAPI TestClient + FakeEmbeddings + mocked LLM.
 
 Tests run against an in-memory JSON storage — no external services needed.

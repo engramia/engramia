@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Unit tests for OpenAI providers (mocked — no API key required)."""
 
 from unittest.mock import MagicMock, patch

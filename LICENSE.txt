@@ -6,7 +6,7 @@ Copyright (c) 2026 Marek Čermák
 
 Licensor: Marek Čermák
 
-Licensed Work: To-do
+Licensed Work: Engramia, version 0.5.0 and later
 
 Change Date: 2030-04-01
 

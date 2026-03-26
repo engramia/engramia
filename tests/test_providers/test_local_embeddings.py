@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Tests for LocalEmbeddings provider (mocked, no model download needed)."""
 
 from unittest.mock import MagicMock, patch

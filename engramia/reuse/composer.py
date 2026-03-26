@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Pipeline composition engine.
 
 Decomposes a high-level task into sequential stages via LLM, then finds

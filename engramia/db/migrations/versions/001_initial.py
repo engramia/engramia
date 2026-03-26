@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Initial schema: brain_data + brain_embeddings with HNSW index.
 
 Revision ID: 001

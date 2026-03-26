@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Custom exception hierarchy for Engramia.
 
 Public API callers should catch these instead of RuntimeError/ValueError
