@@ -1,7 +1,5 @@
 """Unit tests for PatternMatcher (eval-weighted semantic search)."""
 
-import pytest
-
 from agent_brain.core.eval_store import EvalStore
 from agent_brain.reuse.matcher import PatternMatcher
 from agent_brain.types import Pattern

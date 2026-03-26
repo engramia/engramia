@@ -10,6 +10,7 @@ To add a new provider, subclass the relevant ABC and implement all
 """
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class LLMProvider(ABC):
@@ -87,7 +88,7 @@ class StorageBackend(ABC):
     # ------------------------------------------------------------------
 
     @abstractmethod
-    def load(self, key: str) -> dict | None:
+    def load(self, key: str) -> dict[str, Any] | None:
         """Load data by key.
 
         Args:
@@ -98,12 +99,12 @@ class StorageBackend(ABC):
         """
 
     @abstractmethod
-    def save(self, key: str, data: dict) -> None:
+    def save(self, key: str, data: dict | list) -> None:  # type: ignore[type-arg]
         """Persist data under key. Overwrites if key exists.
 
         Args:
             key: Storage key.
-            data: JSON-serialisable dict to store.
+            data: JSON-serialisable dict (or list for internal stores) to store.
         """
 
     @abstractmethod

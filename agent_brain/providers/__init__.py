@@ -23,12 +23,12 @@ from agent_brain.providers.json_storage import JSONStorage
 from agent_brain.providers.openai import OpenAIEmbeddings, OpenAIProvider
 
 __all__ = [
-    "LLMProvider",
     "EmbeddingProvider",
-    "StorageBackend",
     "JSONStorage",
-    "OpenAIProvider",
+    "LLMProvider",
     "OpenAIEmbeddings",
+    "OpenAIProvider",
+    "StorageBackend",
     # Lazy imports — available only when the corresponding extra is installed:
     # "AnthropicProvider",  # agent-brain[anthropic]
     # "LocalEmbeddings",    # agent-brain[local]
@@ -39,8 +39,10 @@ def __getattr__(name: str):
     """Lazy import for optional providers."""
     if name == "AnthropicProvider":
         from agent_brain.providers.anthropic import AnthropicProvider
+
         return AnthropicProvider
     if name == "LocalEmbeddings":
         from agent_brain.providers.local_embeddings import LocalEmbeddings
+
         return LocalEmbeddings
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

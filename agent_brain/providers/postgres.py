@@ -15,15 +15,13 @@ similarity = 1 - cosine_distance.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from agent_brain.providers.base import StorageBackend
 
 _log = logging.getLogger(__name__)
 
 _POSTGRES_INSTALL_MSG = (
-    "PostgresStorage requires SQLAlchemy + psycopg2 + pgvector. "
-    "Install with: pip install agent-brain[postgres]"
+    "PostgresStorage requires SQLAlchemy + psycopg2 + pgvector. Install with: pip install agent-brain[postgres]"
 )
 
 
@@ -58,13 +56,12 @@ class PostgresStorage(StorageBackend):
             from sqlalchemy import create_engine, text
             from sqlalchemy.pool import QueuePool
         except ImportError:
-            raise ImportError(_POSTGRES_INSTALL_MSG)
+            raise ImportError(_POSTGRES_INSTALL_MSG) from None
 
         url = database_url or os.environ.get("BRAIN_DATABASE_URL")
         if not url:
             raise ValueError(
-                "PostgresStorage requires a database URL. "
-                "Pass database_url=... or set BRAIN_DATABASE_URL env var."
+                "PostgresStorage requires a database URL. Pass database_url=... or set BRAIN_DATABASE_URL env var."
             )
 
         self._embedding_dim = embedding_dim
@@ -90,7 +87,7 @@ class PostgresStorage(StorageBackend):
             ).fetchone()
         return dict(row[0]) if row else None
 
-    def save(self, key: str, data: dict) -> None:
+    def save(self, key: str, data: dict | list) -> None:  # type: ignore[override]
         import json
 
         with self._engine.begin() as conn:
@@ -116,9 +113,7 @@ class PostgresStorage(StorageBackend):
                     {"prefix": f"{safe_prefix}%"},
                 ).fetchall()
             else:
-                rows = conn.execute(
-                    self._text("SELECT key FROM brain_data ORDER BY key")
-                ).fetchall()
+                rows = conn.execute(self._text("SELECT key FROM brain_data ORDER BY key")).fetchall()
         return [row[0] for row in rows]
 
     def delete(self, key: str) -> None:
@@ -170,8 +165,7 @@ class PostgresStorage(StorageBackend):
         """
         if len(embedding) != self._embedding_dim:
             raise ValueError(
-                f"Query embedding dimension {len(embedding)} does not match "
-                f"stored dimension {self._embedding_dim}."
+                f"Query embedding dimension {len(embedding)} does not match stored dimension {self._embedding_dim}."
             )
         vec_str = _vec_to_pg(embedding)
         with self._engine.connect() as conn:
@@ -208,6 +202,7 @@ class PostgresStorage(StorageBackend):
 # Helpers
 # ------------------------------------------------------------------
 
+
 def _escape_like(value: str) -> str:
     """Escape SQL LIKE wildcard characters (%, _, \\) in *value*."""
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -221,4 +216,5 @@ def _vec_to_pg(embedding: list[float]) -> str:
 def _redact_url(url: str) -> str:
     """Replace password in a database URL with *** for logging."""
     import re
+
     return re.sub(r"(://[^:]+:)[^@]+(@)", r"\1***\2", url)

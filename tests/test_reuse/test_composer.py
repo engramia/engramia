@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 from agent_brain.core.eval_store import EvalStore
 from agent_brain.reuse.composer import PipelineComposer
 from agent_brain.reuse.matcher import PatternMatcher
@@ -35,12 +33,14 @@ class TestPipelineComposer:
         return key
 
     def test_compose_decomposes_into_stages(self, storage, fake_embeddings):
-        llm_response = json.dumps({
-            "stages": [
-                {"task": "Fetch data", "reads": ["input.csv"], "writes": ["data.json"]},
-                {"task": "Analyze data", "reads": ["data.json"], "writes": ["report.txt"]},
-            ]
-        })
+        llm_response = json.dumps(
+            {
+                "stages": [
+                    {"task": "Fetch data", "reads": ["input.csv"], "writes": ["data.json"]},
+                    {"task": "Analyze data", "reads": ["data.json"], "writes": ["report.txt"]},
+                ]
+            }
+        )
         llm = FakeLLM(llm_response)
         eval_store = EvalStore(storage)
         matcher = PatternMatcher(storage, fake_embeddings, eval_store)
@@ -53,12 +53,14 @@ class TestPipelineComposer:
         assert pipeline.task == "Fetch data and write a report"
 
     def test_compose_validates_contracts(self, storage, fake_embeddings):
-        llm_response = json.dumps({
-            "stages": [
-                {"task": "Fetch data", "reads": ["input.csv"], "writes": ["data.json"]},
-                {"task": "Analyze", "reads": ["data.json"], "writes": ["report.txt"]},
-            ]
-        })
+        llm_response = json.dumps(
+            {
+                "stages": [
+                    {"task": "Fetch data", "reads": ["input.csv"], "writes": ["data.json"]},
+                    {"task": "Analyze", "reads": ["data.json"], "writes": ["report.txt"]},
+                ]
+            }
+        )
         llm = FakeLLM(llm_response)
         eval_store = EvalStore(storage)
         matcher = PatternMatcher(storage, fake_embeddings, eval_store)
@@ -83,12 +85,9 @@ class TestPipelineComposer:
         assert pipeline.stages[0].task == "Do something complex"
 
     def test_compose_max_4_stages(self, storage, fake_embeddings):
-        llm_response = json.dumps({
-            "stages": [
-                {"task": f"Stage {i}", "reads": [], "writes": [f"out_{i}.txt"]}
-                for i in range(6)
-            ]
-        })
+        llm_response = json.dumps(
+            {"stages": [{"task": f"Stage {i}", "reads": [], "writes": [f"out_{i}.txt"]} for i in range(6)]}
+        )
         llm = FakeLLM(llm_response)
         eval_store = EvalStore(storage)
         matcher = PatternMatcher(storage, fake_embeddings, eval_store)
@@ -101,12 +100,14 @@ class TestPipelineComposer:
         # Store a pattern that matches one of the stages
         self._store_pattern(storage, fake_embeddings, "Fetch data from API", code="import requests")
 
-        llm_response = json.dumps({
-            "stages": [
-                {"task": "Fetch data from API", "reads": [], "writes": ["data.json"]},
-                {"task": "Write report", "reads": ["data.json"], "writes": ["report.txt"]},
-            ]
-        })
+        llm_response = json.dumps(
+            {
+                "stages": [
+                    {"task": "Fetch data from API", "reads": [], "writes": ["data.json"]},
+                    {"task": "Write report", "reads": ["data.json"], "writes": ["report.txt"]},
+                ]
+            }
+        )
         llm = FakeLLM(llm_response)
         eval_store = EvalStore(storage)
         matcher = PatternMatcher(storage, fake_embeddings, eval_store)

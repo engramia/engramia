@@ -8,9 +8,9 @@ import logging
 import time
 
 from agent_brain.providers.base import StorageBackend
+from agent_brain.types import Metrics
 
 _log = logging.getLogger(__name__)
-from agent_brain.types import Metrics
 
 _KEY = "metrics/_global"
 _MAX_HISTORY = 100

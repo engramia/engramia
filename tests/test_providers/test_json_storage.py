@@ -1,7 +1,5 @@
 """Unit tests for JSONStorage."""
 
-import json
-
 import numpy as np
 import pytest
 

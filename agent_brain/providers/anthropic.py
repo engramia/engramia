@@ -15,8 +15,7 @@ from agent_brain.providers.base import LLMProvider
 _log = logging.getLogger(__name__)
 
 _ANTHROPIC_INSTALL_MSG = (
-    "Anthropic provider requires the anthropic package. "
-    "Install it with: pip install agent-brain[anthropic]"
+    "Anthropic provider requires the anthropic package. Install it with: pip install agent-brain[anthropic]"
 )
 
 #: Errors that should not be retried (client-side mistakes).
@@ -42,11 +41,11 @@ class AnthropicProvider(LLMProvider):
         max_tokens: int = 4096,
     ) -> None:
         try:
-            from anthropic import Anthropic  # noqa: PLC0415
+            from anthropic import Anthropic
 
             self._client = Anthropic()
         except ImportError:
-            raise ImportError(_ANTHROPIC_INSTALL_MSG)
+            raise ImportError(_ANTHROPIC_INSTALL_MSG) from None
         self._model = model
         self._max_retries = max_retries
         self._max_tokens = max_tokens
@@ -57,7 +56,7 @@ class AnthropicProvider(LLMProvider):
         system: str | None = None,
         role: str = "default",
     ) -> str:
-        from anthropic import (  # noqa: PLC0415
+        from anthropic import (
             AuthenticationError,
             BadRequestError,
             PermissionDeniedError,
@@ -95,6 +94,4 @@ class AnthropicProvider(LLMProvider):
                     )
                     time.sleep(2**attempt)
 
-        raise last_exc or RuntimeError(
-            f"All {self._max_retries} retries exhausted with no exception recorded"
-        )
+        raise last_exc or RuntimeError(f"All {self._max_retries} retries exhausted with no exception recorded")

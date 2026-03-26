@@ -25,7 +25,7 @@ def jaccard(a: str, b: str) -> float:
         b: Second string.
 
     Returns:
-        Jaccard index (0.0–1.0).
+        Jaccard index (0.0-1.0).
     """
     wa = set(a.lower().split())
     wb = set(b.lower().split())
@@ -38,7 +38,7 @@ def reuse_tier(similarity: float) -> Literal["duplicate", "adapt", "fresh"]:
     """Classify a similarity score into a reuse tier.
 
     Args:
-        similarity: Cosine similarity (0.0–1.0).
+        similarity: Cosine similarity (0.0-1.0).
 
     Returns:
         One of ``"duplicate"``, ``"adapt"``, or ``"fresh"``.

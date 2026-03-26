@@ -19,10 +19,7 @@ from agent_brain.providers.base import EmbeddingProvider
 
 _log = logging.getLogger(__name__)
 
-_INSTALL_MSG = (
-    "Local embeddings require sentence-transformers. "
-    "Install with: pip install agent-brain[local]"
-)
+_INSTALL_MSG = "Local embeddings require sentence-transformers. Install with: pip install agent-brain[local]"
 
 
 class LocalEmbeddings(EmbeddingProvider):
@@ -35,11 +32,11 @@ class LocalEmbeddings(EmbeddingProvider):
 
     def __init__(self, model: str = "all-MiniLM-L6-v2") -> None:
         try:
-            from sentence_transformers import SentenceTransformer  # noqa: PLC0415
+            from sentence_transformers import SentenceTransformer
 
             self._model = SentenceTransformer(model)
         except ImportError:
-            raise ImportError(_INSTALL_MSG)
+            raise ImportError(_INSTALL_MSG) from None
         self._model_name = model
         _log.info("Loaded local embedding model: %s", model)
 

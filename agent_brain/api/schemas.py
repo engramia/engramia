@@ -8,15 +8,15 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # POST /learn
 # ---------------------------------------------------------------------------
 
+
 class LearnRequest(BaseModel):
     task: str = Field(max_length=10_000, description="Natural language description of the task.")
     code: str = Field(max_length=500_000, description="Agent source code (the solution).")
-    eval_score: float = Field(ge=0.0, le=10.0, description="Quality score 0–10.")
+    eval_score: float = Field(ge=0.0, le=10.0, description="Quality score 0-10.")
     output: str | None = Field(default=None, max_length=500_000, description="Optional captured stdout.")
 
 
@@ -28,6 +28,7 @@ class LearnResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # POST /recall
 # ---------------------------------------------------------------------------
+
 
 class RecallRequest(BaseModel):
     task: str = Field(max_length=10_000, description="Task to find relevant patterns for.")
@@ -58,6 +59,7 @@ class RecallResponse(BaseModel):
 # POST /compose
 # ---------------------------------------------------------------------------
 
+
 class ComposeRequest(BaseModel):
     task: str = Field(max_length=10_000, description="High-level task to decompose into a pipeline.")
 
@@ -82,6 +84,7 @@ class ComposeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # POST /evaluate
 # ---------------------------------------------------------------------------
+
 
 class EvaluateRequest(BaseModel):
     task: str = Field(max_length=10_000)
@@ -112,6 +115,7 @@ class EvaluateResponse(BaseModel):
 # GET /feedback
 # ---------------------------------------------------------------------------
 
+
 class FeedbackResponse(BaseModel):
     feedback: list[str]
 
@@ -119,6 +123,7 @@ class FeedbackResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # GET /metrics
 # ---------------------------------------------------------------------------
+
 
 class MetricsResponse(BaseModel):
     runs: int
@@ -132,6 +137,7 @@ class MetricsResponse(BaseModel):
 # DELETE /patterns/{key}
 # ---------------------------------------------------------------------------
 
+
 class DeletePatternResponse(BaseModel):
     deleted: bool
     pattern_key: str
@@ -140,6 +146,7 @@ class DeletePatternResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # GET /health
 # ---------------------------------------------------------------------------
+
 
 class AgingResponse(BaseModel):
     pruned: int
@@ -153,6 +160,7 @@ class FeedbackDecayResponse(BaseModel):
 # GET /health
 # ---------------------------------------------------------------------------
 
+
 class HealthResponse(BaseModel):
     status: str
     storage: str
@@ -162,6 +170,7 @@ class HealthResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # POST /evolve
 # ---------------------------------------------------------------------------
+
 
 class EvolveRequest(BaseModel):
     role: str = Field(max_length=100, description="Agent role (e.g. 'coder', 'eval', 'architect').")
@@ -180,6 +189,7 @@ class EvolveResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # POST /analyze-failures
 # ---------------------------------------------------------------------------
+
 
 class AnalyzeFailuresRequest(BaseModel):
     min_count: int = Field(default=1, ge=1)
@@ -200,6 +210,7 @@ class AnalyzeFailuresResponse(BaseModel):
 # POST /skills/register
 # ---------------------------------------------------------------------------
 
+
 class RegisterSkillsRequest(BaseModel):
     pattern_key: str = Field(max_length=200, description="Storage key of the pattern to tag.")
     skills: list[str] = Field(max_length=50, description="Skill tags to associate (e.g. ['csv_parsing']).")
@@ -213,6 +224,28 @@ class RegisterSkillsResponse(BaseModel):
 # POST /skills/search
 # ---------------------------------------------------------------------------
 
+
 class SkillsSearchRequest(BaseModel):
     required: list[str] = Field(max_length=50, description="Skill tags to search for.")
     match_all: bool = Field(default=True, description="If True, pattern must have ALL skills.")
+
+
+# ---------------------------------------------------------------------------
+# POST /import
+# ---------------------------------------------------------------------------
+
+
+class ImportRecord(BaseModel):
+    version: int = Field(default=1, description="Export format version.")
+    key: str = Field(max_length=500, description="Storage key (must start with 'patterns/').")
+    data: dict[str, Any] = Field(description="Pattern data dict.")
+
+
+class ImportRequest(BaseModel):
+    records: list[ImportRecord] = Field(max_length=10_000, description="Records from brain.export().")
+    overwrite: bool = Field(default=False, description="Overwrite existing patterns if True.")
+
+
+class ImportResponse(BaseModel):
+    imported: int = Field(description="Number of patterns successfully imported.")
+    total: int = Field(description="Total records submitted.")

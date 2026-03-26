@@ -44,6 +44,10 @@ class JSONStorage(StorageBackend):
     def __init__(self, path: str | Path) -> None:
         self._root = Path(path)
         self._root.mkdir(parents=True, exist_ok=True)
+        # Resolve once at construction so that _key_to_path's relative_to()
+        # comparison is always apples-to-apples even on Windows long paths
+        # where resolve() may add a \\?\ UNC prefix.
+        self._root_resolved = self._root.resolve()
         self._lock = threading.Lock()
         self._embeddings: dict[str, list[float]] = self._load_embeddings_index()
 
@@ -62,12 +66,16 @@ class JSONStorage(StorageBackend):
         parts = [p for p in clean.split("/") if p and not all(c == "." for c in p)]
         if not parts:
             raise ValueError(f"Invalid storage key: {key!r}")
-        path = self._root.joinpath(*parts).with_suffix(".json")
-        # Defense-in-depth: ensure the resolved path stays inside root
+        # Build from the pre-resolved root so that resolve() on the result
+        # shares the same UNC prefix (or lack thereof) on Windows long paths.
+        path = self._root_resolved.joinpath(*parts).with_suffix(".json")
+        # Defense-in-depth: ensure the resolved path stays inside root.
+        # Building from _root_resolved and having already stripped all dot-only
+        # segments above makes traversal impossible, but we verify anyway.
         try:
-            path.resolve().relative_to(self._root.resolve())
+            path.relative_to(self._root_resolved)
         except ValueError:
-            raise ValueError(f"Storage key escapes root directory: {key!r}")
+            raise ValueError(f"Storage key escapes root directory: {key!r}") from None
         return path
 
     def _embeddings_path(self) -> Path:
@@ -80,7 +88,7 @@ class JSONStorage(StorageBackend):
         with open(p, encoding="utf-8") as f:
             return json.load(f)
 
-    def _atomic_write(self, path: Path, data: dict) -> None:
+    def _atomic_write(self, path: Path, data: dict | list) -> None:  # type: ignore[type-arg]
         """Write *data* to *path* atomically using a tmp → bak → replace sequence."""
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
@@ -106,7 +114,7 @@ class JSONStorage(StorageBackend):
         with open(path, encoding="utf-8") as f:
             return json.load(f)
 
-    def save(self, key: str, data: dict) -> None:
+    def save(self, key: str, data: dict | list) -> None:  # type: ignore[override]
         self._atomic_write(self._key_to_path(key), data)
 
     def list_keys(self, prefix: str = "") -> list[str]:
@@ -169,8 +177,7 @@ class JSONStorage(StorageBackend):
                 stored_dim = len(next(iter(self._embeddings.values())))
                 if len(embedding) != stored_dim:
                     raise ValueError(
-                        f"Query embedding dimension {len(embedding)} does not match "
-                        f"stored dimension {stored_dim}."
+                        f"Query embedding dimension {len(embedding)} does not match stored dimension {stored_dim}."
                     )
             # Snapshot the index to avoid holding the lock during numpy ops
             index_snapshot = dict(self._embeddings)

@@ -1,7 +1,5 @@
 """Tests for SkillRegistry."""
 
-import pytest
-
 from agent_brain.core.skill_registry import SkillRegistry
 
 

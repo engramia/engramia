@@ -88,12 +88,14 @@ class FailureClusterer:
                     break
 
             if not merged:
-                clusters.append({
-                    "representative": text,
-                    "members": [text],
-                    "total_count": pattern.get("count", 1),
-                    "scores": [pattern.get("score", 0.5)],
-                })
+                clusters.append(
+                    {
+                        "representative": text,
+                        "members": [text],
+                        "total_count": pattern.get("count", 1),
+                        "scores": [pattern.get("score", 0.5)],
+                    }
+                )
 
         result = []
         for c in clusters:

@@ -37,6 +37,7 @@ class TestExceptionHierarchy:
 
     def test_exceptions_exported_from_package(self):
         import agent_brain
+
         assert hasattr(agent_brain, "BrainError")
         assert hasattr(agent_brain, "ProviderError")
         assert hasattr(agent_brain, "ValidationError")

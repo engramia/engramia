@@ -1,13 +1,11 @@
 """Tests for PromptEvolver."""
 
 import json
-from unittest.mock import MagicMock
 
 import pytest
 
 from agent_brain.core.eval_feedback import EvalFeedbackStore
 from agent_brain.evolution.prompt_evolver import PromptEvolver
-from agent_brain.providers.json_storage import JSONStorage
 
 
 @pytest.fixture
@@ -42,10 +40,12 @@ class TestPromptEvolver:
         for _ in range(2):
             feedback_store.record("Validate input before processing")
 
-        llm_response = json.dumps({
-            "improved_prompt": "You are a coder. Always handle file I/O errors. Validate inputs.",
-            "changes": ["Added file I/O error handling", "Added input validation"],
-        })
+        llm_response = json.dumps(
+            {
+                "improved_prompt": "You are a coder. Always handle file I/O errors. Validate inputs.",
+                "changes": ["Added file I/O error handling", "Added input validation"],
+            }
+        )
         llm = FakeLLM(llm_response)
         evolver = PromptEvolver(llm, feedback_store)
 

@@ -23,6 +23,7 @@ class TestFeedbackLengthLimit:
 class TestParseIso:
     def test_empty_string_returns_recent_timestamp(self):
         import time
+
         ts = _parse_iso("")
         # Should be close to now (within 5 seconds)
         assert abs(ts - time.time()) < 5

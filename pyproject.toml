@@ -60,6 +60,8 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
+    "ruff>=0.9",
+    "mypy>=1.14",
 ]
 all = [
     "agent-brain[openai,anthropic,local,postgres,api,cli,langchain,crewai]",
@@ -79,3 +81,36 @@ addopts = "--cov=agent_brain --cov-fail-under=80"
 [tool.coverage.run]
 source = ["agent_brain"]
 omit = ["agent_brain/db/migrations/*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults (FastAPI Depends)
+    "SIM108", # use ternary operator — often less readable
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agent_brain"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true

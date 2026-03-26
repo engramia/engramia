@@ -3,8 +3,8 @@
 Extends raw semantic similarity with an eval quality multiplier so that
 high-quality patterns rank above lower-quality ones with similar embeddings.
 
-Effective score = cosine_similarity × eval_multiplier
-where eval_multiplier ∈ [0.5, 1.0] based on stored eval score.
+Effective score = cosine_similarity * eval_multiplier
+where eval_multiplier in [0.5, 1.0] based on stored eval score.
 """
 
 import logging

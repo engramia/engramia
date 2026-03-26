@@ -18,10 +18,7 @@ from agent_brain.brain import Brain
 
 _log = logging.getLogger(__name__)
 
-_INSTALL_MSG = (
-    "LangChain callback requires langchain-core. "
-    "Install with: pip install agent-brain[langchain]"
-)
+_INSTALL_MSG = "LangChain callback requires langchain-core. Install with: pip install agent-brain[langchain]"
 
 
 class BrainCallback:
@@ -49,9 +46,9 @@ class BrainCallback:
         recall_limit: int = 3,
     ) -> None:
         try:
-            from langchain_core.callbacks import BaseCallbackHandler  # noqa: PLC0415
+            from langchain_core.callbacks import BaseCallbackHandler  # noqa: F401
         except ImportError:
-            raise ImportError(_INSTALL_MSG)
+            raise ImportError(_INSTALL_MSG) from None
         self._brain = brain
         self._auto_learn = auto_learn
         self._auto_recall = auto_recall

@@ -1,6 +1,7 @@
 """Tests for MetricsStore."""
 
 import pytest
+
 from agent_brain.core.metrics import MetricsStore
 
 

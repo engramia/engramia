@@ -1,7 +1,5 @@
 """Tests for Brain.export() and Brain.import_data()."""
 
-import pytest
-
 from agent_brain.brain import Brain
 
 
@@ -14,6 +12,7 @@ class TestExport:
         brain.learn(task="Parse CSV", code="import csv", eval_score=8.0)
         records = brain.export()
         assert len(records) == 1
+        assert records[0]["version"] == 1
         assert "key" in records[0]
         assert "data" in records[0]
         assert records[0]["data"]["task"] == "Parse CSV"
@@ -60,7 +59,10 @@ class TestImportData:
 
     def test_import_skips_malformed(self, brain):
         records = [
-            {"key": "patterns/valid", "data": {"task": "t", "design": {}, "success_score": 5.0, "reuse_count": 0, "timestamp": 0.0}},
+            {
+                "key": "patterns/valid",
+                "data": {"task": "t", "design": {}, "success_score": 5.0, "reuse_count": 0, "timestamp": 0.0},
+            },
             {"key": "", "data": {"task": "no key"}},
             {"data": {"task": "no key field"}},
         ]

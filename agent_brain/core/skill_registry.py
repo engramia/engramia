@@ -9,7 +9,6 @@ Skills are stored under the "skills/" namespace in the storage backend.
 
 import logging
 
-from agent_brain._util import PATTERNS_PREFIX
 from agent_brain.providers.base import StorageBackend
 
 _log = logging.getLogger(__name__)

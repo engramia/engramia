@@ -9,27 +9,29 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agent_brain.exceptions import ProviderError
-
 from agent_brain import Brain
+from agent_brain.exceptions import ProviderError
 from agent_brain.types import EvalResult, Pipeline
 
+EVAL_RESPONSE = json.dumps(
+    {
+        "task_alignment": 8,
+        "code_quality": 7,
+        "workspace_usage": 8,
+        "robustness": 6,
+        "overall": 7.5,
+        "feedback": "Add error handling for missing input files.",
+    }
+)
 
-EVAL_RESPONSE = json.dumps({
-    "task_alignment": 8,
-    "code_quality": 7,
-    "workspace_usage": 8,
-    "robustness": 6,
-    "overall": 7.5,
-    "feedback": "Add error handling for missing input files.",
-})
-
-COMPOSE_RESPONSE = json.dumps({
-    "stages": [
-        {"task": "Read CSV file", "reads": ["input.csv"], "writes": ["data.json"]},
-        {"task": "Compute statistics from data", "reads": ["data.json"], "writes": ["report.txt"]},
-    ]
-})
+COMPOSE_RESPONSE = json.dumps(
+    {
+        "stages": [
+            {"task": "Read CSV file", "reads": ["input.csv"], "writes": ["data.json"]},
+            {"task": "Compute statistics from data", "reads": ["data.json"], "writes": ["report.txt"]},
+        ]
+    }
+)
 
 
 @pytest.fixture
@@ -89,12 +91,12 @@ class TestFullCycle:
 
     def test_compose_without_llm_raises(self, fake_embeddings, storage):
         brain = Brain(embeddings=fake_embeddings, storage=storage, llm=None)
-        with pytest.raises(ProviderError, match="compose()"):
+        with pytest.raises(ProviderError, match=r"compose\(\)"):
             brain.compose("some task")
 
     def test_evaluate_without_llm_raises(self, fake_embeddings, storage):
         brain = Brain(embeddings=fake_embeddings, storage=storage, llm=None)
-        with pytest.raises(ProviderError, match="evaluate()"):
+        with pytest.raises(ProviderError, match=r"evaluate\(\)"):
             brain.evaluate("task", "code")
 
     def test_recall_eval_weighted(self, full_brain):

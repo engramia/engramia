@@ -14,9 +14,10 @@ import time
 
 from agent_brain._util import PATTERNS_PREFIX
 from agent_brain.providers.base import StorageBackend
+from agent_brain.types import Pattern
 
 _log = logging.getLogger(__name__)
-from agent_brain.types import Pattern
+
 _DECAY_PER_WEEK = 0.98
 _MIN_SCORE = 0.1
 _REUSE_BOOST = 0.1
@@ -79,9 +80,7 @@ class SuccessPatternStore:
                 self._storage.delete(key)
                 pruned += 1
             else:
-                updated = pattern.model_copy(
-                    update={"success_score": round(decayed, 4), "timestamp": now}
-                )
+                updated = pattern.model_copy(update={"success_score": round(decayed, 4), "timestamp": now})
                 self._storage.save(key, updated.model_dump())
 
         return pruned
