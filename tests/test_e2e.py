@@ -1,7 +1,7 @@
 """End-to-end tests: learn → recall → assert match.
 
 Uses FakeEmbeddings (no API key) and JSONStorage (tmp_path).
-Covers the full Brain.learn() → Brain.recall() cycle.
+Covers the full Memory.learn() → Memory.recall() cycle.
 """
 
 import pytest
@@ -87,9 +87,9 @@ class TestLearnRecall:
 
     def test_brain_without_llm_works_for_learn_recall(self, fake_embeddings, storage):
         """Brain can be used for learn/recall with llm=None."""
-        from agent_brain.brain import Brain
+        from remanence.brain import Memory
 
-        brain = Brain(embeddings=fake_embeddings, storage=storage, llm=None)
+        brain = Memory(embeddings=fake_embeddings, storage=storage, llm=None)
         brain.learn(task="A task", code="code", eval_score=8.0)
         matches = brain.recall(task="A task")
         assert len(matches) == 1

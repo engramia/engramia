@@ -4,14 +4,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent_brain.providers.openai import OpenAIEmbeddings, OpenAIProvider
+from remanence.providers.openai import OpenAIEmbeddings, OpenAIProvider
 
 
 @pytest.fixture
 def mock_openai(monkeypatch):
     """Patch openai.OpenAI so tests never call the real API."""
     mock_client = MagicMock()
-    with patch("agent_brain.providers.openai.OpenAIProvider.__init__") as mock_init:
+    with patch("remanence.providers.openai.OpenAIProvider.__init__") as mock_init:
         mock_init.return_value = None
         yield mock_client
 

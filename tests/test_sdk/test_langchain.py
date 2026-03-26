@@ -1,11 +1,11 @@
-"""Tests for LangChain BrainCallback (mocked, no langchain needed)."""
+"""Tests for LangChain RemanenceCallback (mocked, no langchain needed)."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent_brain.brain import Brain
-from agent_brain.providers.json_storage import JSONStorage
+from remanence.brain import Memory
+from remanence.providers.json_storage import JSONStorage
 from tests.conftest import FakeEmbeddings
 
 
@@ -16,10 +16,10 @@ def brain_with_llm(tmp_path):
     # Use a simple mock LLM
     mock_llm = MagicMock()
     mock_llm.call.return_value = '{"task_alignment": 8, "code_quality": 8, "workspace_usage": 8, "robustness": 8, "overall": 8.0, "feedback": "Good"}'
-    return Brain(embeddings=embeddings, storage=storage, llm=mock_llm)
+    return Memory(embeddings=embeddings, storage=storage, llm=mock_llm)
 
 
-class TestBrainCallback:
+class TestRemanenceCallback:
     """Tests for the LangChain integration callback."""
 
     def _make_callback(self, brain, **kwargs):
@@ -28,9 +28,9 @@ class TestBrainCallback:
         with patch.dict(
             "sys.modules", {"langchain_core": mock_lccore, "langchain_core.callbacks": mock_lccore.callbacks}
         ):
-            from agent_brain.sdk.langchain import BrainCallback
+            from remanence.sdk.langchain import RemanenceCallback
 
-            return BrainCallback(brain, **kwargs)
+            return RemanenceCallback(brain, **kwargs)
 
     def test_on_chain_start_recalls_context(self, brain_with_llm):
         brain = brain_with_llm

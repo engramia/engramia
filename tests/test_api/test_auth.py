@@ -6,31 +6,31 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from agent_brain.brain import Brain
-from agent_brain.providers.json_storage import JSONStorage
+from remanence.brain import Memory
+from remanence.providers.json_storage import JSONStorage
 from tests.conftest import FakeEmbeddings
 
 
 @pytest.fixture(autouse=True)
 def _clean_env():
-    """Ensure BRAIN_API_KEYS is cleaned up after each test."""
-    old = os.environ.pop("BRAIN_API_KEYS", None)
+    """Ensure REMANENCE_API_KEYS is cleaned up after each test."""
+    old = os.environ.pop("REMANENCE_API_KEYS", None)
     yield
     if old is not None:
-        os.environ["BRAIN_API_KEYS"] = old
+        os.environ["REMANENCE_API_KEYS"] = old
     else:
-        os.environ.pop("BRAIN_API_KEYS", None)
+        os.environ.pop("REMANENCE_API_KEYS", None)
 
 
 def _make_test_app(api_keys: str = "") -> FastAPI:
     """Create a minimal test app with auth middleware."""
     if api_keys:
-        os.environ["BRAIN_API_KEYS"] = api_keys
+        os.environ["REMANENCE_API_KEYS"] = api_keys
     else:
-        os.environ.pop("BRAIN_API_KEYS", None)
+        os.environ.pop("REMANENCE_API_KEYS", None)
 
     # Import router fresh (auth reads env at request time)
-    from agent_brain.api.routes import router
+    from remanence.api.routes import router
 
     app = FastAPI()
     app.include_router(router, prefix="/v1")
@@ -41,11 +41,11 @@ def _make_test_app(api_keys: str = "") -> FastAPI:
 def tmp_brain(tmp_path):
     storage = JSONStorage(path=tmp_path)
     embeddings = FakeEmbeddings()
-    return Brain(embeddings=embeddings, storage=storage)
+    return Memory(embeddings=embeddings, storage=storage)
 
 
 class TestAuthDevMode:
-    """When BRAIN_API_KEYS is empty, all requests pass (dev mode)."""
+    """When REMANENCE_API_KEYS is empty, all requests pass (dev mode)."""
 
     def test_no_auth_required_in_dev_mode(self, tmp_brain):
         app = _make_test_app("")
@@ -65,7 +65,7 @@ class TestAuthDevMode:
 
 
 class TestAuthEnabled:
-    """When BRAIN_API_KEYS is set, Bearer tokens are required."""
+    """When REMANENCE_API_KEYS is set, Bearer tokens are required."""
 
     def test_missing_token_returns_401(self, tmp_brain):
         app = _make_test_app("secret-key-123")

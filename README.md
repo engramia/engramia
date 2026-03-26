@@ -1,4 +1,4 @@
-# Agent Brain
+# Remanence
 
 Self-learning memory layer for AI agent frameworks.
 
@@ -13,7 +13,7 @@ Self-learning memory layer for AI agent frameworks.
 
 ## Co to je
 
-Agent Brain řeší problém, který má každý agent framework: **agenti se neučí z předchozích běhů**.
+Remanence řeší problém, který má každý agent framework: **agenti se neučí z předchozích běhů**.
 
 LangChain, CrewAI, AutoGPT a podobné frameworky jsou statické — každý běh začíná od nuly.
 Brain je paměťová vrstva, kterou přidáš pod jakýkoli framework a která:
@@ -32,13 +32,13 @@ Extrahováno z Agent Factory V2 — systému, který se za 254 běhů naučil do
 
 ```bash
 # Základ (JSON storage, bez LLM/embeddings providera)
-pip install agent-brain
+pip install remanence
 
 # S OpenAI providerem (doporučeno pro začátek)
-pip install "agent-brain[openai]"
+pip install "remanence[openai]"
 
 # REST API + PostgreSQL
-pip install "agent-brain[openai,api,postgres]"
+pip install "remanence[openai,api,postgres]"
 ```
 
 ### Optional extras
@@ -50,9 +50,10 @@ pip install "agent-brain[openai,api,postgres]"
 | `api` | FastAPI REST server | ✅ |
 | `anthropic` | Anthropic/Claude LLM provider | ✅ |
 | `local` | sentence-transformers embeddings, bez API klíče | ✅ |
-| `langchain` | LangChain BrainCallback | ✅ |
+| `langchain` | LangChain RemanenceCallback | ✅ |
 | `crewai` | CrewAI BrainMiddleware | Post-launch |
 | `cli` | CLI tool (Typer + Rich) | ✅ |
+| `mcp` | MCP server (Claude Desktop, Cursor, Windsurf) | ✅ |
 | `dev` | pytest, coverage, vývojové nástroje | ✅ |
 
 ---
@@ -60,10 +61,10 @@ pip install "agent-brain[openai,api,postgres]"
 ## Rychlý start
 
 ```python
-from agent_brain import Brain
-from agent_brain.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from remanence import Memory
+from remanence.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 
-brain = Brain(
+mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),
     storage=JSONStorage(path="./brain_data"),
@@ -282,7 +283,7 @@ with open("backup.jsonl", "w") as f:
 with open("backup.jsonl") as f:
     records = [json.loads(line) for line in f]
 
-new_brain = Brain(embeddings=embeddings, storage=postgres_storage)
+new_mem = Memory(embeddings=embeddings, storage=postgres_storage)
 imported = new_brain.import_data(records)
 print(f"Importováno {imported} patternů")
 ```
@@ -294,7 +295,7 @@ print(f"Importováno {imported} patternů")
 Brain používá vlastní hierarchii výjimek pro přesné error handling:
 
 ```python
-from agent_brain import BrainError, ProviderError, ValidationError, StorageError
+from remanence import MemoryError, ProviderError, ValidationError, StorageError
 
 try:
     result = brain.evaluate(task, code)
@@ -304,7 +305,7 @@ except ProviderError:
 except ValidationError:
     # Neplatný vstup (prázdný task, příliš dlouhý kód, ...)
     pass
-except BrainError:
+except RemanenceError:
     # Jakákoli Brain výjimka
     pass
 ```
@@ -314,9 +315,9 @@ except BrainError:
 ### LangChain integrace
 
 ```python
-from agent_brain.sdk.langchain import BrainCallback
+from remanence.sdk.langchain import RemanenceCallback
 
-callback = BrainCallback(brain, auto_learn=True, auto_recall=True)
+callback = RemanenceCallback(brain, auto_learn=True, auto_recall=True)
 chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
 # Brain se automaticky učí z chain runs a recalluje relevantní kontext
 ```
@@ -326,9 +327,9 @@ chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
 ### Webhook SDK klient
 
 ```python
-from agent_brain.sdk.webhook import BrainWebhook
+from remanence.sdk.webhook import RemanenceWebhook
 
-hook = BrainWebhook(url="http://localhost:8000", api_key="sk-...")
+hook = RemanenceWebhook(url="http://localhost:8000", api_key="sk-...")
 hook.learn(task="Parse CSV", code=code, eval_score=8.5)
 matches = hook.recall(task="Read CSV and compute averages")
 ```
@@ -344,8 +345,8 @@ matches = hook.recall(task="Read CSV and compute averages")
 docker compose up
 
 # PostgreSQL storage (prod)
-BRAIN_STORAGE=postgres \
-BRAIN_DATABASE_URL=postgresql://user:pass@localhost:5432/brain \
+REMANENCE_STORAGE=postgres \
+REMANENCE_DATABASE_URL=postgresql://user:pass@localhost:5432/brain \
 OPENAI_API_KEY=sk-... \
 docker compose up
 ```
@@ -356,15 +357,15 @@ Po startu: Swagger UI na [http://localhost:8000/docs](http://localhost:8000/docs
 
 | Proměnná | Default | Popis |
 |----------|---------|-------|
-| `BRAIN_STORAGE` | `json` | `json` nebo `postgres` |
-| `BRAIN_DATA_PATH` | `./brain_data` | Cesta pro JSON storage |
-| `BRAIN_DATABASE_URL` | — | PostgreSQL URL (jen pro `postgres`) |
-| `BRAIN_LLM_PROVIDER` | `openai` | LLM provider |
-| `BRAIN_LLM_MODEL` | `gpt-4.1` | Model ID |
+| `REMANENCE_STORAGE` | `json` | `json` nebo `postgres` |
+| `REMANENCE_DATA_PATH` | `./brain_data` | Cesta pro JSON storage |
+| `REMANENCE_DATABASE_URL` | — | PostgreSQL URL (jen pro `postgres`) |
+| `REMANENCE_LLM_PROVIDER` | `openai` | LLM provider |
+| `REMANENCE_LLM_MODEL` | `gpt-4.1` | Model ID |
 | `OPENAI_API_KEY` | — | OpenAI API klíč |
-| `BRAIN_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
-| `BRAIN_API_KEYS` | *(prázdné)* | Bearer tokeny (prázdné = dev mode, bez auth) |
-| `BRAIN_PORT` | `8000` | Port |
+| `REMANENCE_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
+| `REMANENCE_API_KEYS` | *(prázdné)* | Bearer tokeny (prázdné = dev mode, bez auth) |
+| `REMANENCE_PORT` | `8000` | Port |
 
 ### Endpointy
 
@@ -411,7 +412,7 @@ curl http://localhost:8000/v1/health
 
 ```bash
 # Set keys
-BRAIN_API_KEYS=my-secret-key docker compose up
+REMANENCE_API_KEYS=my-secret-key docker compose up
 
 # Use key
 curl -H "Authorization: Bearer my-secret-key" http://localhost:8000/v1/metrics
@@ -421,10 +422,10 @@ curl -H "Authorization: Bearer my-secret-key" http://localhost:8000/v1/metrics
 
 | Proměnná | Default | Popis |
 |----------|---------|-------|
-| `BRAIN_CORS_ORIGINS` | *(prázdné)* | Povolené CORS origins (CORS vypnutý pokud prázdné) |
-| `BRAIN_RATE_LIMIT_DEFAULT` | `60` | Max požadavků/min pro standardní endpointy |
-| `BRAIN_RATE_LIMIT_EXPENSIVE` | `10` | Max požadavků/min pro LLM-intensive endpointy |
-| `BRAIN_MAX_BODY_SIZE` | `1048576` | Max velikost request body v bytech (1 MB) |
+| `REMANENCE_CORS_ORIGINS` | *(prázdné)* | Povolené CORS origins (CORS vypnutý pokud prázdné) |
+| `REMANENCE_RATE_LIMIT_DEFAULT` | `60` | Max požadavků/min pro standardní endpointy |
+| `REMANENCE_RATE_LIMIT_EXPENSIVE` | `10` | Max požadavků/min pro LLM-intensive endpointy |
+| `REMANENCE_MAX_BODY_SIZE` | `1048576` | Max velikost request body v bytech (1 MB) |
 
 ---
 
@@ -436,8 +437,8 @@ Spuštění s pgvector backendou:
 # 1. Uncomment pgvector service in docker-compose.yml
 
 # 2. Spuštění
-BRAIN_STORAGE=postgres \
-BRAIN_DATABASE_URL=postgresql://brain:brain@pgvector:5432/brain \
+REMANENCE_STORAGE=postgres \
+REMANENCE_DATABASE_URL=postgresql://brain:brain@pgvector:5432/brain \
 docker compose up
 
 # 3. Aplikace migrací (první spuštění)
@@ -447,11 +448,11 @@ docker compose exec brain-api alembic upgrade head
 Nebo bez Dockeru:
 
 ```bash
-pip install "agent-brain[openai,postgres]"
+pip install "remanence[openai,postgres]"
 
-from agent_brain.providers.postgres import PostgresStorage
+from remanence.providers.postgres import PostgresStorage
 storage = PostgresStorage(database_url="postgresql://...")
-brain = Brain(embeddings=OpenAIEmbeddings(), storage=storage, llm=OpenAIProvider())
+mem = Memory(embeddings=OpenAIEmbeddings(), storage=storage, llm=OpenAIProvider())
 ```
 
 ---
@@ -464,9 +465,9 @@ brain = Brain(embeddings=OpenAIEmbeddings(), storage=storage, llm=OpenAIProvider
 import os
 os.environ["OPENAI_API_KEY"] = "sk-..."
 
-from agent_brain.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from remanence.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 
-brain = Brain(
+mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(model="text-embedding-3-small"),
     storage=JSONStorage(path="./brain_data"),
@@ -476,7 +477,7 @@ brain = Brain(
 ### Jen embeddings, bez LLM
 
 ```python
-brain = Brain(
+mem = Memory(
     embeddings=OpenAIEmbeddings(),
     storage=JSONStorage(path="./brain_data"),
     llm=None,  # default
@@ -493,30 +494,97 @@ brain.evaluate(...) # ❌ ProviderError: evaluate() requires llm=...
 
 ```bash
 # Instalace
-pip install "agent-brain[cli]"
+pip install "remanence[cli]"
 
 # Inicializace
-agent-brain init --path ./brain_data
+remanence init --path ./brain_data
 
 # Spuštění REST API serveru
-agent-brain serve --host 0.0.0.0 --port 8000
+remanence serve --host 0.0.0.0 --port 8000
 
 # Metriky a statistiky
-agent-brain status --path ./brain_data
+remanence status --path ./brain_data
 
 # Sémantické vyhledávání
-agent-brain recall "Parse CSV and compute statistics" --limit 5
+remanence recall "Parse CSV and compute statistics" --limit 5
 
 # Pattern aging (decay + prune)
-agent-brain aging --path ./brain_data
+remanence aging --path ./brain_data
 ```
+
+---
+
+## MCP Server
+
+Remanence lze spustit jako **MCP server** (Model Context Protocol) a připojit ho
+přímo do Claude Desktop, Cursor, Windsurf nebo VS Code Copilot.
+
+### Instalace
+
+```bash
+pip install "remanence[openai,mcp]"
+```
+
+### Spuštění
+
+```bash
+remanence-mcp
+```
+
+Server běží přes **stdio transport** — MCP klient ho spustí jako subprocess automaticky.
+
+### Konfigurace klientů
+
+**Claude Desktop** (`~/.config/claude/claude_desktop_config.json` na Linuxu/macOS,
+`%APPDATA%\Claude\claude_desktop_config.json` na Windows):
+
+```json
+{
+  "mcpServers": {
+    "remanence": {
+      "command": "remanence-mcp",
+      "env": {
+        "REMANENCE_DATA_PATH": "/path/to/brain_data",
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+**Cursor / Windsurf** — stejný JSON formát v nastavení MCP serverů daného IDE.
+
+### Dostupné MCP tools
+
+| Tool | Popis |
+|------|-------|
+| `brain_learn` | Uloží výsledek běhu jako success pattern |
+| `brain_recall` | Najde relevantní patterny pro nový task (semantic search) |
+| `brain_evaluate` | N nezávislých LLM evaluací, median + variance |
+| `brain_compose` | Rozloží task na validovanou multi-agent pipeline |
+| `brain_feedback` | Vrátí opakující se quality issues pro injekci do promptů |
+| `brain_metrics` | Statistiky (runs, success rate, pattern count, reuse rate) |
+| `brain_aging` | Spustí time-based decay + prune zastaralých patternů |
+
+### Konfigurace (env vars)
+
+MCP server používá stejné env vars jako REST API:
+
+| Proměnná | Default | Popis |
+|----------|---------|-------|
+| `REMANENCE_STORAGE` | `json` | `json` nebo `postgres` |
+| `REMANENCE_DATA_PATH` | `./brain_data` | Cesta pro JSON storage |
+| `REMANENCE_DATABASE_URL` | — | PostgreSQL URL (jen pro `postgres`) |
+| `REMANENCE_LLM_PROVIDER` | `openai` | LLM provider |
+| `REMANENCE_LLM_MODEL` | `gpt-4.1` | Model ID |
+| `OPENAI_API_KEY` | — | OpenAI API klíč |
 
 ---
 
 ## Architektura
 
 ```
-agent_brain/
+remanence/
 ├── brain.py             # Brain facade (public API)
 ├── types.py             # Pydantic modely
 ├── _util.py             # Shared utility
@@ -560,12 +628,16 @@ agent_brain/
 │   └── failure_cluster.py   # Failure pattern clustering
 │
 ├── sdk/                 # Framework integrations (Phase 3)
-│   ├── langchain.py         # LangChain BrainCallback
+│   ├── langchain.py         # LangChain RemanenceCallback
 │   └── webhook.py           # Lightweight HTTP SDK client
 │
-├── exceptions.py        # Custom exception hierarchy (BrainError, ProviderError, ...)
+├── exceptions.py        # Custom exception hierarchy (RemanenceError, ProviderError, ...)
+├── _factory.py          # Shared Brain provider factory (REST API + MCP)
 │
-└── cli/                 # CLI tool (Typer + Rich)
+├── cli/                 # CLI tool (Typer + Rich)
+│
+└── mcp/                 # MCP server (Phase 4.6.9)
+    └── server.py            # stdio MCP server — 7 Brain tools
 ```
 
 ---
@@ -594,9 +666,10 @@ agent_brain/
 | REST API (FastAPI) — 14 endpoints | ✅ Phase 2+3+4 |
 | PostgreSQL + pgvector | ✅ Phase 2 |
 | Docker + docker-compose | ✅ Phase 2 |
-| LangChain BrainCallback | ✅ Phase 3 |
+| LangChain RemanenceCallback | ✅ Phase 3 |
 | Webhook SDK client | ✅ Phase 3 |
 | CLI (Typer + Rich) | ✅ Phase 4 |
+| MCP server (7 tools, stdio transport) | ✅ Phase 4.6.9 |
 | CrewAI plugin | Post-launch |
 
 ---
@@ -611,7 +684,7 @@ pip install -e ".[dev,openai]"
 pytest
 
 # S coverage reportem
-pytest --cov=agent_brain --cov-report=term-missing
+pytest --cov=remanence --cov-report=term-missing
 ```
 
 Testy nevyžadují API klíče — používají `FakeEmbeddings` (deterministické vektory z MD5 hashe) a mockovaný LLM. FastAPI testy používají `TestClient` z httpx.

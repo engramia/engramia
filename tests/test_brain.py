@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from agent_brain.exceptions import ValidationError
-from agent_brain.types import Pattern
+from remanence.exceptions import ValidationError
+from remanence.types import Pattern
 
 
 class TestDeletePattern:

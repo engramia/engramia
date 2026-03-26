@@ -16,7 +16,7 @@ class TestLocalEmbeddings:
         ):
             import importlib
 
-            import agent_brain.providers.local_embeddings as mod
+            import remanence.providers.local_embeddings as mod
 
             importlib.reload(mod)
             mod.LocalEmbeddings()
@@ -25,7 +25,7 @@ class TestLocalEmbeddings:
         mock_model = MagicMock()
         mock_model.encode.return_value = np.array([0.1, 0.2, 0.3], dtype=np.float32)
 
-        from agent_brain.providers.local_embeddings import LocalEmbeddings
+        from remanence.providers.local_embeddings import LocalEmbeddings
 
         provider = LocalEmbeddings.__new__(LocalEmbeddings)
         provider._model = mock_model
@@ -40,7 +40,7 @@ class TestLocalEmbeddings:
         mock_model = MagicMock()
         mock_model.encode.return_value = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]], dtype=np.float32)
 
-        from agent_brain.providers.local_embeddings import LocalEmbeddings
+        from remanence.providers.local_embeddings import LocalEmbeddings
 
         provider = LocalEmbeddings.__new__(LocalEmbeddings)
         provider._model = mock_model
@@ -51,7 +51,7 @@ class TestLocalEmbeddings:
         assert all(len(v) == 2 for v in result)
 
     def test_embed_batch_empty_list(self):
-        from agent_brain.providers.local_embeddings import LocalEmbeddings
+        from remanence.providers.local_embeddings import LocalEmbeddings
 
         provider = LocalEmbeddings.__new__(LocalEmbeddings)
         provider._model = MagicMock()

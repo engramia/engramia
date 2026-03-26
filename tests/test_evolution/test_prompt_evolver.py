@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from agent_brain.core.eval_feedback import EvalFeedbackStore
-from agent_brain.evolution.prompt_evolver import PromptEvolver
+from remanence.core.eval_feedback import EvalFeedbackStore
+from remanence.evolution.prompt_evolver import PromptEvolver
 
 
 @pytest.fixture

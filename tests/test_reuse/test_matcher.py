@@ -1,8 +1,8 @@
 """Unit tests for PatternMatcher (eval-weighted semantic search)."""
 
-from agent_brain.core.eval_store import EvalStore
-from agent_brain.reuse.matcher import PatternMatcher
-from agent_brain.types import Pattern
+from remanence.core.eval_store import EvalStore
+from remanence.reuse.matcher import PatternMatcher
+from remanence.types import Pattern
 
 
 class TestPatternMatcher:

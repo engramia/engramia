@@ -9,9 +9,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agent_brain import Brain
-from agent_brain.exceptions import ProviderError
-from agent_brain.types import EvalResult, Pipeline
+from remanence import Memory
+from remanence.exceptions import ProviderError
+from remanence.types import EvalResult, Pipeline
 
 EVAL_RESPONSE = json.dumps(
     {
@@ -43,7 +43,7 @@ def mock_llm():
 
 @pytest.fixture
 def full_brain(fake_embeddings, storage, mock_llm):
-    return Brain(embeddings=fake_embeddings, storage=storage, llm=mock_llm)
+    return Memory(embeddings=fake_embeddings, storage=storage, llm=mock_llm)
 
 
 class TestFullCycle:
@@ -90,12 +90,12 @@ class TestFullCycle:
         assert len(pipeline.stages) >= 1
 
     def test_compose_without_llm_raises(self, fake_embeddings, storage):
-        brain = Brain(embeddings=fake_embeddings, storage=storage, llm=None)
+        brain = Memory(embeddings=fake_embeddings, storage=storage, llm=None)
         with pytest.raises(ProviderError, match=r"compose\(\)"):
             brain.compose("some task")
 
     def test_evaluate_without_llm_raises(self, fake_embeddings, storage):
-        brain = Brain(embeddings=fake_embeddings, storage=storage, llm=None)
+        brain = Memory(embeddings=fake_embeddings, storage=storage, llm=None)
         with pytest.raises(ProviderError, match=r"evaluate\(\)"):
             brain.evaluate("task", "code")
 

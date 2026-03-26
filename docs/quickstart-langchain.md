@@ -1,4 +1,4 @@
-# Quick Start: Agent Brain + LangChain
+# Quick Start: Remanence + LangChain
 
 Self-learning memory for your LangChain agents in 5 minutes.
 
@@ -12,30 +12,30 @@ After this guide, your LangChain chains will:
 ## Installation
 
 ```bash
-pip install agent-brain[openai,langchain]
+pip install remanence[openai,langchain]
 ```
 
 For local embeddings (no API key needed):
 ```bash
-pip install agent-brain[local,langchain]
+pip install remanence[local,langchain]
 ```
 
 ## 1. Basic Setup (5 lines)
 
 ```python
-from agent_brain import Brain
-from agent_brain.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
-from agent_brain.sdk.langchain import BrainCallback
+from remanence import Memory
+from remanence.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from remanence.sdk.langchain import RemanenceCallback
 
 # Initialize Brain
-brain = Brain(
+mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),        # or AnthropicProvider
     embeddings=OpenAIEmbeddings(),               # or LocalEmbeddings()
     storage=JSONStorage(path="./brain_data"),     # or PostgresStorage
 )
 
 # Create callback — this is all you need
-callback = BrainCallback(brain, auto_learn=True, auto_recall=True)
+callback = RemanenceCallback(brain, auto_learn=True, auto_recall=True)
 ```
 
 ## 2. Attach to Any Chain
@@ -131,7 +131,7 @@ print(f"Total runs: {metrics.total_runs}")
 
 ## Configuration Options
 
-### BrainCallback parameters
+### RemanenceCallback parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -147,15 +147,15 @@ print(f"Total runs: {metrics.total_runs}")
 storage = JSONStorage(path="./brain_data")
 
 # PostgreSQL + pgvector (production, scalable)
-from agent_brain.providers import PostgresStorage
+from remanence.providers import PostgresStorage
 storage = PostgresStorage(database_url="postgresql://user:pass@localhost/brain")
 
 # Local embeddings (no API key, 384-dim)
-from agent_brain.providers import LocalEmbeddings
+from remanence.providers import LocalEmbeddings
 embeddings = LocalEmbeddings()  # uses all-MiniLM-L6-v2
 
 # Anthropic LLM
-from agent_brain.providers import AnthropicProvider
+from remanence.providers import AnthropicProvider
 llm = AnthropicProvider(model="claude-sonnet-4-20250514")
 ```
 
@@ -192,20 +192,20 @@ for cluster in clusters:
 ## Full Example: Self-Improving Code Agent
 
 ```python
-from agent_brain import Brain
-from agent_brain.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
-from agent_brain.sdk.langchain import BrainCallback
+from remanence import Memory
+from remanence.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from remanence.sdk.langchain import RemanenceCallback
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 # 1. Setup
-brain = Brain(
+mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),
     storage=JSONStorage(path="./brain_data"),
 )
-callback = BrainCallback(brain, auto_learn=True, auto_recall=True)
+callback = RemanenceCallback(brain, auto_learn=True, auto_recall=True)
 llm = ChatOpenAI(model="gpt-4.1")
 
 # 2. Agent loop
@@ -256,16 +256,16 @@ If you prefer HTTP over Python imports:
 
 ```bash
 # Start the API server
-agent-brain serve
+remanence serve
 
 # Or with Docker
 docker compose up
 ```
 
 ```python
-from agent_brain.sdk.webhook import BrainWebhook
+from remanence.sdk.webhook import RemanenceWebhook
 
-hook = BrainWebhook(url="http://localhost:8000", api_key="your-key")
+hook = RemanenceWebhook(url="http://localhost:8000", api_key="your-key")
 hook.learn(task="Parse CSV", code=code, eval_score=8.5)
 matches = hook.recall(task="Read CSV")
 ```
@@ -283,4 +283,4 @@ curl -X POST http://localhost:8000/v1/learn \
 - **Skill tagging**: `brain.register_skills(key, ["csv", "data_processing"])` for capability-based search
 - **Pipeline composition**: `brain.compose("Fetch data, analyze, generate report")` for multi-step tasks
 - **Export/Import**: `brain.export()` for backup, `brain.import_data(records)` for migration
-- **CLI**: `agent-brain status` to check metrics, `agent-brain recall "task"` for quick searches
+- **CLI**: `remanence status` to check metrics, `remanence recall "task"` for quick searches

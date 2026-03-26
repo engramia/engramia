@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Agent Brain are documented in this file.
+All notable changes to Remanence are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SECURITY.md` with 10 documented limitations and production deployment checklist
 
 ### Changed
-- CORS disabled by default (was `*`); must be explicitly set via `BRAIN_CORS_ORIGINS`
+- CORS disabled by default (was `*`); must be explicitly set via `REMANENCE_CORS_ORIGINS`
 - SHA-256 replaces MD5 for all internal key generation
 - HTTP error responses no longer expose internal exception details
 - Audit logging uses structured JSON format
@@ -32,8 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] — 2026-03-22
 
 ### Added — CLI, exceptions, export/import (Phase 4)
-- CLI tool (`agent-brain init/serve/status/recall/aging`) via Typer + Rich
-- Custom exception hierarchy: `BrainError`, `ProviderError`, `ValidationError`, `StorageError`
+- CLI tool (`remanence init/serve/status/recall/aging`) via Typer + Rich
+- Custom exception hierarchy: `RemanenceError`, `ProviderError`, `ValidationError`, `StorageError`
 - `brain.export()` / `brain.import_data()` for JSONL-compatible backup and migration
 - REST endpoints for Phase 3 features: `/evolve`, `/analyze-failures`, `/skills/register`, `/skills/search`
 
@@ -49,8 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] — 2026-03-22
 
 ### Added — SDK plugins, prompt evolution, skill registry (Phase 3)
-- LangChain `BrainCallback` — auto-learn from chain runs, auto-recall context
-- Webhook SDK client (`BrainWebhook`) — lightweight HTTP client (stdlib only)
+- LangChain `RemanenceCallback` — auto-learn from chain runs, auto-recall context
+- Webhook SDK client (`RemanenceWebhook`) — lightweight HTTP client (stdlib only)
 - Anthropic/Claude LLM provider with retry and lazy import
 - Local embeddings provider (sentence-transformers, no API key required)
 - Prompt evolution — LLM-based prompt improvement with optional A/B testing
@@ -73,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — REST API, PostgreSQL, Docker (Phase 2)
 - FastAPI REST API with 14 endpoints (learn, recall, compose, evaluate, feedback, metrics, health, delete, aging, feedback/decay)
-- Bearer token authentication via `BRAIN_API_KEYS` env var
+- Bearer token authentication via `REMANENCE_API_KEYS` env var
 - PostgreSQL + pgvector storage backend with HNSW index
 - Alembic migrations for database schema
 - Docker multi-stage build + docker-compose

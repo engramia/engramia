@@ -2,9 +2,9 @@
 
 import pytest
 
-from agent_brain.brain import Brain
-from agent_brain.exceptions import ValidationError
-from agent_brain.providers.base import LLMProvider
+from remanence.brain import Memory
+from remanence.exceptions import ValidationError
+from remanence.providers.base import LLMProvider
 
 
 class ExplodingLLM(LLMProvider):
@@ -154,8 +154,8 @@ class TestPatternQuota:
 def brain_with_llm_error(fake_embeddings, storage):
     """Factory fixture: returns a Brain whose LLM raises the given exception."""
 
-    def _make(exc: Exception) -> Brain:
-        return Brain(
+    def _make(exc: Exception) -> Memory:
+        return Memory(
             embeddings=fake_embeddings,
             storage=storage,
             llm=ExplodingLLM(exc),
@@ -167,7 +167,7 @@ def brain_with_llm_error(fake_embeddings, storage):
 @pytest.fixture
 def brain_with_malformed_llm(fake_embeddings, storage):
     """Brain with an LLM that returns non-JSON responses."""
-    return Brain(
+    return Memory(
         embeddings=fake_embeddings,
         storage=storage,
         llm=MalformedLLM(),
@@ -178,8 +178,8 @@ def brain_with_malformed_llm(fake_embeddings, storage):
 def brain_with_llm_error_and_feedback(fake_embeddings, storage):
     """Factory: Brain with broken LLM + seeded feedback (so evolver runs)."""
 
-    def _make(exc: Exception) -> Brain:
-        brain = Brain(
+    def _make(exc: Exception) -> Memory:
+        brain = Memory(
             embeddings=fake_embeddings,
             storage=storage,
             llm=ExplodingLLM(exc),
@@ -195,7 +195,7 @@ def brain_with_llm_error_and_feedback(fake_embeddings, storage):
 @pytest.fixture
 def brain_with_malformed_llm_and_feedback(fake_embeddings, storage):
     """Brain with malformed LLM + seeded feedback."""
-    brain = Brain(
+    brain = Memory(
         embeddings=fake_embeddings,
         storage=storage,
         llm=MalformedLLM(),

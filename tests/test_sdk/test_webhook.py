@@ -1,11 +1,11 @@
-"""Tests for BrainWebhook SDK client."""
+"""Tests for RemanenceWebhook SDK client."""
 
 import json
 from unittest.mock import patch
 
 import pytest
 
-from agent_brain.sdk.webhook import BrainWebhook, BrainWebhookError
+from remanence.sdk.webhook import RemanenceWebhook, RemanenceWebhookError
 
 
 class _FakeHeaders:
@@ -35,13 +35,13 @@ class FakeResponse:
         pass
 
 
-class TestBrainWebhook:
+class TestRemanenceWebhook:
     """Tests for the webhook SDK client."""
 
     def _client(self, api_key=None):
-        return BrainWebhook(url="http://localhost:8000", api_key=api_key)
+        return RemanenceWebhook(url="http://localhost:8000", api_key=api_key)
 
-    @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
+    @patch("remanence.sdk.webhook.urllib.request.urlopen")
     def test_learn(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"stored": True, "pattern_count": 5})
         client = self._client()
@@ -50,7 +50,7 @@ class TestBrainWebhook:
         assert result["stored"] is True
         assert result["pattern_count"] == 5
 
-    @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
+    @patch("remanence.sdk.webhook.urllib.request.urlopen")
     def test_recall(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"matches": [{"similarity": 0.95, "reuse_tier": "duplicate"}]})
         client = self._client()
@@ -59,7 +59,7 @@ class TestBrainWebhook:
         assert len(matches) == 1
         assert matches[0]["similarity"] == 0.95
 
-    @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
+    @patch("remanence.sdk.webhook.urllib.request.urlopen")
     def test_health(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"status": "ok", "storage": "JSONStorage"})
         client = self._client()
@@ -67,7 +67,7 @@ class TestBrainWebhook:
         result = client.health()
         assert result["status"] == "ok"
 
-    @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
+    @patch("remanence.sdk.webhook.urllib.request.urlopen")
     def test_metrics(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"runs": 10, "success_rate": 0.9})
         client = self._client()
@@ -75,21 +75,21 @@ class TestBrainWebhook:
         result = client.metrics()
         assert result["runs"] == 10
 
-    @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
+    @patch("remanence.sdk.webhook.urllib.request.urlopen")
     def test_delete_pattern(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"deleted": True})
         client = self._client()
 
         assert client.delete_pattern("patterns/abc_123") is True
 
-    @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
+    @patch("remanence.sdk.webhook.urllib.request.urlopen")
     def test_run_aging(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"pruned": 3})
         client = self._client()
 
         assert client.run_aging() == 3
 
-    @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
+    @patch("remanence.sdk.webhook.urllib.request.urlopen")
     def test_feedback(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"feedback": ["Add error handling"]})
         client = self._client()
@@ -97,7 +97,7 @@ class TestBrainWebhook:
         result = client.feedback(limit=3)
         assert result == ["Add error handling"]
 
-    @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
+    @patch("remanence.sdk.webhook.urllib.request.urlopen")
     def test_auth_header_included(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"status": "ok"})
         client = self._client(api_key="secret-123")
@@ -106,7 +106,7 @@ class TestBrainWebhook:
         req = mock_urlopen.call_args[0][0]
         assert req.get_header("Authorization") == "Bearer secret-123"
 
-    @patch("agent_brain.sdk.webhook.urllib.request.urlopen")
+    @patch("remanence.sdk.webhook.urllib.request.urlopen")
     def test_http_error_raises(self, mock_urlopen):
         import urllib.error
 
@@ -119,6 +119,6 @@ class TestBrainWebhook:
         )
         client = self._client()
 
-        with pytest.raises(BrainWebhookError) as exc_info:
+        with pytest.raises(RemanenceWebhookError) as exc_info:
             client.health()
         assert exc_info.value.status_code == 401

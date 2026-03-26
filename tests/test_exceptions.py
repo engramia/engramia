@@ -2,8 +2,8 @@
 
 import pytest
 
-from agent_brain.exceptions import (
-    BrainError,
+from remanence.exceptions import (
+    RemanenceError,
     ProviderError,
     StorageError,
     ValidationError,
@@ -12,23 +12,23 @@ from agent_brain.exceptions import (
 
 class TestExceptionHierarchy:
     def test_all_inherit_from_brain_error(self):
-        assert issubclass(ProviderError, BrainError)
-        assert issubclass(StorageError, BrainError)
-        assert issubclass(ValidationError, BrainError)
+        assert issubclass(ProviderError, RemanenceError)
+        assert issubclass(StorageError, RemanenceError)
+        assert issubclass(ValidationError, RemanenceError)
 
     def test_all_inherit_from_exception(self):
-        assert issubclass(BrainError, Exception)
+        assert issubclass(RemanenceError, Exception)
 
     def test_provider_error_catchable_as_brain_error(self):
-        with pytest.raises(BrainError):
+        with pytest.raises(RemanenceError):
             raise ProviderError("no LLM")
 
     def test_validation_error_catchable_as_brain_error(self):
-        with pytest.raises(BrainError):
+        with pytest.raises(RemanenceError):
             raise ValidationError("bad input")
 
     def test_storage_error_catchable_as_brain_error(self):
-        with pytest.raises(BrainError):
+        with pytest.raises(RemanenceError):
             raise StorageError("disk full")
 
     def test_provider_error_message(self):
@@ -36,9 +36,9 @@ class TestExceptionHierarchy:
         assert "missing key" in str(exc)
 
     def test_exceptions_exported_from_package(self):
-        import agent_brain
+        import remanence
 
-        assert hasattr(agent_brain, "BrainError")
-        assert hasattr(agent_brain, "ProviderError")
-        assert hasattr(agent_brain, "ValidationError")
-        assert hasattr(agent_brain, "StorageError")
+        assert hasattr(remanence, "RemanenceError")
+        assert hasattr(remanence, "ProviderError")
+        assert hasattr(remanence, "ValidationError")
+        assert hasattr(remanence, "StorageError")

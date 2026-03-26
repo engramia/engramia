@@ -1,6 +1,6 @@
 """Tests for SkillRegistry."""
 
-from agent_brain.core.skill_registry import SkillRegistry
+from remanence.core.skill_registry import SkillRegistry
 
 
 class TestSkillRegistry:

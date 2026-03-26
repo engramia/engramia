@@ -2,7 +2,7 @@
 
 import pytest
 
-from agent_brain.core.metrics import MetricsStore
+from remanence.core.metrics import MetricsStore
 
 
 @pytest.fixture

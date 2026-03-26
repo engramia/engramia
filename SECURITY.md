@@ -1,21 +1,21 @@
-# Security Policy — Agent Brain
+# Security Policy — Remanence
 
 This document describes the security model, implemented hardening measures,
 and **known limitations** that operators must be aware of before deploying
-Agent Brain in production or commercial contexts.
+Remanence in production or commercial contexts.
 
 ## Implemented Security Measures (Phase 4.5)
 
 | Area | Measure |
 |------|---------|
-| **Authentication** | Bearer token via `BRAIN_API_KEYS` env var; timing-safe comparison (`hmac.compare_digest`) |
+| **Authentication** | Bearer token via `REMANENCE_API_KEYS` env var; timing-safe comparison (`hmac.compare_digest`) |
 | **Rate limiting** | Per-IP, per-path fixed-window rate limiter; separate limits for LLM-intensive endpoints |
 | **Input validation** | `eval_score` bounds [0, 10]; `task` max 10 000 chars; `code` max 500 000 chars; `num_evals` capped at 10; API schema `max_length` on all string fields |
 | **Path traversal** | Pattern keys must start with `patterns/` and must not contain `..` |
 | **SQL injection** | All PostgreSQL queries use parameterized statements (SQLAlchemy `:param` binding) |
 | **LIKE wildcard injection** | `%` and `_` are escaped in PostgreSQL `LIKE` queries |
 | **Prompt injection** | XML delimiters around user content in LLM prompts; "disregard" instructions in system prompts |
-| **CORS** | Disabled by default; must be explicitly configured via `BRAIN_CORS_ORIGINS` |
+| **CORS** | Disabled by default; must be explicitly configured via `REMANENCE_CORS_ORIGINS` |
 | **Security headers** | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `X-Permitted-Cross-Domain-Policies: none` |
 | **Body size limit** | Configurable max request body (default 1 MB) |
 | **Error sanitization** | Exception details are logged server-side but not returned to clients |
@@ -26,7 +26,7 @@ Agent Brain in production or commercial contexts.
 
 ## Reporting Vulnerabilities
 
-If you discover a security vulnerability in Agent Brain, please report it
+If you discover a security vulnerability in Remanence, please report it
 responsibly via email or a private GitHub security advisory. Do **not** open
 a public issue for security vulnerabilities.
 
@@ -35,7 +35,7 @@ a public issue for security vulnerabilities.
 ## Known Limitations and Terms of Use
 
 The following items **cannot be 100% resolved** at the library level. Operators
-deploying Agent Brain in production **must** understand and mitigate these risks
+deploying Remanence in production **must** understand and mitigate these risks
 at the infrastructure level or accept them as known limitations.
 
 ### 1. Prompt Injection (Fundamental LLM Limitation)
@@ -61,7 +61,7 @@ an attacker to exceed intended limits.
 
 **Mitigation for production:** Use an external rate limiting layer (e.g.,
 Redis-backed rate limiter, API gateway rate limiting, or cloud provider WAF)
-in front of Agent Brain.
+in front of Remanence.
 
 ### 3. IP Identification Behind Reverse Proxies
 
@@ -70,16 +70,16 @@ identification. Behind a reverse proxy (nginx, cloud load balancer), this
 returns the proxy's IP, not the real client IP.
 
 **Mitigation for production:** Configure your reverse proxy to set
-`X-Forwarded-For` or `X-Real-IP` headers, and configure Agent Brain's
+`X-Forwarded-For` or `X-Real-IP` headers, and configure Remanence's
 deployment to use a trusted proxy middleware (e.g., uvicorn's
 `--proxy-headers` flag or FastAPI's `TrustedHostMiddleware`).
 
 ### 4. Dev Mode (No Authentication)
 
-**Risk:** When `BRAIN_API_KEYS` is not set, the API runs without authentication.
+**Risk:** When `REMANENCE_API_KEYS` is not set, the API runs without authentication.
 This is intended for local development only.
 
-**Requirement for production:** Always set `BRAIN_API_KEYS` with strong,
+**Requirement for production:** Always set `REMANENCE_API_KEYS` with strong,
 randomly generated API keys. The application logs a security warning at
 startup when running in dev mode.
 
@@ -110,12 +110,12 @@ reads/writes.
 
 **Mitigation:** This requires local filesystem access to exploit. Use
 PostgreSQL storage for multi-tenant or untrusted environments. Ensure the
-`BRAIN_DATA_PATH` directory has restrictive permissions (`700`).
+`REMANENCE_DATA_PATH` directory has restrictive permissions (`700`).
 
 ### 8. No Encryption at Rest
 
 **Risk:** Stored patterns (JSON files or PostgreSQL data) are not encrypted at
-rest by Agent Brain. The data contains task descriptions, agent source code, and
+rest by Remanence. The data contains task descriptions, agent source code, and
 evaluation scores.
 
 **Mitigation for production:** Use filesystem-level encryption (LUKS, BitLocker),
@@ -124,7 +124,7 @@ PostgreSQL TDE, or deploy on a cloud platform with managed encryption at rest
 
 ### 9. No TLS Termination
 
-**Risk:** Agent Brain's API server (uvicorn) does not terminate TLS by default.
+**Risk:** Remanence's API server (uvicorn) does not terminate TLS by default.
 API keys and data are transmitted in plaintext.
 
 **Requirement for production:** Always deploy behind a TLS-terminating reverse
@@ -145,10 +145,10 @@ critical decision paths.
 
 ## Production Deployment Checklist
 
-Before deploying Agent Brain in production, ensure:
+Before deploying Remanence in production, ensure:
 
-- [ ] `BRAIN_API_KEYS` is set with strong, randomly generated keys
-- [ ] `BRAIN_CORS_ORIGINS` is set to specific allowed origins (not `*`)
+- [ ] `REMANENCE_API_KEYS` is set with strong, randomly generated keys
+- [ ] `REMANENCE_CORS_ORIGINS` is set to specific allowed origins (not `*`)
 - [ ] TLS termination is configured (reverse proxy or uvicorn SSL)
 - [ ] Rate limiting is supplemented by an external layer for multi-instance deployments
 - [ ] Reverse proxy is configured to forward real client IPs
@@ -160,4 +160,4 @@ Before deploying Agent Brain in production, ensure:
 
 ## License
 
-This security policy applies to Agent Brain v0.5.0+.
+This security policy applies to Remanence v0.5.0+.

@@ -1,6 +1,6 @@
 """Tests for Brain.export() and Brain.import_data()."""
 
-from agent_brain.brain import Brain
+from remanence.brain import Memory
 
 
 class TestExport:
@@ -36,11 +36,11 @@ class TestImportData:
 
     def test_import_records(self, brain, fake_embeddings, storage):
         # Export from one brain, import into another
-        source = Brain(embeddings=fake_embeddings, storage=storage)
+        source = Memory(embeddings=fake_embeddings, storage=storage)
         source.learn(task="Task to import", code="pass", eval_score=7.5)
         records = source.export()
 
-        target_brain = Brain(embeddings=fake_embeddings, storage=storage)
+        target_brain = Memory(embeddings=fake_embeddings, storage=storage)
         imported = target_brain.import_data(records)
         assert imported >= 0  # already exist in same storage
 

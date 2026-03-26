@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from agent_brain.core.success_patterns import SuccessPatternStore
-from agent_brain.types import Pattern
+from remanence.core.success_patterns import SuccessPatternStore
+from remanence.types import Pattern
 
 
 def _store_pattern(storage, embeddings, task, score, ts=None):

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agent-brain"
+name = "remanence"
 version = "0.5.0"
 description = "Self-learning memory layer for AI agent frameworks"
 authors = [
@@ -24,17 +24,18 @@ classifiers = [
     "Typing :: Typed",
     "License :: Other/Proprietary License",
 ]
-
-[project.urls]
-Homepage = "https://github.com/your-org/agent-brain"
-Documentation = "https://agent-brain.readthedocs.io"
-Repository = "https://github.com/your-org/agent-brain"
-"Bug Tracker" = "https://github.com/your-org/agent-brain/issues"
-Changelog = "https://github.com/your-org/agent-brain/blob/main/CHANGELOG.md"
 dependencies = [
     "pydantic>=2.0",
     "numpy>=1.26",
 ]
+
+# TODO: update URLs once the public repo is created
+[project.urls]
+Homepage = "https://github.com/remanence-ai/remanence"
+Documentation = "https://remanence.dev/docs"
+Repository = "https://github.com/remanence-ai/remanence"
+"Bug Tracker" = "https://github.com/remanence-ai/remanence/issues"
+Changelog = "https://github.com/remanence-ai/remanence/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 openai = ["openai>=1.0"]
@@ -52,9 +53,11 @@ api = [
 ]
 cli = [
     "typer[all]>=0.12",
+    "rich>=13.0",
 ]
 langchain = ["langchain-core>=0.1"]
 crewai = ["crewai>=0.28"]
+mcp = ["mcp>=1.0"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
@@ -64,23 +67,24 @@ dev = [
     "mypy>=1.14",
 ]
 all = [
-    "agent-brain[openai,anthropic,local,postgres,api,cli,langchain,crewai]",
+    "remanence[openai,anthropic,local,postgres,api,cli,langchain,crewai,mcp]",
 ]
 
 [project.scripts]
-agent-brain = "agent_brain.cli.main:app"
+remanence = "remanence.cli.main:app"
+remanence-mcp = "remanence.mcp.server:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["agent_brain"]
+packages = ["remanence"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "--cov=agent_brain --cov-fail-under=80"
+addopts = "--cov=remanence --cov-fail-under=80"
 
 [tool.coverage.run]
-source = ["agent_brain"]
-omit = ["agent_brain/db/migrations/*"]
+source = ["remanence"]
+omit = ["remanence/db/migrations/*"]
 
 [tool.ruff]
 target-version = "py312"
@@ -105,7 +109,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["agent_brain"]
+known-first-party = ["remanence"]
 
 [tool.mypy]
 python_version = "3.12"

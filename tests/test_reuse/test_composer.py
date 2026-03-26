@@ -2,10 +2,10 @@
 
 import json
 
-from agent_brain.core.eval_store import EvalStore
-from agent_brain.reuse.composer import PipelineComposer
-from agent_brain.reuse.matcher import PatternMatcher
-from agent_brain.types import Pattern
+from remanence.core.eval_store import EvalStore
+from remanence.reuse.composer import PipelineComposer
+from remanence.reuse.matcher import PatternMatcher
+from remanence.types import Pattern
 
 
 class FakeLLM:

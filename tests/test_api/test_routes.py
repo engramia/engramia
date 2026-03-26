@@ -14,9 +14,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from agent_brain import Brain
-from agent_brain.api.routes import router
-from agent_brain.exceptions import ValidationError as BrainValidationError
+from remanence import Memory
+from remanence.api.routes import router
+from remanence.exceptions import ValidationError as BrainValidationError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -54,7 +54,7 @@ def mock_llm():
 def api_client(fake_embeddings, storage, mock_llm):
     """TestClient with a fresh Brain instance backed by FakeEmbeddings + JSONStorage."""
     app = FastAPI()
-    brain = Brain(embeddings=fake_embeddings, storage=storage, llm=mock_llm)
+    brain = Memory(embeddings=fake_embeddings, storage=storage, llm=mock_llm)
     app.state.brain = brain
 
     @app.exception_handler(ValueError)
