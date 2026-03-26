@@ -2,8 +2,8 @@
 
 import pytest
 
-from agent_brain.core.eval_feedback import EvalFeedbackStore
-from agent_brain.evolution.failure_cluster import FailureClusterer
+from remanence.core.eval_feedback import EvalFeedbackStore
+from remanence.evolution.failure_cluster import FailureClusterer
 
 
 @pytest.fixture

@@ -2,7 +2,7 @@
 
 import pytest
 
-from agent_brain.core.eval_feedback import EvalFeedbackStore, _parse_iso
+from remanence.core.eval_feedback import EvalFeedbackStore, _parse_iso
 
 
 class TestFeedbackLengthLimit:

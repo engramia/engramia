@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from agent_brain.providers.json_storage import JSONStorage
+from remanence.providers.json_storage import JSONStorage
 
 
 @pytest.fixture

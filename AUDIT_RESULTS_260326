@@ -1,0 +1,116 @@
+Agent Brain — Weekly Audit Report
+
+Celkove skore: 78/100
+Datum auditu: 2026-03-26
+Auditovana verze: v0.5.0 (commit 60ee80d)
+
+Top 5 priorit:
+1. [❌] Security — No pattern count quota → DoS via unlimited pattern creation
+2. [❌] Tests — PostgreSQL storage backend has 0% test coverage
+3. [❌] Tests — Mocks always return success; LLM error paths untested
+4. [❌] Production — Bare except Exception in brain.py:431, eval_feedback.py:159
+5. [⚠️] Features — Phases 4.6.3–4.6.6 not implemented (linting, CI/CD, docs, examples)
+Executive Summary
+The core library is solid and well-architected — clean facade pattern, proper DI, OWASP ASVS Level 2/3 security hardening, and 80.14% test coverage across 270 tests. The main weaknesses are: (1) test quality gaps (error paths, concurrency, Postgres), (2) missing launch infrastructure (CI/CD, linting, docs), and (3) a few production hardening issues (broad exception catching, no pattern quota).
+
+Detailni tabulka
+#	Sekce	Hodnoceni	Nalezy	Action Items
+1.1	Security — Auth	✅	hmac.compare_digest() used; all endpoints protected via Depends(require_auth); dev mode logged	—
+1.2	Security — Input	✅	All string fields have max_length; eval_score bounded [0,10] in both layers; num_evals capped at 10	⚠️ task_type query param in /feedback lacks max_length
+1.3	Security — Injection	✅	Parameterized SQL; LIKE escaped; XML delimiters on all LLM prompts; path traversal rejected; no subprocess in CLI	—
+1.4	Security — Rate Limiting	⚠️	Rate limiter works with GC; expensive endpoints have lower limits; body size enforced	❌ No pattern count quota — attacker can create unlimited patterns
+1.5	Security — Headers/CORS	✅	All 4 security headers present; CORS disabled by default; error responses sanitized	—
+1.6	Security — Audit Logging	✅	AUTH_FAILURE, PATTERN_DELETED, RATE_LIMITED all logged with IP/timestamp/context	⚠️ Bulk import not audit-logged
+1.7	Security — Crypto	✅	SHA-256 only; no hardcoded secrets; .env in .gitignore	⚠️ .gitignore missing explicit *.key, *.pem patterns
+1.8	Security — Docker	✅	Non-root UID 1001; .dockerignore complete; base image pinned python:3.12-slim; multi-stage build	—
+2.1	Tests — False Coverage	⚠️	Most assertions meaningful; some weak API assertions (assert status in (422,400,500))	Fix triple-option status code assertions
+2.2	Tests — Coverage Gaps	❌	postgres.py 0%; app.py 0%; prompt_evolver.py 58%; no concurrency tests for JSONStorage	Add Postgres tests; add concurrent write tests
+2.3	Tests — Isolation	✅	All tests use tmp_path; no shared state; time offsets are deterministic	—
+2.4	Tests — Edge Cases	⚠️	Empty input tested; eval_score boundaries tested; missing: 413 response, max-length inputs, evolve_prompt without LLM	Add missing edge case tests
+2.5	Tests — Integration	⚠️	E2E learn→recall exists; full cycle with mocked LLM exists; real feedback loop not tested end-to-end	❌ Mocks always succeed — error paths untested
+3.1	Features — Roadmap	⚠️	Phases 0–4.6.2 complete; 4.6.3–4.6.6 (linting, CI/CD, docs, examples) not started	Implement remaining 4.6.x phases
+3.2	Features — Public API	✅	All Brain methods have docstrings + type hints; REST API 1:1 match with Python API; __init__.py exports correct	—
+3.3	Features — Providers	✅	All ABCs fully implemented by all providers; embedding dimension enforced at save time	⚠️ Postgres migration hardcodes vector(1536) — misleading embedding_dim constructor param
+3.4	Features — SDK	⚠️	LangChain callback works; CLI complete	❌ WebhookClient missing Phase 3 methods (evolve, analyze-failures, skills)
+3.5	Features — Persistence	⚠️	Alembic migrations match models; export/import works	⚠️ Export format has no version marker
+4.1	Production — Errors	❌	LLM retry logic solid (3x exponential backoff); error responses sanitized	❌ brain.py:431 and eval_feedback.py:159 use bare except Exception
+4.2	Production — Concurrency	✅	threading.Lock on JSON storage + rate limiter; ThreadPoolExecutor properly managed	⚠️ Rate limiter single-process only (documented)
+4.3	Production — Resources	✅	Metrics capped at 100; evals at 200; rate limit GC every 5min; Postgres pool configured	⚠️ JSON embedding index unbounded in memory (OK <50k patterns)
+4.4	Production — Logging	✅	All 24 modules use getLogger(__name__); no print(); structured context; DB URLs redacted	—
+4.5	Production — Config	✅	All env vars documented; sensible defaults; security config logged at startup	⚠️ Unknown LLM provider returns None silently (fails at request time, not startup)
+4.6	Production — Degradation	✅	learn/recall work without LLM; optional deps lazy-loaded with clear ImportError messages	—
+5.1	Quality — Architecture	✅	Clean facade pattern; proper DI; no circular imports; stable public API	—
+5.2	Quality — Conventions	✅	Consistent naming/style; types.py vs schemas.py well separated; no dead code; magic numbers in constants	—
+5.3	Quality — Dependencies	✅	All version ranges reasonable; no unused deps	—
+5.4	Quality — Documentation	✅	README, CHANGELOG, SECURITY.md all current and accurate	—
+6.1	Data — Patterns	⚠️	SHA-256 deterministic; atomic writes work	⚠️ README claims dedup at learn-time but it only happens at recall-time
+6.2	Data — Embeddings	⚠️	Dimension enforced at save time; zero vectors handled; cosine similarity stable	⚠️ No migration path when switching embedding models
+6.3	Data — Aging	✅	Compound decay correct (0.98^weeks); future timestamps clamped; pruning at 0.1; reuse boost works with aging	—
+6.4	Data — Feedback	✅	Jaccard 0.4 threshold practical; feedback decay independent (10%/week); rolling window caps at 50	—
+7.1	Legal — License	⚠️	BSL 1.1 in pyproject.toml; all deps compatible	❌ No root LICENSE file; no source file headers; psycopg2 LGPL noted
+7.2	Legal — Documents	⚠️	ToS, Privacy, DPA drafts present and mostly accurate	❌ Multiple [to be added] placeholders (email, pricing)
+8.1	Regression — Git	✅	All security commits include tests; no reverts; clean linear history; excellent commit messages	—
+8.2	Regression — TODOs	✅	Zero TODO/FIXME/HACK comments in Python code	—
+Metriky
+
+Test coverage: 80.14%
+Pocet testu: 270 passed, 1 skipped
+Pocet ❌ nalezu: 5
+Pocet ⚠️ nalezu: 18
+Nove issues od minuleho auditu: N/A (baseline audit)
+Vyresene issues od minuleho auditu: N/A (baseline audit)
+Coverage detaily — moduly pod 80%
+Modul	Coverage	Duvod
+api/app.py	0%	App factory not tested directly (tested via TestClient)
+db/models.py	0%	Requires PostgreSQL
+providers/postgres.py	0%	Requires PostgreSQL
+providers/__init__.py	42%	Conditional imports for optional providers
+evolution/prompt_evolver.py	58%	A/B testing paths untested
+cli/main.py	62%	Several CLI commands untested
+providers/anthropic.py	76%	Retry error paths
+sdk/langchain.py	79%	Error handler + edge cases
+Prioritizovane Action Items
+❌ Opravit ihned (before next release)
+No pattern count quota — Add max pattern count check in brain.learn() or per-API-key quota. An attacker with valid key can create 86k patterns/day.
+Bare except Exception — Change to specific exceptions in brain.py:431 (except (ValueError, ValidationError, KeyError)) and eval_feedback.py:159 (except (ValueError, TypeError))
+PostgreSQL 0% test coverage — Critical for any production Postgres deployment. At minimum test CRUD + vector search.
+LLM error paths untested — Add tests where mock_llm.call raises ConnectionError, returns malformed JSON, or times out.
+Root LICENSE file missing — Copy BSL 1.1 text from docs/legal/LICENSE.md to project root.
+⚠️ Opravit do pristiho auditu
+WebhookClient missing Phase 3 methods — Add evolve_prompt(), analyze_failures(), register_skills(), find_by_skills() to webhook.py
+Export format unversioned — Add "version": 1 field to export records for future schema migration
+Legal doc placeholders — Fill in [to be added] contact emails in ToS, Privacy Policy, DPA
+API version hardcoded — app.py:113 should use from agent_brain import __version__
+Concurrent JSONStorage tests — Add ThreadPoolExecutor test proving thread-safety claims
+task_type max_length — Add Query(..., max_length=200) to feedback endpoint's task_type param
+Bulk import audit logging — Log import_data calls if/when exposed via REST API
+README dedup claim — Clarify that deduplication happens at recall-time, not learn-time
+ℹ️ Sledovat
+Phases 4.6.3–4.6.6 (linting, CI/CD, MkDocs, examples) — launch infrastructure
+Postgres embedding_dim constructor param vs hardcoded migration schema
+JSON storage scalability (>50k patterns → switch to Postgres)
+In-memory rate limiter (single-process) → Redis for multi-instance
+psycopg2-binary LGPL consideration for proprietary deployments
+No embedding model migration path — document clearly
+Toto je baseline audit. Nasledujici audity budou porovnavat s temito nalezy.
+
+Update Todos
+
+Security audit sections 1.1-1.4 (auth, input, injection, rate limiting)
+
+Security audit sections 1.5-1.8 (headers, logging, crypto, Docker)
+
+Test quality audit (section 2)
+
+Feature completeness audit (section 3)
+
+Production readiness audit (section 4)
+
+Code quality + data integrity audit (sections 5+6)
+
+Compliance + regression audit (sections 7+8)
+
+Run pytest with coverage
+
+Compile final audit report
+Audit complete. Score: 78/100 — strong core with gaps in test quality, launch infrastructure, and a few production hardening items. The 5 critical items (pattern quota, broad exceptions, Postgres tests, LLM error tests, root LICENSE) should be addressed before any production deployment.

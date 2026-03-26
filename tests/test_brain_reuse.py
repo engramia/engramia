@@ -3,7 +3,7 @@
 
 def _get_reuse_count(brain, task: str) -> int:
     """Read reuse_count from storage for a pattern matching the task."""
-    from agent_brain._util import PATTERNS_PREFIX
+    from remanence._util import PATTERNS_PREFIX
 
     for key in brain._storage.list_keys(prefix=PATTERNS_PREFIX):
         data = brain._storage.load(key)

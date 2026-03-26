@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Agent Brain — Self-Learning Memory Layer for AI Agents**
+**Remanence — Self-Learning Memory Layer for AI Agents**
 
 Last updated: 2026-03-23
 
@@ -8,7 +8,7 @@ Last updated: 2026-03-23
 
 ## 1. Introduction
 
-This Privacy Policy describes how Marek Čermák ("we", "us", "our", "Licensor") collects, uses, stores, and protects information when you use Agent Brain (the "Service"), including the cloud-hosted API ("Cloud Service"), the self-hosted deployment, the Python library, the website, and related services.
+This Privacy Policy describes how Marek Čermák ("we", "us", "our", "Licensor") collects, uses, stores, and protects information when you use Remanence (the "Service"), including the cloud-hosted API ("Cloud Service"), the self-hosted deployment, the Python library, the website, and related services.
 
 We are committed to protecting your privacy and processing your data in accordance with the General Data Protection Regulation (EU) 2016/679 ("GDPR") and other applicable data protection laws.
 

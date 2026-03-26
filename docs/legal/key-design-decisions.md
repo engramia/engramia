@@ -1,4 +1,4 @@
-# Agent Brain — Key Legal & Licensing Design Decisions
+# Remanence — Key Legal & Licensing Design Decisions
 
 > Tento dokument zachycuje klíčová rozhodnutí z licenční konzultace (2026-03-23).
 > Slouží jako reference pro budoucí právní kroky.
@@ -40,8 +40,8 @@
 Zatím fyzická osoba. Živnost — nutno ověřit, zda je aktivní.
 
 **T2) Název produktu:**
-Zvažuje se jiný název než "Agent Brain" — pracovní návrh: "vAI.be" nebo podobné.
-Důvod: "Agent Brain" je generický v AI kontextu, slabší ochranitelnost.
+Zvažuje se jiný název než "Remanence" — pracovní návrh: "vAI.be" nebo podobné.
+Důvod: "Remanence" je generický v AI kontextu, slabší ochranitelnost.
 
 **T3) Území ochranné známky:**
 Zatím nechce platit za registraci. Chce zajistit možnost registrace v budoucnu.

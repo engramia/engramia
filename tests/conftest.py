@@ -5,9 +5,9 @@ import hashlib
 import numpy as np
 import pytest
 
-from agent_brain.brain import Brain
-from agent_brain.providers.base import EmbeddingProvider
-from agent_brain.providers.json_storage import JSONStorage
+from remanence.brain import Memory
+from remanence.providers.base import EmbeddingProvider
+from remanence.providers.json_storage import JSONStorage
 
 
 class FakeEmbeddings(EmbeddingProvider):
@@ -39,5 +39,5 @@ def storage(tmp_path) -> JSONStorage:
 
 
 @pytest.fixture
-def brain(fake_embeddings, storage) -> Brain:
-    return Brain(embeddings=fake_embeddings, storage=storage)
+def brain(fake_embeddings, storage) -> Memory:
+    return Memory(embeddings=fake_embeddings, storage=storage)

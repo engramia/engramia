@@ -1,6 +1,6 @@
 # Data Processing Agreement (DPA)
 
-**Agent Brain — Self-Learning Memory Layer for AI Agents**
+**Remanence — Self-Learning Memory Layer for AI Agents**
 
 Template version: 2026-03-23
 
@@ -20,7 +20,7 @@ Marek Čermák
 Czech Republic
 ("Processor", "Licensor")
 
-This DPA supplements the Terms of Service ("ToS") and Privacy Policy governing the Customer's use of Agent Brain (the "Service"). In the event of conflict between this DPA and the ToS, this DPA shall prevail with respect to the processing of personal data.
+This DPA supplements the Terms of Service ("ToS") and Privacy Policy governing the Customer's use of Remanence (the "Service"). In the event of conflict between this DPA and the ToS, this DPA shall prevail with respect to the processing of personal data.
 
 ---
 
@@ -37,7 +37,7 @@ Terms used in this DPA have the meanings given in the GDPR (Regulation (EU) 2016
 
 ### 2.1 Subject Matter
 
-The Processor processes Personal Data on behalf of the Controller solely to provide the Agent Brain Service as described in the ToS.
+The Processor processes Personal Data on behalf of the Controller solely to provide the Remanence Service as described in the ToS.
 
 ### 2.2 Nature and Purpose
 
@@ -100,7 +100,7 @@ The Processor shall:
 | Container security | Non-root Docker containers |
 | Request limits | Body size limits, rate limiting per IP and endpoint |
 
-For a complete description, see the Agent Brain [Security Policy](../../SECURITY.md).
+For a complete description, see the Remanence [Security Policy](../../SECURITY.md).
 
 ### 4.4 Sub-processors
 - Not engage any Sub-processor without prior specific or general written authorization from the Controller.
@@ -189,6 +189,6 @@ Signature: ___________________________
 **Data Processor:**
 
 Name: Marek Čermák
-Title: Licensor, Agent Brain
+Title: Licensor, Remanence
 Date: ___________________________
 Signature: ___________________________

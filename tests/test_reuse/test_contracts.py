@@ -1,6 +1,6 @@
 """Tests for pipeline contract validation."""
 
-from agent_brain.reuse.contracts import infer_initial_inputs, validate_contracts
+from remanence.reuse.contracts import infer_initial_inputs, validate_contracts
 
 
 class TestValidateContracts:
