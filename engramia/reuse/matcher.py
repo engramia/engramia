@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Eval-weighted pattern matcher.
 
 Extends raw semantic similarity with an eval quality multiplier so that

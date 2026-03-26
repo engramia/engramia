@@ -86,6 +86,8 @@ By submitting Customer Data to the Service, you grant the Licensor a limited, no
 
 The Licensor may use anonymized, aggregated usage data derived from your use of the Service to improve the Service, develop new features, and generate benchmarks or analytics. Such aggregated data will not identify you or any individual. The Licensor will never share your raw Customer Data with third parties.
 
+The Licensor does not use Customer Data to train or fine-tune AI models. Anonymized data may be used as inputs to external AI model calls (e.g., OpenAI, Anthropic) solely for internal product improvement purposes, such as testing or refining Service features. Such use is subject to those providers' terms of service.
+
 ### 6.4 Customer Data Responsibility
 
 You are solely responsible for:
@@ -218,7 +220,7 @@ You may terminate your Subscription at any time. Termination takes effect at the
 
 The Licensor may terminate or suspend your access immediately if:
 - You breach these Terms.
-- Your payment is overdue by more than 30 days.
+- Your payment is overdue by more than 14 days.
 - Your use of the Service poses a security risk or legal liability.
 - Required by law or regulatory order.
 
@@ -259,7 +261,15 @@ You may not assign or transfer your rights under these Terms without the Licenso
 
 ### 15.5 Amendments
 
-The Licensor may update these Terms from time to time. Material changes will be communicated via email or through the Service with at least 30 days' notice. Continued use of the Service after the effective date of changes constitutes acceptance of the updated Terms.
+The Licensor may update these Terms from time to time. Material changes will be communicated via email or through the Service with at least 30 days' notice.
+
+#### 15.5.1 Business Customers (B2B)
+
+Continued use of the Service after the effective date of changes constitutes acceptance of the updated Terms.
+
+#### 15.5.2 Consumers (B2C) — EU/EEA
+
+If you are a consumer within the European Union or European Economic Area, material changes to these Terms require your **explicit active consent** before taking effect. The Licensor will present material changes through an in-app consent prompt or a confirmation email requiring affirmative action (e.g., clicking "I accept the updated Terms"). Continued use alone does not constitute acceptance. If you do not consent to the updated Terms within 30 days of notification, the Terms in effect at the time of your last consent will continue to apply until you terminate your Subscription or provide consent.
 
 ### 15.6 Language
 
@@ -267,7 +277,7 @@ These Terms are drafted in English. If these Terms are translated into any other
 
 ### 15.7 Notices
 
-Notices to the Licensor should be sent to: [contact email to be added].
+Notices to the Licensor should be sent to: support@engramia.dev.
 Notices to you will be sent to the email address associated with your account.
 
 ---
@@ -277,4 +287,4 @@ Notices to you will be sent to the email address associated with your account.
 For questions about these Terms, contact:
 
 **Marek Čermák**
-Email: [to be added]
+Email: support@engramia.dev

@@ -143,7 +143,7 @@ Všechny zvažované názvy jsou obsazené:
 
 | # | Dokument | Stav | Soubor |
 |---|----------|------|--------|
-| 1 | LICENSE (BSL 1.1) | ✅ Hotovo | `LICENSE.md` |
+| 1 | LICENSE (BSL 1.1) | ✅ Hotovo | `LICENSE.txt` |
 | 2 | Terms of Service | ✅ Draft | `docs/legal/TERMS_OF_SERVICE.md` |
 | 3 | Privacy Policy | ✅ Draft | `docs/legal/PRIVACY_POLICY.md` |
 | 4 | Cookie Policy | ✅ Draft | `docs/legal/COOKIE_POLICY.md` |

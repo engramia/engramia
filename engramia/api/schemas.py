@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """API request and response schemas.
 
 Separate from internal types (engramia/types.py) to allow the API

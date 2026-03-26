@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Skill registry for capability-based pattern discovery.
 
 Complements semantic search with explicit skill tags.

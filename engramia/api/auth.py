@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Bearer token authentication for the Engramia API.
 
 Keys are loaded from the ``ENGRAMIA_API_KEYS`` environment variable as a

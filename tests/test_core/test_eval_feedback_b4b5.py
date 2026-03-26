@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Tests for B4 (feedback length limit) and B5 (_parse_iso empty string)."""
 
 import pytest

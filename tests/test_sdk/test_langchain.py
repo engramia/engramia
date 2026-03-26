@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Tests for LangChain EngramiaCallback (mocked, no langchain needed)."""
 
 from unittest.mock import MagicMock, patch

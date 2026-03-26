@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """End-to-end tests: learn → recall → assert match.
 
 Uses FakeEmbeddings (no API key) and JSONStorage (tmp_path).

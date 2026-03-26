@@ -2,9 +2,9 @@
 
 Self-learning memory layer for AI agent frameworks.
 
-[![Tests](https://img.shields.io/badge/tests-270%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen)](tests/)
+[![CI](https://github.com/engramia/engramia/actions/workflows/ci.yml/badge.svg)](https://github.com/engramia/engramia/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
+[![License: BSL 1.1](https://img.shields.io/badge/license-BSL%201.1-orange)](LICENSE.txt)
 
 > **Status:** Phases 0–4.5 complete — core library + REST API + SDK plugins + prompt evolution + CLI + exceptions + export/import + security hardening (OWASP ASVS Level 2/3).
 > See [roadmap.md](roadmap.md) for what's next.
@@ -695,3 +695,18 @@ Testy nevyžadují API klíče — používají `FakeEmbeddings` (deterministick
 
 Extrahováno z Agent Factory V2 — self-improving AI agent factory.
 Factory zůstává jako open-source referenční implementace, která dokazuje, že Brain funguje v praxi.
+
+---
+
+## Licence
+
+[Business Source License 1.1 (BSL 1.1)](LICENSE.md) — zdrojový kód je veřejně čitelný, komerční použití vyžaduje licenci.
+
+| Použití | Status |
+|---------|--------|
+| Osobní projekty, testování, akademický výzkum | ✅ Zdarma |
+| Komerční použití (produkce, SaaS, placený produkt) | Vyžaduje komerční licenci |
+| Konkurenční SaaS bez licence | ❌ |
+| Po roce 2030 | ✅ Apache 2.0 (volně pro všechny) |
+
+Pro komerční licence: support@engramia.dev

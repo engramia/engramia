@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Unit tests for PatternMatcher (eval-weighted semantic search)."""
 
 from engramia.core.eval_store import EvalStore

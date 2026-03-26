@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Public data models for Engramia.
 
 All types are Pydantic v2 models. These form the public API contract —

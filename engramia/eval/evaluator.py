@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Multi-evaluator scoring engine.
 
 Runs N independent LLM evaluations concurrently, aggregates by median,

@@ -11,7 +11,7 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "Business Source License 1.1 (BSL 1.1) with non-commercial restriction" }
+license = {file = "LICENSE.txt"}
 keywords = ["ai", "agents", "memory", "langchain", "crewai", "llm", "rag", "self-learning"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -29,13 +29,12 @@ dependencies = [
     "numpy>=1.26",
 ]
 
-# TODO: update URLs once the public repo is created
 [project.urls]
-Homepage = "https://github.com/engramia-ai/engramia"
-Documentation = "https://engramia.dev/docs"
-Repository = "https://github.com/engramia-ai/engramia"
-"Bug Tracker" = "https://github.com/engramia-ai/engramia/issues"
-Changelog = "https://github.com/engramia-ai/engramia/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/engramia/engramia"
+Documentation = "https://engramia.readthedocs.io"
+Repository = "https://github.com/engramia/engramia"
+"Bug Tracker" = "https://github.com/engramia/engramia/issues"
+Changelog = "https://github.com/engramia/engramia/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 openai = ["openai>=1.0"]
