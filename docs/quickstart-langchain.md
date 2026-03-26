@@ -1,4 +1,4 @@
-# Quick Start: Remanence + LangChain
+# Quick Start: Engramia + LangChain
 
 Self-learning memory for your LangChain agents in 5 minutes.
 
@@ -12,20 +12,20 @@ After this guide, your LangChain chains will:
 ## Installation
 
 ```bash
-pip install remanence[openai,langchain]
+pip install engramia[openai,langchain]
 ```
 
 For local embeddings (no API key needed):
 ```bash
-pip install remanence[local,langchain]
+pip install engramia[local,langchain]
 ```
 
 ## 1. Basic Setup (5 lines)
 
 ```python
-from remanence import Memory
-from remanence.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
-from remanence.sdk.langchain import RemanenceCallback
+from engramia import Memory
+from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from engramia.sdk.langchain import EngramiaCallback
 
 # Initialize Brain
 mem = Memory(
@@ -35,7 +35,7 @@ mem = Memory(
 )
 
 # Create callback — this is all you need
-callback = RemanenceCallback(brain, auto_learn=True, auto_recall=True)
+callback = EngramiaCallback(brain, auto_learn=True, auto_recall=True)
 ```
 
 ## 2. Attach to Any Chain
@@ -131,7 +131,7 @@ print(f"Total runs: {metrics.total_runs}")
 
 ## Configuration Options
 
-### RemanenceCallback parameters
+### EngramiaCallback parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -147,15 +147,15 @@ print(f"Total runs: {metrics.total_runs}")
 storage = JSONStorage(path="./brain_data")
 
 # PostgreSQL + pgvector (production, scalable)
-from remanence.providers import PostgresStorage
+from engramia.providers import PostgresStorage
 storage = PostgresStorage(database_url="postgresql://user:pass@localhost/brain")
 
 # Local embeddings (no API key, 384-dim)
-from remanence.providers import LocalEmbeddings
+from engramia.providers import LocalEmbeddings
 embeddings = LocalEmbeddings()  # uses all-MiniLM-L6-v2
 
 # Anthropic LLM
-from remanence.providers import AnthropicProvider
+from engramia.providers import AnthropicProvider
 llm = AnthropicProvider(model="claude-sonnet-4-20250514")
 ```
 
@@ -192,9 +192,9 @@ for cluster in clusters:
 ## Full Example: Self-Improving Code Agent
 
 ```python
-from remanence import Memory
-from remanence.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
-from remanence.sdk.langchain import RemanenceCallback
+from engramia import Memory
+from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from engramia.sdk.langchain import EngramiaCallback
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -205,7 +205,7 @@ mem = Memory(
     embeddings=OpenAIEmbeddings(),
     storage=JSONStorage(path="./brain_data"),
 )
-callback = RemanenceCallback(brain, auto_learn=True, auto_recall=True)
+callback = EngramiaCallback(brain, auto_learn=True, auto_recall=True)
 llm = ChatOpenAI(model="gpt-4.1")
 
 # 2. Agent loop
@@ -256,16 +256,16 @@ If you prefer HTTP over Python imports:
 
 ```bash
 # Start the API server
-remanence serve
+engramia serve
 
 # Or with Docker
 docker compose up
 ```
 
 ```python
-from remanence.sdk.webhook import RemanenceWebhook
+from engramia.sdk.webhook import EngramiaWebhook
 
-hook = RemanenceWebhook(url="http://localhost:8000", api_key="your-key")
+hook = EngramiaWebhook(url="http://localhost:8000", api_key="your-key")
 hook.learn(task="Parse CSV", code=code, eval_score=8.5)
 matches = hook.recall(task="Read CSV")
 ```
@@ -283,4 +283,4 @@ curl -X POST http://localhost:8000/v1/learn \
 - **Skill tagging**: `brain.register_skills(key, ["csv", "data_processing"])` for capability-based search
 - **Pipeline composition**: `brain.compose("Fetch data, analyze, generate report")` for multi-step tasks
 - **Export/Import**: `brain.export()` for backup, `brain.import_data(records)` for migration
-- **CLI**: `remanence status` to check metrics, `remanence recall "task"` for quick searches
+- **CLI**: `engramia status` to check metrics, `engramia recall "task"` for quick searches

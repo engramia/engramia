@@ -87,7 +87,7 @@ class TestLearnRecall:
 
     def test_brain_without_llm_works_for_learn_recall(self, fake_embeddings, storage):
         """Brain can be used for learn/recall with llm=None."""
-        from remanence.brain import Memory
+        from engramia.brain import Memory
 
         brain = Memory(embeddings=fake_embeddings, storage=storage, llm=None)
         brain.learn(task="A task", code="code", eval_score=8.0)

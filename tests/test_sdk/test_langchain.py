@@ -1,11 +1,11 @@
-"""Tests for LangChain RemanenceCallback (mocked, no langchain needed)."""
+"""Tests for LangChain EngramiaCallback (mocked, no langchain needed)."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from remanence.brain import Memory
-from remanence.providers.json_storage import JSONStorage
+from engramia.brain import Memory
+from engramia.providers.json_storage import JSONStorage
 from tests.conftest import FakeEmbeddings
 
 
@@ -19,7 +19,7 @@ def brain_with_llm(tmp_path):
     return Memory(embeddings=embeddings, storage=storage, llm=mock_llm)
 
 
-class TestRemanenceCallback:
+class TestEngramiaCallback:
     """Tests for the LangChain integration callback."""
 
     def _make_callback(self, brain, **kwargs):
@@ -28,9 +28,9 @@ class TestRemanenceCallback:
         with patch.dict(
             "sys.modules", {"langchain_core": mock_lccore, "langchain_core.callbacks": mock_lccore.callbacks}
         ):
-            from remanence.sdk.langchain import RemanenceCallback
+            from engramia.sdk.langchain import EngramiaCallback
 
-            return RemanenceCallback(brain, **kwargs)
+            return EngramiaCallback(brain, **kwargs)
 
     def test_on_chain_start_recalls_context(self, brain_with_llm):
         brain = brain_with_llm

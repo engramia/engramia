@@ -2,7 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(python -m pytest tests/test_eval/test_evaluator.py -x -q)",
-      "Bash(python -m pytest /c/Users/soulf/remanence/tests -v --co)",
+      "Bash(python -m pytest /c/Users/soulf/engramia/tests -v --co)",
       "Bash(python -m pytest tests/test_reuse/test_matcher.py tests/test_reuse/test_composer.py tests/test_brain.py tests/test_api/test_auth.py --tb=short -q)",
       "Bash(python -m pytest --tb=short -q)",
       "Bash(python -m pytest tests/ -q)",
@@ -11,9 +11,13 @@
       "Bash(python -m pytest tests/ -x -q --no-header --tb=short)",
       "Bash(git status:*)",
       "WebFetch(domain:github.com)",
-      "Bash(python -m ruff check remanence/)",
-      "Bash(python -m ruff check remanence/ --output-format=concise)",
-      "Bash(git add:*)"
+      "Bash(python -m ruff check engramia/)",
+      "Bash(python -m ruff check engramia/ --output-format=concise)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(python3 -c \":*)",
+      "Bash(curl -v \"https://pypi.org/pypi/engram/json\")",
+      "Bash(git mv:*)"
     ]
   }
 }

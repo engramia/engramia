@@ -1,6 +1,6 @@
-# Remanence — Weekly Audit Prompt
+# Engramia — Weekly Audit Prompt
 
-> Tento prompt slouží jako základ pro pravidelný týdenní audit projektu Remanence.
+> Tento prompt slouží jako základ pro pravidelný týdenní audit projektu Engramia.
 > Spouštěj ho v čistém kontextu (nová konverzace) s přístupem ke kompletnímu repozitáři.
 > Výstupem je strukturovaný report s hodnocením, nálezy a action items.
 
@@ -8,7 +8,7 @@
 
 ## Instrukce pro auditora
 
-Proveď kompletní audit projektu Remanence. Projdi **každou sekci** níže, u každé uveď:
+Proveď kompletní audit projektu Engramia. Projdi **každou sekci** níže, u každé uveď:
 
 - **Hodnocení**: ✅ OK | ⚠️ Varování | ❌ Problém | ℹ️ Info
 - **Nálezy**: Co konkrétně jsi zjistil (s odkazem na soubor:řádek)
@@ -22,7 +22,7 @@ Na konci vytvoř **Executive Summary** s celkovým skóre (0–100) a top 5 prio
 
 ### 1.1 Autentizace a autorizace
 - Ověř, že `auth.py` stále používá `hmac.compare_digest()` pro timing-safe porovnání tokenů
-- Zkontroluj, že dev mode (prázdný `REMANENCE_API_KEYS`) **není** náhodou aktivní v Docker produkčním nastavení
+- Zkontroluj, že dev mode (prázdný `ENGRAMIA_API_KEYS`) **není** náhodou aktivní v Docker produkčním nastavení
 - Ověř, že API klíče nejsou nikde hardcodované ani v testech commitnuté jako reálné hodnoty
 - Zkontroluj, zda neexistují endpointy, které obcházejí auth middleware
 
@@ -47,7 +47,7 @@ Na konci vytvoř **Executive Summary** s celkovým skóre (0–100) a top 5 prio
 
 ### 1.5 Security headers a CORS
 - Ověř, že `SecurityHeadersMiddleware` přidává všechny headery (nosniff, DENY, no-referrer)
-- Zkontroluj, že CORS je defaultně vypnutý a `REMANENCE_CORS_ORIGINS` vyžaduje explicitní konfiguraci
+- Zkontroluj, že CORS je defaultně vypnutý a `ENGRAMIA_CORS_ORIGINS` vyžaduje explicitní konfiguraci
 - Hledej endpointy, které vracejí interní detaily v chybových odpovědích (stack traces, file paths)
 
 ### 1.6 Audit logging
@@ -78,7 +78,7 @@ Pro každý testovací soubor zkontroluj:
 - Prochází testy i při fundamentálně rozbitém kódu? (= testy nic netestují)
 
 ### 2.2 Coverage vs. skutečná pokrytost
-- Spusť `pytest --cov=remanence --cov-report=term-missing` a analyzuj **MISSING řádky**
+- Spusť `pytest --cov=engramia --cov-report=term-missing` a analyzuj **MISSING řádky**
 - Pro moduly pod 50% coverage (`providers/openai.py`, `providers/postgres.py`, `reuse/contracts.py`, `sdk/*`) — je nízká coverage přijatelná (vyžaduje external service) nebo je to laziness?
 - Existují **kritické code paths**, které nejsou testované? Zejména:
   - Error handling větve v `brain.py` (co se stane, když LLM provider selže?)

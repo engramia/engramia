@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from remanence.core.success_patterns import SuccessPatternStore
-from remanence.types import Pattern
+from engramia.core.success_patterns import SuccessPatternStore
+from engramia.types import Pattern
 
 
 def _store_pattern(storage, embeddings, task, score, ts=None):

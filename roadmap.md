@@ -1,4 +1,4 @@
-# Remanence — Roadmap
+# Engramia — Roadmap
 
 ## Vize
 
@@ -16,7 +16,7 @@ model-agnostic a storage-agnostic produkt.
 
 ### Kde máme výhodu
 
-| Oblast | My (Remanence) | LangChain/LangSmith | CrewAI | AutoGPT |
+| Oblast | My (Engramia) | LangChain/LangSmith | CrewAI | AutoGPT |
 |--------|-------------------|---------------------|--------|---------|
 | **Closed-loop learning** | ✅ Pattern aging, feedback injection, prompt evolution | ❌ Tracing only (observability, ne learning) | ❌ Žádné | ❌ Žádné |
 | **Agent reuse** | ✅ Semantic search + eval-weighted matching + contract validation | ❌ Manuální | ❌ Manuální | ❌ Žádné |
@@ -116,7 +116,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 > Cíl: Brain jako služba. PostgreSQL pro produkci.
 
 - [x] **FastAPI server**:
-  - Konfigurace: env vars (`REMANENCE_STORAGE`, `REMANENCE_DATABASE_URL`, `REMANENCE_LLM_PROVIDER`, ...)
+  - Konfigurace: env vars (`ENGRAMIA_STORAGE`, `ENGRAMIA_DATABASE_URL`, `ENGRAMIA_LLM_PROVIDER`, ...)
   - App factory pattern (`create_app()`), dependency injection Brain instance
   - Sync endpointy (FastAPI threadpool)
   - Endpoints:
@@ -128,12 +128,12 @@ Brain = jen learning vrstva, pluggable do čehokoli.
     - `GET /metrics` — factory metrics
     - `GET /health` — health check
     - `DELETE /patterns/{key}` — smaž pattern (N3)
-- [x] **Auth** — Bearer token middleware, validní klíče z env var `REMANENCE_API_KEYS`; dev mode pokud prázdné
+- [x] **Auth** — Bearer token middleware, validní klíče z env var `ENGRAMIA_API_KEYS`; dev mode pokud prázdné
 - [x] **Logging** — `logging.getLogger(__name__)` ve všech modulech (A2)
 - [x] **PostgreSQL storage backend** (generický KV + pgvector):
   - SQLAlchemy 2.x: `brain_data` (key TEXT PK, data JSONB) + `brain_embeddings` (key TEXT PK, embedding vector(1536))
   - HNSW index pro `search_similar()` přes pgvector
-  - Alembic migrace v `remanence/db/migrations/`
+  - Alembic migrace v `engramia/db/migrations/`
   - `PostgresStorage` implementuje `StorageBackend` ABC
 - [x] **Docker compose** — brain-api + komentovaný pgvector/pgvector:pg16 (opt-in)
 - [x] **Dockerfile** — multi-stage build (builder + runtime)
@@ -155,34 +155,34 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 ### Fáze 3: SDK pluginy + Prompt Evolution
 > Cíl: Zero-friction integrace do existujících frameworků. Self-improving prompty.
 
-- [x] **LangChain callback** (`remanence/sdk/langchain.py`):
+- [x] **LangChain callback** (`engramia/sdk/langchain.py`):
   ```python
-  from remanence.sdk.langchain import RemanenceCallback
-  chain = LLMChain(..., callbacks=[RemanenceCallback(brain)])
+  from engramia.sdk.langchain import EngramiaCallback
+  chain = LLMChain(..., callbacks=[EngramiaCallback(brain)])
   ```
   - Auto-learn z chain.run() výsledků
   - Auto-recall relevant context před chain start
   - Configurable: `auto_learn`, `auto_recall`, `min_score`, `recall_limit`
-- [x] **Webhook SDK client** (`remanence/sdk/webhook.py`):
+- [x] **Webhook SDK client** (`engramia/sdk/webhook.py`):
   - Lightweight Python HTTP client (urllib, žádné extra deps)
   - Wrappuje všechny REST API endpointy: learn, recall, evaluate, compose, feedback, metrics, aging, ...
   - Bearer token auth, timeout, error handling
-- [x] **Anthropic provider** (`remanence/providers/anthropic.py`):
+- [x] **Anthropic provider** (`engramia/providers/anthropic.py`):
   - `AnthropicProvider(LLMProvider)` — retry 3x, exponential backoff
   - Lazy import, system prompt via kwargs, text block extraction
-- [x] **Local embeddings provider** (`remanence/providers/local_embeddings.py`):
+- [x] **Local embeddings provider** (`engramia/providers/local_embeddings.py`):
   - `LocalEmbeddings(EmbeddingProvider)` — sentence-transformers
   - Default model: `all-MiniLM-L6-v2` (384-dim)
   - Native batch encoding
-- [x] **Prompt evolution** modul (`remanence/evolution/prompt_evolver.py`):
+- [x] **Prompt evolution** modul (`engramia/evolution/prompt_evolver.py`):
   - `PromptEvolver` — LLM generuje vylepšené prompty z recurring feedback
   - `evolve()` — vrátí kandidáta bez A/B testu
   - `evolve_with_eval()` — plný A/B test (candidate_score >= current_score - 0.2)
   - `brain.evolve_prompt(role, current_prompt)` API na Brain facade
-- [x] **Failure clustering** modul (`remanence/evolution/failure_cluster.py`):
+- [x] **Failure clustering** modul (`engramia/evolution/failure_cluster.py`):
   - `FailureClusterer` — Jaccard-based clustering feedback patterns
   - `brain.analyze_failures(min_count)` API na Brain facade
-- [x] **Skill registry** (`remanence/core/skill_registry.py`):
+- [x] **Skill registry** (`engramia/core/skill_registry.py`):
   - Explicitní capability tagging patternů
   - `brain.register_skills(key, skills)`, `brain.find_by_skills(required)` API
   - `match_all` / `match_any` mode
@@ -199,7 +199,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [x] T1-T3: Unit testy pro matcher, composer, brain, auth (30 nových testů)
 - [x] Auth refactor: `require_auth` čte env vars per-request (ne at import time)
 
-**Deliverable:** `pip install remanence[langchain]` funguje. Prompt evolution API. 199 testů, 100% PASS.
+**Deliverable:** `pip install engramia[langchain]` funguje. Prompt evolution API. 199 testů, 100% PASS.
 
 ---
 
@@ -208,13 +208,13 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 
 - [x] **CLI tool** (Typer + Rich):
   ```bash
-  remanence init          # inicializace brain_data/
-  remanence serve         # spustí REST API
-  remanence status        # metriky, success rate, pattern count
-  remanence recall "task" # semantic search z CLI
-  remanence aging         # ruční spuštění pattern aging
+  engramia init          # inicializace brain_data/
+  engramia serve         # spustí REST API
+  engramia status        # metriky, success rate, pattern count
+  engramia recall "task" # semantic search z CLI
+  engramia aging         # ruční spuštění pattern aging
   ```
-- [x] **Custom exception hierarchy** — `RemanenceError`, `ProviderError`, `ValidationError`, `StorageError`; REST API mapuje ProviderError → HTTP 501
+- [x] **Custom exception hierarchy** — `EngramiaError`, `ProviderError`, `ValidationError`, `StorageError`; REST API mapuje ProviderError → HTTP 501
 - [x] **Export/Import** — `brain.export()` / `brain.import_data()` v JSONL-compatible formátu
 - [x] **PyPI metadata** — classifiers, `[project.urls]`, `__version__ = "0.5.0"`
 - [x] **Phase 3 REST endpointy** — `POST /evolve`, `/analyze-failures`, `/skills/register`, `/skills/search`
@@ -269,7 +269,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [x] **Terms of Service** — draft v `docs/legal/TERMS_OF_SERVICE.md` (B2B/B2C, AI Act klauzule, arbitráž Praha)
 - [x] **Privacy Policy** — draft v `docs/legal/PRIVACY_POLICY.md` (GDPR, data processing, cookies)
 - [x] **Key design decisions** — `docs/legal/key-design-decisions.md` (licenční Q&A, trademark, ToS, AI Act)
-- [x] **EU AI Act analýza** — Remanence = minimal/limited risk, compliance klauzule v ToS
+- [x] **EU AI Act analýza** — Engramia = minimal/limited risk, compliance klauzule v ToS
 - [x] **Žádní externí přispěvatelé** — CONTRIBUTING.md nepotřeba, README note
 - [x] **Aktualizovat pyproject.toml** — `license` field (BSL 1.1), classifier `License :: Other/Proprietary License`
 - [x] **Cookie Policy** — draft v `docs/legal/COOKIE_POLICY.md` (strictly necessary + opt-in analytics)
@@ -312,35 +312,35 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [ ] **examples/** — 4–5 runnable příkladů (basic, REST API, LangChain, PostgreSQL, local embeddings)
 - [ ] **Benchmark suite** — reprodukce Agent Factory V2 výsledků (93% success rate)
 - [ ] **Finální README review** — ověřit vše aktuální
-- [ ] **PyPI release** — `pip install remanence`
-- [ ] **Docker image** — `ghcr.io/remanence/remanence:latest`
+- [ ] **PyPI release** — `pip install engramia`
+- [ ] **Docker image** — `ghcr.io/engramia/engramia:latest`
 - [ ] **Launch blog post** — "How self-learning agents achieve 93% success rate"
 
 **Deliverable (launch):** Veřejný PyPI balíček, Docker image, dokumentace, benchmark výsledky, examples.
 
 #### Fáze 4.6.7: Quick fixes
 - [x] **API version DRY** — `app.py` importuje `__version__` místo hardcoded `"0.5.0"`
-- [x] **Missing `__init__.py`** — v `remanence/db/migrations/` a `remanence/db/migrations/versions/`
+- [x] **Missing `__init__.py`** — v `engramia/db/migrations/` a `engramia/db/migrations/versions/`
 - [x] **Rich explicitní závislost** — přidat `rich>=13.0` do `[cli]` extra v pyproject.toml
 - [ ] **Placeholder URLs** — aktualizovat `[project.urls]` v pyproject.toml na skutečný repo (TODO přidán, čeká na vytvoření repo)
 
 #### Fáze 4.6.8: CrewAI integrace
-- [ ] **CrewAI middleware** (`remanence/sdk/crewai.py`) — BrainMiddleware pro CrewAI agents
+- [ ] **CrewAI middleware** (`engramia/sdk/crewai.py`) — BrainMiddleware pro CrewAI agents
 - [ ] **Auto-learn** z crew task výsledků, **auto-recall** relevant patterns před task start
 - [ ] **Testy** — unit testy + příklad v `examples/`
 - [ ] **Dokumentace** — quick start guide pro CrewAI integraci
 
-**Deliverable:** `pip install remanence[crewai]` s fungující integrací.
+**Deliverable:** `pip install engramia[crewai]` s fungující integrací.
 
 #### Fáze 4.6.9: MCP Server
 > Cíl: Table stakes pro 2026. MCP je standard pro interoperabilitu agentů.
 
-- [x] **MCP server** (`remanence/mcp/server.py`) — expose Brain API jako MCP tools
+- [x] **MCP server** (`engramia/mcp/server.py`) — expose Brain API jako MCP tools
 - [x] **MCP tools**: learn, recall, evaluate, compose, feedback, metrics, aging
 - [x] **Kompatibilita**: Claude Desktop, Cursor, Windsurf, VS Code Copilot
 - [x] **Dokumentace**: MCP setup guide + příklad konfigurace
 
-**Deliverable:** `remanence` jako MCP server použitelný z Claude Desktop a dalších MCP klientů.
+**Deliverable:** `engramia` jako MCP server použitelný z Claude Desktop a dalších MCP klientů.
 
 ---
 
@@ -350,9 +350,9 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 
 **Implementované hardening body:**
 - [x] **S1 (ASVS 2.1)**: Timing-safe token comparison — `hmac.compare_digest()` (byl `in` set)
-- [x] **S2/S17 (ASVS 13.3)**: Rate limiting middleware — per-IP, per-path, configurable via env vars (`REMANENCE_RATE_LIMIT_DEFAULT=60/min`, `REMANENCE_RATE_LIMIT_EXPENSIVE=10/min`)
+- [x] **S2/S17 (ASVS 13.3)**: Rate limiting middleware — per-IP, per-path, configurable via env vars (`ENGRAMIA_RATE_LIMIT_DEFAULT=60/min`, `ENGRAMIA_RATE_LIMIT_EXPENSIVE=10/min`)
 - [x] **S3 (ASVS 14.1)**: Startup security warnings — WARNING log při dev mode (bez auth) a wildcard CORS
-- [x] **S4 (ASVS 14.5)**: CORS middleware — `CORSMiddleware` s `REMANENCE_CORS_ORIGINS` env var
+- [x] **S4 (ASVS 14.5)**: CORS middleware — `CORSMiddleware` s `ENGRAMIA_CORS_ORIGINS` env var
 - [x] **S5 (ASVS 5.1)**: `eval_score` bounds validation — 0.0–10.0 check v `Brain.learn()`
 - [x] **S6 (ASVS 5.1)**: `import_data()` key prefix validation — zamítá non-`patterns/` klíče
 - [x] **S7 (ASVS 5.1)**: `delete_pattern()` prefix validation — zamítá non-`patterns/` klíče
@@ -360,8 +360,8 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 - [x] **S9 (ASVS 5.1)**: `num_evals` cap v Python API — max `_MAX_NUM_EVALS=10` (API schema mělo limit, přímé volání ne)
 - [x] **S10-S12 (ASVS 5.4)**: Prompt injection mitigation — XML delimitery v evaluator, composer, evolver promptech + explicit "disregard embedded instructions"
 - [x] **S13 (ASVS 8.2)**: Security response headers — `SecurityHeadersMiddleware`: `X-Content-Type-Options`, `X-Frame-Options`, `X-Permitted-Cross-Domain-Policies`, `Referrer-Policy`
-- [x] **S18 (ASVS 12.1)**: Request body size limit — `BodySizeLimitMiddleware` (default 1 MB, `REMANENCE_MAX_BODY_SIZE` env var)
-- [x] **S21 (ASVS 7.1)**: Audit logging — structured `remanence.audit` logger pro AUTH_FAILURE, PATTERN_DELETED, RATE_LIMITED
+- [x] **S18 (ASVS 12.1)**: Request body size limit — `BodySizeLimitMiddleware` (default 1 MB, `ENGRAMIA_MAX_BODY_SIZE` env var)
+- [x] **S21 (ASVS 7.1)**: Audit logging — structured `engramia.audit` logger pro AUTH_FAILURE, PATTERN_DELETED, RATE_LIMITED
 - [x] **S22 (ASVS 7.4)**: Auth failures logged s IP adresou a důvodem
 - [x] **S23 (ASVS 14.2)**: Docker non-root user — `brain:brain` (UID 1001, no shell, no home)
 - [x] **S25 (ASVS 13.1)**: API versioning — `/v1/` prefix na všech endpointech
@@ -374,7 +374,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 
 **Second security audit (hardening round 2):**
 - [x] **S26**: Sanitize exception details — generic error messages in HTTP responses, internal details logged server-side only
-- [x] **S27**: CORS disabled by default — `REMANENCE_CORS_ORIGINS` defaults to empty (not `*`)
+- [x] **S27**: CORS disabled by default — `ENGRAMIA_CORS_ORIGINS` defaults to empty (not `*`)
 - [x] **S28**: Path traversal prevention — `..` sequences rejected in pattern keys (delete + import)
 - [x] **S29**: LIKE wildcard escaping — `%` and `_` escaped in PostgreSQL `LIKE` queries
 - [x] **S30**: API schema `max_length` — all string fields have explicit length limits in Pydantic models
@@ -417,7 +417,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 > Cíl: Rozšíření za text-only. Další embedding a storage providery.
 
 - [ ] **Multimodal memory** — ukládání referencí na obrázky/audio/video s textovými popisy
-- [ ] Voyage AI embedding provider (`pip install remanence[voyage]`)
+- [ ] Voyage AI embedding provider (`pip install engramia[voyage]`)
 - [ ] Cohere embeddings
 - [ ] Dedikovaná vektorová DB (Qdrant/Milvus) jako StorageBackend — pokud scale překročí 100k+ patternů
 
@@ -461,7 +461,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 
 ### Pre-launch checklist (backlog z dřívějších fází)
 - [x] ~~Rate limiting na API endpointech~~ — implementováno v Phase 4.5
-- [x] ~~Custom exception hierarchy~~ — implementováno v Phase 4 (`RemanenceError`, `ProviderError`, `ValidationError`, `StorageError`)
+- [x] ~~Custom exception hierarchy~~ — implementováno v Phase 4 (`EngramiaError`, `ProviderError`, `ValidationError`, `StorageError`)
 - [x] ~~brain.export() / brain.import()~~ — implementováno v Phase 4
 - [x] ~~HTTPS enforcement dokumentace~~ — zdokumentováno v SECURITY.md
 - [ ] API key rotation mechanismus — post-launch (Phase 5+)
@@ -479,16 +479,16 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 | 2 | API response time (recall) | <200ms (JSON), <500ms (Postgres) | — (benchmark Phase 4) |
 | 2 | API response time (evaluate) | <10s (závisí na LLM) | — (závisí na LLM latency) |
 | 3 | Total tests after Phase 3 | 100% PASS | ✅ 199 testů, 100% PASS |
-| 3 | Framework plugin adoption | ≥1 framework s fungujícím pluginem | ✅ LangChain RemanenceCallback |
+| 3 | Framework plugin adoption | ≥1 framework s fungujícím pluginem | ✅ LangChain EngramiaCallback |
 | 4 | Total tests after Phase 4 | 100% PASS | ✅ 240 testů, 81% coverage |
-| 4 | CLI tool | remanence CLI fungující | ✅ init, serve, status, recall, aging |
+| 4 | CLI tool | engramia CLI fungující | ✅ init, serve, status, recall, aging |
 | 4.5 | Security tests | OWASP ASVS Level 2/3 | ✅ 270 testů (30 security), 81% coverage |
 | 4.5 | STRIDE audit resolved | všechna HIGH/MEDIUM | ✅ 24 bodů implementováno + SECURITY.md |
 | 4.6.1 | CHANGELOG + repo infra | CHANGELOG, .dockerignore, py.typed | ✅ |
 | 4.6 | PyPI weekly downloads | tracking starts | — |
 | 4.6 | GitHub stars | tracking starts | — |
 | 4.6 | Benchmark: success rate improvement | ≥15% vs baseline bez Brain | — |
-| 4.6.8 | CrewAI integrace | Fungující `pip install remanence[crewai]` | — |
+| 4.6.8 | CrewAI integrace | Fungující `pip install engramia[crewai]` | — |
 | 4.6.9 | MCP server | Fungující MCP integrace s Claude Desktop | — |
 | 5 | Enterprise features | RBAC + SSO + OTEL + GDPR | — |
 | 6 | Memory architecture | Knowledge graph + taxonomie + compression | — |
@@ -521,7 +521,7 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 Legenda: ✅ implementováno | 🔲 plánováno
 
 ```
-remanence/
+engramia/
 ├── CLAUDE.md                    ✅
 ├── roadmap.md                   ✅
 ├── README.md                    ✅
@@ -535,12 +535,12 @@ remanence/
 ├── docker-compose.yml           ✅
 ├── Dockerfile                   ✅
 │
-├── remanence/
+├── engramia/
 │   ├── __init__.py              ✅ Brain class + exceptions + __version__
 │   ├── brain.py                 ✅ Brain implementation
 │   ├── types.py                 ✅ Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
 │   ├── _util.py                 ✅ Shared utilities (jaccard, reuse_tier, extract_json_from_llm)
-│   ├── exceptions.py            ✅ RemanenceError, ProviderError, ValidationError, StorageError
+│   ├── exceptions.py            ✅ EngramiaError, ProviderError, ValidationError, StorageError
 │   │
 │   ├── core/                    ✅
 │   │   ├── __init__.py
@@ -584,7 +584,7 @@ remanence/
 │   │
 │   ├── sdk/                     ✅ (CrewAI deferred to post-launch)
 │   │   ├── __init__.py
-│   │   ├── langchain.py         ✅ RemanenceCallback (auto-learn, auto-recall)
+│   │   ├── langchain.py         ✅ EngramiaCallback (auto-learn, auto-recall)
 │   │   └── webhook.py           ✅ Lightweight HTTP client (urllib only)
 │   │
 │   ├── cli/                     ✅ Phase 4

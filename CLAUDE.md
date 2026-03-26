@@ -1,11 +1,11 @@
-# CLAUDE.md — Remanence
+# CLAUDE.md — Engramia
 
-## Co je Remanence
+## Co je Engramia
 
 Standalone Python knihovna a REST API pro **self-learning agent memory**.
 Řeší problém, který má každý agent framework: agenti se neučí z předchozích běhů.
 
-Remanence je extrakce nejhodnotnější části projektu Agent Factory V2 —
+Engramia je extrakce nejhodnotnější části projektu Agent Factory V2 —
 closed-loop learning systému, který se za 254 běhů naučil dosahovat 93% success rate.
 
 ## Problém
@@ -19,7 +19,7 @@ Existující agent frameworky (LangChain, CrewAI, AutoGPT) jsou statické:
 
 ## Řešení
 
-Remanence poskytuje **paměťovou vrstvu** pro libovolný agent framework:
+Engramia poskytuje **paměťovou vrstvu** pro libovolný agent framework:
 
 1. **Learn** — Zaznamenej výsledek běhu (task, kód, eval score, output, feedback)
 2. **Recall** — Najdi relevantní agenty/patterny pro nový task (semantic search + eval weighting)
@@ -32,12 +32,12 @@ Remanence poskytuje **paměťovou vrstvu** pro libovolný agent framework:
 Implementovaný stav (Phase 0–4.5, Phase 4.6 probíhá):
 
 ```
-remanence/
+engramia/
 ├── __init__.py              # Brain class + exceptions (public facade)
 ├── brain.py                 # Brain implementation
 ├── types.py                 # Pydantic modely (Pattern, Match, EvalResult, Pipeline, ...)
 ├── _util.py                 # Shared utility (extract_json_from_llm, jaccard, reuse_tier, PATTERNS_PREFIX)
-├── exceptions.py            # ✅ Custom exceptions (RemanenceError, ProviderError, ValidationError, StorageError) (Phase 4)
+├── exceptions.py            # ✅ Custom exceptions (EngramiaError, ProviderError, ValidationError, StorageError) (Phase 4)
 │
 ├── core/                    # ✅ Implementováno
 │   ├── success_patterns.py  # Pattern storage, aging (2%/týden), reuse tracking (+0.1, max 10.0)
@@ -65,7 +65,7 @@ remanence/
 ├── api/                     # ✅ Implementováno (Phase 2 + Phase 4.5)
 │   ├── app.py               # App factory (create_app), env var konfigurace
 │   ├── routes.py            # POST /learn /recall /compose /evaluate /aging /feedback/decay, GET /feedback /metrics /health, DELETE /patterns/{key}
-│   ├── auth.py              # Bearer token middleware (REMANENCE_API_KEYS, per-request)
+│   ├── auth.py              # Bearer token middleware (ENGRAMIA_API_KEYS, per-request)
 │   ├── deps.py              # Dependency injection (Brain singleton)
 │   ├── schemas.py           # Request/Response Pydantic modely
 │   ├── audit.py             # Structured audit logging (AUTH_FAILURE, PATTERN_DELETED, RATE_LIMITED)
@@ -80,7 +80,7 @@ remanence/
 │   └── failure_cluster.py   # Failure pattern clustering (Jaccard-based)
 │
 ├── sdk/                     # ✅ Implementováno (Phase 3)
-│   ├── langchain.py         # LangChain RemanenceCallback (auto-learn, auto-recall)
+│   ├── langchain.py         # LangChain EngramiaCallback (auto-learn, auto-recall)
 │   └── webhook.py           # Lightweight HTTP SDK client (urllib, no deps)
 │
 ├── cli/                     # ✅ Implementováno (Phase 4)
@@ -109,11 +109,11 @@ Brain je **model-agnostic** a **storage-agnostic**:
 - **Prompt evolution** — LLM generuje vylepšené prompty na základě recurring failure patterns; volitelné A/B testování.
 - **Failure clustering** — Jaccard-based seskupení opakujících se chyb pro identifikaci systémových problémů.
 - **Skill registry** — Explicitní capability tagging patternů; kombinuje s semantic search pro přesné matching.
-- **Custom exceptions** — `RemanenceError` hierarchie: `ProviderError`, `ValidationError`, `StorageError`. REST API mapuje ProviderError na HTTP 501.
+- **Custom exceptions** — `EngramiaError` hierarchie: `ProviderError`, `ValidationError`, `StorageError`. REST API mapuje ProviderError na HTTP 501.
 - **Security hardening** — OWASP ASVS Level 2/3: timing-safe auth (hmac.compare_digest), rate limiting (per-IP/path), security headers, CORS (disabled by default), body size limit, prompt injection delimiters, audit logging (structured JSON), Docker non-root user, API versioning /v1/. Error sanitization (no internal details in HTTP responses). Path traversal prevention (`..` rejection). LIKE wildcard escaping in PostgreSQL. See `SECURITY.md` for known limitations and production checklist.
 - **Input validation** — eval_score [0,10], import_data/delete_pattern prefix check, num_evals cap, SHA-256 pro key generation, max_length on all API schema string fields.
 - **Export/Import** — JSONL-compatible backup a migrace patternů (`brain.export()` / `brain.import_data()`).
-- **CLI** — Typer + Rich CLI (`remanence init/serve/status/recall/aging`).
+- **CLI** — Typer + Rich CLI (`engramia init/serve/status/recall/aging`).
 - **Model routing** — Empirická analýza: najdi nejlevnější model, který dosahuje ≥90% kvality nejdražšího.
 
 ### Plánované features (roadmap)
@@ -134,8 +134,8 @@ Brain je **model-agnostic** a **storage-agnostic**:
 ### Jako Python knihovna
 
 ```python
-from remanence import Memory
-from remanence.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from engramia import Memory
+from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
@@ -176,7 +176,7 @@ records = brain.export()   # list[dict] — JSONL-compatible
 imported = brain.import_data(records, overwrite=False)
 
 # Custom exceptions (Phase 4)
-from remanence import ProviderError, ValidationError
+from engramia import ProviderError, ValidationError
 try:
     brain.evaluate(task, code)
 except ProviderError:
@@ -186,9 +186,9 @@ except ProviderError:
 ### Jako LangChain plugin (Phase 3)
 
 ```python
-from remanence.sdk.langchain import RemanenceCallback
+from engramia.sdk.langchain import EngramiaCallback
 
-callback = RemanenceCallback(brain, auto_learn=True, auto_recall=True)
+callback = EngramiaCallback(brain, auto_learn=True, auto_recall=True)
 chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
 # Brain se automaticky učí z chain runs a recalluje relevantní kontext
 ```
@@ -200,7 +200,7 @@ chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
 docker compose up
 
 # PostgreSQL storage (prod)
-REMANENCE_STORAGE=postgres REMANENCE_DATABASE_URL=postgresql://... docker compose up
+ENGRAMIA_STORAGE=postgres ENGRAMIA_DATABASE_URL=postgresql://... docker compose up
 ```
 
 ```
@@ -259,36 +259,36 @@ Factory zůstává jako open-source referenční implementace, která dokazuje, 
 | `alembic.ini` | Alembic konfigurace pro DB migrace |
 | `docker-compose.yml` | Brain API + volitelný pgvector stack |
 | `Dockerfile` | Multi-stage build (builder + runtime) |
-| `remanence/__init__.py` | Public API surface (Brain class + exceptions + `__version__`) |
-| `remanence/exceptions.py` | Custom exceptions (RemanenceError, ProviderError, ValidationError, StorageError) |
-| `remanence/brain.py` | Brain facade — wiring všech internal stores |
-| `remanence/types.py` | Pydantic modely — Pattern, Match, EvalResult, Pipeline, Metrics, ... |
-| `remanence/_util.py` | Shared utility: `extract_json_from_llm()`, `jaccard()`, `reuse_tier()`, `PATTERNS_PREFIX` |
-| `remanence/providers/base.py` | ABC pro LLM, Embedding, Storage (vč. `search_similar()`) |
-| `remanence/providers/openai.py` | OpenAI LLM + Embeddings (lazy import, retry, native batch) |
-| `remanence/providers/json_storage.py` | JSON atomic storage + threading.Lock + cosine similarity |
-| `remanence/providers/postgres.py` | PostgreSQL + pgvector (HNSW, connection pool) |
-| `remanence/core/success_patterns.py` | Pattern storage, aging, reuse boost |
-| `remanence/core/eval_store.py` | Eval history, eval-weighted multiplier |
-| `remanence/core/eval_feedback.py` | Feedback clustering (Jaccard), decay, surfacing |
-| `remanence/core/metrics.py` | Run metriky, rolling history |
-| `remanence/reuse/matcher.py` | Semantic search + eval weighting |
-| `remanence/reuse/composer.py` | Pipeline decomposition + contract validation |
-| `remanence/reuse/contracts.py` | reads/writes chain validation + circular detection |
-| `remanence/eval/evaluator.py` | MultiEvaluator (N concurrent runs, median, variance) |
-| `remanence/api/app.py` | FastAPI app factory, env var konfigurace |
-| `remanence/api/routes.py` | Všechny API endpointy |
-| `remanence/api/auth.py` | Bearer token middleware |
-| `remanence/api/schemas.py` | API request/response modely |
-| `remanence/api/audit.py` | Structured audit logging (security events) |
-| `remanence/api/middleware.py` | Security headers, rate limiting, body size limit middleware |
-| `remanence/providers/anthropic.py` | Anthropic/Claude LLM (lazy import, retry) |
-| `remanence/providers/local_embeddings.py` | sentence-transformers (no API key, 384-dim) |
-| `remanence/core/skill_registry.py` | Capability-based pattern tagging |
-| `remanence/evolution/prompt_evolver.py` | LLM-based prompt improvement + A/B testing |
-| `remanence/evolution/failure_cluster.py` | Failure pattern clustering |
-| `remanence/sdk/langchain.py` | LangChain RemanenceCallback (auto-learn, auto-recall) |
-| `remanence/sdk/webhook.py` | Lightweight HTTP SDK client (urllib, no deps) |
-| `remanence/db/models.py` | SQLAlchemy modely (brain_data + brain_embeddings) |
-| `remanence/db/migrations/` | Alembic migrace (001_initial: schema + HNSW index) |
-| `remanence/cli/main.py` | Typer CLI — init, serve, status, recall, aging |
+| `engramia/__init__.py` | Public API surface (Brain class + exceptions + `__version__`) |
+| `engramia/exceptions.py` | Custom exceptions (EngramiaError, ProviderError, ValidationError, StorageError) |
+| `engramia/brain.py` | Brain facade — wiring všech internal stores |
+| `engramia/types.py` | Pydantic modely — Pattern, Match, EvalResult, Pipeline, Metrics, ... |
+| `engramia/_util.py` | Shared utility: `extract_json_from_llm()`, `jaccard()`, `reuse_tier()`, `PATTERNS_PREFIX` |
+| `engramia/providers/base.py` | ABC pro LLM, Embedding, Storage (vč. `search_similar()`) |
+| `engramia/providers/openai.py` | OpenAI LLM + Embeddings (lazy import, retry, native batch) |
+| `engramia/providers/json_storage.py` | JSON atomic storage + threading.Lock + cosine similarity |
+| `engramia/providers/postgres.py` | PostgreSQL + pgvector (HNSW, connection pool) |
+| `engramia/core/success_patterns.py` | Pattern storage, aging, reuse boost |
+| `engramia/core/eval_store.py` | Eval history, eval-weighted multiplier |
+| `engramia/core/eval_feedback.py` | Feedback clustering (Jaccard), decay, surfacing |
+| `engramia/core/metrics.py` | Run metriky, rolling history |
+| `engramia/reuse/matcher.py` | Semantic search + eval weighting |
+| `engramia/reuse/composer.py` | Pipeline decomposition + contract validation |
+| `engramia/reuse/contracts.py` | reads/writes chain validation + circular detection |
+| `engramia/eval/evaluator.py` | MultiEvaluator (N concurrent runs, median, variance) |
+| `engramia/api/app.py` | FastAPI app factory, env var konfigurace |
+| `engramia/api/routes.py` | Všechny API endpointy |
+| `engramia/api/auth.py` | Bearer token middleware |
+| `engramia/api/schemas.py` | API request/response modely |
+| `engramia/api/audit.py` | Structured audit logging (security events) |
+| `engramia/api/middleware.py` | Security headers, rate limiting, body size limit middleware |
+| `engramia/providers/anthropic.py` | Anthropic/Claude LLM (lazy import, retry) |
+| `engramia/providers/local_embeddings.py` | sentence-transformers (no API key, 384-dim) |
+| `engramia/core/skill_registry.py` | Capability-based pattern tagging |
+| `engramia/evolution/prompt_evolver.py` | LLM-based prompt improvement + A/B testing |
+| `engramia/evolution/failure_cluster.py` | Failure pattern clustering |
+| `engramia/sdk/langchain.py` | LangChain EngramiaCallback (auto-learn, auto-recall) |
+| `engramia/sdk/webhook.py` | Lightweight HTTP SDK client (urllib, no deps) |
+| `engramia/db/models.py` | SQLAlchemy modely (brain_data + brain_embeddings) |
+| `engramia/db/migrations/` | Alembic migrace (001_initial: schema + HNSW index) |
+| `engramia/cli/main.py` | Typer CLI — init, serve, status, recall, aging |

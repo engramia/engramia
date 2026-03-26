@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from remanence.eval.evaluator import MultiEvaluator, _check_adversarial, _extract_json
+from engramia.eval.evaluator import MultiEvaluator, _check_adversarial, _extract_json
 
 VALID_EVAL_JSON = json.dumps(
     {

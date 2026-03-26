@@ -5,9 +5,9 @@ import hashlib
 import numpy as np
 import pytest
 
-from remanence.brain import Memory
-from remanence.providers.base import EmbeddingProvider
-from remanence.providers.json_storage import JSONStorage
+from engramia.brain import Memory
+from engramia.providers.base import EmbeddingProvider
+from engramia.providers.json_storage import JSONStorage
 
 
 class FakeEmbeddings(EmbeddingProvider):

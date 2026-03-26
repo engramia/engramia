@@ -1,4 +1,4 @@
-"""Unit tests for RemanenceWebhook — mocks urllib to avoid live HTTP calls."""
+"""Unit tests for EngramiaWebhook — mocks urllib to avoid live HTTP calls."""
 
 import json
 from io import BytesIO
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from remanence.sdk.webhook import RemanenceWebhook, RemanenceWebhookError
+from engramia.sdk.webhook import EngramiaWebhook, EngramiaWebhookError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -25,9 +25,9 @@ def _mock_response(body: dict, status: int = 200, content_type: str = "applicati
     return resp
 
 
-def _hook(response_body: dict) -> RemanenceWebhook:
-    """Return a RemanenceWebhook whose HTTP calls always return *response_body*."""
-    hook = RemanenceWebhook(url="http://brain.local", api_key="sk-test")
+def _hook(response_body: dict) -> EngramiaWebhook:
+    """Return a EngramiaWebhook whose HTTP calls always return *response_body*."""
+    hook = EngramiaWebhook(url="http://brain.local", api_key="sk-test")
     hook._request = MagicMock(return_value=response_body)
     return hook
 
@@ -173,21 +173,21 @@ class TestErrorHandling:
     def test_http_error_raises_webhook_error(self):
         import urllib.error
 
-        hook = RemanenceWebhook(url="http://brain.local", api_key="sk-test")
+        hook = EngramiaWebhook(url="http://brain.local", api_key="sk-test")
         exc = urllib.error.HTTPError(
             url=None, code=401, msg="Unauthorized", hdrs=None, fp=BytesIO(b'{"detail":"bad key"}')
         )
-        with patch("urllib.request.urlopen", side_effect=exc), pytest.raises(RemanenceWebhookError) as exc_info:
+        with patch("urllib.request.urlopen", side_effect=exc), pytest.raises(EngramiaWebhookError) as exc_info:
             hook.learn(task="t", code="c", eval_score=5.0)
         assert exc_info.value.status_code == 401
 
     def test_connection_error_raises_webhook_error(self):
         import urllib.error
 
-        hook = RemanenceWebhook(url="http://brain.local")
+        hook = EngramiaWebhook(url="http://brain.local")
         with (
             patch("urllib.request.urlopen", side_effect=urllib.error.URLError("Connection refused")),
-            pytest.raises(RemanenceWebhookError) as exc_info,
+            pytest.raises(EngramiaWebhookError) as exc_info,
         ):
             hook.health()
         assert exc_info.value.status_code == 0

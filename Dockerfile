@@ -1,4 +1,4 @@
-# Multi-stage build for Remanence API
+# Multi-stage build for Engramia API
 #
 # Stage 1: builder — installs dependencies into a virtualenv
 # Stage 2: runtime — copies only the venv, keeps image small
@@ -20,25 +20,27 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 
 # Create a non-root user — never run services as root
-RUN addgroup --gid 1001 --system remanence \
-    && adduser --disabled-password --gecos "" --uid 1001 --ingroup remanence remanence
+RUN addgroup --gid 1001 --system engramia \
+    && adduser --disabled-password --gecos "" --uid 1001 --ingroup engramia engramia
 
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application source
-COPY remanence/ ./remanence/
+COPY engramia/ ./engramia/
 COPY alembic.ini ./
 
 # Create data directory and set ownership before switching user
-RUN mkdir -p /data/remanence_data && chown -R remanence:remanence /data /app
+RUN mkdir -p /data/engramia_data
+engramia: && chown -R engramia:engramia /data /app
 
 # Default configuration (override via env vars or docker-compose)
-ENV REMANENCE_STORAGE=json
-ENV REMANENCE_DATA_PATH=/data/remanence_data
-ENV REMANENCE_HOST=0.0.0.0
-ENV REMANENCE_PORT=8000
+ENV ENGRAMIA_STORAGE=json
+ENV ENGRAMIA_DATA_PATH=/data/engramia_data
+engramia:
+ENV ENGRAMIA_HOST=0.0.0.0
+ENV ENGRAMIA_PORT=8000
 
 # Persistent storage volume for JSON backend
 VOLUME ["/data"]
@@ -46,6 +48,6 @@ VOLUME ["/data"]
 EXPOSE 8000
 
 # Drop privileges — run as non-root brain user
-USER remanence
+USER engramia
 
-CMD ["uvicorn", "remanence.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "engramia.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

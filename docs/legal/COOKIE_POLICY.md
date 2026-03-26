@@ -1,6 +1,6 @@
 # Cookie Policy
 
-**Remanence — Self-Learning Memory Layer for AI Agents**
+**Engramia — Self-Learning Memory Layer for AI Agents**
 
 Last updated: 2026-03-23
 
@@ -8,9 +8,9 @@ Last updated: 2026-03-23
 
 ## 1. Introduction
 
-This Cookie Policy explains how Marek Čermák ("we", "us", "our") uses cookies and similar technologies on the Remanence website and dashboard (the "Website"). It should be read alongside our [Privacy Policy](PRIVACY_POLICY.md).
+This Cookie Policy explains how Marek Čermák ("we", "us", "our") uses cookies and similar technologies on the Engramia website and dashboard (the "Website"). It should be read alongside our [Privacy Policy](PRIVACY_POLICY.md).
 
-This policy does not apply to the Remanence API (Cloud Service), which does not use cookies. API authentication is handled via Bearer tokens in HTTP headers.
+This policy does not apply to the Engramia API (Cloud Service), which does not use cookies. API authentication is handled via Bearer tokens in HTTP headers.
 
 ## 2. What Are Cookies?
 

@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from remanence.exceptions import ValidationError
-from remanence.types import Pattern
+from engramia.exceptions import ValidationError
+from engramia.types import Pattern
 
 
 class TestDeletePattern:

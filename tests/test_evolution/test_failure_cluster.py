@@ -2,8 +2,8 @@
 
 import pytest
 
-from remanence.core.eval_feedback import EvalFeedbackStore
-from remanence.evolution.failure_cluster import FailureClusterer
+from engramia.core.eval_feedback import EvalFeedbackStore
+from engramia.evolution.failure_cluster import FailureClusterer
 
 
 @pytest.fixture

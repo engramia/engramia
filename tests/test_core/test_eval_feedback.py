@@ -2,7 +2,7 @@
 
 import pytest
 
-from remanence.core.eval_feedback import EvalFeedbackStore
+from engramia.core.eval_feedback import EvalFeedbackStore
 
 
 @pytest.fixture

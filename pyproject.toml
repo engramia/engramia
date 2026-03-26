@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "remanence"
+name = "engramia"
 version = "0.5.0"
 description = "Self-learning memory layer for AI agent frameworks"
 authors = [
@@ -31,11 +31,11 @@ dependencies = [
 
 # TODO: update URLs once the public repo is created
 [project.urls]
-Homepage = "https://github.com/remanence-ai/remanence"
-Documentation = "https://remanence.dev/docs"
-Repository = "https://github.com/remanence-ai/remanence"
-"Bug Tracker" = "https://github.com/remanence-ai/remanence/issues"
-Changelog = "https://github.com/remanence-ai/remanence/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/engramia-ai/engramia"
+Documentation = "https://engramia.dev/docs"
+Repository = "https://github.com/engramia-ai/engramia"
+"Bug Tracker" = "https://github.com/engramia-ai/engramia/issues"
+Changelog = "https://github.com/engramia-ai/engramia/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 openai = ["openai>=1.0"]
@@ -67,24 +67,24 @@ dev = [
     "mypy>=1.14",
 ]
 all = [
-    "remanence[openai,anthropic,local,postgres,api,cli,langchain,crewai,mcp]",
+    "engramia[openai,anthropic,local,postgres,api,cli,langchain,crewai,mcp]",
 ]
 
 [project.scripts]
-remanence = "remanence.cli.main:app"
-remanence-mcp = "remanence.mcp.server:main"
+engramia = "engramia.cli.main:app"
+engramia-mcp = "engramia.mcp.server:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["remanence"]
+packages = ["engramia"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "--cov=remanence --cov-fail-under=80"
+addopts = "--cov=engramia --cov-fail-under=80"
 
 [tool.coverage.run]
-source = ["remanence"]
-omit = ["remanence/db/migrations/*"]
+source = ["engramia"]
+omit = ["engramia/db/migrations/*"]
 
 [tool.ruff]
 target-version = "py312"
@@ -109,7 +109,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["remanence"]
+known-first-party = ["engramia"]
 
 [tool.mypy]
 python_version = "3.12"

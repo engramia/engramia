@@ -2,7 +2,7 @@
 
 import pytest
 
-from remanence.core.eval_feedback import EvalFeedbackStore, _parse_iso
+from engramia.core.eval_feedback import EvalFeedbackStore, _parse_iso
 
 
 class TestFeedbackLengthLimit:

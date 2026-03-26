@@ -8,7 +8,7 @@ import pytest
 
 def _make_provider(mock_client):
     """Create an AnthropicProvider with a mock client, bypassing __init__."""
-    from remanence.providers.anthropic import AnthropicProvider
+    from engramia.providers.anthropic import AnthropicProvider
 
     provider = AnthropicProvider.__new__(AnthropicProvider)
     provider._client = mock_client

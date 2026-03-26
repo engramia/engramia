@@ -1,6 +1,6 @@
 """Tests for pipeline contract validation."""
 
-from remanence.reuse.contracts import infer_initial_inputs, validate_contracts
+from engramia.reuse.contracts import infer_initial_inputs, validate_contracts
 
 
 class TestValidateContracts:

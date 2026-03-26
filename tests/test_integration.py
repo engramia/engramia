@@ -9,9 +9,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from remanence import Memory
-from remanence.exceptions import ProviderError
-from remanence.types import EvalResult, Pipeline
+from engramia import Memory
+from engramia.exceptions import ProviderError
+from engramia.types import EvalResult, Pipeline
 
 EVAL_RESPONSE = json.dumps(
     {

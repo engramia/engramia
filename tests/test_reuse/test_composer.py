@@ -2,10 +2,10 @@
 
 import json
 
-from remanence.core.eval_store import EvalStore
-from remanence.reuse.composer import PipelineComposer
-from remanence.reuse.matcher import PatternMatcher
-from remanence.types import Pattern
+from engramia.core.eval_store import EvalStore
+from engramia.reuse.composer import PipelineComposer
+from engramia.reuse.matcher import PatternMatcher
+from engramia.types import Pattern
 
 
 class FakeLLM:

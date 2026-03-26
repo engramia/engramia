@@ -2,9 +2,9 @@
 
 import pytest
 
-from remanence.brain import Memory
-from remanence.exceptions import ValidationError
-from remanence.providers.base import LLMProvider
+from engramia.brain import Memory
+from engramia.exceptions import ValidationError
+from engramia.providers.base import LLMProvider
 
 
 class ExplodingLLM(LLMProvider):
