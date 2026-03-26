@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from remanence.providers.json_storage import JSONStorage
+from engramia.providers.json_storage import JSONStorage
 
 
 @pytest.fixture

@@ -2,7 +2,7 @@
 
 import pytest
 
-from remanence.core.metrics import MetricsStore
+from engramia.core.metrics import MetricsStore
 
 
 @pytest.fixture

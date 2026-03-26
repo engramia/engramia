@@ -1,11 +1,11 @@
-"""Tests for RemanenceWebhook SDK client."""
+"""Tests for EngramiaWebhook SDK client."""
 
 import json
 from unittest.mock import patch
 
 import pytest
 
-from remanence.sdk.webhook import RemanenceWebhook, RemanenceWebhookError
+from engramia.sdk.webhook import EngramiaWebhook, EngramiaWebhookError
 
 
 class _FakeHeaders:
@@ -35,13 +35,13 @@ class FakeResponse:
         pass
 
 
-class TestRemanenceWebhook:
+class TestEngramiaWebhook:
     """Tests for the webhook SDK client."""
 
     def _client(self, api_key=None):
-        return RemanenceWebhook(url="http://localhost:8000", api_key=api_key)
+        return EngramiaWebhook(url="http://localhost:8000", api_key=api_key)
 
-    @patch("remanence.sdk.webhook.urllib.request.urlopen")
+    @patch("engramia.sdk.webhook.urllib.request.urlopen")
     def test_learn(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"stored": True, "pattern_count": 5})
         client = self._client()
@@ -50,7 +50,7 @@ class TestRemanenceWebhook:
         assert result["stored"] is True
         assert result["pattern_count"] == 5
 
-    @patch("remanence.sdk.webhook.urllib.request.urlopen")
+    @patch("engramia.sdk.webhook.urllib.request.urlopen")
     def test_recall(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"matches": [{"similarity": 0.95, "reuse_tier": "duplicate"}]})
         client = self._client()
@@ -59,7 +59,7 @@ class TestRemanenceWebhook:
         assert len(matches) == 1
         assert matches[0]["similarity"] == 0.95
 
-    @patch("remanence.sdk.webhook.urllib.request.urlopen")
+    @patch("engramia.sdk.webhook.urllib.request.urlopen")
     def test_health(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"status": "ok", "storage": "JSONStorage"})
         client = self._client()
@@ -67,7 +67,7 @@ class TestRemanenceWebhook:
         result = client.health()
         assert result["status"] == "ok"
 
-    @patch("remanence.sdk.webhook.urllib.request.urlopen")
+    @patch("engramia.sdk.webhook.urllib.request.urlopen")
     def test_metrics(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"runs": 10, "success_rate": 0.9})
         client = self._client()
@@ -75,21 +75,21 @@ class TestRemanenceWebhook:
         result = client.metrics()
         assert result["runs"] == 10
 
-    @patch("remanence.sdk.webhook.urllib.request.urlopen")
+    @patch("engramia.sdk.webhook.urllib.request.urlopen")
     def test_delete_pattern(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"deleted": True})
         client = self._client()
 
         assert client.delete_pattern("patterns/abc_123") is True
 
-    @patch("remanence.sdk.webhook.urllib.request.urlopen")
+    @patch("engramia.sdk.webhook.urllib.request.urlopen")
     def test_run_aging(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"pruned": 3})
         client = self._client()
 
         assert client.run_aging() == 3
 
-    @patch("remanence.sdk.webhook.urllib.request.urlopen")
+    @patch("engramia.sdk.webhook.urllib.request.urlopen")
     def test_feedback(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"feedback": ["Add error handling"]})
         client = self._client()
@@ -97,7 +97,7 @@ class TestRemanenceWebhook:
         result = client.feedback(limit=3)
         assert result == ["Add error handling"]
 
-    @patch("remanence.sdk.webhook.urllib.request.urlopen")
+    @patch("engramia.sdk.webhook.urllib.request.urlopen")
     def test_auth_header_included(self, mock_urlopen):
         mock_urlopen.return_value = FakeResponse({"status": "ok"})
         client = self._client(api_key="secret-123")
@@ -106,7 +106,7 @@ class TestRemanenceWebhook:
         req = mock_urlopen.call_args[0][0]
         assert req.get_header("Authorization") == "Bearer secret-123"
 
-    @patch("remanence.sdk.webhook.urllib.request.urlopen")
+    @patch("engramia.sdk.webhook.urllib.request.urlopen")
     def test_http_error_raises(self, mock_urlopen):
         import urllib.error
 
@@ -119,6 +119,6 @@ class TestRemanenceWebhook:
         )
         client = self._client()
 
-        with pytest.raises(RemanenceWebhookError) as exc_info:
+        with pytest.raises(EngramiaWebhookError) as exc_info:
             client.health()
         assert exc_info.value.status_code == 401

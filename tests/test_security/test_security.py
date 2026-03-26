@@ -21,9 +21,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from remanence import Memory
-from remanence.api.routes import router
-from remanence.exceptions import ValidationError as BrainValidationError
+from engramia import Memory
+from engramia.api.routes import router
+from engramia.exceptions import ValidationError as BrainValidationError
 
 # ---------------------------------------------------------------------------
 # Shared fixture
@@ -56,7 +56,7 @@ def api_client(fake_embeddings, storage):
 class TestTimingSafeAuth:
     def test_hmac_compare_digest_used(self):
         """auth.py must use hmac.compare_digest, not ==."""
-        from remanence.api import auth
+        from engramia.api import auth
 
         source = inspect.getsource(auth)
         assert "hmac.compare_digest" in source, "auth.py must use hmac.compare_digest for token comparison"
@@ -64,9 +64,9 @@ class TestTimingSafeAuth:
     def test_valid_token_accepted(self, tmp_path):
         import os
 
-        os.environ["REMANENCE_API_KEYS"] = "test-key-abc"
+        os.environ["ENGRAMIA_API_KEYS"] = "test-key-abc"
         try:
-            from remanence.providers.json_storage import JSONStorage
+            from engramia.providers.json_storage import JSONStorage
             from tests.conftest import FakeEmbeddings
 
             app = FastAPI()
@@ -79,7 +79,7 @@ class TestTimingSafeAuth:
             resp = client.get("/v1/health", headers={"Authorization": "Bearer test-key-abc"})
             assert resp.status_code == 200
         finally:
-            os.environ.pop("REMANENCE_API_KEYS", None)
+            os.environ.pop("ENGRAMIA_API_KEYS", None)
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ class TestTimingSafeAuth:
 class TestRateLimiting:
     def test_rate_limit_returns_429_on_burst(self, fake_embeddings, storage):
         """Sending more requests than the limit in one window should yield 429."""
-        from remanence.api.middleware import RateLimitMiddleware
+        from engramia.api.middleware import RateLimitMiddleware
 
         app = FastAPI()
         app.state.brain = Memory(embeddings=fake_embeddings, storage=storage)
@@ -105,7 +105,7 @@ class TestRateLimiting:
 
     def test_rate_limit_headers_present(self, fake_embeddings, storage):
         """429 response must include Retry-After header."""
-        from remanence.api.middleware import RateLimitMiddleware
+        from engramia.api.middleware import RateLimitMiddleware
 
         app = FastAPI()
         app.state.brain = Memory(embeddings=fake_embeddings, storage=storage)
@@ -213,7 +213,7 @@ class TestDeletePatternPrefix:
 class TestNumEvalsCap:
     def test_num_evals_capped_in_evaluate(self):
         """brain.evaluate() should cap num_evals at _MAX_NUM_EVALS silently."""
-        from remanence.brain import _MAX_NUM_EVALS
+        from engramia.brain import _MAX_NUM_EVALS
 
         assert _MAX_NUM_EVALS <= 20, "Sanity: cap must be reasonable"
 
@@ -230,7 +230,7 @@ class TestNumEvalsCap:
 
         import tempfile
 
-        from remanence.providers.json_storage import JSONStorage
+        from engramia.providers.json_storage import JSONStorage
         from tests.conftest import FakeEmbeddings
 
         with tempfile.TemporaryDirectory() as td:
@@ -251,20 +251,20 @@ class TestNumEvalsCap:
 
 class TestPromptInjectionDelimiters:
     def test_evaluator_uses_xml_delimiters(self):
-        from remanence.eval.evaluator import _EVAL_USER
+        from engramia.eval.evaluator import _EVAL_USER
 
         assert "<task>" in _EVAL_USER and "</task>" in _EVAL_USER
         assert "<code>" in _EVAL_USER and "</code>" in _EVAL_USER
         assert "disregard" in _EVAL_USER.lower() or "ignore" in _EVAL_USER.lower()
 
     def test_composer_uses_xml_delimiters(self):
-        from remanence.reuse.composer import _DECOMPOSE_USER
+        from engramia.reuse.composer import _DECOMPOSE_USER
 
         assert "<task>" in _DECOMPOSE_USER and "</task>" in _DECOMPOSE_USER
         assert "disregard" in _DECOMPOSE_USER.lower() or "ignore" in _DECOMPOSE_USER.lower()
 
     def test_evolver_uses_xml_delimiters(self):
-        from remanence.evolution.prompt_evolver import _EVOLVE_USER
+        from engramia.evolution.prompt_evolver import _EVOLVE_USER
 
         assert "<current_prompt>" in _EVOLVE_USER
         assert "disregard" in _EVOLVE_USER.lower() or "ignore" in _EVOLVE_USER.lower()
@@ -277,7 +277,7 @@ class TestPromptInjectionDelimiters:
 
 class TestSecurityHeaders:
     def test_security_headers_present(self, fake_embeddings, storage):
-        from remanence.api.middleware import SecurityHeadersMiddleware
+        from engramia.api.middleware import SecurityHeadersMiddleware
 
         app = FastAPI()
         app.state.brain = Memory(embeddings=fake_embeddings, storage=storage)
@@ -298,7 +298,7 @@ class TestSecurityHeaders:
 
 class TestBodySizeLimit:
     def test_large_body_returns_413(self, fake_embeddings, storage):
-        from remanence.api.middleware import BodySizeLimitMiddleware
+        from engramia.api.middleware import BodySizeLimitMiddleware
 
         app = FastAPI()
         app.state.brain = Memory(embeddings=fake_embeddings, storage=storage)
@@ -350,7 +350,7 @@ class TestApiVersioning:
 class TestPatternKeyGeneration:
     def test_pattern_key_uses_sha256(self):
         """Brain._pattern_key() must use SHA-256, not hashlib.md5()."""
-        from remanence import brain as brain_module
+        from engramia import brain as brain_module
 
         source = inspect.getsource(brain_module)
         assert "sha256" in source
@@ -373,9 +373,9 @@ class TestAuditLogging:
         import logging
         import os
 
-        os.environ["REMANENCE_API_KEYS"] = "real-key"
+        os.environ["ENGRAMIA_API_KEYS"] = "real-key"
         try:
-            from remanence.providers.json_storage import JSONStorage
+            from engramia.providers.json_storage import JSONStorage
             from tests.conftest import FakeEmbeddings
 
             app = FastAPI()
@@ -386,12 +386,12 @@ class TestAuditLogging:
             app.include_router(router, prefix="/v1")
             client = TestClient(app)
 
-            with caplog.at_level(logging.WARNING, logger="remanence.audit"):
+            with caplog.at_level(logging.WARNING, logger="engramia.audit"):
                 client.get("/v1/health", headers={"Authorization": "Bearer wrong-key"})
 
             assert any("auth_failure" in r.message for r in caplog.records)
         finally:
-            os.environ.pop("REMANENCE_API_KEYS", None)
+            os.environ.pop("ENGRAMIA_API_KEYS", None)
 
     def test_pattern_deleted_logged(self, caplog, brain):
         import logging
@@ -410,7 +410,7 @@ class TestAuditLogging:
         app.include_router(router, prefix="/v1")
         client = TestClient(app)
 
-        with caplog.at_level(logging.WARNING, logger="remanence.audit"):
+        with caplog.at_level(logging.WARNING, logger="engramia.audit"):
             resp = client.delete(f"/v1/patterns/{key}")
         assert resp.status_code == 200
         assert resp.json()["deleted"] is True

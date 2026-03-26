@@ -1,6 +1,6 @@
 """Tests for Brain.export() and Brain.import_data()."""
 
-from remanence.brain import Memory
+from engramia.brain import Memory
 
 
 class TestExport:

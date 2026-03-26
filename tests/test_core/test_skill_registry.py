@@ -1,6 +1,6 @@
 """Tests for SkillRegistry."""
 
-from remanence.core.skill_registry import SkillRegistry
+from engramia.core.skill_registry import SkillRegistry
 
 
 class TestSkillRegistry:

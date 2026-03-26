@@ -8,9 +8,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from remanence import Memory
-from remanence.api.routes import router
-from remanence.exceptions import ValidationError as BrainValidationError
+from engramia import Memory
+from engramia.api.routes import router
+from engramia.exceptions import ValidationError as BrainValidationError
 
 EVOLVE_RESPONSE = json.dumps(
     {

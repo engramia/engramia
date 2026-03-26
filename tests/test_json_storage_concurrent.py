@@ -7,7 +7,7 @@ JSONStorage instance do not corrupt data or raise exceptions.
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from remanence.providers.json_storage import JSONStorage
+from engramia.providers.json_storage import JSONStorage
 
 
 class TestConcurrentWrites:

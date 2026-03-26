@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from remanence.core.eval_feedback import EvalFeedbackStore
-from remanence.evolution.prompt_evolver import PromptEvolver
+from engramia.core.eval_feedback import EvalFeedbackStore
+from engramia.evolution.prompt_evolver import PromptEvolver
 
 
 @pytest.fixture

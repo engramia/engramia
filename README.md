@@ -1,4 +1,4 @@
-# Remanence
+# Engramia
 
 Self-learning memory layer for AI agent frameworks.
 
@@ -13,7 +13,7 @@ Self-learning memory layer for AI agent frameworks.
 
 ## Co to je
 
-Remanence řeší problém, který má každý agent framework: **agenti se neučí z předchozích běhů**.
+Engramia řeší problém, který má každý agent framework: **agenti se neučí z předchozích běhů**.
 
 LangChain, CrewAI, AutoGPT a podobné frameworky jsou statické — každý běh začíná od nuly.
 Brain je paměťová vrstva, kterou přidáš pod jakýkoli framework a která:
@@ -32,13 +32,13 @@ Extrahováno z Agent Factory V2 — systému, který se za 254 běhů naučil do
 
 ```bash
 # Základ (JSON storage, bez LLM/embeddings providera)
-pip install remanence
+pip install engramia
 
 # S OpenAI providerem (doporučeno pro začátek)
-pip install "remanence[openai]"
+pip install "engramia[openai]"
 
 # REST API + PostgreSQL
-pip install "remanence[openai,api,postgres]"
+pip install "engramia[openai,api,postgres]"
 ```
 
 ### Optional extras
@@ -50,7 +50,7 @@ pip install "remanence[openai,api,postgres]"
 | `api` | FastAPI REST server | ✅ |
 | `anthropic` | Anthropic/Claude LLM provider | ✅ |
 | `local` | sentence-transformers embeddings, bez API klíče | ✅ |
-| `langchain` | LangChain RemanenceCallback | ✅ |
+| `langchain` | LangChain EngramiaCallback | ✅ |
 | `crewai` | CrewAI BrainMiddleware | Post-launch |
 | `cli` | CLI tool (Typer + Rich) | ✅ |
 | `mcp` | MCP server (Claude Desktop, Cursor, Windsurf) | ✅ |
@@ -61,8 +61,8 @@ pip install "remanence[openai,api,postgres]"
 ## Rychlý start
 
 ```python
-from remanence import Memory
-from remanence.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from engramia import Memory
+from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
@@ -295,7 +295,7 @@ print(f"Importováno {imported} patternů")
 Brain používá vlastní hierarchii výjimek pro přesné error handling:
 
 ```python
-from remanence import MemoryError, ProviderError, ValidationError, StorageError
+from engramia import MemoryError, ProviderError, ValidationError, StorageError
 
 try:
     result = brain.evaluate(task, code)
@@ -305,7 +305,7 @@ except ProviderError:
 except ValidationError:
     # Neplatný vstup (prázdný task, příliš dlouhý kód, ...)
     pass
-except RemanenceError:
+except EngramiaError:
     # Jakákoli Brain výjimka
     pass
 ```
@@ -315,9 +315,9 @@ except RemanenceError:
 ### LangChain integrace
 
 ```python
-from remanence.sdk.langchain import RemanenceCallback
+from engramia.sdk.langchain import EngramiaCallback
 
-callback = RemanenceCallback(brain, auto_learn=True, auto_recall=True)
+callback = EngramiaCallback(brain, auto_learn=True, auto_recall=True)
 chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
 # Brain se automaticky učí z chain runs a recalluje relevantní kontext
 ```
@@ -327,9 +327,9 @@ chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
 ### Webhook SDK klient
 
 ```python
-from remanence.sdk.webhook import RemanenceWebhook
+from engramia.sdk.webhook import EngramiaWebhook
 
-hook = RemanenceWebhook(url="http://localhost:8000", api_key="sk-...")
+hook = EngramiaWebhook(url="http://localhost:8000", api_key="sk-...")
 hook.learn(task="Parse CSV", code=code, eval_score=8.5)
 matches = hook.recall(task="Read CSV and compute averages")
 ```
@@ -345,8 +345,8 @@ matches = hook.recall(task="Read CSV and compute averages")
 docker compose up
 
 # PostgreSQL storage (prod)
-REMANENCE_STORAGE=postgres \
-REMANENCE_DATABASE_URL=postgresql://user:pass@localhost:5432/brain \
+ENGRAMIA_STORAGE=postgres \
+ENGRAMIA_DATABASE_URL=postgresql://user:pass@localhost:5432/brain \
 OPENAI_API_KEY=sk-... \
 docker compose up
 ```
@@ -357,15 +357,15 @@ Po startu: Swagger UI na [http://localhost:8000/docs](http://localhost:8000/docs
 
 | Proměnná | Default | Popis |
 |----------|---------|-------|
-| `REMANENCE_STORAGE` | `json` | `json` nebo `postgres` |
-| `REMANENCE_DATA_PATH` | `./brain_data` | Cesta pro JSON storage |
-| `REMANENCE_DATABASE_URL` | — | PostgreSQL URL (jen pro `postgres`) |
-| `REMANENCE_LLM_PROVIDER` | `openai` | LLM provider |
-| `REMANENCE_LLM_MODEL` | `gpt-4.1` | Model ID |
+| `ENGRAMIA_STORAGE` | `json` | `json` nebo `postgres` |
+| `ENGRAMIA_DATA_PATH` | `./brain_data` | Cesta pro JSON storage |
+| `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (jen pro `postgres`) |
+| `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM provider |
+| `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model ID |
 | `OPENAI_API_KEY` | — | OpenAI API klíč |
-| `REMANENCE_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
-| `REMANENCE_API_KEYS` | *(prázdné)* | Bearer tokeny (prázdné = dev mode, bez auth) |
-| `REMANENCE_PORT` | `8000` | Port |
+| `ENGRAMIA_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
+| `ENGRAMIA_API_KEYS` | *(prázdné)* | Bearer tokeny (prázdné = dev mode, bez auth) |
+| `ENGRAMIA_PORT` | `8000` | Port |
 
 ### Endpointy
 
@@ -412,7 +412,7 @@ curl http://localhost:8000/v1/health
 
 ```bash
 # Set keys
-REMANENCE_API_KEYS=my-secret-key docker compose up
+ENGRAMIA_API_KEYS=my-secret-key docker compose up
 
 # Use key
 curl -H "Authorization: Bearer my-secret-key" http://localhost:8000/v1/metrics
@@ -422,10 +422,10 @@ curl -H "Authorization: Bearer my-secret-key" http://localhost:8000/v1/metrics
 
 | Proměnná | Default | Popis |
 |----------|---------|-------|
-| `REMANENCE_CORS_ORIGINS` | *(prázdné)* | Povolené CORS origins (CORS vypnutý pokud prázdné) |
-| `REMANENCE_RATE_LIMIT_DEFAULT` | `60` | Max požadavků/min pro standardní endpointy |
-| `REMANENCE_RATE_LIMIT_EXPENSIVE` | `10` | Max požadavků/min pro LLM-intensive endpointy |
-| `REMANENCE_MAX_BODY_SIZE` | `1048576` | Max velikost request body v bytech (1 MB) |
+| `ENGRAMIA_CORS_ORIGINS` | *(prázdné)* | Povolené CORS origins (CORS vypnutý pokud prázdné) |
+| `ENGRAMIA_RATE_LIMIT_DEFAULT` | `60` | Max požadavků/min pro standardní endpointy |
+| `ENGRAMIA_RATE_LIMIT_EXPENSIVE` | `10` | Max požadavků/min pro LLM-intensive endpointy |
+| `ENGRAMIA_MAX_BODY_SIZE` | `1048576` | Max velikost request body v bytech (1 MB) |
 
 ---
 
@@ -437,8 +437,8 @@ Spuštění s pgvector backendou:
 # 1. Uncomment pgvector service in docker-compose.yml
 
 # 2. Spuštění
-REMANENCE_STORAGE=postgres \
-REMANENCE_DATABASE_URL=postgresql://brain:brain@pgvector:5432/brain \
+ENGRAMIA_STORAGE=postgres \
+ENGRAMIA_DATABASE_URL=postgresql://brain:brain@pgvector:5432/brain \
 docker compose up
 
 # 3. Aplikace migrací (první spuštění)
@@ -448,9 +448,9 @@ docker compose exec brain-api alembic upgrade head
 Nebo bez Dockeru:
 
 ```bash
-pip install "remanence[openai,postgres]"
+pip install "engramia[openai,postgres]"
 
-from remanence.providers.postgres import PostgresStorage
+from engramia.providers.postgres import PostgresStorage
 storage = PostgresStorage(database_url="postgresql://...")
 mem = Memory(embeddings=OpenAIEmbeddings(), storage=storage, llm=OpenAIProvider())
 ```
@@ -465,7 +465,7 @@ mem = Memory(embeddings=OpenAIEmbeddings(), storage=storage, llm=OpenAIProvider(
 import os
 os.environ["OPENAI_API_KEY"] = "sk-..."
 
-from remanence.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
@@ -494,41 +494,41 @@ brain.evaluate(...) # ❌ ProviderError: evaluate() requires llm=...
 
 ```bash
 # Instalace
-pip install "remanence[cli]"
+pip install "engramia[cli]"
 
 # Inicializace
-remanence init --path ./brain_data
+engramia init --path ./brain_data
 
 # Spuštění REST API serveru
-remanence serve --host 0.0.0.0 --port 8000
+engramia serve --host 0.0.0.0 --port 8000
 
 # Metriky a statistiky
-remanence status --path ./brain_data
+engramia status --path ./brain_data
 
 # Sémantické vyhledávání
-remanence recall "Parse CSV and compute statistics" --limit 5
+engramia recall "Parse CSV and compute statistics" --limit 5
 
 # Pattern aging (decay + prune)
-remanence aging --path ./brain_data
+engramia aging --path ./brain_data
 ```
 
 ---
 
 ## MCP Server
 
-Remanence lze spustit jako **MCP server** (Model Context Protocol) a připojit ho
+Engramia lze spustit jako **MCP server** (Model Context Protocol) a připojit ho
 přímo do Claude Desktop, Cursor, Windsurf nebo VS Code Copilot.
 
 ### Instalace
 
 ```bash
-pip install "remanence[openai,mcp]"
+pip install "engramia[openai,mcp]"
 ```
 
 ### Spuštění
 
 ```bash
-remanence-mcp
+engramia-mcp
 ```
 
 Server běží přes **stdio transport** — MCP klient ho spustí jako subprocess automaticky.
@@ -541,10 +541,10 @@ Server běží přes **stdio transport** — MCP klient ho spustí jako subproce
 ```json
 {
   "mcpServers": {
-    "remanence": {
-      "command": "remanence-mcp",
+    "engramia": {
+      "command": "engramia-mcp",
       "env": {
-        "REMANENCE_DATA_PATH": "/path/to/brain_data",
+        "ENGRAMIA_DATA_PATH": "/path/to/brain_data",
         "OPENAI_API_KEY": "sk-..."
       }
     }
@@ -572,11 +572,11 @@ MCP server používá stejné env vars jako REST API:
 
 | Proměnná | Default | Popis |
 |----------|---------|-------|
-| `REMANENCE_STORAGE` | `json` | `json` nebo `postgres` |
-| `REMANENCE_DATA_PATH` | `./brain_data` | Cesta pro JSON storage |
-| `REMANENCE_DATABASE_URL` | — | PostgreSQL URL (jen pro `postgres`) |
-| `REMANENCE_LLM_PROVIDER` | `openai` | LLM provider |
-| `REMANENCE_LLM_MODEL` | `gpt-4.1` | Model ID |
+| `ENGRAMIA_STORAGE` | `json` | `json` nebo `postgres` |
+| `ENGRAMIA_DATA_PATH` | `./brain_data` | Cesta pro JSON storage |
+| `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (jen pro `postgres`) |
+| `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM provider |
+| `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model ID |
 | `OPENAI_API_KEY` | — | OpenAI API klíč |
 
 ---
@@ -584,7 +584,7 @@ MCP server používá stejné env vars jako REST API:
 ## Architektura
 
 ```
-remanence/
+engramia/
 ├── brain.py             # Brain facade (public API)
 ├── types.py             # Pydantic modely
 ├── _util.py             # Shared utility
@@ -628,10 +628,10 @@ remanence/
 │   └── failure_cluster.py   # Failure pattern clustering
 │
 ├── sdk/                 # Framework integrations (Phase 3)
-│   ├── langchain.py         # LangChain RemanenceCallback
+│   ├── langchain.py         # LangChain EngramiaCallback
 │   └── webhook.py           # Lightweight HTTP SDK client
 │
-├── exceptions.py        # Custom exception hierarchy (RemanenceError, ProviderError, ...)
+├── exceptions.py        # Custom exception hierarchy (EngramiaError, ProviderError, ...)
 ├── _factory.py          # Shared Brain provider factory (REST API + MCP)
 │
 ├── cli/                 # CLI tool (Typer + Rich)
@@ -666,7 +666,7 @@ remanence/
 | REST API (FastAPI) — 14 endpoints | ✅ Phase 2+3+4 |
 | PostgreSQL + pgvector | ✅ Phase 2 |
 | Docker + docker-compose | ✅ Phase 2 |
-| LangChain RemanenceCallback | ✅ Phase 3 |
+| LangChain EngramiaCallback | ✅ Phase 3 |
 | Webhook SDK client | ✅ Phase 3 |
 | CLI (Typer + Rich) | ✅ Phase 4 |
 | MCP server (7 tools, stdio transport) | ✅ Phase 4.6.9 |
@@ -684,7 +684,7 @@ pip install -e ".[dev,openai]"
 pytest
 
 # S coverage reportem
-pytest --cov=remanence --cov-report=term-missing
+pytest --cov=engramia --cov-report=term-missing
 ```
 
 Testy nevyžadují API klíče — používají `FakeEmbeddings` (deterministické vektory z MD5 hashe) a mockovaný LLM. FastAPI testy používají `TestClient` z httpx.

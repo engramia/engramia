@@ -5,7 +5,7 @@ import os
 import pytest
 from typer.testing import CliRunner
 
-from remanence.cli.main import app
+from engramia.cli.main import app
 
 runner = CliRunner()
 
@@ -45,13 +45,13 @@ class TestAgingCommand:
 class TestRecallCommand:
     def test_recall_requires_embeddings_env(self, tmp_path, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        monkeypatch.delenv("REMANENCE_LOCAL_EMBEDDINGS", raising=False)
+        monkeypatch.delenv("ENGRAMIA_LOCAL_EMBEDDINGS", raising=False)
         result = runner.invoke(app, ["recall", "some task", "--path", str(tmp_path)])
         assert result.exit_code == 1
         assert "No embedding provider" in result.output
 
     def test_recall_empty_storage_no_matches(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("REMANENCE_LOCAL_EMBEDDINGS", "1")
+        monkeypatch.setenv("ENGRAMIA_LOCAL_EMBEDDINGS", "1")
         try:
             from sentence_transformers import SentenceTransformer  # noqa: F401
         except ImportError:
