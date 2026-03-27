@@ -60,6 +60,7 @@ nav:
   - Providers: providers.md
   - Integrations:
       - LangChain: integrations/langchain.md
+      - CrewAI: integrations/crewai.md
       - MCP Server: integrations/mcp.md
       - Webhook SDK: integrations/webhook.md
   - CLI: cli.md

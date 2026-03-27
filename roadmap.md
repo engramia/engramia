@@ -362,6 +362,35 @@ Přidat copyright inline k Licensed Work — správně: Licensed Work: Engramia,
 
 ---
 
+#### Fáze 4.6.10: Agent Factory V2 integrace (produkční test)
+> Cíl: Ověřit Engramia Brain v reálném prostředí — Agent Factory V2 jako první
+> skutečný konzument paměťové vrstvy.
+>
+> Detailní postup: **[docs/integration-agent-factory.md](docs/integration-agent-factory.md)**
+
+**Fáze 1 — Lokální test (docker compose + localhost):**
+- [ ] Vytvořit `memory/engramia_bridge.py` v agent_factory_v2 (webhook SDK wrapper, no-op pokud ENGRAMIA_URL není nastaveno)
+- [ ] Learn hook v `orchestrator/generation.py` — po úspěšném runu (`add_success_pattern` + eval_score) → `POST /v1/learn`
+- [ ] Recall hook v `orchestrator/generation.py` — před code generation → `POST /v1/recall` (log only, no inject v MVP)
+- [ ] Ověřit: `python factory.py "task"` → `GET /v1/metrics` → `pattern_count >= 1`
+- [ ] Ověřit: druhý recall na podobný task vrátí pattern z prvního runu
+
+**Fáze 2 — Produkční test (Hetzner VM):**
+- [ ] Zpřístupnit API: Hetzner firewall + port 8000 OR **Caddy + TLS** → `api.engramia.dev` *(viz Fáze 4.6.6)*
+- [ ] Nastavit `ENGRAMIA_API_KEYS` na VM (ověřit že není prázdné/placeholder)
+- [ ] Ověřit běžící container: `docker ps | grep engramia`
+- [ ] Přepnout agent_factory na VM URL, spustit 3–5 runů s různými tasky
+- [ ] Ověřit recall cross-run paměť
+
+**Fáze 3 — Plná integrace (po ověření MVP):**
+- [ ] Inject Engramia context do architect promptu (`agents/architect.py`)
+- [ ] Inject Engramia feedback do coder promptu (merge s lokální feedback DB)
+- [ ] Benchmark: porovnat success rate/eval score před a po zapojení Brain
+
+**Blocker identifikován:** Port 8000 na VM není dostupný zvenčí (Hetzner firewall). Řeší Fáze 2 výše nebo Caddy v Fázi 4.6.6.
+
+---
+
 ### Fáze 4.5: Security Audit + Hardening
 > Cíl: OWASP ASVS Level 2/3. Systematický security audit + hardening před launch.
 > Metodologie: OWASP ASVS + STRIDE threat model.
