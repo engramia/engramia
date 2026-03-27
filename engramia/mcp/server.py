@@ -80,7 +80,7 @@ async def list_tools() -> list[types.Tool]:
                     "code": {"type": "string", "description": "Agent source code / solution."},
                     "eval_score": {
                         "type": "number",
-                        "description": "Quality score 0–10.",
+                        "description": "Quality score 0-10.",
                         "minimum": 0,
                         "maximum": 10,
                     },
@@ -101,7 +101,7 @@ async def list_tools() -> list[types.Tool]:
                     "task": {"type": "string", "description": "Task to find relevant patterns for."},
                     "limit": {
                         "type": "integer",
-                        "description": "Max results (1–50).",
+                        "description": "Max results (1-50).",
                         "minimum": 1,
                         "maximum": 50,
                         "default": 5,
