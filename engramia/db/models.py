@@ -13,6 +13,7 @@ HNSW index on ``brain_embeddings.embedding`` enables sub-millisecond ANN
 search via pgvector's ``<=>`` cosine distance operator.
 """
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Index, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -49,7 +50,7 @@ class BrainEmbedding(Base):
     # Vector dimension is fixed at 1536 (OpenAI text-embedding-3-small).
     # pgvector requires a concrete dimension at DDL time.
     # Use the HNSW index below for approximate nearest-neighbour search.
-    embedding: Mapped[list] = mapped_column(nullable=False)
+    embedding: Mapped[list] = mapped_column(Vector(1536), nullable=False)
 
 
 # HNSW index for cosine similarity search.
