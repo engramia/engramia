@@ -92,8 +92,7 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="brain_recall",
             description=(
-                "Find stored patterns most relevant to a new task using semantic search "
-                "with eval-score weighting."
+                "Find stored patterns most relevant to a new task using semantic search with eval-score weighting."
             ),
             inputSchema={
                 "type": "object",
@@ -113,8 +112,7 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="brain_evaluate",
             description=(
-                "Run N independent LLM evaluations on an agent run and return "
-                "median score, variance, and feedback."
+                "Run N independent LLM evaluations on an agent run and return median score, variance, and feedback."
             ),
             inputSchema={
                 "type": "object",
@@ -148,9 +146,7 @@ async def list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="brain_feedback",
-            description=(
-                "Return top recurring quality issues suitable for injection into agent prompts."
-            ),
+            description=("Return top recurring quality issues suitable for injection into agent prompts."),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -175,8 +171,7 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="brain_aging",
             description=(
-                "Apply time-based decay to all stored patterns (2%/week) "
-                "and prune those below the minimum threshold."
+                "Apply time-based decay to all stored patterns (2%/week) and prune those below the minimum threshold."
             ),
             inputSchema={"type": "object", "properties": {}},
         ),
