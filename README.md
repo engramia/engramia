@@ -51,7 +51,7 @@ pip install "engramia[openai,api,postgres]"
 | `anthropic` | Anthropic/Claude LLM provider | ✅ |
 | `local` | sentence-transformers embeddings, bez API klíče | ✅ |
 | `langchain` | LangChain EngramiaCallback | ✅ |
-| `crewai` | CrewAI BrainMiddleware | Post-launch |
+| `crewai` | CrewAI EngramiaCrewCallback | ✅ |
 | `cli` | CLI tool (Typer + Rich) | ✅ |
 | `mcp` | MCP server (Claude Desktop, Cursor, Windsurf) | ✅ |
 | `dev` | pytest, coverage, vývojové nástroje | ✅ |
@@ -284,7 +284,7 @@ with open("backup.jsonl") as f:
     records = [json.loads(line) for line in f]
 
 new_mem = Memory(embeddings=embeddings, storage=postgres_storage)
-imported = new_brain.import_data(records)
+imported = new_mem.import_data(records)
 print(f"Importováno {imported} patternů")
 ```
 
@@ -483,9 +483,9 @@ mem = Memory(
     llm=None,  # default
 )
 
-brain.learn(...)    # ✅ funguje
-brain.recall(...)   # ✅ funguje
-brain.evaluate(...) # ❌ ProviderError: evaluate() requires llm=...
+mem.learn(...)    # ✅ funguje
+mem.recall(...)   # ✅ funguje
+mem.evaluate(...) # ❌ ProviderError: evaluate() requires llm=...
 ```
 
 ---
@@ -670,7 +670,7 @@ engramia/
 | Webhook SDK client | ✅ Phase 3 |
 | CLI (Typer + Rich) | ✅ Phase 4 |
 | MCP server (7 tools, stdio transport) | ✅ Phase 4.6.9 |
-| CrewAI plugin | Post-launch |
+| CrewAI EngramiaCrewCallback | ✅ Phase 4.6.8 |
 
 ---
 

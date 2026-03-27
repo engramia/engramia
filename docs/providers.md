@@ -25,7 +25,7 @@ Includes automatic retry (3 attempts) on transient errors.
 ```python
 from engramia.providers import AnthropicProvider
 
-llm = AnthropicProvider(model="claude-sonnet-4-20250514")
+llm = AnthropicProvider(model="claude-sonnet-4-6")
 ```
 
 Requires `ANTHROPIC_API_KEY` environment variable.
@@ -161,7 +161,7 @@ mem = Memory(
 
 # Anthropic + OpenAI embeddings + PostgreSQL
 mem = Memory(
-    llm=AnthropicProvider(model="claude-sonnet-4-20250514"),
+    llm=AnthropicProvider(model="claude-sonnet-4-6"),
     embeddings=OpenAIEmbeddings(),
     storage=PostgresStorage(database_url="postgresql://..."),
 )

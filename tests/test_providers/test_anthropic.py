@@ -14,7 +14,7 @@ def _make_provider(mock_client):
 
     provider = AnthropicProvider.__new__(AnthropicProvider)
     provider._client = mock_client
-    provider._model = "claude-sonnet-4-20250514"
+    provider._model = "claude-sonnet-4-6"
     provider._max_retries = 3
     provider._max_tokens = 4096
     return provider
@@ -101,3 +101,56 @@ class TestAnthropicProvider:
         with pytest.raises(Exception, match="bad key"):
             provider.call("test")
         assert mock_client.messages.create.call_count == 1
+
+    def test_does_not_retry_permission_denied(self):
+        """PermissionDeniedError must surface immediately, not be retried."""
+        mock_client = MagicMock()
+        mock_client.messages.create.side_effect = _fake_anthropic.PermissionDeniedError("no permission")
+        provider = _make_provider(mock_client)
+
+        with pytest.raises(Exception):
+            provider.call("test")
+        assert mock_client.messages.create.call_count == 1
+
+    def test_does_not_retry_bad_request(self):
+        """BadRequestError (400) must surface immediately, not be retried."""
+        mock_client = MagicMock()
+        mock_client.messages.create.side_effect = _fake_anthropic.BadRequestError("bad request")
+        provider = _make_provider(mock_client)
+
+        with pytest.raises(Exception):
+            provider.call("test")
+        assert mock_client.messages.create.call_count == 1
+
+    def test_no_text_blocks_returns_empty_string(self):
+        """When response.content has no 'text' type blocks, call() returns ''."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        # Simulate a response with only a non-text block (e.g. tool_use)
+        mock_block = MagicMock()
+        mock_block.type = "tool_use"
+        mock_response.content = [mock_block]
+        mock_client.messages.create.return_value = mock_response
+        provider = _make_provider(mock_client)
+
+        result = provider.call("test")
+        assert result == ""
+
+    def test_empty_content_list_returns_empty_string(self):
+        """When response.content is empty, call() returns '' rather than raising."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = []
+        mock_client.messages.create.return_value = mock_response
+        provider = _make_provider(mock_client)
+
+        result = provider.call("test")
+        assert result == ""
+
+    def test_import_error_raised_when_anthropic_not_installed(self):
+        """AnthropicProvider.__init__ must raise ImportError if anthropic package absent."""
+        with patch.dict(sys.modules, {"anthropic": None}):
+            from engramia.providers.anthropic import AnthropicProvider
+
+            with pytest.raises(ImportError, match="anthropic"):
+                AnthropicProvider()

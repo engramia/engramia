@@ -31,14 +31,14 @@ class AnthropicProvider(LLMProvider):
     Does not retry on authentication, permission, or bad-request errors.
 
     Args:
-        model: Model ID to use (default: ``claude-sonnet-4-20250514``).
+        model: Model ID to use (default: ``claude-sonnet-4-6``).
         max_retries: Number of attempts before raising the last exception.
         max_tokens: Maximum tokens in the response (default: 4096).
     """
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-6",
         max_retries: int = 3,
         max_tokens: int = 4096,
     ) -> None:

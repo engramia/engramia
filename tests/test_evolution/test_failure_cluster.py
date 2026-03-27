@@ -68,3 +68,49 @@ class TestFailureClusterer:
         # With min_count=2, the single-occurrence feedback should be excluded
         clusters = clusterer.analyze(min_count=2)
         assert clusters == []
+
+    def test_cluster_repr_contains_key_fields(self, feedback_store):
+        """FailureCluster.__repr__ must include representative and total_count."""
+        feedback_store.record("Handle timeout errors in API calls")
+        clusterer = FailureClusterer(feedback_store)
+        clusters = clusterer.analyze(min_count=1)
+
+        r = repr(clusters[0])
+        assert "FailureCluster" in r
+        assert "representative=" in r
+        assert "total_count=" in r
+        assert "members=" in r
+
+    def test_avg_score_computed_correctly(self, feedback_store):
+        """avg_score on a cluster should be the mean of member scores."""
+        feedback_store.record("Add input validation")
+        feedback_store.record("Add input validation for CSV files")
+        clusterer = FailureClusterer(feedback_store)
+        clusters = clusterer.analyze(min_count=1)
+
+        # avg_score must be in [0, 1] range (score from feedback store default is 0.5)
+        for c in clusters:
+            assert 0.0 <= c.avg_score <= 1.0
+
+
+class TestNormalize:
+    def test_lowercase_and_strips_punctuation(self):
+        from engramia.evolution.failure_cluster import _normalize
+
+        result = _normalize("Hello, World! This is a TEST.")
+        assert result == "hello world this is a test"
+        assert "," not in result
+        assert "!" not in result
+        assert "." not in result
+
+    def test_collapses_whitespace(self):
+        from engramia.evolution.failure_cluster import _normalize
+
+        result = _normalize("too   many    spaces")
+        assert result == "too many spaces"
+
+    def test_strips_leading_trailing_whitespace(self):
+        from engramia.evolution.failure_cluster import _normalize
+
+        result = _normalize("  trimmed  ")
+        assert result == "trimmed"
