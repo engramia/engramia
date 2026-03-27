@@ -1,0 +1,3 @@
+api.engramia.dev {
+    reverse_proxy engramia-api:8000
+}

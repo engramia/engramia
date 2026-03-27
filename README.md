@@ -11,30 +11,30 @@ Self-learning memory layer for AI agent frameworks.
 
 ---
 
-## Co to je
+## What it is
 
-Engramia řeší problém, který má každý agent framework: **agenti se neučí z předchozích běhů**.
+Engramia solves the problem every agent framework has: **agents don't learn from previous runs**.
 
-LangChain, CrewAI, AutoGPT a podobné frameworky jsou statické — každý běh začíná od nuly.
-Brain je paměťová vrstva, kterou přidáš pod jakýkoli framework a která:
+LangChain, CrewAI, AutoGPT, and similar frameworks are stateless — every run starts from scratch.
+Brain is a memory layer you add beneath any framework, and it:
 
-- **Pamatuje** co fungovalo (success patterns s time-decay)
-- **Hledá** relevantní agenty pro nový task (semantic search + eval weighting)
-- **Skládá** multi-agent pipeline z ověřených komponent (contract validation)
-- **Hodnotí** kvalitu kódu (multi-evaluator s variance detection)
-- **Zlepšuje** se automaticky (feedback injection, pattern aging)
+- **Remembers** what worked (success patterns with time-decay)
+- **Finds** relevant agents for a new task (semantic search + eval weighting)
+- **Composes** multi-agent pipelines from proven components (contract validation)
+- **Evaluates** code quality (multi-evaluator with variance detection)
+- **Improves** automatically (feedback injection, pattern aging)
 
-Extrahováno z Agent Factory V2 — systému, který se za 254 běhů naučil dosahovat 93% success rate.
+Extracted from Agent Factory V2 — a system that learned to achieve a 93% success rate over 254 runs.
 
 ---
 
-## Instalace
+## Installation
 
 ```bash
-# Základ (JSON storage, bez LLM/embeddings providera)
+# Base (JSON storage, no LLM/embeddings provider)
 pip install engramia
 
-# S OpenAI providerem (doporučeno pro začátek)
+# With OpenAI provider (recommended to start)
 pip install "engramia[openai]"
 
 # REST API + PostgreSQL
@@ -43,22 +43,22 @@ pip install "engramia[openai,api,postgres]"
 
 ### Optional extras
 
-| Extra | Obsah | Stav |
-|-------|-------|------|
+| Extra | Contents | Status |
+|-------|----------|--------|
 | `openai` | OpenAI LLM + embeddings provider | ✅ |
 | `postgres` | PostgreSQL + pgvector storage backend | ✅ |
 | `api` | FastAPI REST server | ✅ |
 | `anthropic` | Anthropic/Claude LLM provider | ✅ |
-| `local` | sentence-transformers embeddings, bez API klíče | ✅ |
+| `local` | sentence-transformers embeddings, no API key | ✅ |
 | `langchain` | LangChain EngramiaCallback | ✅ |
 | `crewai` | CrewAI EngramiaCrewCallback | ✅ |
 | `cli` | CLI tool (Typer + Rich) | ✅ |
 | `mcp` | MCP server (Claude Desktop, Cursor, Windsurf) | ✅ |
-| `dev` | pytest, coverage, vývojové nástroje | ✅ |
+| `dev` | pytest, coverage, development tools | ✅ |
 
 ---
 
-## Rychlý start
+## Quick start
 
 ```python
 from engramia import Memory
@@ -77,76 +77,76 @@ mem = Memory(
 
 ### `brain.learn(task, code, eval_score, output=None) → LearnResult`
 
-Zaznamená výsledek běhu. Uloží success pattern, aktualizuje metriky.
+Records the result of a run. Stores the success pattern and updates metrics.
 
 ```python
 result = brain.learn(
     task="Parse CSV file and compute statistics",
     code="import csv\nimport statistics\n...",
     eval_score=8.5,
-    output="mean=42.3, std=7.1",  # optional: stdout agenta
+    output="mean=42.3, std=7.1",  # optional: agent stdout
 )
 print(result.stored)        # True
-print(result.pattern_count) # celkový počet patternů
+print(result.pattern_count) # total number of patterns
 ```
 
-- `eval_score` — číslo 0–10, jak dobře agent splnil task
-- Pattern se automaticky deduplikuje s existujícími podobnými patterny (Jaccard > 0.7)
+- `eval_score` — number 0–10, how well the agent completed the task
+- Pattern is automatically deduplicated against existing similar patterns (Jaccard > 0.7)
 
 ---
 
 ### `brain.recall(task, limit=5, deduplicate=True, eval_weighted=True) → list[Match]`
 
-Najde relevantní success patterny pro nový task pomocí semantic search.
+Finds relevant success patterns for a new task using semantic search.
 
 ```python
 matches = brain.recall(task="Read CSV and calculate averages", limit=5)
 
 for m in matches:
     print(f"{m.similarity:.2f} | score={m.pattern.success_score:.1f} | {m.pattern.task}")
-    print(f"  key: {m.pattern_key}")   # použij pro delete_pattern()
+    print(f"  key: {m.pattern_key}")   # use for delete_pattern()
 ```
 
-Každý `Match` obsahuje:
-- `similarity` — kosínová podobnost embedingů (0.0–1.0)
-- `reuse_tier` — `"duplicate"` / `"adapt"` / `"fresh"` dle similarity thresholdů
-- `pattern_key` — storage klíč pro `delete_pattern()`
-- `pattern` — `Pattern` objekt s `task`, `design`, `success_score`, `reuse_count`
+Each `Match` contains:
+- `similarity` — cosine similarity of embeddings (0.0–1.0)
+- `reuse_tier` — `"duplicate"` / `"adapt"` / `"fresh"` based on similarity thresholds
+- `pattern_key` — storage key for `delete_pattern()`
+- `pattern` — `Pattern` object with `task`, `design`, `success_score`, `reuse_count`
 
-Parametry:
-- `deduplicate=True` — seskupí patterny stejného tasku (Jaccard > 0.7), vrátí jen top-scoring per skupina
-- `eval_weighted=True` — podobnost se násobí multiplikátorem [0.5, 1.0] dle eval skóre; nehodnocené patterny dostávají 0.75
+Parameters:
+- `deduplicate=True` — groups patterns of the same task (Jaccard > 0.7), returns only top-scoring per group
+- `eval_weighted=True` — similarity is multiplied by a multiplier [0.5, 1.0] based on eval score; unrated patterns receive 0.75
 
 ---
 
 ### `brain.evaluate(task, code, output=None, num_evals=3) → EvalResult`
 
-Spustí N nezávislých LLM evaluací a agreguje výsledky. Vyžaduje `llm` provider.
+Runs N independent LLM evaluations and aggregates the results. Requires an `llm` provider.
 
 ```python
 result = brain.evaluate(
     task="Parse CSV file",
     code="import csv\n...",
     output="done",    # optional
-    num_evals=3,      # počet paralelních LLM evaluací (min 1)
+    num_evals=3,      # number of parallel LLM evaluations (min 1)
 )
 
-print(result.median_score)       # agregované skóre (0–10)
-print(result.variance)           # rozptyl skóre mezi runy
-print(result.high_variance)      # True pokud variance > 1.5
-print(result.feedback)           # doporučení z nejhoršího runu
-print(result.adversarial_detected)  # True pokud kód obsahuje hardcoded output
+print(result.median_score)       # aggregated score (0–10)
+print(result.variance)           # score variance across runs
+print(result.high_variance)      # True if variance > 1.5
+print(result.feedback)           # recommendation from the worst run
+print(result.adversarial_detected)  # True if code contains hardcoded output
 ```
 
-- Evaluace běží paralelně (ThreadPoolExecutor)
-- Feedback pochází z nejhoršího runu (nejrelevantnější pro zlepšení)
-- Detekce adversarial kódu (hardcoded output místo výpočtu)
+- Evaluations run in parallel (ThreadPoolExecutor)
+- Feedback comes from the worst run (most relevant for improvement)
+- Adversarial code detection (hardcoded output instead of computation)
 
 ---
 
 ### `brain.compose(task) → Pipeline`
 
-Rozloží task na staged pipeline z existujících success patternů. Vyžaduje `llm` provider.
+Decomposes a task into a staged pipeline from existing success patterns. Requires an `llm` provider.
 
 ```python
 pipeline = brain.compose(task="Fetch stock data, compute moving average, write report")
@@ -156,16 +156,16 @@ for stage in pipeline.stages:
     print(f"[{stage.task}]  reads={stage.reads}  writes={stage.writes}")
 ```
 
-- LLM dekomponuje task na 2–4 stages
-- Každá stage je matchována se success patterny přes semantic search
-- Contract validation ověří konzistenci data flow (reads/writes chain) včetně detekce cyklů
-- Fallback na single-stage pipeline pokud LLM selže
+- LLM decomposes the task into 2–4 stages
+- Each stage is matched against success patterns via semantic search
+- Contract validation verifies data flow consistency (reads/writes chain) including cycle detection
+- Falls back to a single-stage pipeline if the LLM fails
 
 ---
 
 ### `brain.get_feedback(task_type=None, limit=5) → list[str]`
 
-Vrátí opakující se feedback patterny pro injekci do promptů.
+Returns recurring feedback patterns for injection into prompts.
 
 ```python
 feedback = brain.get_feedback(limit=4)
@@ -173,15 +173,15 @@ feedback = brain.get_feedback(limit=4)
 #  "Validate CSV headers before processing.", ...]
 ```
 
-- Vrací pouze feedback s `count >= 2` (opakující se problémy)
-- Seřazeno dle četnosti a čerstvosti (skóre × count)
-- Vhodné pro automatickou injekci do system promptu codera
+- Returns only feedback with `count >= 2` (recurring issues)
+- Sorted by frequency and recency (score × count)
+- Suitable for automatic injection into the coder's system prompt
 
 ---
 
 ### `brain.delete_pattern(pattern_key) → bool`
 
-Trvale smaže uložený pattern. Vrátí `True` pokud pattern existoval.
+Permanently deletes a stored pattern. Returns `True` if the pattern existed.
 
 ```python
 matches = brain.recall(task="Parse CSV")
@@ -193,38 +193,38 @@ print(deleted)  # True
 
 ### `brain.run_aging() → int`
 
-Aplikuje time-decay na všechny success patterny. Vrátí počet odstraněných patternů.
+Applies time-decay to all success patterns. Returns the number of removed patterns.
 
 ```python
 pruned = brain.run_aging()
-print(f"Odstraněno {pruned} zastaralých patternů")
+print(f"Removed {pruned} outdated patterns")
 ```
 
-- Decay: 2% za týden (`success_score *= 0.98^weeks`)
-- Pattern se odstraní pokud `success_score < 0.1`
-- Doporučeno spouštět periodicky (např. jednou týdně)
+- Decay: 2% per week (`success_score *= 0.98^weeks`)
+- Pattern is removed if `success_score < 0.1`
+- Recommended to run periodically (e.g., once a week)
 
 ---
 
 ### `brain.metrics → Metrics`
 
-Aktuální metriky brain instance.
+Current metrics of the brain instance.
 
 ```python
 m = brain.metrics
 
-print(m.runs)            # celkový počet zaznamenaných běhů
-print(m.success_rate)    # podíl úspěšných běhů
-print(m.avg_eval_score)  # průměrné eval skóre (None pokud žádné eval)
-print(m.pattern_count)   # aktuální počet success patternů
-print(m.pipeline_reuse)  # počet běhů kde byl použit existující pattern
+print(m.runs)            # total number of recorded runs
+print(m.success_rate)    # fraction of successful runs
+print(m.avg_eval_score)  # average eval score (None if no evals)
+print(m.pattern_count)   # current number of success patterns
+print(m.pipeline_reuse)  # number of runs where an existing pattern was used
 ```
 
 ---
 
 ### `brain.evolve_prompt(role, current_prompt) → EvolutionResult`
 
-Vygeneruje vylepšený prompt na základě opakujících se kvalitativních problémů.
+Generates an improved prompt based on recurring quality issues.
 
 ```python
 result = brain.evolve_prompt(role="coder", current_prompt="You are a coder...")
@@ -233,15 +233,15 @@ if result.accepted:
     print(f"Changes: {result.changes}")
 ```
 
-- Analyzuje top feedback patterny z eval history
-- LLM generuje vylepšenou verzi promptu
-- Vrátí kandidáta pro ruční/automatické A/B testování
+- Analyzes top feedback patterns from eval history
+- LLM generates an improved version of the prompt
+- Returns a candidate for manual/automated A/B testing
 
 ---
 
 ### `brain.analyze_failures(min_count=1) → list[FailureCluster]`
 
-Seskupí opakující se chyby do clusterů pro identifikaci systémových problémů.
+Groups recurring errors into clusters for identifying systemic issues.
 
 ```python
 clusters = brain.analyze_failures(min_count=2)
@@ -253,7 +253,7 @@ for c in clusters:
 
 ### `brain.register_skills(pattern_key, skills)` / `brain.find_by_skills(required)`
 
-Skill registry pro capability-based vyhledávání patternů.
+Skill registry for capability-based pattern search.
 
 ```python
 # Register
@@ -268,10 +268,10 @@ results = brain.find_by_skills(["csv_parsing"], match_all=True)
 
 ### `brain.export() → list[dict]` / `brain.import_data(records, overwrite=False) → int`
 
-Záloha a migrace patternů (JSON storage → PostgreSQL nebo naopak).
+Backup and migration of patterns (JSON storage → PostgreSQL or vice versa).
 
 ```python
-# Export všech patternů do JSONL souboru
+# Export all patterns to a JSONL file
 import json
 
 records = brain.export()
@@ -279,20 +279,20 @@ with open("backup.jsonl", "w") as f:
     for r in records:
         f.write(json.dumps(r) + "\n")
 
-# Import ze zálohy do nové instance
+# Import from backup into a new instance
 with open("backup.jsonl") as f:
     records = [json.loads(line) for line in f]
 
 new_mem = Memory(embeddings=embeddings, storage=postgres_storage)
 imported = new_mem.import_data(records)
-print(f"Importováno {imported} patternů")
+print(f"Imported {imported} patterns")
 ```
 
 ---
 
 ### Exceptions
 
-Brain používá vlastní hierarchii výjimek pro přesné error handling:
+Brain uses a custom exception hierarchy for precise error handling:
 
 ```python
 from engramia import MemoryError, ProviderError, ValidationError, StorageError
@@ -300,31 +300,31 @@ from engramia import MemoryError, ProviderError, ValidationError, StorageError
 try:
     result = brain.evaluate(task, code)
 except ProviderError:
-    # LLM provider není nakonfigurován
+    # LLM provider is not configured
     pass
 except ValidationError:
-    # Neplatný vstup (prázdný task, příliš dlouhý kód, ...)
+    # Invalid input (empty task, code too long, ...)
     pass
 except EngramiaError:
-    # Jakákoli Brain výjimka
+    # Any Brain exception
     pass
 ```
 
 ---
 
-### LangChain integrace
+### LangChain integration
 
 ```python
 from engramia.sdk.langchain import EngramiaCallback
 
 callback = EngramiaCallback(brain, auto_learn=True, auto_recall=True)
 chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
-# Brain se automaticky učí z chain runs a recalluje relevantní kontext
+# Brain automatically learns from chain runs and recalls relevant context
 ```
 
 ---
 
-### Webhook SDK klient
+### Webhook SDK client
 
 ```python
 from engramia.sdk.webhook import EngramiaWebhook
@@ -338,10 +338,10 @@ matches = hook.recall(task="Read CSV and compute averages")
 
 ## REST API
 
-### Spuštění
+### Starting up
 
 ```bash
-# JSON storage (dev, žádná DB)
+# JSON storage (dev, no DB)
 docker compose up
 
 # PostgreSQL storage (prod)
@@ -351,44 +351,44 @@ OPENAI_API_KEY=sk-... \
 docker compose up
 ```
 
-Po startu: Swagger UI na [http://localhost:8000/docs](http://localhost:8000/docs)
+After startup: Swagger UI at [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### Konfigurace (env vars)
+### Configuration (env vars)
 
-| Proměnná | Default | Popis |
-|----------|---------|-------|
-| `ENGRAMIA_STORAGE` | `json` | `json` nebo `postgres` |
-| `ENGRAMIA_DATA_PATH` | `./brain_data` | Cesta pro JSON storage |
-| `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (jen pro `postgres`) |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENGRAMIA_STORAGE` | `json` | `json` or `postgres` |
+| `ENGRAMIA_DATA_PATH` | `./brain_data` | Path for JSON storage |
+| `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (only for `postgres`) |
 | `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM provider |
 | `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model ID |
-| `OPENAI_API_KEY` | — | OpenAI API klíč |
+| `OPENAI_API_KEY` | — | OpenAI API key |
 | `ENGRAMIA_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
-| `ENGRAMIA_API_KEYS` | *(prázdné)* | Bearer tokeny (prázdné = dev mode, bez auth) |
+| `ENGRAMIA_API_KEYS` | *(empty)* | Bearer tokens (empty = dev mode, no auth) |
 | `ENGRAMIA_PORT` | `8000` | Port |
 
-### Endpointy
+### Endpoints
 
-Všechny endpointy jsou dostupné pod prefixem `/v1/`:
+All endpoints are available under the `/v1/` prefix:
 
-| Metoda | Cesta | Popis |
-|--------|-------|-------|
-| `POST` | `/v1/learn` | Uloží success pattern |
-| `POST` | `/v1/recall` | Najde relevantní patterny |
-| `POST` | `/v1/compose` | Sestaví pipeline |
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/learn` | Stores a success pattern |
+| `POST` | `/v1/recall` | Finds relevant patterns |
+| `POST` | `/v1/compose` | Assembles a pipeline |
 | `POST` | `/v1/evaluate` | Multi-eval scoring |
-| `POST` | `/v1/aging` | Spustí pattern aging (decay + prune) |
-| `POST` | `/v1/feedback/decay` | Spustí feedback decay |
-| `POST` | `/v1/evolve` | Vygeneruje vylepšený prompt |
-| `POST` | `/v1/analyze-failures` | Seskupí failure patterny |
-| `POST` | `/v1/skills/register` | Registruje skill tagy na pattern |
-| `POST` | `/v1/skills/search` | Vyhledá patterny dle skill tagů |
+| `POST` | `/v1/aging` | Runs pattern aging (decay + prune) |
+| `POST` | `/v1/feedback/decay` | Runs feedback decay |
+| `POST` | `/v1/evolve` | Generates an improved prompt |
+| `POST` | `/v1/analyze-failures` | Groups failure patterns |
+| `POST` | `/v1/skills/register` | Registers skill tags on a pattern |
+| `POST` | `/v1/skills/search` | Searches patterns by skill tags |
 | `GET` | `/v1/feedback` | Top recurring feedback |
-| `GET` | `/v1/metrics` | Statistiky |
+| `GET` | `/v1/metrics` | Statistics |
 | `GET` | `/v1/health` | Health check + storage type |
-| `DELETE` | `/v1/patterns/{key}` | Smaže pattern |
+| `DELETE` | `/v1/patterns/{key}` | Deletes a pattern |
 
-### Příklady
+### Examples
 
 ```bash
 # Learn
@@ -408,7 +408,7 @@ curl http://localhost:8000/v1/metrics
 curl http://localhost:8000/v1/health
 ```
 
-### Autentizace
+### Authentication
 
 ```bash
 # Set keys
@@ -418,34 +418,34 @@ ENGRAMIA_API_KEYS=my-secret-key docker compose up
 curl -H "Authorization: Bearer my-secret-key" http://localhost:8000/v1/metrics
 ```
 
-### Bezpečnostní konfigurace
+### Security configuration
 
-| Proměnná | Default | Popis |
-|----------|---------|-------|
-| `ENGRAMIA_CORS_ORIGINS` | *(prázdné)* | Povolené CORS origins (CORS vypnutý pokud prázdné) |
-| `ENGRAMIA_RATE_LIMIT_DEFAULT` | `60` | Max požadavků/min pro standardní endpointy |
-| `ENGRAMIA_RATE_LIMIT_EXPENSIVE` | `10` | Max požadavků/min pro LLM-intensive endpointy |
-| `ENGRAMIA_MAX_BODY_SIZE` | `1048576` | Max velikost request body v bytech (1 MB) |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENGRAMIA_CORS_ORIGINS` | *(empty)* | Allowed CORS origins (CORS disabled if empty) |
+| `ENGRAMIA_RATE_LIMIT_DEFAULT` | `60` | Max requests/min for standard endpoints |
+| `ENGRAMIA_RATE_LIMIT_EXPENSIVE` | `10` | Max requests/min for LLM-intensive endpoints |
+| `ENGRAMIA_MAX_BODY_SIZE` | `1048576` | Max request body size in bytes (1 MB) |
 
 ---
 
 ## PostgreSQL storage
 
-Spuštění s pgvector backendou:
+Starting with pgvector backend:
 
 ```bash
 # 1. Uncomment pgvector service in docker-compose.yml
 
-# 2. Spuštění
+# 2. Start
 ENGRAMIA_STORAGE=postgres \
 ENGRAMIA_DATABASE_URL=postgresql://brain:brain@pgvector:5432/brain \
 docker compose up
 
-# 3. Aplikace migrací (první spuštění)
+# 3. Apply migrations (first run)
 docker compose exec brain-api alembic upgrade head
 ```
 
-Nebo bez Dockeru:
+Or without Docker:
 
 ```bash
 pip install "engramia[openai,postgres]"
@@ -457,9 +457,9 @@ mem = Memory(embeddings=OpenAIEmbeddings(), storage=storage, llm=OpenAIProvider(
 
 ---
 
-## Konfigurace providerů
+## Provider configuration
 
-### OpenAI (doporučeno)
+### OpenAI (recommended)
 
 ```python
 import os
@@ -474,7 +474,7 @@ mem = Memory(
 )
 ```
 
-### Jen embeddings, bez LLM
+### Embeddings only, without LLM
 
 ```python
 mem = Memory(
@@ -483,8 +483,8 @@ mem = Memory(
     llm=None,  # default
 )
 
-mem.learn(...)    # ✅ funguje
-mem.recall(...)   # ✅ funguje
+mem.learn(...)    # ✅ works
+mem.recall(...)   # ✅ works
 mem.evaluate(...) # ❌ ProviderError: evaluate() requires llm=...
 ```
 
@@ -493,19 +493,19 @@ mem.evaluate(...) # ❌ ProviderError: evaluate() requires llm=...
 ## CLI
 
 ```bash
-# Instalace
+# Installation
 pip install "engramia[cli]"
 
-# Inicializace
+# Initialize
 engramia init --path ./brain_data
 
-# Spuštění REST API serveru
+# Start REST API server
 engramia serve --host 0.0.0.0 --port 8000
 
-# Metriky a statistiky
+# Metrics and statistics
 engramia status --path ./brain_data
 
-# Sémantické vyhledávání
+# Semantic search
 engramia recall "Parse CSV and compute statistics" --limit 5
 
 # Pattern aging (decay + prune)
@@ -516,27 +516,27 @@ engramia aging --path ./brain_data
 
 ## MCP Server
 
-Engramia lze spustit jako **MCP server** (Model Context Protocol) a připojit ho
-přímo do Claude Desktop, Cursor, Windsurf nebo VS Code Copilot.
+Engramia can be run as an **MCP server** (Model Context Protocol) and connected
+directly to Claude Desktop, Cursor, Windsurf, or VS Code Copilot.
 
-### Instalace
+### Installation
 
 ```bash
 pip install "engramia[openai,mcp]"
 ```
 
-### Spuštění
+### Starting up
 
 ```bash
 engramia-mcp
 ```
 
-Server běží přes **stdio transport** — MCP klient ho spustí jako subprocess automaticky.
+The server runs via **stdio transport** — the MCP client starts it as a subprocess automatically.
 
-### Konfigurace klientů
+### Client configuration
 
-**Claude Desktop** (`~/.config/claude/claude_desktop_config.json` na Linuxu/macOS,
-`%APPDATA%\Claude\claude_desktop_config.json` na Windows):
+**Claude Desktop** (`~/.config/claude/claude_desktop_config.json` on Linux/macOS,
+`%APPDATA%\Claude\claude_desktop_config.json` on Windows):
 
 ```json
 {
@@ -552,44 +552,44 @@ Server běží přes **stdio transport** — MCP klient ho spustí jako subproce
 }
 ```
 
-**Cursor / Windsurf** — stejný JSON formát v nastavení MCP serverů daného IDE.
+**Cursor / Windsurf** — same JSON format in the MCP servers settings of the respective IDE.
 
-### Dostupné MCP tools
+### Available MCP tools
 
-| Tool | Popis |
-|------|-------|
-| `brain_learn` | Uloží výsledek běhu jako success pattern |
-| `brain_recall` | Najde relevantní patterny pro nový task (semantic search) |
-| `brain_evaluate` | N nezávislých LLM evaluací, median + variance |
-| `brain_compose` | Rozloží task na validovanou multi-agent pipeline |
-| `brain_feedback` | Vrátí opakující se quality issues pro injekci do promptů |
-| `brain_metrics` | Statistiky (runs, success rate, pattern count, reuse rate) |
-| `brain_aging` | Spustí time-based decay + prune zastaralých patternů |
+| Tool | Description |
+|------|-------------|
+| `brain_learn` | Stores a run result as a success pattern |
+| `brain_recall` | Finds relevant patterns for a new task (semantic search) |
+| `brain_evaluate` | N independent LLM evaluations, median + variance |
+| `brain_compose` | Decomposes a task into a validated multi-agent pipeline |
+| `brain_feedback` | Returns recurring quality issues for injection into prompts |
+| `brain_metrics` | Statistics (runs, success rate, pattern count, reuse rate) |
+| `brain_aging` | Runs time-based decay + prune of outdated patterns |
 
-### Konfigurace (env vars)
+### Configuration (env vars)
 
-MCP server používá stejné env vars jako REST API:
+The MCP server uses the same env vars as the REST API:
 
-| Proměnná | Default | Popis |
-|----------|---------|-------|
-| `ENGRAMIA_STORAGE` | `json` | `json` nebo `postgres` |
-| `ENGRAMIA_DATA_PATH` | `./brain_data` | Cesta pro JSON storage |
-| `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (jen pro `postgres`) |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENGRAMIA_STORAGE` | `json` | `json` or `postgres` |
+| `ENGRAMIA_DATA_PATH` | `./brain_data` | Path for JSON storage |
+| `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (only for `postgres`) |
 | `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM provider |
 | `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model ID |
-| `OPENAI_API_KEY` | — | OpenAI API klíč |
+| `OPENAI_API_KEY` | — | OpenAI API key |
 
 ---
 
-## Architektura
+## Architecture
 
 ```
 engramia/
 ├── brain.py             # Brain facade (public API)
-├── types.py             # Pydantic modely
+├── types.py             # Pydantic models
 ├── _util.py             # Shared utility
 │
-├── core/                # Interní stores
+├── core/                # Internal stores
 │   ├── success_patterns.py   # Aging, reuse boost
 │   ├── eval_store.py         # Eval history + quality multiplier
 │   ├── eval_feedback.py      # Feedback clustering + decay
@@ -613,14 +613,14 @@ engramia/
 │   └── postgres.py           # PostgreSQL + pgvector
 │
 ├── api/                 # REST API (Phase 2)
-│   ├── app.py                # App factory, env var konfigurace
-│   ├── routes.py             # Endpointy
+│   ├── app.py                # App factory, env var configuration
+│   ├── routes.py             # Endpoints
 │   ├── auth.py               # Bearer token middleware
 │   ├── deps.py               # Dependency injection
-│   └── schemas.py            # API modely
+│   └── schemas.py            # API models
 │
 ├── db/                  # Database (Phase 2)
-│   ├── models.py             # SQLAlchemy modely
+│   ├── models.py             # SQLAlchemy models
 │   └── migrations/           # Alembic
 │
 ├── evolution/           # Prompt evolution + failure clustering (Phase 3)
@@ -642,10 +642,10 @@ engramia/
 
 ---
 
-## Stav implementace
+## Implementation status
 
-| Komponenta | Stav |
-|------------|------|
+| Component | Status |
+|-----------|--------|
 | `brain.learn()` | ✅ |
 | `brain.recall()` | ✅ |
 | `brain.evaluate()` | ✅ |
@@ -674,39 +674,41 @@ engramia/
 
 ---
 
-## Vývoj a testování
+## Development and testing
 
 ```bash
-# Instalace pro vývoj
+# Install for development
 pip install -e ".[dev,openai]"
 
-# Spuštění testů
+# Run tests
 pytest
 
-# S coverage reportem
+# With coverage report
 pytest --cov=engramia --cov-report=term-missing
 ```
 
-Testy nevyžadují API klíče — používají `FakeEmbeddings` (deterministické vektory z MD5 hashe) a mockovaný LLM. FastAPI testy používají `TestClient` z httpx.
+Tests do not require API keys — they use `FakeEmbeddings` (deterministic vectors from MD5 hash) and a mocked LLM. FastAPI tests use `TestClient` from httpx.
 
 ---
 
-## Původ
+## Origin
 
-Extrahováno z Agent Factory V2 — self-improving AI agent factory.
-Factory zůstává jako open-source referenční implementace, která dokazuje, že Brain funguje v praxi.
+Extracted from Agent Factory V2 — a self-improving AI agent factory.
+Factory remains as an open-source reference implementation that proves Brain works in practice.
 
 ---
 
-## Licence
+## License
 
-[Business Source License 1.1 (BSL 1.1)](LICENSE.md) — zdrojový kód je veřejně čitelný, komerční použití vyžaduje licenci.
+Engramia is licensed under Business Source License 1.1 (BSL 1.1).
 
-| Použití | Status |
-|---------|--------|
-| Osobní projekty, testování, akademický výzkum | ✅ Zdarma |
-| Komerční použití (produkce, SaaS, placený produkt) | Vyžaduje komerční licenci |
-| Konkurenční SaaS bez licence | ❌ |
-| Po roce 2030 | ✅ Apache 2.0 (volně pro všechny) |
+- ✅ Free for: personal use, evaluation, research
+- ❌ Not allowed without a commercial license:
+  - production use in commercial environments
+  - SaaS / hosted services
+  - integration into paid products
+  - building competing products
 
-Pro komerční licence: support@engramia.dev
+See LICENSE.txt for full terms.
+
+For commercial licenses: support@engramia.dev
