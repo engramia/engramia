@@ -1,4 +1,17 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    depends_on:
+      - engramia-api
+
   engramia-api:
     image: ghcr.io/engramia/engramia:${IMAGE_TAG:-latest}
     ports:
@@ -32,4 +45,6 @@ services:
 
 volumes:
   engramia_data:
+  caddy_data:
+  caddy_config:
   # pgdata:

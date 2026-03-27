@@ -33,3 +33,12 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Internal / non-public docs
+CLAUDE.md
+roadmap.md
+CHANGELOG.md
+AUDIT_PROMPT.md
+AUDIT_RESULTS*.md
+AUDIT_RESULTS/
+docs/legal/key-legal-design-decisions.md
