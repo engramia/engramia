@@ -72,5 +72,5 @@ jobs:
             cd ${{ secrets.DEPLOY_PATH }}
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker compose -f docker-compose.prod.yml pull engramia-api
-            docker compose -f docker-compose.prod.yml up -d --no-deps engramia-api caddy
+            docker compose -f docker-compose.prod.yml up -d engramia-api caddy
             docker image prune -f
