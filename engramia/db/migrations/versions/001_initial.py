@@ -11,6 +11,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from pgvector.sqlalchemy import Vector
 
 revision: str = "001"
 down_revision: str | None = None
@@ -37,16 +38,8 @@ def upgrade() -> None:
     op.create_table(
         "brain_embeddings",
         sa.Column("key", sa.Text, primary_key=True),
-        # pgvector vector type — 1536 dimensions (OpenAI text-embedding-3-small)
-        sa.Column(
-            "embedding",
-            sa.Text,  # DDL handled via raw SQL below; SA doesn't know Vector type
-            nullable=False,
-        ),
+        sa.Column("embedding", Vector(1536), nullable=False),
     )
-
-    # Re-create embedding column with proper pgvector type
-    op.execute("ALTER TABLE brain_embeddings ALTER COLUMN embedding TYPE vector(1536) USING embedding::vector(1536)")
 
     # HNSW index for approximate nearest-neighbour cosine search
     op.execute(
