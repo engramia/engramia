@@ -241,17 +241,17 @@ Brain = jen learning vrstva, pluggable do čehokoli.
 **Účty a repozitář:**
 - [x] **GitHub organizace** — `engramia` org; repo `https://github.com/engramia/engramia`
 - [x] **PyPI účet** — registrace na pypi.org + Trusted Publisher nastavení (GitHub Actions OIDC, bez API tokenů); environments `pypi` + `testpypi` vytvořeny s `v*` tag protection
-- [ ] **Docker Hub / GHCR** — namespace pro Docker image (`ghcr.io/engramia/engramia:latest`)
+- [x] **Docker Hub / GHCR** — namespace `ghcr.io/engramia/engramia`; workflow buildí + pushuje image on release; deploy job SSH-deployuje na VM
 
 **LLM API přístup (nutné pro produkci i beta testování):**
-- [ ] **OpenAI API klíč** — `text-embedding-3-small` (default embeddings) + GPT-4.1 pro compose/evaluate/evolve; odhadovaný cost při beta: ~$5–20/měsíc
+- [x] **OpenAI API klíč** — nakonfigurován na VM (separátní klíč pro staging)
 - [ ] **Anthropic API klíč** — volitelný, pro Anthropic provider; stejná cost úroveň
 
-**Hosting REST API (Hetzner VPS + Coolify):**
-- [ ] **Hetzner VPS** — CX23 (2 vCPU, 4 GB RAM, €3.49/měsíc), region DE/FI (EU data residency)
-- [ ] **Coolify** — open-source self-hosted PaaS (GitHub auto-deploy, SSL, monitoring); install na Hetzner VPS
+**Hosting REST API (Hetzner VPS):**
+- [x] **Hetzner VPS** — CX23 (2 vCPU Intel, 4 GB RAM, ~€3.98/měsíc), region DE (EU data residency); Docker 29.x nainstalován
+- [x] **Deploy pipeline** — GitHub Actions SSH deploy (appleboy/ssh-action); `docker compose pull && up -d` on release; privátní GHCR image
 - [ ] **PostgreSQL + pgvector** — Docker image `pgvector/pgvector:pg16` na stejném VPS; produkce: encrypted volumes, automated backups
-- [ ] **TLS/HTTPS** — Coolify built-in (Let's Encrypt auto-cert pro `api.engramia.dev`)
+- [ ] **TLS/HTTPS** — Let's Encrypt + Caddy/nginx reverse proxy (`api.engramia.dev`)
 
 **Kontaktní a právní základ:**
 - [x] **Projektový email** — `support@engramia.dev`
@@ -314,8 +314,8 @@ Přidat copyright inline k Licensed Work — správně: Licensed Work: Engramia,
 
 #### Fáze 4.6.4: CI/CD pipeline
 - [x] **.github/workflows/ci.yml** — pytest + ruff + mypy na push/PR, Python 3.12 matrix
-- [x] **.github/workflows/publish.yml** — build + verify + TestPyPI + PyPI on GitHub release (Trusted Publisher OIDC)
-- [x] **.github/workflows/docker.yml** — Docker image build + push na GHCR on release (semver tags)
+- [x] **.github/workflows/publish.yml** — build + verify + TestPyPI + PyPI on GitHub release (Trusted Publisher OIDC); pro privátní fázi zakázán (manual `workflow_dispatch` only)
+- [x] **.github/workflows/docker.yml** — Docker image build + push na GHCR on release (semver tags) + SSH deploy job na VM
 
 #### Fáze 4.6.5: Dokumentace
 - [x] **mkdocs.yml** — MkDocs + Material konfigurace
@@ -324,13 +324,14 @@ Přidat copyright inline k Licensed Work — správně: Licensed Work: Engramia,
 - [x] **Aktualizovat pyproject.toml URLs** — docs URL na ReadTheDocs
 
 #### Fáze 4.6.6: Examples + launch
-- [ ] **examples/** — 4–5 runnable příkladů (basic, REST API, LangChain, PostgreSQL, local embeddings)
+- [x] **examples/** — 4–5 runnable příkladů (basic, REST API, LangChain, PostgreSQL, local embeddings)
 - [ ] **Benchmark suite** — reprodukce Agent Factory V2 výsledků (93% success rate)
 - [ ] **Finální README review** — ověřit vše aktuální
 - [ ] **Přepnout repo na public**
-- [ ] **PyPI environment protection** — po přepnutí na public: Settings → Environments → `pypi` → Required reviewers (přidat sebe)
+- [ ] **PyPI environment protection** — po přepnutí na public: Settings → Environments → `pypi` → Required reviewers (přidat sebe); re-enable release trigger v publish.yml
 - [ ] **PyPI release** — `pip install engramia`
-- [ ] **Docker image** — `ghcr.io/engramia/engramia:latest`
+- [ ] **Docker image** — `ghcr.io/engramia/engramia:latest` (privátní GHCR staging image běží; veřejný image po přepnutí repo na public)
+- [ ] **TLS/HTTPS** — Caddy reverse proxy + Let's Encrypt pro `api.engramia.dev`
 - [ ] **Launch blog post** — "How self-learning agents achieve 93% success rate"
 
 **Deliverable (launch):** Veřejný PyPI balíček, Docker image, dokumentace, benchmark výsledky, examples.
@@ -342,10 +343,10 @@ Přidat copyright inline k Licensed Work — správně: Licensed Work: Engramia,
 - [x] **Placeholder URLs** — `[project.urls]` aktualizovány na `https://github.com/engramia/engramia`
 
 #### Fáze 4.6.8: CrewAI integrace
-- [ ] **CrewAI middleware** (`engramia/sdk/crewai.py`) — BrainMiddleware pro CrewAI agents
-- [ ] **Auto-learn** z crew task výsledků, **auto-recall** relevant patterns před task start
-- [ ] **Testy** — unit testy + příklad v `examples/`
-- [ ] **Dokumentace** — quick start guide pro CrewAI integraci
+- [x] **CrewAI middleware** (`engramia/sdk/crewai.py`) — EngramiaCrewCallback pro CrewAI agents
+- [x] **Auto-learn** z crew task výsledků, **auto-recall** relevant patterns před task start (inject_recall + kickoff wrapper)
+- [x] **Testy** — unit testy (`tests/test_sdk/test_crewai.py`, 19 testů) + příklad v `examples/`
+- [x] **Dokumentace** — quick start guide pro CrewAI integraci (`docs/integrations/crewai.md`)
 
 **Deliverable:** `pip install engramia[crewai]` s fungující integrací.
 
