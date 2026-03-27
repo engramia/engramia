@@ -32,13 +32,11 @@ COPY engramia/ ./engramia/
 COPY alembic.ini ./
 
 # Create data directory and set ownership before switching user
-RUN mkdir -p /data/engramia_data
-engramia: && chown -R engramia:engramia /data /app
+RUN mkdir -p /data/engramia_data && chown -R engramia:engramia /data /app
 
 # Default configuration (override via env vars or docker-compose)
 ENV ENGRAMIA_STORAGE=json
 ENV ENGRAMIA_DATA_PATH=/data/engramia_data
-engramia:
 ENV ENGRAMIA_HOST=0.0.0.0
 ENV ENGRAMIA_PORT=8000
 
