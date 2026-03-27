@@ -10,7 +10,7 @@ WORKDIR /app
 # Install build dependencies
 RUN pip install --upgrade pip
 
-COPY pyproject.toml ./
+COPY pyproject.toml README.md LICENSE.txt ./
 COPY engramia/ ./engramia/
 # Install with all runtime extras (api + openai + postgres)
 RUN pip install --no-cache-dir ".[api,openai,postgres]"
