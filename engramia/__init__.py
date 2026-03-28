@@ -3,7 +3,7 @@
 from engramia.memory import Memory
 from engramia.exceptions import EngramiaError, ProviderError, StorageError, ValidationError
 
-__version__ = "0.5.0"
+__version__ = "0.5.4"
 __license__ = "BUSL-1.1"
 
 __all__ = [
