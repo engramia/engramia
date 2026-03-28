@@ -20,9 +20,12 @@ class TestAuditEvent:
         assert AuditEvent.RATE_LIMITED == "rate_limited"
         assert AuditEvent.BULK_IMPORT == "bulk_import"
 
-    def test_event_count(self):
-        """Sanity: all four documented events are present."""
-        assert len(AuditEvent) == 4
+    def test_new_events_present(self):
+        """Phase 5.2 key-management and quota events must be present."""
+        assert AuditEvent.KEY_CREATED == "key_created"
+        assert AuditEvent.KEY_REVOKED == "key_revoked"
+        assert AuditEvent.KEY_ROTATED == "key_rotated"
+        assert AuditEvent.QUOTA_EXCEEDED == "quota_exceeded"
 
 
 class TestLogEvent:

@@ -219,6 +219,46 @@ class Metrics(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Scope + Auth (Phase 5.1 / 5.2)
+# ---------------------------------------------------------------------------
+
+
+class Scope(BaseModel):
+    """Tenant and project isolation scope propagated to all storage operations.
+
+    The default scope (tenant_id='default', project_id='default') is used in
+    env-var auth mode and in development, providing full backward compatibility
+    with single-tenant deployments.
+    """
+
+    tenant_id: str = "default"
+    project_id: str = "default"
+
+
+class AuthContext(BaseModel):
+    """Authentication context attached to each API request in DB auth mode.
+
+    Set on ``request.state.auth_context`` by the auth dependency after a
+    successful DB key lookup. Not present in env-var or dev auth modes.
+
+    Args:
+        key_id: UUID of the matched api_keys row.
+        tenant_id: Tenant this key belongs to.
+        project_id: Project this key is scoped to.
+        role: RBAC role — 'owner', 'admin', 'editor', or 'reader'.
+        max_patterns: Per-key quota override, or None to inherit from project.
+        scope: Pre-built Scope object for storage propagation.
+    """
+
+    key_id: str
+    tenant_id: str
+    project_id: str
+    role: str
+    max_patterns: int | None = None
+    scope: Scope
+
+
 class ModelRoutingRecommendation(BaseModel):
     """A data-driven model routing recommendation.
 

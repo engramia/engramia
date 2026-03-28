@@ -4,15 +4,22 @@
 
 Commands::
 
-    engramia init          — Create engramia_data/ directory
-    engramia serve         — Start the REST API server
-    engramia status        — Show metrics and pattern count
-    engramia recall "task" — Semantic search for a task
-    engramia aging         — Run pattern aging (decay + prune)
+    engramia init               — Create engramia_data/ directory
+    engramia serve              — Start the REST API server
+    engramia status             — Show metrics and pattern count
+    engramia recall "task"      — Semantic search for a task
+    engramia aging              — Run pattern aging (decay + prune)
+
+    engramia keys bootstrap     — Create the first owner key (DB auth only)
+    engramia keys create        — Create a new API key (DB auth, admin+)
+    engramia keys list          — List API keys for current project (DB auth, admin+)
+    engramia keys revoke <id>   — Revoke an API key (DB auth, admin+)
 
 Provider selection (for recall):
     Set OPENAI_API_KEY to use OpenAI embeddings (default).
     Set ENGRAMIA_LOCAL_EMBEDDINGS=1 to use local sentence-transformers (no API key).
+
+DB auth commands require ENGRAMIA_DATABASE_URL to be set.
 """
 
 import logging
@@ -29,6 +36,9 @@ app = typer.Typer(
     help="Reusable execution memory and evaluation infrastructure for AI agent frameworks.",
     add_completion=False,
 )
+keys_app = typer.Typer(name="keys", help="Manage API keys (requires DB auth mode).")
+app.add_typer(keys_app)
+
 console = Console()
 
 
@@ -67,6 +77,25 @@ def _make_embeddings():
     from engramia.providers.openai import OpenAIEmbeddings
 
     return OpenAIEmbeddings()
+
+
+def _make_db_engine():
+    """Create a SQLAlchemy engine from ENGRAMIA_DATABASE_URL."""
+    db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
+    if not db_url:
+        console.print(
+            "[red]ENGRAMIA_DATABASE_URL is not set.[/red]\n"
+            "DB auth commands require a PostgreSQL connection URL."
+        )
+        raise typer.Exit(1)
+
+    try:
+        from sqlalchemy import create_engine
+
+        return create_engine(db_url, pool_pre_ping=True)
+    except ImportError:
+        console.print("[red]SQLAlchemy not installed.[/red] Install with: pip install engramia[postgres]")
+        raise typer.Exit(1) from None
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +142,6 @@ def serve(
         console.print("[red]uvicorn not installed.[/red] Install with: pip install engramia[api]")
         raise typer.Exit(1) from None
 
-    # Set storage env var so create_app() picks it up
     if storage == "json":
         os.environ.setdefault("ENGRAMIA_STORAGE", "json")
         os.environ.setdefault("ENGRAMIA_DATA_PATH", path)
@@ -238,6 +266,214 @@ def aging(
         console.print("[green]✓[/green] Aging complete — no patterns pruned.")
     else:
         console.print(f"[yellow]Aging complete — pruned {pruned} pattern(s).[/yellow]")
+
+
+# ---------------------------------------------------------------------------
+# keys bootstrap
+# ---------------------------------------------------------------------------
+
+
+@keys_app.command("bootstrap")
+def keys_bootstrap(
+    tenant_name: str = typer.Option("Default", help="Name of the default tenant."),
+    project_name: str = typer.Option("default", help="Name of the default project."),
+    key_name: str = typer.Option("Owner key", help="Display name for the first owner key."),
+) -> None:
+    """Create the first owner API key (only works on an empty api_keys table).
+
+    Requires ENGRAMIA_DATABASE_URL to be set.
+    Run ``alembic upgrade head`` before using this command.
+    """
+    import hashlib
+    import secrets
+    import uuid
+
+    from sqlalchemy import text
+
+    engine = _make_db_engine()
+
+    with engine.connect() as conn:
+        count = conn.execute(text("SELECT COUNT(*) FROM api_keys")).fetchone()
+    if count and int(count[0]) > 0:
+        console.print(
+            "[yellow]Bootstrap already completed.[/yellow]\n"
+            "Use an existing admin/owner key to create more keys via the API."
+        )
+        raise typer.Exit(0)
+
+    # Ensure tenant + project exist
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO tenants (id, name) VALUES ('default', :name) "
+                "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name"
+            ),
+            {"name": tenant_name},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO projects (id, tenant_id, name) VALUES ('default', 'default', :pname) "
+                "ON CONFLICT (id) DO NOTHING"
+            ),
+            {"pname": project_name},
+        )
+
+    # Generate key
+    suffix = secrets.token_urlsafe(32)
+    full_key = f"engramia_sk_{suffix}"
+    display_prefix = f"engramia_sk_{suffix[:8]}..."
+    key_hash = hashlib.sha256(full_key.encode()).hexdigest()
+    key_id = str(uuid.uuid4())
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO api_keys "
+                "(id, tenant_id, project_id, name, key_prefix, key_hash, role, created_at) "
+                "VALUES (:id, 'default', 'default', :name, :prefix, :hash, 'owner', now()::text)"
+            ),
+            {"id": key_id, "name": key_name, "prefix": display_prefix, "hash": key_hash},
+        )
+
+    console.print("\n[green]✓[/green] Bootstrap complete!\n")
+    console.print(f"  Tenant:  [bold]default[/bold] ({tenant_name})")
+    console.print(f"  Project: [bold]default[/bold] ({project_name})")
+    console.print(f"  Key:     [bold]{key_name}[/bold] (owner role)")
+    console.print("\n  [yellow]API Key (save this — shown once only):[/yellow]")
+    console.print(f"\n  [bold cyan]{full_key}[/bold cyan]\n")
+    console.print("  Add to your environment:")
+    console.print(f'  export ENGRAMIA_API_KEY="{full_key}"')
+
+
+# ---------------------------------------------------------------------------
+# keys create
+# ---------------------------------------------------------------------------
+
+
+@keys_app.command("create")
+def keys_create(
+    name: str = typer.Option(..., "--name", "-n", help="Display name for the key."),
+    role: str = typer.Option("editor", "--role", "-r", help="Role: owner, admin, editor, reader."),
+    api_key: str = typer.Option(..., "--api-key", envvar="ENGRAMIA_API_KEY", help="Your current API key."),
+    base_url: str = typer.Option("http://localhost:8000", "--url", help="Engramia API base URL."),
+    max_patterns: int = typer.Option(None, "--max-patterns", help="Pattern quota (default: inherit from project)."),
+) -> None:
+    """Create a new API key via the REST API."""
+    try:
+        import httpx
+    except ImportError:
+        console.print("[red]httpx not installed.[/red] Install with: pip install httpx")
+        raise typer.Exit(1) from None
+
+    payload: dict = {"name": name, "role": role}
+    if max_patterns is not None:
+        payload["max_patterns"] = max_patterns
+
+    resp = httpx.post(
+        f"{base_url}/v1/keys",
+        json=payload,
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=10,
+    )
+    if resp.status_code != 201:
+        console.print(f"[red]Error {resp.status_code}:[/red] {resp.text}")
+        raise typer.Exit(1)
+
+    data = resp.json()
+    console.print(f"\n[green]✓[/green] Key created: [bold]{data['name']}[/bold] (role={data['role']})")
+    console.print("\n  [yellow]API Key (save this — shown once only):[/yellow]")
+    console.print(f"\n  [bold cyan]{data['key']}[/bold cyan]\n")
+
+
+# ---------------------------------------------------------------------------
+# keys list
+# ---------------------------------------------------------------------------
+
+
+@keys_app.command("list")
+def keys_list(
+    api_key: str = typer.Option(..., "--api-key", envvar="ENGRAMIA_API_KEY", help="Your current API key."),
+    base_url: str = typer.Option("http://localhost:8000", "--url", help="Engramia API base URL."),
+) -> None:
+    """List API keys for the current project."""
+    try:
+        import httpx
+    except ImportError:
+        console.print("[red]httpx not installed.[/red] Install with: pip install httpx")
+        raise typer.Exit(1) from None
+
+    resp = httpx.get(
+        f"{base_url}/v1/keys",
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        console.print(f"[red]Error {resp.status_code}:[/red] {resp.text}")
+        raise typer.Exit(1)
+
+    keys = resp.json().get("keys", [])
+    if not keys:
+        console.print("[yellow]No keys found.[/yellow]")
+        return
+
+    table = Table(show_header=True, show_lines=False)
+    table.add_column("ID", style="dim", no_wrap=True)
+    table.add_column("Name")
+    table.add_column("Prefix", style="cyan")
+    table.add_column("Role", style="bold")
+    table.add_column("Quota")
+    table.add_column("Created")
+    table.add_column("Status")
+
+    for k in keys:
+        status_str = "[red]Revoked[/red]" if k.get("revoked_at") else "[green]Active[/green]"
+        quota = str(k["max_patterns"]) if k.get("max_patterns") else "—"
+        created = (k.get("created_at") or "")[:10]
+        table.add_row(
+            k["id"][:8] + "...",
+            k["name"],
+            k["key_prefix"],
+            k["role"],
+            quota,
+            created,
+            status_str,
+        )
+
+    console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# keys revoke
+# ---------------------------------------------------------------------------
+
+
+@keys_app.command("revoke")
+def keys_revoke(
+    key_id: str = typer.Argument(..., help="ID of the key to revoke."),
+    api_key: str = typer.Option(..., "--api-key", envvar="ENGRAMIA_API_KEY", help="Your current API key."),
+    base_url: str = typer.Option("http://localhost:8000", "--url", help="Engramia API base URL."),
+    confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Revoke an API key immediately."""
+    if not confirm:
+        typer.confirm(f"Revoke key {key_id[:8]}...? This cannot be undone.", abort=True)
+
+    try:
+        import httpx
+    except ImportError:
+        console.print("[red]httpx not installed.[/red] Install with: pip install httpx")
+        raise typer.Exit(1) from None
+
+    resp = httpx.delete(
+        f"{base_url}/v1/keys/{key_id}",
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        console.print(f"[red]Error {resp.status_code}:[/red] {resp.text}")
+        raise typer.Exit(1)
+
+    console.print(f"[green]✓[/green] Key {key_id[:8]}... revoked.")
 
 
 # ---------------------------------------------------------------------------
