@@ -5,6 +5,13 @@
 All endpoints use sync FastAPI handlers (FastAPI runs them in a threadpool),
 which is correct for the CPU-light, I/O-bound Engramia operations.
 Async is deferred until a concrete bottleneck is identified.
+
+Each endpoint carries a ``require_permission`` dependency that enforces RBAC
+when the request was authenticated via DB auth mode. In env-var auth mode the
+check is a no-op for backward compatibility.
+
+Pattern-count quota is enforced on write operations (``/learn``, ``/import``)
+by checking the storage backend's scoped count against the per-key limit.
 """
 
 import logging
@@ -14,7 +21,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from engramia import Memory
 from engramia.api.audit import AuditEvent, log_event
 from engramia.api.auth import require_auth
-from engramia.api.deps import get_memory
+from engramia.api.deps import get_auth_context, get_memory
+from engramia.api.permissions import require_permission
 from engramia.api.schemas import (
     AgingResponse,
     AnalyzeFailuresRequest,
@@ -46,6 +54,7 @@ from engramia.api.schemas import (
     StageOut,
 )
 from engramia.exceptions import ProviderError
+from engramia.types import AuthContext
 
 _log = logging.getLogger(__name__)
 
@@ -53,13 +62,56 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 # ---------------------------------------------------------------------------
+# Internal quota helper
+# ---------------------------------------------------------------------------
+
+
+def _check_quota(memory: Memory, auth_ctx: AuthContext | None) -> None:
+    """Raise HTTP 429 if the caller has exceeded their pattern quota.
+
+    Only enforced in DB auth mode where an AuthContext with a max_patterns
+    limit is present. No-op in env-var and dev auth modes.
+    """
+    if auth_ctx is None or auth_ctx.max_patterns is None:
+        return
+    current = memory._storage.count_patterns("patterns/")
+    if current >= auth_ctx.max_patterns:
+        log_event(
+            AuditEvent.QUOTA_EXCEEDED,
+            tenant_id=auth_ctx.tenant_id,
+            project_id=auth_ctx.project_id,
+            current=current,
+            limit=auth_ctx.max_patterns,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "quota_exceeded",
+                "current": current,
+                "limit": auth_ctx.max_patterns,
+                "message": "Pattern quota reached. Delete old patterns or upgrade your plan.",
+            },
+        )
+
+
+# ---------------------------------------------------------------------------
 # POST /learn
 # ---------------------------------------------------------------------------
 
 
-@router.post("/learn", response_model=LearnResponse, status_code=status.HTTP_200_OK)
-def learn(body: LearnRequest, memory: Memory = Depends(get_memory)) -> LearnResponse:
+@router.post(
+    "/learn",
+    response_model=LearnResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("learn")],
+)
+def learn(
+    body: LearnRequest,
+    memory: Memory = Depends(get_memory),
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+) -> LearnResponse:
     """Record a successful agent run and store it as a reusable pattern."""
+    _check_quota(memory, auth_ctx)
     result = memory.learn(
         task=body.task,
         code=body.code,
@@ -74,7 +126,12 @@ def learn(body: LearnRequest, memory: Memory = Depends(get_memory)) -> LearnResp
 # ---------------------------------------------------------------------------
 
 
-@router.post("/recall", response_model=RecallResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/recall",
+    response_model=RecallResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("recall")],
+)
 def recall(body: RecallRequest, memory: Memory = Depends(get_memory)) -> RecallResponse:
     """Find stored patterns most relevant to the given task."""
     matches = memory.recall(
@@ -107,7 +164,12 @@ def recall(body: RecallRequest, memory: Memory = Depends(get_memory)) -> RecallR
 # ---------------------------------------------------------------------------
 
 
-@router.post("/compose", response_model=ComposeResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/compose",
+    response_model=ComposeResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("compose")],
+)
 def compose(body: ComposeRequest, memory: Memory = Depends(get_memory)) -> ComposeResponse:
     """Decompose a task into a multi-stage pipeline from stored patterns."""
     try:
@@ -143,7 +205,12 @@ def compose(body: ComposeRequest, memory: Memory = Depends(get_memory)) -> Compo
 # ---------------------------------------------------------------------------
 
 
-@router.post("/evaluate", response_model=EvaluateResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/evaluate",
+    response_model=EvaluateResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("evaluate")],
+)
 def evaluate(body: EvaluateRequest, memory: Memory = Depends(get_memory)) -> EvaluateResponse:
     """Run multi-evaluator scoring on agent code."""
     try:
@@ -185,7 +252,12 @@ def evaluate(body: EvaluateRequest, memory: Memory = Depends(get_memory)) -> Eva
 # ---------------------------------------------------------------------------
 
 
-@router.get("/feedback", response_model=FeedbackResponse, status_code=status.HTTP_200_OK)
+@router.get(
+    "/feedback",
+    response_model=FeedbackResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("feedback:read")],
+)
 def get_feedback(
     memory: Memory = Depends(get_memory),
     task_type: str | None = Query(default=None, max_length=200, description="Filter by task type keyword."),
@@ -201,7 +273,12 @@ def get_feedback(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/metrics", response_model=MetricsResponse, status_code=status.HTTP_200_OK)
+@router.get(
+    "/metrics",
+    response_model=MetricsResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("metrics")],
+)
 def get_metrics(memory: Memory = Depends(get_memory)) -> MetricsResponse:
     """Return aggregate run statistics."""
     m = memory.metrics
@@ -224,6 +301,7 @@ def get_metrics(memory: Memory = Depends(get_memory)) -> MetricsResponse:
     "/patterns/{pattern_key:path}",
     response_model=DeletePatternResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("patterns:delete")],
 )
 def delete_pattern(
     pattern_key: str,
@@ -250,7 +328,12 @@ def delete_pattern(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/aging", response_model=AgingResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/aging",
+    response_model=AgingResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("aging")],
+)
 def run_aging(memory: Memory = Depends(get_memory)) -> AgingResponse:
     """Apply time-based decay to all patterns. Prune those below threshold."""
     pruned = memory.run_aging()
@@ -262,7 +345,12 @@ def run_aging(memory: Memory = Depends(get_memory)) -> AgingResponse:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/feedback/decay", response_model=FeedbackDecayResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/feedback/decay",
+    response_model=FeedbackDecayResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("feedback:decay")],
+)
 def run_feedback_decay(memory: Memory = Depends(get_memory)) -> FeedbackDecayResponse:
     """Apply time-based decay to feedback patterns. Prune those below threshold."""
     pruned = memory.run_feedback_decay()
@@ -274,13 +362,17 @@ def run_feedback_decay(memory: Memory = Depends(get_memory)) -> FeedbackDecayRes
 # ---------------------------------------------------------------------------
 
 
-@router.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("health")],
+)
 def health(memory: Memory = Depends(get_memory)) -> HealthResponse:
     """Health check — returns storage backend type and pattern count."""
-    storage_type = memory.storage_type
     return HealthResponse(
         status="ok",
-        storage=storage_type,
+        storage=memory.storage_type,
         pattern_count=memory.metrics.pattern_count,
     )
 
@@ -290,7 +382,12 @@ def health(memory: Memory = Depends(get_memory)) -> HealthResponse:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/evolve", response_model=EvolveResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/evolve",
+    response_model=EvolveResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("evolve")],
+)
 def evolve_prompt(body: EvolveRequest, memory: Memory = Depends(get_memory)) -> EvolveResponse:
     """Generate an improved prompt based on recurring feedback patterns."""
     try:
@@ -322,6 +419,7 @@ def evolve_prompt(body: EvolveRequest, memory: Memory = Depends(get_memory)) -> 
     "/analyze-failures",
     response_model=AnalyzeFailuresResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("analyze_failures")],
 )
 def analyze_failures(body: AnalyzeFailuresRequest, memory: Memory = Depends(get_memory)) -> AnalyzeFailuresResponse:
     """Cluster failure patterns to identify systemic issues."""
@@ -347,6 +445,7 @@ def analyze_failures(body: AnalyzeFailuresRequest, memory: Memory = Depends(get_
     "/skills/register",
     response_model=RegisterSkillsResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("skills:register")],
 )
 def register_skills(body: RegisterSkillsRequest, memory: Memory = Depends(get_memory)) -> RegisterSkillsResponse:
     """Associate skill tags with a stored pattern."""
@@ -359,39 +458,12 @@ def register_skills(body: RegisterSkillsRequest, memory: Memory = Depends(get_me
 # POST /skills/search  (Phase 3)
 # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# POST /import  (bulk restore)
-# ---------------------------------------------------------------------------
-
-
-@router.post("/import", response_model=ImportResponse, status_code=status.HTTP_200_OK)
-def import_patterns(
-    body: ImportRequest,
-    request: Request,
-    memory: Memory = Depends(get_memory),
-) -> ImportResponse:
-    """Bulk-import patterns from a previous export().
-
-    Accepts records in the format produced by GET /export ({"version": 1, "key": ..., "data": ...}).
-    Skips malformed records and keys that lack the patterns/ prefix.
-    """
-    raw_records = [r.model_dump() for r in body.records]
-    imported = memory.import_data(raw_records, overwrite=body.overwrite)
-    ip = request.client.host if request.client else "unknown"
-    log_event(
-        AuditEvent.BULK_IMPORT,
-        ip=ip,
-        total=len(body.records),
-        imported=imported,
-        overwrite=body.overwrite,
-    )
-    return ImportResponse(imported=imported, total=len(body.records))
-
 
 @router.post(
     "/skills/search",
     response_model=RecallResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("skills:search")],
 )
 def skills_search(body: SkillsSearchRequest, memory: Memory = Depends(get_memory)) -> RecallResponse:
     """Find patterns that have the required skills."""
@@ -413,3 +485,40 @@ def skills_search(body: SkillsSearchRequest, memory: Memory = Depends(get_memory
             )
         )
     return RecallResponse(matches=out)
+
+
+# ---------------------------------------------------------------------------
+# POST /import  (bulk restore)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/import",
+    response_model=ImportResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("import")],
+)
+def import_patterns(
+    body: ImportRequest,
+    request: Request,
+    memory: Memory = Depends(get_memory),
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+) -> ImportResponse:
+    """Bulk-import patterns from a previous export().
+
+    Accepts records in the format produced by GET /export ({"version": 1, "key": ..., "data": ...}).
+    Skips malformed records and keys that lack the patterns/ prefix.
+    Quota is checked against the number of patterns that would be added.
+    """
+    _check_quota(memory, auth_ctx)
+    raw_records = [r.model_dump() for r in body.records]
+    imported = memory.import_data(raw_records, overwrite=body.overwrite)
+    ip = request.client.host if request.client else "unknown"
+    log_event(
+        AuditEvent.BULK_IMPORT,
+        ip=ip,
+        total=len(body.records),
+        imported=imported,
+        overwrite=body.overwrite,
+    )
+    return ImportResponse(imported=imported, total=len(body.records))

@@ -36,3 +36,19 @@ class StorageError(EngramiaError):
 
 class ValidationError(EngramiaError):
     """Raised when input data fails validation (too long, empty, out of range)."""
+
+
+class QuotaExceededError(EngramiaError):
+    """Raised when a project's pattern quota has been reached.
+
+    Example::
+
+        try:
+            result = memory.learn(task, code, score)
+        except QuotaExceededError:
+            print("Pattern quota reached — delete old patterns or upgrade plan.")
+    """
+
+
+class AuthorizationError(EngramiaError):
+    """Raised when an operation is not permitted for the current role."""

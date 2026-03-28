@@ -164,3 +164,16 @@ class StorageBackend(ABC):
             List of (key, similarity_score) tuples sorted by similarity
             descending. Similarity is cosine similarity in [0.0, 1.0].
         """
+
+    @abstractmethod
+    def count_patterns(self, prefix: str = "patterns/") -> int:
+        """Count stored keys matching *prefix* within the current scope.
+
+        Used for quota enforcement before ``learn()`` and ``import()``.
+
+        Args:
+            prefix: Key prefix to count (default ``'patterns/'``).
+
+        Returns:
+            Number of matching keys in the current tenant/project scope.
+        """

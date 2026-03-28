@@ -9,17 +9,25 @@ Configuration is entirely via environment variables:
     ENGRAMIA_DATABASE_URL   postgresql://...         (postgres only)
     ENGRAMIA_LLM_PROVIDER   openai                   (default: openai)
     ENGRAMIA_LLM_MODEL      gpt-4.1                  (default: gpt-4.1)
-    OPENAI_API_KEY       sk-...
+    OPENAI_API_KEY          sk-...
     ENGRAMIA_EMBEDDING_MODEL text-embedding-3-small  (default)
-    ENGRAMIA_API_KEYS       key1,key2                (empty = dev mode, no auth)
+    ENGRAMIA_API_KEYS       key1,key2                (env-var auth mode)
     ENGRAMIA_HOST           0.0.0.0                  (default)
     ENGRAMIA_PORT           8000                     (default)
 
-Security configuration (env vars):
-    ENGRAMIA_CORS_ORIGINS       comma-separated allowed origins (default: none — CORS disabled)
+Authentication (Phase 5.2):
+    ENGRAMIA_AUTH_MODE      auto | env | db | dev    (default: auto)
+        auto: DB auth if ENGRAMIA_DATABASE_URL set, else env-var keys
+        env:  always env-var keys (ENGRAMIA_API_KEYS) — backward compat
+        db:   always DB auth (api_keys table) — requires DATABASE_URL
+        dev:  no auth (requires ENGRAMIA_ALLOW_NO_AUTH=true)
+
+Security configuration:
+    ENGRAMIA_CORS_ORIGINS       comma-separated allowed origins (default: none)
     ENGRAMIA_RATE_LIMIT_DEFAULT requests/min for regular endpoints (default: 60)
     ENGRAMIA_RATE_LIMIT_EXPENSIVE requests/min for LLM endpoints (default: 10)
     ENGRAMIA_MAX_BODY_SIZE      max request body in bytes (default: 1048576 = 1MB)
+    ENGRAMIA_ALLOW_NO_AUTH      required when ENGRAMIA_AUTH_MODE=dev
 
 Run:
     uvicorn engramia.api.app:create_app --factory
@@ -35,6 +43,7 @@ from fastapi.responses import JSONResponse
 
 from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
+from engramia.api.keys import router as keys_router
 from engramia.api.routes import router
 from engramia.exceptions import ValidationError
 
@@ -43,14 +52,24 @@ _log = logging.getLogger(__name__)
 
 def _log_security_config() -> None:
     """Emit startup warnings for insecure defaults."""
+    auth_mode = os.environ.get("ENGRAMIA_AUTH_MODE", "auto").lower()
+    db_url_set = bool(os.environ.get("ENGRAMIA_DATABASE_URL", "").strip())
     api_keys_set = bool(os.environ.get("ENGRAMIA_API_KEYS", "").strip())
-    if not api_keys_set:
+
+    if auth_mode == "dev":
         _log.warning(
             "SECURITY WARNING: Running in dev mode — API is unauthenticated. "
-            "Set ENGRAMIA_API_KEYS=key1,key2 to require Bearer token authentication."
+            "Never use ENGRAMIA_AUTH_MODE=dev in production."
         )
+    elif auth_mode in ("db", "auto") and db_url_set:
+        _log.info("SECURITY: DB auth enabled (ENGRAMIA_AUTH_MODE=%s).", auth_mode)
+    elif api_keys_set:
+        _log.info("SECURITY: Env-var auth enabled (ENGRAMIA_API_KEYS).")
     else:
-        _log.info("SECURITY: API authentication enabled.")
+        _log.warning(
+            "SECURITY WARNING: No auth configured — API is unauthenticated. "
+            "Set ENGRAMIA_API_KEYS or configure DB auth for production."
+        )
 
     cors_origins = os.environ.get("ENGRAMIA_CORS_ORIGINS", "")
     if not cors_origins.strip():
@@ -74,13 +93,47 @@ def _log_security_config() -> None:
     )
 
 
+def _make_auth_engine():
+    """Create a lightweight SQLAlchemy engine for auth (api_keys lookups).
+
+    Separate from the storage engine so that auth works even when
+    ENGRAMIA_STORAGE=json. Returns None if DATABASE_URL is not set or
+    if db auth is not applicable for the current AUTH_MODE.
+    """
+    auth_mode = os.environ.get("ENGRAMIA_AUTH_MODE", "auto").lower()
+    if auth_mode == "env":
+        return None  # env-var auth only — no DB needed
+
+    db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
+    if not db_url:
+        return None  # no DB configured
+
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.pool import QueuePool
+
+        engine = create_engine(
+            db_url,
+            poolclass=QueuePool,
+            pool_size=3,
+            max_overflow=5,
+            pool_pre_ping=True,
+        )
+        _log.info("Auth engine connected for DB auth.")
+        return engine
+    except Exception as exc:
+        _log.error("Failed to create auth engine: %s", exc)
+        return None
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
     Called once at startup. The Memory singleton is stored on ``app.state.memory``
-    and retrieved per-request via the ``get_memory`` dependency.
+    and the auth engine (when DB auth is configured) on ``app.state.auth_engine``.
 
-    All routes are mounted under the ``/v1`` prefix for API versioning.
+    All core routes are mounted under ``/v1``.
+    Key management routes are mounted under ``/v1/keys``.
     """
     app = FastAPI(
         title="Engramia API",
@@ -113,7 +166,6 @@ def create_app() -> FastAPI:
             allow_methods=["GET", "POST", "DELETE"],
             allow_headers=["Authorization", "Content-Type"],
         )
-    # SecurityHeaders added after CORS so headers appear on all responses
     app.add_middleware(SecurityHeadersMiddleware)
 
     max_body = int(os.environ.get("ENGRAMIA_MAX_BODY_SIZE", str(1024 * 1024)))
@@ -150,9 +202,15 @@ def create_app() -> FastAPI:
     )
 
     # ------------------------------------------------------------------
+    # Auth engine (DB auth mode)
+    # ------------------------------------------------------------------
+    app.state.auth_engine = _make_auth_engine()
+
+    # ------------------------------------------------------------------
     # API v1 routes
     # ------------------------------------------------------------------
     app.include_router(router, prefix="/v1")
+    app.include_router(keys_router, prefix="/v1")
 
     # ------------------------------------------------------------------
     # Startup security diagnostics
@@ -160,8 +218,9 @@ def create_app() -> FastAPI:
     _log_security_config()
 
     _log.info(
-        "Engramia API started — storage=%s, llm=%s",
+        "Engramia API started — storage=%s, auth_engine=%s, llm=%s",
         type(storage).__name__,
+        "configured" if app.state.auth_engine else "none",
         type(llm).__name__ if llm else "None",
     )
     return app

@@ -12,6 +12,11 @@ threads (FastAPI threadpool workers).
 Vector search uses pgvector's HNSW index via the ``<=>`` cosine distance
 operator. Results are returned as (key, similarity) tuples where
 similarity = 1 - cosine_distance.
+
+All queries are scoped to the current tenant and project via
+``engramia._context.get_scope()``, which is set by the auth dependency at
+the start of each request. This provides row-level isolation between tenants
+without any application-level changes to the Memory API.
 """
 
 from __future__ import annotations
@@ -30,9 +35,14 @@ _POSTGRES_INSTALL_MSG = (
 class PostgresStorage(StorageBackend):
     """Stores Engramia data in PostgreSQL using a generic KV schema + pgvector.
 
-    Table schema (created by Alembic migration 001_initial):
-    - ``memory_data(key TEXT PK, data JSONB, updated_at TEXT)``
-    - ``memory_embeddings(key TEXT PK, embedding vector(1536))``
+    Table schema (created by Alembic migrations):
+    - ``memory_data(key TEXT PK, tenant_id TEXT, project_id TEXT, data JSONB, updated_at TEXT)``
+    - ``memory_embeddings(key TEXT PK, tenant_id TEXT, project_id TEXT, embedding vector(1536))``
+
+    All queries filter by the current scope (tenant_id, project_id) obtained
+    from ``engramia._context.get_scope()``. This ensures complete data
+    isolation between tenants — one tenant cannot read, search, or delete
+    another tenant's patterns.
 
     Writes are transactional. Vector search uses an HNSW index for
     sub-millisecond approximate nearest-neighbour queries.
@@ -78,57 +88,106 @@ class PostgresStorage(StorageBackend):
         _log.info("PostgresStorage connected to %s", _redact_url(url))
 
     # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _scope_params(self) -> dict[str, str]:
+        """Return {'tid': tenant_id, 'pid': project_id} for the current request."""
+        from engramia._context import get_scope
+
+        s = get_scope()
+        return {"tid": s.tenant_id, "pid": s.project_id}
+
+    # ------------------------------------------------------------------
     # StorageBackend: key-value store
     # ------------------------------------------------------------------
 
     def load(self, key: str) -> dict | list | None:
+        sp = self._scope_params()
         with self._engine.connect() as conn:
             row = conn.execute(
-                self._text("SELECT data FROM memory_data WHERE key = :key"),
-                {"key": key},
+                self._text(
+                    "SELECT data FROM memory_data "
+                    "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
+                ),
+                {"key": key, **sp},
             ).fetchone()
         return row[0] if row else None  # psycopg2 deserialises JSONB to dict/list directly
 
     def save(self, key: str, data: dict | list) -> None:  # type: ignore[override]
         import json
 
+        sp = self._scope_params()
         with self._engine.begin() as conn:
             conn.execute(
                 self._text(
                     """
-                    INSERT INTO memory_data (key, data, updated_at)
-                    VALUES (:key, CAST(:data AS jsonb), now()::text)
+                    INSERT INTO memory_data (key, tenant_id, project_id, data, updated_at)
+                    VALUES (:key, :tid, :pid, CAST(:data AS jsonb), now()::text)
                     ON CONFLICT (key) DO UPDATE
-                        SET data = EXCLUDED.data,
+                        SET data       = EXCLUDED.data,
                             updated_at = EXCLUDED.updated_at
                     """
                 ),
-                {"key": key, "data": json.dumps(data)},
+                {"key": key, "data": json.dumps(data), **sp},
             )
 
     def list_keys(self, prefix: str = "") -> list[str]:
+        sp = self._scope_params()
         with self._engine.connect() as conn:
             if prefix:
                 safe_prefix = _escape_like(prefix)
                 rows = conn.execute(
-                    self._text("SELECT key FROM memory_data WHERE key LIKE :prefix ESCAPE '\\' ORDER BY key"),
-                    {"prefix": f"{safe_prefix}%"},
+                    self._text(
+                        "SELECT key FROM memory_data "
+                        "WHERE key LIKE :prefix ESCAPE '\\' "
+                        "AND tenant_id = :tid AND project_id = :pid "
+                        "ORDER BY key"
+                    ),
+                    {"prefix": f"{safe_prefix}%", **sp},
                 ).fetchall()
             else:
-                rows = conn.execute(self._text("SELECT key FROM memory_data ORDER BY key")).fetchall()
+                rows = conn.execute(
+                    self._text(
+                        "SELECT key FROM memory_data "
+                        "WHERE tenant_id = :tid AND project_id = :pid "
+                        "ORDER BY key"
+                    ),
+                    sp,
+                ).fetchall()
         return [row[0] for row in rows]
 
     def delete(self, key: str) -> None:
+        sp = self._scope_params()
         with self._engine.begin() as conn:
             conn.execute(
-                self._text("DELETE FROM memory_data WHERE key = :key"),
-                {"key": key},
+                self._text(
+                    "DELETE FROM memory_data "
+                    "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
+                ),
+                {"key": key, **sp},
             )
-            # memory_embeddings has no FK cascade in the migration — delete explicitly
             conn.execute(
-                self._text("DELETE FROM memory_embeddings WHERE key = :key"),
-                {"key": key},
+                self._text(
+                    "DELETE FROM memory_embeddings "
+                    "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
+                ),
+                {"key": key, **sp},
             )
+
+    def count_patterns(self, prefix: str = "patterns/") -> int:
+        sp = self._scope_params()
+        safe_prefix = _escape_like(prefix)
+        with self._engine.connect() as conn:
+            row = conn.execute(
+                self._text(
+                    "SELECT COUNT(*) FROM memory_data "
+                    "WHERE key LIKE :prefix ESCAPE '\\' "
+                    "AND tenant_id = :tid AND project_id = :pid"
+                ),
+                {"prefix": f"{safe_prefix}%", **sp},
+            ).fetchone()
+        return int(row[0]) if row else 0
 
     # ------------------------------------------------------------------
     # StorageBackend: embedding index
@@ -140,18 +199,19 @@ class PostgresStorage(StorageBackend):
                 f"Embedding dimension mismatch: expected {self._embedding_dim}, "
                 f"got {len(embedding)}. Ensure all embeddings use the same provider and model."
             )
+        sp = self._scope_params()
         vec_str = _vec_to_pg(embedding)
         with self._engine.begin() as conn:
             conn.execute(
                 self._text(
                     f"""
-                    INSERT INTO memory_embeddings (key, embedding)
-                    VALUES (:key, '{vec_str}'::vector)
+                    INSERT INTO memory_embeddings (key, tenant_id, project_id, embedding)
+                    VALUES (:key, :tid, :pid, '{vec_str}'::vector)
                     ON CONFLICT (key) DO UPDATE
                         SET embedding = EXCLUDED.embedding
                     """
                 ),
-                {"key": key},
+                {"key": key, **sp},
             )
 
     def search_similar(
@@ -160,15 +220,16 @@ class PostgresStorage(StorageBackend):
         limit: int = 10,
         prefix: str = "",
     ) -> list[tuple[str, float]]:
-        """ANN cosine search via pgvector HNSW index.
+        """ANN cosine search via pgvector HNSW index, scoped to current tenant/project.
 
         Returns (key, similarity) pairs where similarity = 1 - cosine_distance.
-        Results are already filtered by prefix and sorted by similarity descending.
+        Results are filtered by scope and prefix, sorted by similarity descending.
         """
         if len(embedding) != self._embedding_dim:
             raise ValueError(
                 f"Query embedding dimension {len(embedding)} does not match stored dimension {self._embedding_dim}."
             )
+        sp = self._scope_params()
         vec_str = _vec_to_pg(embedding)
         with self._engine.connect() as conn:
             if prefix:
@@ -179,11 +240,13 @@ class PostgresStorage(StorageBackend):
                         SELECT key, 1 - (embedding <=> '{vec_str}'::vector) AS similarity
                         FROM memory_embeddings
                         WHERE key LIKE :prefix ESCAPE '\\'
+                          AND tenant_id = :tid
+                          AND project_id = :pid
                         ORDER BY embedding <=> '{vec_str}'::vector
                         LIMIT :limit
                         """
                     ),
-                    {"prefix": f"{safe_prefix}%", "limit": limit},
+                    {"prefix": f"{safe_prefix}%", "limit": limit, **sp},
                 ).fetchall()
             else:
                 rows = conn.execute(
@@ -191,11 +254,13 @@ class PostgresStorage(StorageBackend):
                         f"""
                         SELECT key, 1 - (embedding <=> '{vec_str}'::vector) AS similarity
                         FROM memory_embeddings
+                        WHERE tenant_id = :tid
+                          AND project_id = :pid
                         ORDER BY embedding <=> '{vec_str}'::vector
                         LIMIT :limit
                         """
                     ),
-                    {"limit": limit},
+                    {"limit": limit, **sp},
                 ).fetchall()
         return [(row[0], float(row[1])) for row in rows]
 
