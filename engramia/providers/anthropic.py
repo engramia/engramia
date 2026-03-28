@@ -3,7 +3,7 @@
 """Anthropic/Claude LLM provider.
 
 Requires the ``anthropic`` extra:
-    pip install agent-brain[anthropic]
+    pip install engramia[anthropic]
 
 Uses lazy imports so the module can be imported without the ``anthropic``
 package installed — the ImportError is raised at instantiation.
@@ -17,7 +17,7 @@ from engramia.providers.base import LLMProvider
 _log = logging.getLogger(__name__)
 
 _ANTHROPIC_INSTALL_MSG = (
-    "Anthropic provider requires the anthropic package. Install it with: pip install agent-brain[anthropic]"
+    "Anthropic provider requires the anthropic package. Install it with: pip install engramia[anthropic]"
 )
 
 #: Errors that should not be retried (client-side mistakes).

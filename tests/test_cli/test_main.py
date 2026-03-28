@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Marek Čermák
-"""Tests for the agent-brain CLI (Typer, no external services)."""
+"""Tests for the Engramia CLI (Typer, no external services)."""
 
 import os
 

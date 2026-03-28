@@ -4,11 +4,11 @@
 
 Commands::
 
-    agent-brain init          — Create brain_data/ directory
-    agent-brain serve         — Start the REST API server
-    agent-brain status        — Show metrics and pattern count
-    agent-brain recall "task" — Semantic search for a task
-    agent-brain aging         — Run pattern aging (decay + prune)
+    engramia init          — Create engramia_data/ directory
+    engramia serve         — Start the REST API server
+    engramia status        — Show metrics and pattern count
+    engramia recall "task" — Semantic search for a task
+    engramia aging         — Run pattern aging (decay + prune)
 
 Provider selection (for recall):
     Set OPENAI_API_KEY to use OpenAI embeddings (default).
@@ -25,8 +25,8 @@ from rich.table import Table
 _log = logging.getLogger(__name__)
 
 app = typer.Typer(
-    name="agent-brain",
-    help="Self-learning memory layer for AI agent frameworks.",
+    name="engramia",
+    help="Reusable execution memory and evaluation infrastructure for AI agent frameworks.",
     add_completion=False,
 )
 console = Console()
@@ -52,7 +52,7 @@ def _make_embeddings():
 
             return LocalEmbeddings()
         except ImportError:
-            console.print("[red]LocalEmbeddings requires sentence-transformers:[/red] pip install agent-brain[local]")
+            console.print("[red]LocalEmbeddings requires sentence-transformers:[/red] pip install engramia[local]")
             raise typer.Exit(1) from None
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -76,7 +76,7 @@ def _make_embeddings():
 
 @app.command()
 def init(
-    path: str = typer.Option("./brain_data", "--path", "-p", help="Directory to initialize."),
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Directory to initialize."),
 ) -> None:
     """Initialize a new engramia data directory."""
     import pathlib
@@ -89,8 +89,8 @@ def init(
     p.mkdir(parents=True, exist_ok=True)
     console.print(f"[green]✓[/green] Initialized engramia data directory: [bold]{p.resolve()}[/bold]")
     console.print("\nNext steps:")
-    console.print("  [cyan]agent-brain serve --path {path}[/cyan]  — start the REST API")
-    console.print("  [cyan]agent-brain status --path {path}[/cyan] — view metrics")
+    console.print("  [cyan]engramia serve --path {path}[/cyan]  — start the REST API")
+    console.print("  [cyan]engramia status --path {path}[/cyan] — view metrics")
 
 
 # ---------------------------------------------------------------------------
@@ -104,13 +104,13 @@ def serve(
     port: int = typer.Option(8000, help="Port to listen on."),
     reload: bool = typer.Option(False, help="Enable auto-reload (dev mode)."),
     storage: str = typer.Option("json", "--storage", help="Storage backend: 'json' or 'postgres'."),
-    path: str = typer.Option("./brain_data", "--path", "-p", help="Brain data path (json only)."),
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data path (json only)."),
 ) -> None:
-    """Start the Brain REST API server."""
+    """Start the Engramia REST API server."""
     try:
         import uvicorn
     except ImportError:
-        console.print("[red]uvicorn not installed.[/red] Install with: pip install agent-brain[api]")
+        console.print("[red]uvicorn not installed.[/red] Install with: pip install engramia[api]")
         raise typer.Exit(1) from None
 
     # Set storage env var so create_app() picks it up
@@ -139,9 +139,9 @@ def serve(
 
 @app.command()
 def status(
-    path: str = typer.Option("./brain_data", "--path", "-p", help="engramia data directory."),
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data directory."),
 ) -> None:
-    """Show Brain metrics and pattern count."""
+    """Show Engramia metrics and pattern count."""
     from engramia.core.metrics import MetricsStore
     from engramia.core.success_patterns import SuccessPatternStore
 
@@ -183,17 +183,17 @@ def status(
 def recall(
     task: str = typer.Argument(..., help="Task description to search for."),
     limit: int = typer.Option(5, "--limit", "-n", help="Maximum number of matches."),
-    path: str = typer.Option("./brain_data", "--path", "-p", help="engramia data directory."),
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data directory."),
 ) -> None:
     """Search for patterns matching a task description."""
-    from engramia.brain import Memory
+    from engramia.memory import Memory
 
     embeddings = _make_embeddings()
     storage = _make_storage(path)
-    brain = Memory(embeddings=embeddings, storage=storage)
+    mem = Memory(embeddings=embeddings, storage=storage)
 
     console.print(f"Searching for: [italic]{task}[/italic]\n")
-    matches = brain.recall(task=task, limit=limit, deduplicate=True)
+    matches = mem.recall(task=task, limit=limit, deduplicate=True)
 
     if not matches:
         console.print("[yellow]No matching patterns found.[/yellow]")
@@ -225,7 +225,7 @@ def recall(
 
 @app.command()
 def aging(
-    path: str = typer.Option("./brain_data", "--path", "-p", help="engramia data directory."),
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data directory."),
 ) -> None:
     """Run pattern aging — apply time-based decay and prune stale patterns."""
     from engramia.core.success_patterns import SuccessPatternStore
@@ -246,7 +246,7 @@ def aging(
 
 
 def main() -> None:
-    """Entry point for ``agent-brain`` CLI command."""
+    """Entry point for ``engramia`` CLI command."""
     logging.basicConfig(level=logging.WARNING)
     app()
 

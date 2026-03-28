@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from engramia.brain import Memory
+from engramia.memory import Memory
 from engramia.providers.json_storage import JSONStorage
 from tests.conftest import FakeEmbeddings
 
@@ -24,7 +24,7 @@ def brain_with_llm(tmp_path):
 class TestEngramiaCallback:
     """Tests for the LangChain integration callback."""
 
-    def _make_callback(self, brain, **kwargs):
+    def _make_callback(self, mem, **kwargs):
         # Mock langchain_core so import works
         mock_lccore = MagicMock()
         with patch.dict(
@@ -32,14 +32,14 @@ class TestEngramiaCallback:
         ):
             from engramia.sdk.langchain import EngramiaCallback
 
-            return EngramiaCallback(brain, **kwargs)
+            return EngramiaCallback(mem, **kwargs)
 
     def test_on_chain_start_recalls_context(self, brain_with_llm):
-        brain = brain_with_llm
+        mem = brain_with_llm
         # Store a pattern first
-        brain.learn(task="Parse CSV file", code="import csv", eval_score=8.0)
+        mem.learn(task="Parse CSV file", code="import csv", eval_score=8.0)
 
-        callback = self._make_callback(brain, auto_recall=True, auto_learn=False)
+        callback = self._make_callback(mem, auto_recall=True, auto_learn=False)
         callback.on_chain_start(
             serialized={},
             inputs={"input": "Parse CSV file"},
@@ -52,10 +52,10 @@ class TestEngramiaCallback:
         assert context[0]["task"] == "Parse CSV file"
 
     def test_on_chain_end_learns(self, brain_with_llm):
-        brain = brain_with_llm
-        count_before = brain.metrics.pattern_count
+        mem = brain_with_llm
+        count_before = mem.metrics.pattern_count
 
-        callback = self._make_callback(brain, auto_learn=True, auto_recall=False)
+        callback = self._make_callback(mem, auto_learn=True, auto_recall=False)
         callback.on_chain_start(
             serialized={},
             inputs={"input": "Generate report"},
@@ -66,12 +66,12 @@ class TestEngramiaCallback:
             run_id="test-run-2",
         )
 
-        count_after = brain.metrics.pattern_count
+        count_after = mem.metrics.pattern_count
         assert count_after > count_before
 
     def test_on_chain_error_cleans_up(self, brain_with_llm):
-        brain = brain_with_llm
-        callback = self._make_callback(brain)
+        mem = brain_with_llm
+        callback = self._make_callback(mem)
         callback.on_chain_start(
             serialized={},
             inputs={"input": "Will fail"},
@@ -82,10 +82,10 @@ class TestEngramiaCallback:
         assert callback.get_recalled_context("test-run-3") is None
 
     def test_disabled_auto_learn(self, brain_with_llm):
-        brain = brain_with_llm
-        count_before = brain.metrics.pattern_count
+        mem = brain_with_llm
+        count_before = mem.metrics.pattern_count
 
-        callback = self._make_callback(brain, auto_learn=False, auto_recall=False)
+        callback = self._make_callback(mem, auto_learn=False, auto_recall=False)
         callback.on_chain_start(
             serialized={},
             inputs={"input": "Test task"},
@@ -96,11 +96,11 @@ class TestEngramiaCallback:
             run_id="test-run-4",
         )
 
-        assert brain.metrics.pattern_count == count_before
+        assert mem.metrics.pattern_count == count_before
 
     def test_disabled_auto_recall(self, brain_with_llm):
-        brain = brain_with_llm
-        callback = self._make_callback(brain, auto_recall=False, auto_learn=False)
+        mem = brain_with_llm
+        callback = self._make_callback(mem, auto_recall=False, auto_learn=False)
         callback.on_chain_start(
             serialized={},
             inputs={"input": "Something"},

@@ -8,7 +8,7 @@ Requires the ``crewai`` extra:
 Usage — Mode 1 (task_callback only, auto-learn):
     from engramia.sdk.crewai import EngramiaCrewCallback
 
-    callback = EngramiaCrewCallback(brain, auto_learn=True)
+    callback = EngramiaCrewCallback(memory, auto_learn=True)
     crew = Crew(
         agents=[agent],
         tasks=[task],
@@ -17,20 +17,20 @@ Usage — Mode 1 (task_callback only, auto-learn):
     crew.kickoff()
 
 Usage — Mode 2 (inject_recall + task_callback, full auto):
-    callback = EngramiaCrewCallback(brain, auto_learn=True, auto_recall=True)
+    callback = EngramiaCrewCallback(memory, auto_learn=True, auto_recall=True)
     callback.inject_recall(crew.tasks)  # Prepend recalled context to task descriptions
     crew = Crew(agents=[agent], tasks=[task], task_callback=callback.task_callback)
     crew.kickoff()
 
 Usage — Mode 3 (kickoff wrapper, most convenient):
-    callback = EngramiaCrewCallback(brain, auto_learn=True, auto_recall=True)
+    callback = EngramiaCrewCallback(memory, auto_learn=True, auto_recall=True)
     result = callback.kickoff(crew, inputs={"topic": "AI memory systems"})
 """
 
 import logging
 from typing import Any
 
-from engramia.brain import Memory
+from engramia.memory import Memory
 
 _log = logging.getLogger(__name__)
 
@@ -41,15 +41,15 @@ _RECALL_HEADER = "\n\n---\n**Relevant prior patterns from Engramia memory:**\n"
 
 
 class EngramiaCrewCallback:
-    """CrewAI integration that adds self-learning to agent crews.
+    """CrewAI integration that adds reusable execution memory to agent crews.
 
     Unlike LangChain, CrewAI does not expose a pre-task hook, so auto-recall
     requires explicit injection before ``crew.kickoff()``. Three usage modes
     are supported — see module docstring.
 
     Args:
-        brain: Memory instance to use for learn/recall.
-        auto_learn: If True, call brain.learn() after each task via task_callback.
+        memory: Memory instance to use for learn/recall.
+        auto_learn: If True, call mem.learn() after each task via task_callback.
         auto_recall: If True, inject_recall() / kickoff() will recall patterns
             and prepend them to task descriptions before execution.
         default_score: Eval score used when auto-learning from task outputs.
@@ -59,7 +59,7 @@ class EngramiaCrewCallback:
 
     def __init__(
         self,
-        brain: Memory,
+        memory: Memory,
         auto_learn: bool = True,
         auto_recall: bool = True,
         default_score: float = 7.0,
@@ -69,7 +69,7 @@ class EngramiaCrewCallback:
             import crewai  # noqa: F401
         except ImportError:
             raise ImportError(_INSTALL_MSG) from None
-        self._brain = brain
+        self._memory = memory
         self._auto_learn = auto_learn
         self._auto_recall = auto_recall
         self._default_score = default_score
@@ -92,7 +92,7 @@ class EngramiaCrewCallback:
         """Prepend recalled patterns to task descriptions before kickoff.
 
         Modifies each task's ``description`` in-place by appending a block of
-        relevant patterns recalled from brain memory. Tasks with no similar
+        relevant patterns recalled from Engramia memory. Tasks with no similar
         patterns are left unchanged.
 
         Args:
@@ -105,7 +105,7 @@ class EngramiaCrewCallback:
             if not task_text:
                 continue
             try:
-                matches = self._brain.recall(task=task_text, limit=self._recall_limit)
+                matches = self._memory.recall(task=task_text, limit=self._recall_limit)
                 if matches:
                     context_block = _RECALL_HEADER + self._format_context(matches)
                     try:
@@ -143,7 +143,7 @@ class EngramiaCrewCallback:
 
     def get_learned_count(self) -> int:
         """Return the total number of patterns stored by this callback instance."""
-        return self._brain.metrics.pattern_count
+        return self._memory.metrics.pattern_count
 
     # ------------------------------------------------------------------
     # Internal
@@ -162,7 +162,7 @@ class EngramiaCrewCallback:
             return
 
         try:
-            self._brain.learn(
+            self._memory.learn(
                 task=task_text,
                 code=result_text,
                 eval_score=self._default_score,

@@ -7,15 +7,15 @@ Base classes (no extra dependencies):
     from engramia.providers import LLMProvider, EmbeddingProvider, StorageBackend
     from engramia.providers import JSONStorage
 
-OpenAI providers (requires: pip install agent-brain[openai]):
+OpenAI providers (requires: pip install engramia[openai]):
 
     from engramia.providers import OpenAIProvider, OpenAIEmbeddings
 
-Anthropic provider (requires: pip install agent-brain[anthropic]):
+Anthropic provider (requires: pip install engramia[anthropic]):
 
     from engramia.providers import AnthropicProvider
 
-Local embeddings (requires: pip install agent-brain[local]):
+Local embeddings (requires: pip install engramia[local]):
 
     from engramia.providers import LocalEmbeddings
 """
@@ -32,8 +32,8 @@ __all__ = [
     "OpenAIProvider",
     "StorageBackend",
     # Lazy imports — available only when the corresponding extra is installed:
-    # "AnthropicProvider",  # agent-brain[anthropic]
-    # "LocalEmbeddings",    # agent-brain[local]
+    # "AnthropicProvider",  # engramia[anthropic]
+    # "LocalEmbeddings",    # engramia[local]
 ]
 
 

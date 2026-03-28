@@ -1,6 +1,6 @@
 # Cookie Policy
 
-**Engramia — Self-Learning Memory Layer for AI Agents**
+**Engramia — Reusable Execution Memory for AI Agents**
 
 Last updated: 2026-03-23
 

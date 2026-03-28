@@ -3,7 +3,7 @@
 """Local embedding provider using sentence-transformers.
 
 Requires the ``local`` extra:
-    pip install agent-brain[local]
+    pip install engramia[local]
 
 Runs entirely on the local machine — no API key needed.
 Useful for open-source deployments and offline use.
@@ -21,7 +21,7 @@ from engramia.providers.base import EmbeddingProvider
 
 _log = logging.getLogger(__name__)
 
-_INSTALL_MSG = "Local embeddings require sentence-transformers. Install with: pip install agent-brain[local]"
+_INSTALL_MSG = "Local embeddings require sentence-transformers. Install with: pip install engramia[local]"
 
 
 class LocalEmbeddings(EmbeddingProvider):

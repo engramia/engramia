@@ -2,27 +2,27 @@
 # Copyright (c) 2026 Marek Čermák
 """MCP server for Engramia.
 
-Exposes Brain operations as MCP tools for use with Claude Desktop, Cursor,
+Exposes Engramia operations as MCP tools for use with Claude Desktop, Cursor,
 Windsurf, VS Code Copilot, and any other MCP-compatible client.
 
 Configuration via environment variables (same as the REST API):
     ENGRAMIA_STORAGE        json | postgres          (default: json)
-    ENGRAMIA_DATA_PATH      ./brain_data             (json only)
+    ENGRAMIA_DATA_PATH      ./engramia_data          (json only)
     ENGRAMIA_DATABASE_URL   postgresql://...         (postgres only)
     ENGRAMIA_LLM_PROVIDER   openai                   (default: openai)
     ENGRAMIA_LLM_MODEL      gpt-4.1                  (default: gpt-4.1)
     OPENAI_API_KEY       sk-...
 
 Usage (stdio transport):
-    agent-brain-mcp
+    engramia-mcp
 
 Claude Desktop config (~/.config/claude/claude_desktop_config.json):
     {
       "mcpServers": {
-        "agent-brain": {
-          "command": "agent-brain-mcp",
+        "engramia": {
+          "command": "engramia-mcp",
           "env": {
-            "ENGRAMIA_DATA_PATH": "/path/to/brain_data",
+            "ENGRAMIA_DATA_PATH": "/path/to/engramia_data",
             "OPENAI_API_KEY": "sk-..."
           }
         }
@@ -44,19 +44,19 @@ from engramia._factory import make_embeddings, make_llm, make_storage
 
 _log = logging.getLogger(__name__)
 
-server: Server = Server("agent-brain")
-_brain: Memory | None = None
+server: Server = Server("engramia")
+_mem: Memory | None = None
 
 
-def _get_brain() -> Memory:
-    global _brain
-    if _brain is None:
-        _brain = Memory(
+def _get_mem() -> Memory:
+    global _mem
+    if _mem is None:
+        _mem = Memory(
             storage=make_storage(),
             embeddings=make_embeddings(),
             llm=make_llm(),
         )
-    return _brain
+    return _mem
 
 
 # ---------------------------------------------------------------------------
@@ -68,10 +68,10 @@ def _get_brain() -> Memory:
 async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
-            name="brain_learn",
+            name="engramia_learn",
             description=(
-                "Record a successful agent run so Brain can learn from it. "
-                "Stores the task, code, and eval score as a reusable pattern."
+                "Record a successful agent run so Engramia can store it as a reusable pattern. "
+                "Stores the task, code, and eval score."
             ),
             inputSchema={
                 "type": "object",
@@ -90,7 +90,7 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
-            name="brain_recall",
+            name="engramia_recall",
             description=(
                 "Find stored patterns most relevant to a new task using semantic search with eval-score weighting."
             ),
@@ -110,7 +110,7 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
-            name="brain_evaluate",
+            name="engramia_evaluate",
             description=(
                 "Run N independent LLM evaluations on an agent run and return median score, variance, and feedback."
             ),
@@ -131,9 +131,9 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
-            name="brain_compose",
+            name="engramia_compose",
             description=(
-                "Decompose a high-level task into a validated multi-agent pipeline. "
+                "[Experimental] Decompose a high-level task into a validated multi-agent pipeline. "
                 "Each stage is matched against stored patterns."
             ),
             inputSchema={
@@ -145,7 +145,7 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
-            name="brain_feedback",
+            name="engramia_feedback",
             description=("Return top recurring quality issues suitable for injection into agent prompts."),
             inputSchema={
                 "type": "object",
@@ -164,12 +164,12 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
-            name="brain_metrics",
-            description="Return aggregate Brain statistics: runs, success rate, pattern count, reuse rate.",
+            name="engramia_metrics",
+            description="Return aggregate Engramia statistics: runs, success rate, pattern count, reuse rate.",
             inputSchema={"type": "object", "properties": {}},
         ),
         types.Tool(
-            name="brain_aging",
+            name="engramia_aging",
             description=(
                 "Apply time-based decay to all stored patterns (2%/week) and prune those below the minimum threshold."
             ),
@@ -185,10 +185,10 @@ async def list_tools() -> list[types.Tool]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    brain = await asyncio.to_thread(_get_brain)
+    mem = await asyncio.to_thread(_get_mem)
 
     try:
-        result = await asyncio.to_thread(_dispatch, brain, name, arguments)
+        result = await asyncio.to_thread(_dispatch, mem, name, arguments)
     except Exception as exc:
         _log.exception("MCP tool %r failed", name)
         return [types.TextContent(type="text", text=f"Error: {exc}")]
@@ -196,10 +196,10 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
 
-def _dispatch(brain: Memory, name: str, arguments: dict) -> object:
+def _dispatch(mem: Memory, name: str, arguments: dict) -> object:
     """Synchronous dispatch — runs in a thread via asyncio.to_thread."""
-    if name == "brain_learn":
-        result = brain.learn(
+    if name == "engramia_learn":
+        result = mem.learn(
             task=arguments["task"],
             code=arguments["code"],
             eval_score=float(arguments["eval_score"]),
@@ -207,8 +207,8 @@ def _dispatch(brain: Memory, name: str, arguments: dict) -> object:
         )
         return {"stored": result.stored, "pattern_count": result.pattern_count}
 
-    if name == "brain_recall":
-        matches = brain.recall(
+    if name == "engramia_recall":
+        matches = mem.recall(
             task=arguments["task"],
             limit=int(arguments.get("limit", 5)),
         )
@@ -224,8 +224,8 @@ def _dispatch(brain: Memory, name: str, arguments: dict) -> object:
             for m in matches
         ]
 
-    if name == "brain_evaluate":
-        ev = brain.evaluate(
+    if name == "engramia_evaluate":
+        ev = mem.evaluate(
             task=arguments["task"],
             code=arguments["code"],
             output=arguments.get("output"),
@@ -239,8 +239,8 @@ def _dispatch(brain: Memory, name: str, arguments: dict) -> object:
             "adversarial_detected": ev.adversarial_detected,
         }
 
-    if name == "brain_compose":
-        pipeline = brain.compose(task=arguments["task"])
+    if name == "engramia_compose":
+        pipeline = mem.compose(task=arguments["task"])
         return {
             "task": pipeline.task,
             "valid": pipeline.valid,
@@ -257,15 +257,15 @@ def _dispatch(brain: Memory, name: str, arguments: dict) -> object:
             ],
         }
 
-    if name == "brain_feedback":
-        feedback = brain.get_feedback(
+    if name == "engramia_feedback":
+        feedback = mem.get_feedback(
             task_type=arguments.get("task_type"),
             limit=int(arguments.get("limit", 4)),
         )
         return {"feedback": feedback}
 
-    if name == "brain_metrics":
-        m = brain.metrics
+    if name == "engramia_metrics":
+        m = mem.metrics
         reuse_rate = m.pipeline_reuse / m.runs if m.runs > 0 else 0.0
         return {
             "runs": m.runs,
@@ -275,8 +275,8 @@ def _dispatch(brain: Memory, name: str, arguments: dict) -> object:
             "reuse_rate": reuse_rate,
         }
 
-    if name == "brain_aging":
-        pruned = brain.run_aging()
+    if name == "engramia_aging":
+        pruned = mem.run_aging()
         return {"pruned": pruned}
 
     raise ValueError(f"Unknown tool: {name!r}")
@@ -293,14 +293,14 @@ async def _run() -> None:
             read_stream,
             write_stream,
             InitializationOptions(
-                server_name="agent-brain",
+                server_name="engramia",
                 server_version=__version__,
             ),
         )
 
 
 def main() -> None:
-    """Entry point for ``agent-brain-mcp`` CLI command (stdio transport)."""
+    """Entry point for ``engramia-mcp`` CLI command (stdio transport)."""
     logging.basicConfig(level=logging.WARNING)
     asyncio.run(_run())
 

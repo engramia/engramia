@@ -5,7 +5,7 @@
 Configuration is entirely via environment variables:
 
     ENGRAMIA_STORAGE        json | postgres          (default: json)
-    ENGRAMIA_DATA_PATH      ./brain_data             (json only)
+    ENGRAMIA_DATA_PATH      ./engramia_data          (json only)
     ENGRAMIA_DATABASE_URL   postgresql://...         (postgres only)
     ENGRAMIA_LLM_PROVIDER   openai                   (default: openai)
     ENGRAMIA_LLM_MODEL      gpt-4.1                  (default: gpt-4.1)
@@ -36,7 +36,7 @@ from fastapi.responses import JSONResponse
 from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
 from engramia.api.routes import router
-from engramia.exceptions import ValidationError as BrainValidationError
+from engramia.exceptions import ValidationError
 
 _log = logging.getLogger(__name__)
 
@@ -77,15 +77,15 @@ def _log_security_config() -> None:
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
-    Called once at startup. The Brain singleton is stored on ``app.state.brain``
-    and retrieved per-request via the ``get_brain`` dependency.
+    Called once at startup. The Memory singleton is stored on ``app.state.memory``
+    and retrieved per-request via the ``get_memory`` dependency.
 
     All routes are mounted under the ``/v1`` prefix for API versioning.
     """
     app = FastAPI(
         title="Engramia API",
         description=(
-            "Self-learning memory layer for AI agent frameworks. "
+            "Reusable execution memory and evaluation infrastructure for AI agent frameworks. "
             "Provides learn, recall, evaluate, compose, and feedback endpoints."
         ),
         version=__version__,
@@ -131,19 +131,19 @@ def create_app() -> FastAPI:
         _log.warning("ValueError in request %s %s: %s", request.method, request.url.path, exc)
         return JSONResponse(status_code=422, content={"detail": "Invalid request parameters."})
 
-    @app.exception_handler(BrainValidationError)
-    async def brain_validation_error_handler(request: Request, exc: BrainValidationError) -> JSONResponse:
+    @app.exception_handler(ValidationError)
+    async def validation_error_handler(request: Request, exc: ValidationError) -> JSONResponse:
         _log.warning("ValidationError in request %s %s: %s", request.method, request.url.path, exc)
         return JSONResponse(status_code=422, content={"detail": "Validation error in request."})
 
     # ------------------------------------------------------------------
-    # Brain instance
+    # Memory instance
     # ------------------------------------------------------------------
     storage = make_storage()
     embeddings = make_embeddings()
     llm = make_llm()
 
-    app.state.brain = Memory(
+    app.state.memory = Memory(
         embeddings=embeddings,
         storage=storage,
         llm=llm,

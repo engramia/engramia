@@ -29,7 +29,7 @@ JACCARD_DEDUP_THRESHOLD = 0.7  # task word overlap to consider "same task" in re
 
 
 class Pattern(BaseModel):
-    """A successful agent design stored in Brain memory.
+    """A successful agent design stored in Engramia memory.
 
     Args:
         task: Natural language description of what the agent does.
@@ -47,7 +47,7 @@ class Pattern(BaseModel):
 
 
 class Match(BaseModel):
-    """A pattern returned from brain.recall().
+    """A pattern returned from mem.recall().
 
     Args:
         pattern: The matched Pattern.
@@ -56,7 +56,7 @@ class Match(BaseModel):
             - "duplicate": similarity >= 0.92, use as-is.
             - "adapt": similarity 0.70-0.92, adapt prompt/code for new task.
             - "fresh": similarity < 0.70, generate new agent (pattern is context only).
-        pattern_key: Storage key for this pattern. Pass to ``brain.delete_pattern()``
+        pattern_key: Storage key for this pattern. Pass to ``mem.delete_pattern()``
             to permanently remove it.
     """
 
@@ -67,7 +67,7 @@ class Match(BaseModel):
 
 
 class LearnResult(BaseModel):
-    """Confirmation returned from brain.learn().
+    """Confirmation returned from mem.learn().
 
     Args:
         stored: True if pattern was saved (may be False if score below threshold).
@@ -104,7 +104,7 @@ class EvalScore(BaseModel):
 
 
 class EvalResult(BaseModel):
-    """Aggregated result from brain.evaluate() (N independent LLM evaluators).
+    """Aggregated result from mem.evaluate() (N independent LLM evaluators).
 
     Args:
         scores: Individual scores from each evaluator run.
@@ -151,7 +151,7 @@ class PipelineStage(BaseModel):
 
 
 class Pipeline(BaseModel):
-    """A multi-agent pipeline returned from brain.compose().
+    """A multi-agent pipeline returned from mem.compose().
 
     Args:
         task: The original high-level task passed to compose().
@@ -172,7 +172,7 @@ class Pipeline(BaseModel):
 
 
 class FeedbackPattern(BaseModel):
-    """A recurring quality issue tracked by Brain.
+    """A recurring quality issue tracked by Engramia.
 
     Args:
         pattern: Normalized feedback text (used as injection into prompts).
@@ -193,7 +193,7 @@ class FeedbackPattern(BaseModel):
 
 
 class Metrics(BaseModel):
-    """Aggregate runtime statistics from brain.metrics.
+    """Aggregate runtime statistics from Memory.metrics.
 
     Args:
         runs: Total number of runs recorded.

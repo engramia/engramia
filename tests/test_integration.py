@@ -92,14 +92,14 @@ class TestFullCycle:
         assert len(pipeline.stages) >= 1
 
     def test_compose_without_llm_raises(self, fake_embeddings, storage):
-        brain = Memory(embeddings=fake_embeddings, storage=storage, llm=None)
+        mem = Memory(embeddings=fake_embeddings, storage=storage, llm=None)
         with pytest.raises(ProviderError, match=r"compose\(\)"):
-            brain.compose("some task")
+            mem.compose("some task")
 
     def test_evaluate_without_llm_raises(self, fake_embeddings, storage):
-        brain = Memory(embeddings=fake_embeddings, storage=storage, llm=None)
+        mem = Memory(embeddings=fake_embeddings, storage=storage, llm=None)
         with pytest.raises(ProviderError, match=r"evaluate\(\)"):
-            brain.evaluate("task", "code")
+            mem.evaluate("task", "code")
 
     def test_recall_eval_weighted(self, full_brain):
         """Higher eval score should boost recall ranking."""

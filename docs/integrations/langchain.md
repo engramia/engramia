@@ -19,7 +19,7 @@ from engramia.sdk.langchain import EngramiaCallback
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),
-    storage=JSONStorage(path="./brain_data"),
+    storage=JSONStorage(path="./engramia_data"),
 )
 
 # Create callback
@@ -93,7 +93,7 @@ from langchain_core.output_parsers import StrOutputParser
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),
-    storage=JSONStorage(path="./brain_data"),
+    storage=JSONStorage(path="./engramia_data"),
 )
 callback = EngramiaCallback(mem, auto_learn=True, auto_recall=True)
 llm = ChatOpenAI(model="gpt-4.1")

@@ -7,7 +7,7 @@ import hashlib
 import numpy as np
 import pytest
 
-from engramia.brain import Memory
+from engramia.memory import Memory
 from engramia.providers.base import EmbeddingProvider
 from engramia.providers.json_storage import JSONStorage
 
@@ -41,5 +41,5 @@ def storage(tmp_path) -> JSONStorage:
 
 
 @pytest.fixture
-def brain(fake_embeddings, storage) -> Memory:
+def mem(fake_embeddings, storage) -> Memory:
     return Memory(embeddings=fake_embeddings, storage=storage)

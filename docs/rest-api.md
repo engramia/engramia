@@ -41,7 +41,7 @@ Swagger UI is available at `http://localhost:8000/docs`.
 | Environment variable | Default | Description |
 |---------------------|---------|-------------|
 | `ENGRAMIA_STORAGE` | `json` | `json` or `postgres` |
-| `ENGRAMIA_DATA_PATH` | `./brain_data` | Path for JSON storage |
+| `ENGRAMIA_DATA_PATH` | `./engramia_data` | Path for JSON storage |
 | `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (postgres mode only) |
 | `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM provider (`openai` or `anthropic`) |
 | `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model ID |

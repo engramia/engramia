@@ -42,7 +42,7 @@ client.learn(
     task="Summarize a GitHub repository README into 3 bullet points",
     code="response = llm.call(f'Summarize this README:\\n{readme_text}')\nbullets = response.strip().split('\\n')[:3]",
     eval_score=8.0,
-    output="• Fast: ...\n• Self-learning: ...\n• Framework-agnostic: ...",
+    output="• Fast: ...\n• Reusable memory: ...\n• Framework-agnostic: ...",
 )
 print("Learned pattern stored.")
 

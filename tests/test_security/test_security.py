@@ -25,7 +25,7 @@ from fastapi.testclient import TestClient
 
 from engramia import Memory
 from engramia.api.routes import router
-from engramia.exceptions import ValidationError as BrainValidationError
+from engramia.exceptions import ValidationError
 
 # ---------------------------------------------------------------------------
 # Shared fixture
@@ -35,11 +35,11 @@ from engramia.exceptions import ValidationError as BrainValidationError
 @pytest.fixture
 def api_client(fake_embeddings, storage):
     app = FastAPI()
-    brain = Memory(embeddings=fake_embeddings, storage=storage)
-    app.state.brain = brain
+    mem = Memory(embeddings=fake_embeddings, storage=storage)
+    app.state.memory = mem
 
-    @app.exception_handler(BrainValidationError)
-    async def _ve(request: Request, exc: BrainValidationError) -> JSONResponse:
+    @app.exception_handler(ValidationError)
+    async def _ve(request: Request, exc: ValidationError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
     @app.exception_handler(ValueError)
@@ -72,7 +72,7 @@ class TestTimingSafeAuth:
             from tests.conftest import FakeEmbeddings
 
             app = FastAPI()
-            app.state.brain = Memory(
+            app.state.memory = Memory(
                 embeddings=FakeEmbeddings(),
                 storage=JSONStorage(path=tmp_path),
             )
@@ -95,7 +95,7 @@ class TestRateLimiting:
         from engramia.api.middleware import RateLimitMiddleware
 
         app = FastAPI()
-        app.state.brain = Memory(embeddings=fake_embeddings, storage=storage)
+        app.state.memory = Memory(embeddings=fake_embeddings, storage=storage)
         app.include_router(router, prefix="/v1")
         # Very low limit for testing
         app.add_middleware(RateLimitMiddleware, default_limit=3, expensive_limit=2)
@@ -110,7 +110,7 @@ class TestRateLimiting:
         from engramia.api.middleware import RateLimitMiddleware
 
         app = FastAPI()
-        app.state.brain = Memory(embeddings=fake_embeddings, storage=storage)
+        app.state.memory = Memory(embeddings=fake_embeddings, storage=storage)
         app.include_router(router, prefix="/v1")
         app.add_middleware(RateLimitMiddleware, default_limit=1, expensive_limit=1)
 
@@ -127,20 +127,20 @@ class TestRateLimiting:
 
 
 class TestEvalScoreBounds:
-    def test_negative_eval_score_rejected(self, brain):
-        with pytest.raises(BrainValidationError, match="eval_score"):
-            brain.learn(task="Task", code="pass", eval_score=-0.1)
+    def test_negative_eval_score_rejected(self, mem):
+        with pytest.raises(ValidationError, match="eval_score"):
+            mem.learn(task="Task", code="pass", eval_score=-0.1)
 
-    def test_score_above_10_rejected(self, brain):
-        with pytest.raises(BrainValidationError, match="eval_score"):
-            brain.learn(task="Task", code="pass", eval_score=10.1)
+    def test_score_above_10_rejected(self, mem):
+        with pytest.raises(ValidationError, match="eval_score"):
+            mem.learn(task="Task", code="pass", eval_score=10.1)
 
-    def test_boundary_0_accepted(self, brain):
-        result = brain.learn(task="Task zero", code="pass", eval_score=0.0)
+    def test_boundary_0_accepted(self, mem):
+        result = mem.learn(task="Task zero", code="pass", eval_score=0.0)
         assert result.stored is True
 
-    def test_boundary_10_accepted(self, brain):
-        result = brain.learn(task="Task ten", code="pass", eval_score=10.0)
+    def test_boundary_10_accepted(self, mem):
+        result = mem.learn(task="Task ten", code="pass", eval_score=10.0)
         assert result.stored is True
 
 
@@ -150,22 +150,22 @@ class TestEvalScoreBounds:
 
 
 class TestImportDataKeyPrefix:
-    def test_non_patterns_key_rejected(self, brain):
+    def test_non_patterns_key_rejected(self, mem):
         records = [{"key": "metrics/something", "data": {"task": "x"}}]
-        imported = brain.import_data(records)
+        imported = mem.import_data(records)
         assert imported == 0
 
-    def test_feedback_key_rejected(self, brain):
+    def test_feedback_key_rejected(self, mem):
         records = [{"key": "feedback/_list", "data": [{"pattern": "evil"}]}]
-        imported = brain.import_data(records)
+        imported = mem.import_data(records)
         assert imported == 0
 
-    def test_path_traversal_key_rejected(self, brain):
+    def test_path_traversal_key_rejected(self, mem):
         records = [{"key": "patterns/../metrics/evil", "data": {"task": "x"}}]
-        imported = brain.import_data(records)
+        imported = mem.import_data(records)
         assert imported == 0
 
-    def test_valid_patterns_key_accepted(self, brain):
+    def test_valid_patterns_key_accepted(self, mem):
         records = [
             {
                 "key": "patterns/abc12345_1000000001",
@@ -179,7 +179,7 @@ class TestImportDataKeyPrefix:
                 },
             }
         ]
-        imported = brain.import_data(records)
+        imported = mem.import_data(records)
         assert imported == 1
 
 
@@ -189,21 +189,21 @@ class TestImportDataKeyPrefix:
 
 
 class TestDeletePatternPrefix:
-    def test_non_patterns_key_raises(self, brain):
-        with pytest.raises(BrainValidationError, match="patterns/"):
-            brain.delete_pattern("metrics/something")
+    def test_non_patterns_key_raises(self, mem):
+        with pytest.raises(ValidationError, match="patterns/"):
+            mem.delete_pattern("metrics/something")
 
-    def test_feedback_key_raises(self, brain):
-        with pytest.raises(BrainValidationError, match="patterns/"):
-            brain.delete_pattern("feedback/_list")
+    def test_feedback_key_raises(self, mem):
+        with pytest.raises(ValidationError, match="patterns/"):
+            mem.delete_pattern("feedback/_list")
 
-    def test_path_traversal_rejected(self, brain):
-        with pytest.raises(BrainValidationError, match="\\.\\."):
-            brain.delete_pattern("patterns/../metrics/something")
+    def test_path_traversal_rejected(self, mem):
+        with pytest.raises(ValidationError, match="\\.\\."):
+            mem.delete_pattern("patterns/../metrics/something")
 
-    def test_valid_nonexistent_patterns_key_returns_false(self, brain):
+    def test_valid_nonexistent_patterns_key_returns_false(self, mem):
         # Valid prefix, but key doesn't exist → False (no exception)
-        result = brain.delete_pattern("patterns/nonexistent_0000")
+        result = mem.delete_pattern("patterns/nonexistent_0000")
         assert result is False
 
 
@@ -214,8 +214,8 @@ class TestDeletePatternPrefix:
 
 class TestNumEvalsCap:
     def test_num_evals_capped_in_evaluate(self):
-        """brain.evaluate() should cap num_evals at _MAX_NUM_EVALS silently."""
-        from engramia.brain import _MAX_NUM_EVALS
+        """mem.evaluate() should cap num_evals at _MAX_NUM_EVALS silently."""
+        from engramia.memory import _MAX_NUM_EVALS
 
         assert _MAX_NUM_EVALS <= 20, "Sanity: cap must be reasonable"
 
@@ -282,7 +282,7 @@ class TestSecurityHeaders:
         from engramia.api.middleware import SecurityHeadersMiddleware
 
         app = FastAPI()
-        app.state.brain = Memory(embeddings=fake_embeddings, storage=storage)
+        app.state.memory = Memory(embeddings=fake_embeddings, storage=storage)
         app.include_router(router, prefix="/v1")
         app.add_middleware(SecurityHeadersMiddleware)
 
@@ -303,7 +303,7 @@ class TestBodySizeLimit:
         from engramia.api.middleware import BodySizeLimitMiddleware
 
         app = FastAPI()
-        app.state.brain = Memory(embeddings=fake_embeddings, storage=storage)
+        app.state.memory = Memory(embeddings=fake_embeddings, storage=storage)
         app.include_router(router, prefix="/v1")
         app.add_middleware(BodySizeLimitMiddleware, max_body_size=100)  # tiny limit
 
@@ -352,16 +352,16 @@ class TestApiVersioning:
 class TestPatternKeyGeneration:
     def test_pattern_key_uses_sha256(self):
         """Brain._pattern_key() must use SHA-256, not hashlib.md5()."""
-        from engramia import brain as brain_module
+        from engramia import memory as memory_module
 
-        source = inspect.getsource(brain_module)
+        source = inspect.getsource(memory_module)
         assert "sha256" in source
         # No hashlib.md5 call (comments mentioning MD5 are fine)
         assert "hashlib.md5" not in source
 
-    def test_pattern_keys_start_with_patterns_prefix(self, brain):
-        brain.learn(task="SHA key test", code="pass", eval_score=7.0)
-        matches = brain.recall(task="SHA key test", limit=1)
+    def test_pattern_keys_start_with_patterns_prefix(self, mem):
+        mem.learn(task="SHA key test", code="pass", eval_score=7.0)
+        matches = mem.recall(task="SHA key test", limit=1)
         assert matches[0].pattern_key.startswith("patterns/")
 
 
@@ -381,7 +381,7 @@ class TestAuditLogging:
             from tests.conftest import FakeEmbeddings
 
             app = FastAPI()
-            app.state.brain = Memory(
+            app.state.memory = Memory(
                 embeddings=FakeEmbeddings(),
                 storage=JSONStorage(path=tmp_path),
             )
@@ -395,18 +395,18 @@ class TestAuditLogging:
         finally:
             os.environ.pop("ENGRAMIA_API_KEYS", None)
 
-    def test_pattern_deleted_logged(self, caplog, brain):
+    def test_pattern_deleted_logged(self, caplog, mem):
         import logging
 
-        brain.learn(task="Audit delete test", code="pass", eval_score=7.0)
-        matches = brain.recall(task="Audit delete test", limit=1)
+        mem.learn(task="Audit delete test", code="pass", eval_score=7.0)
+        matches = mem.recall(task="Audit delete test", limit=1)
         key = matches[0].pattern_key
 
         app = FastAPI()
-        app.state.brain = brain
+        app.state.memory = mem
 
-        @app.exception_handler(BrainValidationError)
-        async def _ve(request: Request, exc: BrainValidationError) -> JSONResponse:
+        @app.exception_handler(ValidationError)
+        async def _ve(request: Request, exc: ValidationError) -> JSONResponse:
             return JSONResponse(status_code=422, content={"detail": str(exc)})
 
         app.include_router(router, prefix="/v1")

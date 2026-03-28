@@ -3,7 +3,7 @@
 """Engramia API endpoint definitions.
 
 All endpoints use sync FastAPI handlers (FastAPI runs them in a threadpool),
-which is correct for the CPU-light, I/O-bound Brain operations.
+which is correct for the CPU-light, I/O-bound Engramia operations.
 Async is deferred until a concrete bottleneck is identified.
 """
 
@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from engramia import Memory
 from engramia.api.audit import AuditEvent, log_event
 from engramia.api.auth import require_auth
-from engramia.api.deps import get_brain
+from engramia.api.deps import get_memory
 from engramia.api.schemas import (
     AgingResponse,
     AnalyzeFailuresRequest,
@@ -58,9 +58,9 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.post("/learn", response_model=LearnResponse, status_code=status.HTTP_200_OK)
-def learn(body: LearnRequest, brain: Memory = Depends(get_brain)) -> LearnResponse:
+def learn(body: LearnRequest, memory: Memory = Depends(get_memory)) -> LearnResponse:
     """Record a successful agent run and store it as a reusable pattern."""
-    result = brain.learn(
+    result = memory.learn(
         task=body.task,
         code=body.code,
         eval_score=body.eval_score,
@@ -75,9 +75,9 @@ def learn(body: LearnRequest, brain: Memory = Depends(get_brain)) -> LearnRespon
 
 
 @router.post("/recall", response_model=RecallResponse, status_code=status.HTTP_200_OK)
-def recall(body: RecallRequest, brain: Memory = Depends(get_brain)) -> RecallResponse:
+def recall(body: RecallRequest, memory: Memory = Depends(get_memory)) -> RecallResponse:
     """Find stored patterns most relevant to the given task."""
-    matches = brain.recall(
+    matches = memory.recall(
         task=body.task,
         limit=body.limit,
         deduplicate=body.deduplicate,
@@ -108,10 +108,10 @@ def recall(body: RecallRequest, brain: Memory = Depends(get_brain)) -> RecallRes
 
 
 @router.post("/compose", response_model=ComposeResponse, status_code=status.HTTP_200_OK)
-def compose(body: ComposeRequest, brain: Memory = Depends(get_brain)) -> ComposeResponse:
+def compose(body: ComposeRequest, memory: Memory = Depends(get_memory)) -> ComposeResponse:
     """Decompose a task into a multi-stage pipeline from stored patterns."""
     try:
-        pipeline = brain.compose(task=body.task)
+        pipeline = memory.compose(task=body.task)
     except ProviderError:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -144,10 +144,10 @@ def compose(body: ComposeRequest, brain: Memory = Depends(get_brain)) -> Compose
 
 
 @router.post("/evaluate", response_model=EvaluateResponse, status_code=status.HTTP_200_OK)
-def evaluate(body: EvaluateRequest, brain: Memory = Depends(get_brain)) -> EvaluateResponse:
+def evaluate(body: EvaluateRequest, memory: Memory = Depends(get_memory)) -> EvaluateResponse:
     """Run multi-evaluator scoring on agent code."""
     try:
-        result = brain.evaluate(
+        result = memory.evaluate(
             task=body.task,
             code=body.code,
             output=body.output,
@@ -187,12 +187,12 @@ def evaluate(body: EvaluateRequest, brain: Memory = Depends(get_brain)) -> Evalu
 
 @router.get("/feedback", response_model=FeedbackResponse, status_code=status.HTTP_200_OK)
 def get_feedback(
-    brain: Memory = Depends(get_brain),
+    memory: Memory = Depends(get_memory),
     task_type: str | None = Query(default=None, max_length=200, description="Filter by task type keyword."),
     limit: int = Query(default=5, ge=1, le=20),
 ) -> FeedbackResponse:
     """Return top recurring quality issues for prompt injection."""
-    feedback = brain.get_feedback(task_type=task_type, limit=limit)
+    feedback = memory.get_feedback(task_type=task_type, limit=limit)
     return FeedbackResponse(feedback=feedback)
 
 
@@ -202,9 +202,9 @@ def get_feedback(
 
 
 @router.get("/metrics", response_model=MetricsResponse, status_code=status.HTTP_200_OK)
-def get_metrics(brain: Memory = Depends(get_brain)) -> MetricsResponse:
+def get_metrics(memory: Memory = Depends(get_memory)) -> MetricsResponse:
     """Return aggregate run statistics."""
-    m = brain.metrics
+    m = memory.metrics
     reuse_rate = m.pipeline_reuse / m.runs if m.runs > 0 else 0.0
     return MetricsResponse(
         runs=m.runs,
@@ -228,11 +228,11 @@ def get_metrics(brain: Memory = Depends(get_brain)) -> MetricsResponse:
 def delete_pattern(
     pattern_key: str,
     request: Request,
-    brain: Memory = Depends(get_brain),
+    memory: Memory = Depends(get_memory),
 ) -> DeletePatternResponse:
     """Permanently delete a stored pattern by its key."""
     try:
-        deleted = brain.delete_pattern(pattern_key)
+        deleted = memory.delete_pattern(pattern_key)
     except Exception as exc:
         _log.warning("delete_pattern failed for key %r: %s", pattern_key, exc)
         raise HTTPException(
@@ -251,9 +251,9 @@ def delete_pattern(
 
 
 @router.post("/aging", response_model=AgingResponse, status_code=status.HTTP_200_OK)
-def run_aging(brain: Memory = Depends(get_brain)) -> AgingResponse:
+def run_aging(memory: Memory = Depends(get_memory)) -> AgingResponse:
     """Apply time-based decay to all patterns. Prune those below threshold."""
-    pruned = brain.run_aging()
+    pruned = memory.run_aging()
     return AgingResponse(pruned=pruned)
 
 
@@ -263,9 +263,9 @@ def run_aging(brain: Memory = Depends(get_brain)) -> AgingResponse:
 
 
 @router.post("/feedback/decay", response_model=FeedbackDecayResponse, status_code=status.HTTP_200_OK)
-def run_feedback_decay(brain: Memory = Depends(get_brain)) -> FeedbackDecayResponse:
+def run_feedback_decay(memory: Memory = Depends(get_memory)) -> FeedbackDecayResponse:
     """Apply time-based decay to feedback patterns. Prune those below threshold."""
-    pruned = brain.run_feedback_decay()
+    pruned = memory.run_feedback_decay()
     return FeedbackDecayResponse(pruned=pruned)
 
 
@@ -275,13 +275,13 @@ def run_feedback_decay(brain: Memory = Depends(get_brain)) -> FeedbackDecayRespo
 
 
 @router.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
-def health(brain: Memory = Depends(get_brain)) -> HealthResponse:
+def health(memory: Memory = Depends(get_memory)) -> HealthResponse:
     """Health check — returns storage backend type and pattern count."""
-    storage_type = brain.storage_type
+    storage_type = memory.storage_type
     return HealthResponse(
         status="ok",
         storage=storage_type,
-        pattern_count=brain.metrics.pattern_count,
+        pattern_count=memory.metrics.pattern_count,
     )
 
 
@@ -291,10 +291,10 @@ def health(brain: Memory = Depends(get_brain)) -> HealthResponse:
 
 
 @router.post("/evolve", response_model=EvolveResponse, status_code=status.HTTP_200_OK)
-def evolve_prompt(body: EvolveRequest, brain: Memory = Depends(get_brain)) -> EvolveResponse:
+def evolve_prompt(body: EvolveRequest, memory: Memory = Depends(get_memory)) -> EvolveResponse:
     """Generate an improved prompt based on recurring feedback patterns."""
     try:
-        result = brain.evolve_prompt(
+        result = memory.evolve_prompt(
             role=body.role,
             current_prompt=body.current_prompt,
             num_issues=body.num_issues,
@@ -323,9 +323,9 @@ def evolve_prompt(body: EvolveRequest, brain: Memory = Depends(get_brain)) -> Ev
     response_model=AnalyzeFailuresResponse,
     status_code=status.HTTP_200_OK,
 )
-def analyze_failures(body: AnalyzeFailuresRequest, brain: Memory = Depends(get_brain)) -> AnalyzeFailuresResponse:
+def analyze_failures(body: AnalyzeFailuresRequest, memory: Memory = Depends(get_memory)) -> AnalyzeFailuresResponse:
     """Cluster failure patterns to identify systemic issues."""
-    clusters = brain.analyze_failures(min_count=body.min_count)
+    clusters = memory.analyze_failures(min_count=body.min_count)
     out = [
         FailureClusterOut(
             representative=c.representative,
@@ -348,10 +348,10 @@ def analyze_failures(body: AnalyzeFailuresRequest, brain: Memory = Depends(get_b
     response_model=RegisterSkillsResponse,
     status_code=status.HTTP_200_OK,
 )
-def register_skills(body: RegisterSkillsRequest, brain: Memory = Depends(get_brain)) -> RegisterSkillsResponse:
+def register_skills(body: RegisterSkillsRequest, memory: Memory = Depends(get_memory)) -> RegisterSkillsResponse:
     """Associate skill tags with a stored pattern."""
-    brain.register_skills(body.pattern_key, body.skills)
-    registered = len(brain._skill_registry.get_skills(body.pattern_key))
+    memory.register_skills(body.pattern_key, body.skills)
+    registered = len(memory._skill_registry.get_skills(body.pattern_key))
     return RegisterSkillsResponse(registered=registered)
 
 
@@ -368,7 +368,7 @@ def register_skills(body: RegisterSkillsRequest, brain: Memory = Depends(get_bra
 def import_patterns(
     body: ImportRequest,
     request: Request,
-    brain: Memory = Depends(get_brain),
+    memory: Memory = Depends(get_memory),
 ) -> ImportResponse:
     """Bulk-import patterns from a previous export().
 
@@ -376,7 +376,7 @@ def import_patterns(
     Skips malformed records and keys that lack the patterns/ prefix.
     """
     raw_records = [r.model_dump() for r in body.records]
-    imported = brain.import_data(raw_records, overwrite=body.overwrite)
+    imported = memory.import_data(raw_records, overwrite=body.overwrite)
     ip = request.client.host if request.client else "unknown"
     log_event(
         AuditEvent.BULK_IMPORT,
@@ -393,9 +393,9 @@ def import_patterns(
     response_model=RecallResponse,
     status_code=status.HTTP_200_OK,
 )
-def skills_search(body: SkillsSearchRequest, brain: Memory = Depends(get_brain)) -> RecallResponse:
+def skills_search(body: SkillsSearchRequest, memory: Memory = Depends(get_memory)) -> RecallResponse:
     """Find patterns that have the required skills."""
-    matches = brain.find_by_skills(required=body.required, match_all=body.match_all)
+    matches = memory.find_by_skills(required=body.required, match_all=body.match_all)
     out: list[MatchOut] = []
     for m in matches:
         code = m.pattern.design.get("code") if m.pattern.design else None

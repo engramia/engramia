@@ -20,8 +20,7 @@ from engramia.core.success_patterns import SuccessPatternStore
 from engramia.eval.evaluator import MultiEvaluator
 from engramia.evolution.failure_cluster import FailureCluster, FailureClusterer
 from engramia.evolution.prompt_evolver import EvolutionResult, PromptEvolver
-from engramia.exceptions import ProviderError
-from engramia.exceptions import ValidationError as BrainValidationError
+from engramia.exceptions import ProviderError, ValidationError
 from engramia.providers.base import EmbeddingProvider, LLMProvider, StorageBackend
 from engramia.reuse.composer import PipelineComposer
 from engramia.reuse.matcher import PatternMatcher
@@ -66,17 +65,17 @@ def _deduplicate_matches(matches: list[Match]) -> list[Match]:
 
 
 class Memory:
-    """Self-learning memory layer for AI agent frameworks.
+    """Reusable execution memory and evaluation infrastructure for AI agent frameworks.
 
     .. code-block:: python
 
         from engramia import Memory
         from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 
-        brain = Memory(
+        mem = Memory(
             llm=OpenAIProvider(model="gpt-4.1"),
             embeddings=OpenAIEmbeddings(),
-            storage=JSONStorage(path="./brain_data"),
+            storage=JSONStorage(path="./engramia_data"),
         )
 
     Args:
@@ -131,7 +130,7 @@ class Memory:
 
         current_count = len(self._storage.list_keys(prefix=PATTERNS_PREFIX))
         if current_count >= _MAX_PATTERN_COUNT:
-            raise BrainValidationError(
+            raise ValidationError(
                 f"Pattern store is full ({current_count}/{_MAX_PATTERN_COUNT}). "
                 "Run aging or delete patterns before learning new ones."
             )
@@ -331,7 +330,7 @@ class Memory:
             ValidationError: If pattern_key does not start with the patterns/ prefix.
         """
         if not pattern_key.startswith(f"{PATTERNS_PREFIX}/") or ".." in pattern_key:
-            raise BrainValidationError(f"pattern_key must start with '{PATTERNS_PREFIX}/' and must not contain '..'")
+            raise ValidationError(f"pattern_key must start with '{PATTERNS_PREFIX}/' and must not contain '..'")
         if self._storage.load(pattern_key) is None:
             return False
         self._storage.delete(pattern_key)
@@ -541,26 +540,26 @@ class Memory:
     @staticmethod
     def _validate_task(task: str) -> None:
         if not task or not task.strip():
-            raise BrainValidationError("task must be a non-empty string")
+            raise ValidationError("task must be a non-empty string")
         if len(task) > _MAX_TASK_LEN:
-            raise BrainValidationError(f"task exceeds maximum length of {_MAX_TASK_LEN} characters")
+            raise ValidationError(f"task exceeds maximum length of {_MAX_TASK_LEN} characters")
 
     @staticmethod
     def _validate_code(code: str) -> None:
         if not code or not code.strip():
-            raise BrainValidationError("code must be a non-empty string")
+            raise ValidationError("code must be a non-empty string")
         if len(code) > _MAX_CODE_LEN:
-            raise BrainValidationError(f"code exceeds maximum length of {_MAX_CODE_LEN} characters")
+            raise ValidationError(f"code exceeds maximum length of {_MAX_CODE_LEN} characters")
 
     @staticmethod
     def _validate_limit(limit: int) -> None:
         if limit < 1:
-            raise BrainValidationError(f"limit must be >= 1, got {limit}")
+            raise ValidationError(f"limit must be >= 1, got {limit}")
 
     @staticmethod
     def _validate_eval_score(score: float) -> None:
         if not (_MIN_EVAL_SCORE <= score <= _MAX_EVAL_SCORE):
-            raise BrainValidationError(
+            raise ValidationError(
                 f"eval_score must be between {_MIN_EVAL_SCORE} and {_MAX_EVAL_SCORE}, got {score}"
             )
 

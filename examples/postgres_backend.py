@@ -34,14 +34,14 @@ from engramia.providers.postgres import PostgresStorage
 DATABASE_URL = os.environ["DATABASE_URL"]
 
 # ---------------------------------------------------------------------------
-# 1. Create Brain with PostgreSQL storage
+# 1. Create Memory instance with PostgreSQL storage
 # ---------------------------------------------------------------------------
 # PostgresStorage connects to PostgreSQL + pgvector.
 # Uses HNSW index for fast approximate nearest-neighbour vector search.
 # Embedding dimension must match OpenAIEmbeddings default (1536-dim).
 storage = PostgresStorage(database_url=DATABASE_URL)
 
-brain = Memory(
+mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),   # 1536-dim, must match the pgvector column
     storage=storage,
@@ -50,7 +50,7 @@ brain = Memory(
 # ---------------------------------------------------------------------------
 # 2. Usage is identical to JSON storage — just a different backend
 # ---------------------------------------------------------------------------
-result = brain.learn(
+result = mem.learn(
     task="Classify customer support tickets by urgency (low/medium/high)",
     code="""
 def classify_ticket(text: str, llm) -> str:
@@ -65,7 +65,7 @@ print(f"Stored: {result.stored} | Total patterns: {result.pattern_count}")
 # ---------------------------------------------------------------------------
 # 3. Recall uses pgvector HNSW for fast vector similarity search
 # ---------------------------------------------------------------------------
-matches = brain.recall("Categorize support messages by priority", limit=5)
+matches = mem.recall("Categorize support messages by priority", limit=5)
 print(f"\nRecall: {len(matches)} match(es)")
 for m in matches:
     print(f"  [{m.reuse_tier}] {m.similarity:.3f} — {m.pattern.task[:70]}")
@@ -73,17 +73,17 @@ for m in matches:
 # ---------------------------------------------------------------------------
 # 4. Export patterns for backup or migration
 # ---------------------------------------------------------------------------
-records = brain.export()
+records = mem.export()
 print(f"\nExported {len(records)} patterns (JSONL-compatible)")
 
 # Restore from backup:
-# imported = brain.import_data(records, overwrite=False)
+# imported = mem.import_data(records, overwrite=False)
 # print(f"Imported: {imported} patterns")
 
 # ---------------------------------------------------------------------------
 # 5. PostgreSQL-specific: connection pooling is handled internally.
-#    For high throughput, use the REST API (which creates one Brain instance)
-#    rather than creating many Brain instances in parallel.
+#    For high throughput, use the REST API (which creates one Memory instance)
+#    rather than creating many Memory instances in parallel.
 # ---------------------------------------------------------------------------
-print(f"\nStorage type: {brain.storage_type}")   # "postgres"
-print(f"Metrics: {brain.metrics}")
+print(f"\nStorage type: {mem.storage_type}")   # "postgres"
+print(f"Metrics: {mem.metrics}")

@@ -3,7 +3,7 @@
 """PostgreSQL + pgvector storage backend.
 
 Requires the ``postgres`` extra:
-    pip install agent-brain[postgres]
+    pip install engramia[postgres]
 
 Uses SQLAlchemy 2.x with a connection pool. Each method opens and closes
 a connection from the pool — safe for concurrent access from multiple
@@ -23,23 +23,23 @@ from engramia.providers.base import StorageBackend
 _log = logging.getLogger(__name__)
 
 _POSTGRES_INSTALL_MSG = (
-    "PostgresStorage requires SQLAlchemy + psycopg2 + pgvector. Install with: pip install agent-brain[postgres]"
+    "PostgresStorage requires SQLAlchemy + psycopg2 + pgvector. Install with: pip install engramia[postgres]"
 )
 
 
 class PostgresStorage(StorageBackend):
-    """Stores Brain data in PostgreSQL using a generic KV schema + pgvector.
+    """Stores Engramia data in PostgreSQL using a generic KV schema + pgvector.
 
     Table schema (created by Alembic migration 001_initial):
-    - ``brain_data(key TEXT PK, data JSONB, updated_at TEXT)``
-    - ``brain_embeddings(key TEXT PK, embedding vector(1536))``
+    - ``memory_data(key TEXT PK, data JSONB, updated_at TEXT)``
+    - ``memory_embeddings(key TEXT PK, embedding vector(1536))``
 
     Writes are transactional. Vector search uses an HNSW index for
     sub-millisecond approximate nearest-neighbour queries.
 
     Args:
         database_url: PostgreSQL connection URL.
-            Example: ``postgresql://user:pass@localhost:5432/brain``
+            Example: ``postgresql://user:pass@localhost:5432/engramia``
             Also read from ``ENGRAMIA_DATABASE_URL`` env var if not provided.
         pool_size: SQLAlchemy connection pool size (default 5).
         embedding_dim: Dimension of embedding vectors (default 1536 for
@@ -81,13 +81,13 @@ class PostgresStorage(StorageBackend):
     # StorageBackend: key-value store
     # ------------------------------------------------------------------
 
-    def load(self, key: str) -> dict | None:
+    def load(self, key: str) -> dict | list | None:
         with self._engine.connect() as conn:
             row = conn.execute(
-                self._text("SELECT data FROM brain_data WHERE key = :key"),
+                self._text("SELECT data FROM memory_data WHERE key = :key"),
                 {"key": key},
             ).fetchone()
-        return dict(row[0]) if row else None
+        return row[0] if row else None  # psycopg2 deserialises JSONB to dict/list directly
 
     def save(self, key: str, data: dict | list) -> None:  # type: ignore[override]
         import json
@@ -96,8 +96,8 @@ class PostgresStorage(StorageBackend):
             conn.execute(
                 self._text(
                     """
-                    INSERT INTO brain_data (key, data, updated_at)
-                    VALUES (:key, :data::jsonb, now()::text)
+                    INSERT INTO memory_data (key, data, updated_at)
+                    VALUES (:key, CAST(:data AS jsonb), now()::text)
                     ON CONFLICT (key) DO UPDATE
                         SET data = EXCLUDED.data,
                             updated_at = EXCLUDED.updated_at
@@ -111,22 +111,22 @@ class PostgresStorage(StorageBackend):
             if prefix:
                 safe_prefix = _escape_like(prefix)
                 rows = conn.execute(
-                    self._text("SELECT key FROM brain_data WHERE key LIKE :prefix ESCAPE '\\' ORDER BY key"),
+                    self._text("SELECT key FROM memory_data WHERE key LIKE :prefix ESCAPE '\\' ORDER BY key"),
                     {"prefix": f"{safe_prefix}%"},
                 ).fetchall()
             else:
-                rows = conn.execute(self._text("SELECT key FROM brain_data ORDER BY key")).fetchall()
+                rows = conn.execute(self._text("SELECT key FROM memory_data ORDER BY key")).fetchall()
         return [row[0] for row in rows]
 
     def delete(self, key: str) -> None:
         with self._engine.begin() as conn:
             conn.execute(
-                self._text("DELETE FROM brain_data WHERE key = :key"),
+                self._text("DELETE FROM memory_data WHERE key = :key"),
                 {"key": key},
             )
-            # brain_embeddings has no FK cascade in the migration — delete explicitly
+            # memory_embeddings has no FK cascade in the migration — delete explicitly
             conn.execute(
-                self._text("DELETE FROM brain_embeddings WHERE key = :key"),
+                self._text("DELETE FROM memory_embeddings WHERE key = :key"),
                 {"key": key},
             )
 
@@ -144,14 +144,14 @@ class PostgresStorage(StorageBackend):
         with self._engine.begin() as conn:
             conn.execute(
                 self._text(
-                    """
-                    INSERT INTO brain_embeddings (key, embedding)
-                    VALUES (:key, :embedding::vector)
+                    f"""
+                    INSERT INTO memory_embeddings (key, embedding)
+                    VALUES (:key, '{vec_str}'::vector)
                     ON CONFLICT (key) DO UPDATE
                         SET embedding = EXCLUDED.embedding
                     """
                 ),
-                {"key": key, "embedding": vec_str},
+                {"key": key},
             )
 
     def search_similar(
@@ -175,27 +175,27 @@ class PostgresStorage(StorageBackend):
                 safe_prefix = _escape_like(prefix)
                 rows = conn.execute(
                     self._text(
-                        """
-                        SELECT key, 1 - (embedding <=> :vec::vector) AS similarity
-                        FROM brain_embeddings
+                        f"""
+                        SELECT key, 1 - (embedding <=> '{vec_str}'::vector) AS similarity
+                        FROM memory_embeddings
                         WHERE key LIKE :prefix ESCAPE '\\'
-                        ORDER BY embedding <=> :vec::vector
+                        ORDER BY embedding <=> '{vec_str}'::vector
                         LIMIT :limit
                         """
                     ),
-                    {"vec": vec_str, "prefix": f"{safe_prefix}%", "limit": limit},
+                    {"prefix": f"{safe_prefix}%", "limit": limit},
                 ).fetchall()
             else:
                 rows = conn.execute(
                     self._text(
-                        """
-                        SELECT key, 1 - (embedding <=> :vec::vector) AS similarity
-                        FROM brain_embeddings
-                        ORDER BY embedding <=> :vec::vector
+                        f"""
+                        SELECT key, 1 - (embedding <=> '{vec_str}'::vector) AS similarity
+                        FROM memory_embeddings
+                        ORDER BY embedding <=> '{vec_str}'::vector
                         LIMIT :limit
                         """
                     ),
-                    {"vec": vec_str, "limit": limit},
+                    {"limit": limit},
                 ).fetchall()
         return [(row[0], float(row[1])) for row in rows]
 

@@ -26,7 +26,7 @@ _DEFAULT_TIMEOUT = 30  # seconds
 
 
 class EngramiaWebhookError(Exception):
-    """Raised when a Brain API call fails."""
+    """Raised when an Engramia API call fails."""
 
     def __init__(self, status_code: int, detail: str) -> None:
         self.status_code = status_code
@@ -38,7 +38,7 @@ class EngramiaWebhook:
     """HTTP client for the Engramia REST API.
 
     Args:
-        url: Base URL of the Brain API (e.g. "http://localhost:8000").
+        url: Base URL of the Engramia API (e.g. "http://localhost:8000").
         api_key: Optional Bearer token for authentication.
         timeout: Request timeout in seconds (default: 30).
     """

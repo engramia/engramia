@@ -3,7 +3,7 @@
 """API request and response schemas.
 
 Separate from internal types (engramia/types.py) to allow the API
-surface to evolve independently from the Brain data models.
+surface to evolve independently from the Engramia data models.
 """
 
 from typing import Any
@@ -244,7 +244,7 @@ class ImportRecord(BaseModel):
 
 
 class ImportRequest(BaseModel):
-    records: list[ImportRecord] = Field(max_length=10_000, description="Records from brain.export().")
+    records: list[ImportRecord] = Field(max_length=10_000, description="Records from Memory.export().")
     overwrite: bool = Field(default=False, description="Overwrite existing patterns if True.")
 
 

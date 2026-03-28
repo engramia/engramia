@@ -1,6 +1,6 @@
 # Integrace Engramia → Agent Factory V2
 
-Tento dokument popisuje kroky pro zapojení Engramia Brain API do Agent Factory V2
+Tento dokument popisuje kroky pro zapojení Engramia Engramia API do Agent Factory V2
 jako testování paměťové vrstvy v reálném prostředí.
 
 **Cíl:** Ověřit, že `learn` / `recall` / `feedback` fungují přes REST API
@@ -62,7 +62,7 @@ Soubor: `agent_factory_v2/memory/engramia_bridge.py`
 """engramia_bridge.py — Thin wrapper around EngramiaWebhook for Agent Factory V2.
 
 Additive integration: calls Engramia in parallel with existing local memory.
-All errors are silently caught so factory runs are never blocked by Brain API issues.
+All errors are silently caught so factory runs are never blocked by Engramia API issues.
 """
 
 import os
@@ -95,7 +95,7 @@ def _get_client():
 
 
 def learn(task: str, code: str, eval_score: float, design: dict | None = None) -> None:
-    """Record a successful run into Engramia Brain."""
+    """Record a successful run into Engramia."""
     client = _get_client()
     if client is None:
         return
@@ -113,7 +113,7 @@ def learn(task: str, code: str, eval_score: float, design: dict | None = None) -
 
 
 def recall(task: str, limit: int = 3) -> list[dict]:
-    """Fetch relevant patterns from Engramia Brain. Returns [] on any error."""
+    """Fetch relevant patterns from Engramia. Returns [] on any error."""
     client = _get_client()
     if client is None:
         return []
@@ -127,7 +127,7 @@ def recall(task: str, limit: int = 3) -> list[dict]:
 
 
 def get_feedback(task_type: str | None = None, limit: int = 4) -> list[str]:
-    """Fetch recurring quality feedback from Engramia Brain. Returns [] on any error."""
+    """Fetch recurring quality feedback from Engramia. Returns [] on any error."""
     client = _get_client()
     if client is None:
         return []
@@ -139,7 +139,7 @@ def get_feedback(task_type: str | None = None, limit: int = 4) -> list[str]:
 
 
 def run_aging() -> None:
-    """Trigger pattern aging in Engramia Brain."""
+    """Trigger pattern aging in Engramia."""
     client = _get_client()
     if client is None:
         return
@@ -162,8 +162,8 @@ record_success()
 # ADD AFTER:
 try:
     from memory.engramia_bridge import learn as engramia_learn
-    _brain_score = eval_score if eval_score is not None else 7.0
-    engramia_learn(task=task, code=code, eval_score=_brain_score, design=design)
+    _engramia_score = eval_score if eval_score is not None else 7.0
+    engramia_learn(task=task, code=code, eval_score=_engramia_score, design=design)
 except Exception as e:
     log.debug("[EngramiaBridge] learn hook failed: %s", e)
 ```
@@ -180,9 +180,9 @@ V souboru `orchestrator/generation.py`, za `find_reuse_candidate(task)` (~řáde
 # After existing reuse candidate logic:
 try:
     from memory.engramia_bridge import recall as engramia_recall
-    _brain_matches = engramia_recall(task, limit=3)
-    if _brain_matches:
-        log.debug("[EngramiaBridge] %d patterns from Brain for context", len(_brain_matches))
+    _engramia_matches = engramia_recall(task, limit=3)
+    if _engramia_matches:
+        log.debug("[EngramiaBridge] %d patterns recalled for context", len(_engramia_matches))
         # Future: inject into architect context / coder prompt
 except Exception as e:
     log.debug("[EngramiaBridge] recall hook failed: %s", e)
@@ -314,13 +314,13 @@ V `agents/architect.py`, v části kde se builduje system prompt:
 ```python
 from memory.engramia_bridge import recall as engramia_recall
 
-_brain_matches = engramia_recall(task, limit=3)
-if _brain_matches:
-    _brain_context = "\n".join(
+_engramia_matches = engramia_recall(task, limit=3)
+if _engramia_matches:
+    _engramia_context = "\n".join(
         f"- {m['pattern']['task']}: {m['pattern']['design'][:200]}"
-        for m in _brain_matches if m.get("pattern")
+        for m in _engramia_matches if m.get("pattern")
     )
-    # Přidat do system promptu architekta jako sekci "PROVEN PATTERNS FROM BRAIN"
+    # Přidat do system promptu architekta jako sekci "PROVEN PATTERNS FROM ENGRAMIA"
 ```
 
 ### 3.2 Inject Engramia feedback do coder promptu
@@ -330,7 +330,7 @@ V `agents/coder.py`, kde se volá `get_top_feedback_patterns()`:
 ```python
 from memory.engramia_bridge import get_feedback as engramia_feedback
 
-_brain_feedback = engramia_feedback(limit=4)
+_engramia_feedback = engramia_feedback(limit=4)
 # Merge s lokálními feedback patterns, deduplicate
 ```
 
