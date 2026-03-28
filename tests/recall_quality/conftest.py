@@ -16,9 +16,12 @@ import os
 import subprocess
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Generator
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 import pytest
 
@@ -34,7 +37,7 @@ _RESULTS_DIR = Path(__file__).parent / "results"
 class QualityTracker:
     """Collects per-dimension recall quality metrics for one test session.
 
-    Fixtures in D1–D3 and boundary tests call record_*() to feed data.
+    Fixtures in D1-D3 and boundary tests call record_*() to feed data.
     On session teardown the tracker writes a timestamped JSON file to
     tests/recall_quality/results/ so quality trends can be monitored
     across code changes and embedding model upgrades.
@@ -92,7 +95,7 @@ class QualityTracker:
         except Exception:
             git_branch = "unknown"
 
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
         run_id = f"{ts.strftime('%Y%m%dT%H%M%S')}_{git_hash}"
 
         # D1 aggregates
@@ -310,7 +313,7 @@ def thresholds() -> dict:
 
 
 @pytest.fixture(scope="session")
-def client(tmp_path_factory, run_tag):  # noqa: F811
+def client(tmp_path_factory, run_tag):
     """Session-scoped TestClient in local or remote mode."""
     mode = os.environ.get("ENGRAMIA_TEST_MODE", "local").lower()
 

@@ -5,7 +5,7 @@
 All task strings are raw (no run_id prefix).  Test fixtures add the prefix.
 
 Design constraints:
-- 12 clusters × 5 variants each.
+- 12 clusters x 5 variants each.
 - Intra-cluster: semantically similar, Jaccard < 0.7 (avoids recall dedup).
 - Cross-cluster: semantically distinct.
 - 15 noise tasks: completely unrelated to any cluster.

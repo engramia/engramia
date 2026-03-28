@@ -22,7 +22,7 @@ def run_tag() -> str:
 
 
 @pytest.fixture(scope="session")
-def client(tmp_path_factory, run_tag):  # noqa: F811
+def client(tmp_path_factory, run_tag):
     """Session-scoped TestClient in local or remote mode."""
     mode = os.environ.get("ENGRAMIA_TEST_MODE", "local").lower()
 

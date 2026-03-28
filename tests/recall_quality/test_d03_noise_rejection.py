@@ -7,8 +7,6 @@ noise tasks.  Assert max similarity stays below noise_threshold.
 """
 from __future__ import annotations
 
-import pytest
-
 from tests.recall_quality.conftest import QualityTracker, TestClient, learn_and_get_key
 from tests.recall_quality.snippets import CLUSTER_SNIPPETS
 from tests.recall_quality.task_clusters import CLUSTERS, NOISE_TASKS

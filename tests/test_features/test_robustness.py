@@ -20,7 +20,6 @@ import pytest
 
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
 from tests.recall_quality.snippets import CLUSTER_SNIPPETS
-from tests.recall_quality.task_clusters import CLUSTERS
 
 _VALID_CODE = CLUSTER_SNIPPETS["C01"]["good"]["code"]
 _VALID_TASK = "Test task for robustness checks"

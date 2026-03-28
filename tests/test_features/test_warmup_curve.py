@@ -10,8 +10,6 @@ if it's too similar to an existing higher-scored one.
 """
 from __future__ import annotations
 
-import pytest
-
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
 from tests.recall_quality.snippets import CLUSTER_SNIPPETS
 from tests.recall_quality.task_clusters import CLUSTERS

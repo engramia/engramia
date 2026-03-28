@@ -108,7 +108,7 @@ class TestAnthropicProvider:
         mock_client.messages.create.side_effect = _fake_anthropic.PermissionDeniedError("no permission")
         provider = _make_provider(mock_client)
 
-        with pytest.raises(Exception):
+        with pytest.raises(_fake_anthropic.PermissionDeniedError):
             provider.call("test")
         assert mock_client.messages.create.call_count == 1
 
@@ -118,7 +118,7 @@ class TestAnthropicProvider:
         mock_client.messages.create.side_effect = _fake_anthropic.BadRequestError("bad request")
         provider = _make_provider(mock_client)
 
-        with pytest.raises(Exception):
+        with pytest.raises(_fake_anthropic.BadRequestError):
             provider.call("test")
         assert mock_client.messages.create.call_count == 1
 

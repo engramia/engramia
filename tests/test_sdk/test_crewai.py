@@ -217,11 +217,10 @@ class TestEngramiaCrewCallbackHelpers:
         assert cb.get_learned_count() == 1
 
     def test_import_error_without_crewai(self, mem):
-        with patch.dict("sys.modules", {"crewai": None}):
-            with pytest.raises(ImportError, match="crewai"):
-                from engramia.sdk.crewai import EngramiaCrewCallback
+        with patch.dict("sys.modules", {"crewai": None}), pytest.raises(ImportError, match="crewai"):
+            from engramia.sdk.crewai import EngramiaCrewCallback
 
-                EngramiaCrewCallback(mem)
+            EngramiaCrewCallback(mem)
 
     def test_string_output_fallback(self, mem):
         """Plain string output should be handled gracefully."""

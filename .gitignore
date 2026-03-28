@@ -35,6 +35,7 @@ htmlcov/
 Thumbs.db
 
 # Internal / non-public docs
+/.claude
 CLAUDE.md
 roadmap.md
 CHANGELOG.md

@@ -9,8 +9,6 @@ a parseable JSON entry with the required fields.
 import json
 import logging
 
-import pytest
-
 from engramia.api.audit import AuditEvent, log_event
 
 

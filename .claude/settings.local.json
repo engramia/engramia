@@ -25,7 +25,9 @@
       "Bash(python -m coverage xml)",
       "Bash(python -m pytest --cov=engramia --cov-fail-under=80 -q)",
       "Bash(find /c/Users/soulf/agent-brain -type f \\\\\\(-name *.py -o -name *.md -o -name *.toml -o -name *.yaml -o -name *.yml -o -name *.json -o -name *.ini -o -name *.txt -o -name *.rst \\\\\\) ! -path */__pycache__/* ! -path */.git/* ! -path */node_modules/*)",
-      "Bash(git -C /c/Users/soulf/agent-brain status --short)"
+      "Bash(git -C /c/Users/soulf/agent-brain status --short)",
+      "Bash(venv/Scripts/python -c \":*)",
+      "Bash(python -m pytest tests/ -x -q --tb=short)"
     ]
   }
 }
