@@ -11,8 +11,6 @@ Tests skill registration and tag-based pattern discovery:
 """
 from __future__ import annotations
 
-import pytest
-
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
 from tests.recall_quality.snippets import CLUSTER_SNIPPETS
 from tests.recall_quality.task_clusters import CLUSTERS
@@ -32,7 +30,7 @@ def test_skills_single_tag_match(client: TestClient, run_tag: str) -> None:
         matches = client.find_by_skills(["csv_parsing"], match_all=True)
         keys_found = {m["pattern_key"] for m in matches}
         assert key in keys_found, (
-            f"Pattern with skill 'csv_parsing' not found in find_by_skills result"
+            "Pattern with skill 'csv_parsing' not found in find_by_skills result"
         )
     finally:
         for k in set(learned_keys):

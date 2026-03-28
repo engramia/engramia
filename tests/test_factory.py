@@ -10,9 +10,6 @@ mocked so no real API keys or databases are required.
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # make_storage
 # ---------------------------------------------------------------------------

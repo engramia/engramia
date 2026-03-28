@@ -70,7 +70,7 @@ class TestPatternAging:
             matches = client.recall(task=task, limit=1, deduplicate=False, eval_weighted=False)
             pattern_still_there = any(m["pattern_key"] == key for m in matches)
             assert not pattern_still_there, (
-                f"Pattern with score 0.15 at 104 weeks old was NOT pruned"
+                "Pattern with score 0.15 at 104 weeks old was NOT pruned"
             )
             if key in learned_keys:
                 learned_keys.remove(key)  # Already deleted by aging

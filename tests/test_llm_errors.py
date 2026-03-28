@@ -4,8 +4,8 @@
 
 import pytest
 
-from engramia.memory import Memory
 from engramia.exceptions import ValidationError
+from engramia.memory import Memory
 from engramia.providers.base import LLMProvider
 
 

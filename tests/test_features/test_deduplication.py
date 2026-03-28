@@ -8,8 +8,6 @@ Learn 3 tasks with Jaccard > 0.7 (same wording, slight variation).
 """
 from __future__ import annotations
 
-import pytest
-
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
 from tests.recall_quality.snippets import CLUSTER_SNIPPETS
 
@@ -34,7 +32,7 @@ def test_deduplication_collapses_similar_tasks(
     snippet = CLUSTER_SNIPPETS["C01"]["good"]
 
     try:
-        for task, score in zip(_HIGH_JACCARD_TASKS, _SCORES):
+        for task, score in zip(_HIGH_JACCARD_TASKS, _SCORES, strict=True):
             prefixed = f"[{run_tag}] {task}"
             key = learn_and_get_key(
                 client,
@@ -77,7 +75,7 @@ def test_no_deduplication_returns_all(
     snippet = CLUSTER_SNIPPETS["C01"]["good"]
 
     try:
-        for task, score in zip(_HIGH_JACCARD_TASKS, _SCORES):
+        for task, score in zip(_HIGH_JACCARD_TASKS, _SCORES, strict=True):
             prefixed = f"[{run_tag}] {task}"
             key = learn_and_get_key(
                 client,

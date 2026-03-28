@@ -49,7 +49,7 @@ def run_calibration(mode: str = "local") -> dict:
     print(f"Embedding {len(rep_tasks)} cluster representatives ({model_name})…")
     rep_embeddings = [embedder.embed(t) for t in rep_tasks]
 
-    # Build 12×12 similarity matrix
+    # Build 12x12 similarity matrix
     n = len(cluster_ids)
     matrix = np.zeros((n, n))
     for i in range(n):

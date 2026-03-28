@@ -10,8 +10,6 @@ In remote mode the test verifies reuse_count increases.
 """
 from __future__ import annotations
 
-import pytest
-
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
 from tests.recall_quality.snippets import CLUSTER_SNIPPETS
 from tests.recall_quality.task_clusters import CLUSTERS
@@ -25,7 +23,7 @@ def test_reuse_boost_score_delta(
     client: TestClient,
     run_tag: str,
 ) -> None:
-    """After 10 recalls, success_score should be boosted by up to 10×0.1=1.0."""
+    """After 10 recalls, success_score should be boosted by up to 10x0.1=1.0."""
     snippet = CLUSTER_SNIPPETS[_CLUSTER]["medium"]
     task = f"[{run_tag}] {CLUSTERS[_CLUSTER][0]}"
     learned_keys: list[str] = []
@@ -52,7 +50,7 @@ def test_reuse_boost_score_delta(
         final_score = final_matches[0]["pattern"]["success_score"]
         final_reuse = final_matches[0]["pattern"]["reuse_count"]
 
-        # Score boosted by (recall_rounds + 1 discovery recall) × 0.1
+        # Score boosted by (recall_rounds + 1 discovery recall) x 0.1
         # We called recall _RECALL_ROUNDS times + 1 in learn_and_get_key + 1 final = 12 total
         # But we only assert a lower bound to be tolerant of remote timing
         expected_min_boost = _RECALL_ROUNDS * 0.1

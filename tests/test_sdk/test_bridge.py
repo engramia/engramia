@@ -5,10 +5,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from engramia.sdk.bridge import EngramiaBridge, _format_matches
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -233,7 +230,7 @@ class TestBridgeWrapDecorator:
         mock_client.learn.assert_called_once()
 
     def test_wrap_injects_context_if_accepted(self):
-        bridge, mock_client = self._bridge_with_mock_client()
+        bridge, _mock_client = self._bridge_with_mock_client()
         received_ctx: list[str] = []
 
         @bridge.wrap
@@ -245,7 +242,7 @@ class TestBridgeWrapDecorator:
         assert received_ctx[0] != ""  # context was injected
 
     def test_wrap_skips_context_if_not_accepted(self):
-        bridge, mock_client = self._bridge_with_mock_client()
+        bridge, _mock_client = self._bridge_with_mock_client()
 
         @bridge.wrap
         def run_agent(task: str) -> dict:

@@ -110,7 +110,7 @@ def print_latest_summary(run: dict) -> None:
     if per_cluster:
         failed = [(cid, v["top1_sim"]) for cid, v in per_cluster.items() if not v.get("pass")]
         if failed:
-            print(f"\n  D1 failing clusters:")
+            print("\n  D1 failing clusters:")
             for cid, sim in failed:
                 print(f"    {cid}: top1_sim={sim:.4f}")
 

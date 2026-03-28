@@ -7,16 +7,20 @@ Tests:
   1. Single feedback entry → NOT surfaced (count < 2).
   2. Three similar feedback entries (Jaccard > 0.4) → clustered, count=3, surfaced.
   3. run_feedback_decay() → score decreases.
-  4. Completely different feedback × 1 → NOT surfaced.
+  4. Completely different feedback x 1 → NOT surfaced.
 
 Note: feedback storage is shared (not namespaced by run_id).
 Tests use distinctive phrases to avoid collision with real production data.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
-from tests.recall_quality.conftest import TestClient
+if TYPE_CHECKING:
+    from tests.recall_quality.conftest import TestClient
+
 
 # Three variants with high Jaccard overlap (>0.4) — will cluster together
 _FEEDBACK_REPEATED = [
@@ -44,7 +48,7 @@ def test_single_feedback_not_surfaced(client: TestClient) -> None:
         pytest.skip("Cannot inject feedback directly in remote mode")
 
     assert unique not in feedback, (
-        f"Feedback with count=1 was surfaced in get_feedback() — should require count>=2"
+        "Feedback with count=1 was surfaced in get_feedback() — should require count>=2"
     )
 
 
@@ -99,7 +103,7 @@ def test_feedback_decay_reduces_score(client: TestClient) -> None:
             # Make it appear 2 weeks old
             old_ts = time.time() - 2 * _ONE_WEEK
             p["last_decayed"] = datetime.datetime.fromtimestamp(
-                old_ts, tz=datetime.timezone.utc
+                old_ts, tz=datetime.UTC
             ).strftime("%Y-%m-%dT%H:%M:%S")
     store._storage.save("feedback/_list", raw_entries)
 
