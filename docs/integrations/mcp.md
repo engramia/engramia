@@ -31,7 +31,7 @@ Config file location:
     "engramia": {
       "command": "engramia-mcp",
       "env": {
-        "ENGRAMIA_DATA_PATH": "/path/to/brain_data",
+        "ENGRAMIA_DATA_PATH": "/path/to/engramia_data",
         "OPENAI_API_KEY": "sk-..."
       }
     }
@@ -62,7 +62,7 @@ The MCP server uses the same environment variables as the REST API:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENGRAMIA_STORAGE` | `json` | `json` or `postgres` |
-| `ENGRAMIA_DATA_PATH` | `./brain_data` | Path for JSON storage |
+| `ENGRAMIA_DATA_PATH` | `./engramia_data` | Path for JSON storage |
 | `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (postgres mode only) |
 | `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM provider |
 | `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model ID |

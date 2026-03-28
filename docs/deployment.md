@@ -42,7 +42,7 @@ pip install "engramia[openai,postgres]"
 from engramia import Memory
 from engramia.providers import OpenAIProvider, OpenAIEmbeddings, PostgresStorage
 
-storage = PostgresStorage(database_url="postgresql://user:pass@localhost:5432/brain")
+storage = PostgresStorage(database_url="postgresql://user:pass@localhost:5432/engramia")
 mem = Memory(
     llm=OpenAIProvider(),
     embeddings=OpenAIEmbeddings(),
@@ -58,8 +58,8 @@ mem = Memory(
 
 The migration creates:
 
-- `brain_data` table for pattern storage
-- `brain_embeddings` table with pgvector column
+- `engramia_data` table for pattern storage
+- `memory_embeddings` table with pgvector column
 - HNSW index for fast approximate nearest neighbor search
 
 ## Production checklist
@@ -113,7 +113,7 @@ Schedule these to run periodically (e.g., weekly cron):
 
 ```bash
 # Via CLI
-engramia aging --path ./brain_data
+engramia aging --path ./engramia_data
 
 # Via API
 curl -X POST http://localhost:8000/v1/aging -H "Authorization: Bearer $KEY"

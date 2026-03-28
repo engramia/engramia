@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Marek Čermák
-"""Shared Brain provider factory helpers.
+"""Shared Engramia provider factory helpers.
 
 Used by both the REST API (api/app.py) and the MCP server (mcp/server.py)
 to construct provider instances from environment variables.
@@ -21,7 +21,7 @@ def make_storage():
         return PostgresStorage()  # reads ENGRAMIA_DATABASE_URL from env
     from engramia.providers.json_storage import JSONStorage
 
-    path = os.environ.get("ENGRAMIA_DATA_PATH", "./brain_data")
+    path = os.environ.get("ENGRAMIA_DATA_PATH", "./engramia_data")
     return JSONStorage(path=path)
 
 

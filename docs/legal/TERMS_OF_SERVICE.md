@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Engramia — Self-Learning Memory Layer for AI Agents**
+**Engramia — Reusable Execution Memory for AI Agents**
 
 Last updated: 2026-03-27
 
@@ -30,7 +30,7 @@ If you do not agree to these Terms, do not use the Service.
 
 ## 3. Service Description
 
-Engramia is a self-learning memory layer for AI agent frameworks. It provides pattern storage, semantic search, pipeline composition, multi-evaluator scoring, prompt evolution, and related capabilities. Certain features may rely on third-party AI model providers (e.g., OpenAI, Anthropic) for inference, evaluation, composition, prompt evolution, or related processing.
+Engramia is a reusable execution memory and evaluation infrastructure for AI agent frameworks. It provides pattern storage, semantic search, pipeline composition, multi-evaluator scoring, prompt evolution, and related capabilities. Certain features may rely on third-party AI model providers (e.g., OpenAI, Anthropic) for inference, evaluation, composition, prompt evolution, or related processing.
 
 The specific features, limits, deployment options, support levels, and commercial terms applicable to your use may depend on your Subscription, Commercial License, enterprise agreement, or other order form.
 

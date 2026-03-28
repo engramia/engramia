@@ -1,8 +1,8 @@
 # CrewAI Integration
 
-Engramia provides `EngramiaCrewCallback` — a drop-in integration for [CrewAI](https://crewai.com) that gives your agent crews persistent self-learning memory.
+Engramia provides `EngramiaCrewCallback` — a drop-in integration for [CrewAI](https://crewai.com) that gives your agent crews persistent reusable execution memory.
 
-After each task, Brain automatically stores what worked. Before the next run, it recalls similar patterns and prepends them to task descriptions as context — so your crews improve with every execution.
+After each task, Engramia automatically stores what worked. Before the next run, it recalls similar patterns and prepends them to task descriptions as context — so your crews improve with every execution.
 
 ## Installation
 
@@ -18,22 +18,22 @@ from engramia import Memory
 from engramia.providers import JSONStorage, OpenAIEmbeddings, OpenAIProvider
 from engramia.sdk.crewai import EngramiaCrewCallback
 
-# 1. Create Brain
-brain = Memory(
+# 1. Create Memory instance
+mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),
-    storage=JSONStorage(path="./brain_data"),
+    storage=JSONStorage(path="./engramia_data"),
 )
 
 # 2. Create callback
-callback = EngramiaCrewCallback(brain, auto_learn=True, auto_recall=True)
+callback = EngramiaCrewCallback(mem, auto_learn=True, auto_recall=True)
 
 # 3. Build your crew as normal
 researcher = Agent(role="Researcher", goal="Find accurate information", backstory="...")
 task = Task(description="Summarize recent advances in transformer architecture", agent=researcher)
 crew = Crew(agents=[researcher], tasks=[task], task_callback=callback.task_callback)
 
-# 4. Run — Brain injects recalled context, then learns from the result
+# 4. Run — Engramia injects recalled context, then learns from the result
 result = callback.kickoff(crew)
 print(result)
 ```
@@ -50,7 +50,7 @@ print(result)
 Learns from completed tasks. No pre-task context injection.
 
 ```python
-callback = EngramiaCrewCallback(brain, auto_learn=True, auto_recall=False)
+callback = EngramiaCrewCallback(mem, auto_learn=True, auto_recall=False)
 crew = Crew(
     agents=[agent],
     tasks=[task],
@@ -64,7 +64,7 @@ crew.kickoff()
 More control: inject recall before kickoff, learn after.
 
 ```python
-callback = EngramiaCrewCallback(brain, auto_learn=True, auto_recall=True)
+callback = EngramiaCrewCallback(mem, auto_learn=True, auto_recall=True)
 
 # Inject recalled patterns into task descriptions *before* kickoff
 callback.inject_recall(crew.tasks)
@@ -78,7 +78,7 @@ crew.kickoff()
 The cleanest option — handles recall + kickoff in one call.
 
 ```python
-callback = EngramiaCrewCallback(brain, auto_learn=True, auto_recall=True)
+callback = EngramiaCrewCallback(mem, auto_learn=True, auto_recall=True)
 result = callback.kickoff(crew, inputs={"topic": "AI memory systems"})
 ```
 
@@ -86,7 +86,7 @@ result = callback.kickoff(crew, inputs={"topic": "AI memory systems"})
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `auto_learn` | `True` | Call `brain.learn()` after each task via `task_callback` |
+| `auto_learn` | `True` | Call `mem.learn()` after each task via `task_callback` |
 | `auto_recall` | `True` | Inject recalled patterns into task descriptions before kickoff |
 | `default_score` | `7.0` | Eval score used when storing auto-learned patterns |
 | `recall_limit` | `3` | Number of patterns to recall per task |
@@ -116,7 +116,7 @@ For more control over how context is presented to your agents:
 
 ```python
 # Recall patterns relevant to a task
-matches = brain.recall("Summarize research papers", limit=3)
+matches = mem.recall("Summarize research papers", limit=3)
 
 # Format as context for the agent backstory or task description
 context = "\n".join(
@@ -139,12 +139,12 @@ from engramia import Memory
 from engramia.providers import JSONStorage, OpenAIEmbeddings, OpenAIProvider
 from engramia.sdk.crewai import EngramiaCrewCallback
 
-brain = Memory(
+mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),
-    storage=JSONStorage(path="./brain_data"),
+    storage=JSONStorage(path="./engramia_data"),
 )
-callback = EngramiaCrewCallback(brain, auto_learn=True, auto_recall=True, default_score=7.5)
+callback = EngramiaCrewCallback(mem, auto_learn=True, auto_recall=True, default_score=7.5)
 
 topics = [
     "Recent advances in vector databases",
@@ -169,16 +169,16 @@ for topic in topics:
     print(f"\n--- {topic} ---")
     print(str(result)[:300])
 
-# After several runs, Brain surfaces recurring quality issues
-feedback = brain.get_feedback(limit=3)
+# After several runs, Engramia surfaces recurring quality issues
+feedback = mem.get_feedback(limit=3)
 if feedback:
     print("\nRecurring issues (use in agent backstory):")
     for issue in feedback:
         print(f"  - {issue}")
 
 # Run aging to prune outdated patterns
-pruned = brain.run_aging()
-print(f"\nPatterns: {brain.metrics.pattern_count} | Pruned: {pruned}")
+pruned = mem.run_aging()
+print(f"\nPatterns: {mem.metrics.pattern_count} | Pruned: {pruned}")
 ```
 
 ## Skill tagging
@@ -187,12 +187,12 @@ Tag patterns with explicit capabilities for precise retrieval:
 
 ```python
 # After learning, tag the stored pattern
-matches = brain.recall("summarize research papers", limit=1)
+matches = mem.recall("summarize research papers", limit=1)
 if matches:
-    brain.register_skills(matches[0].pattern_key, ["summarization", "research", "markdown"])
+    mem.register_skills(matches[0].pattern_key, ["summarization", "research", "markdown"])
 
 # Later: find patterns by capability
-results = brain.find_by_skills(["summarization", "research"])
+results = mem.find_by_skills(["summarization", "research"])
 print(f"Found {len(results)} pattern(s) with both skills")
 ```
 

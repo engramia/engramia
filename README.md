@@ -1,6 +1,6 @@
 # Engramia
 
-Self-learning memory layer for AI agent frameworks.
+Reusable execution memory and evaluation infrastructure for AI agent frameworks.
 
 [![CI](https://github.com/engramia/engramia/actions/workflows/ci.yml/badge.svg)](https://github.com/engramia/engramia/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
@@ -16,15 +16,51 @@ Self-learning memory layer for AI agent frameworks.
 Engramia solves the problem every agent framework has: **agents don't learn from previous runs**.
 
 LangChain, CrewAI, AutoGPT, and similar frameworks are stateless — every run starts from scratch.
-Brain is a memory layer you add beneath any framework, and it:
+Engramia is a memory layer you add beneath any framework, and it:
 
 - **Remembers** what worked (success patterns with time-decay)
 - **Finds** relevant agents for a new task (semantic search + eval weighting)
-- **Composes** multi-agent pipelines from proven components (contract validation)
 - **Evaluates** code quality (multi-evaluator with variance detection)
 - **Improves** automatically (feedback injection, pattern aging)
+- **Composes** multi-agent pipelines from proven components *(Experimental)*
 
-Extracted from Agent Factory V2 — a system that learned to achieve a 93% success rate over 254 runs.
+Extracted from Agent Factory V2 — a system that reached a 93% task success rate over 254 runs using Engramia as its memory layer.
+
+---
+
+## Who this is for
+
+**Primary users:**
+- AI platform teams building multi-agent pipelines
+- Agent builders using LangChain, CrewAI, or custom frameworks
+- Automation studios running repeated agentic workflows
+
+**Not designed for:**
+- End users without agent systems
+- Pure ML/training workflows
+- Single-run, one-shot LLM tasks
+
+---
+
+## Feature maturity
+
+| Feature | Maturity |
+|---------|----------|
+| `learn` — store run results as success patterns | **Stable** |
+| `recall` — semantic search over stored patterns | **Stable** |
+| `evaluate` — multi-LLM scoring with variance detection | **Stable** |
+| `get_feedback` — recurring quality issues for prompt injection | **Stable** |
+| `run_aging` — time-decay + prune of stale patterns | **Stable** |
+| `delete_pattern` — remove a stored pattern | **Stable** |
+| `metrics` — aggregate run statistics | **Stable** |
+| `export` / `import_data` — backup and migration | **Stable** |
+| `register_skills` / `find_by_skills` — capability tagging | **Stable** |
+| `compose` — LLM pipeline decomposition from patterns | **Experimental** |
+| `evolve_prompt` — LLM-based prompt improvement | **Experimental** |
+| `analyze_failures` — failure pattern clustering | **Experimental** |
+| Tenant / project isolation | **Roadmap** |
+| RBAC / admin dashboard | **Roadmap** |
+| Async job layer | **Roadmap** |
 
 ---
 
@@ -67,7 +103,7 @@ from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),
-    storage=JSONStorage(path="./brain_data"),
+    storage=JSONStorage(path="./engramia_data"),
 )
 ```
 
@@ -75,12 +111,12 @@ mem = Memory(
 
 ## Python API Reference
 
-### `brain.learn(task, code, eval_score, output=None) → LearnResult`
+### `mem.learn(task, code, eval_score, output=None) → LearnResult`
 
 Records the result of a run. Stores the success pattern and updates metrics.
 
 ```python
-result = brain.learn(
+result = mem.learn(
     task="Parse CSV file and compute statistics",
     code="import csv\nimport statistics\n...",
     eval_score=8.5,
@@ -95,12 +131,12 @@ print(result.pattern_count) # total number of patterns
 
 ---
 
-### `brain.recall(task, limit=5, deduplicate=True, eval_weighted=True) → list[Match]`
+### `mem.recall(task, limit=5, deduplicate=True, eval_weighted=True) → list[Match]`
 
 Finds relevant success patterns for a new task using semantic search.
 
 ```python
-matches = brain.recall(task="Read CSV and calculate averages", limit=5)
+matches = mem.recall(task="Read CSV and calculate averages", limit=5)
 
 for m in matches:
     print(f"{m.similarity:.2f} | score={m.pattern.success_score:.1f} | {m.pattern.task}")
@@ -119,12 +155,12 @@ Parameters:
 
 ---
 
-### `brain.evaluate(task, code, output=None, num_evals=3) → EvalResult`
+### `mem.evaluate(task, code, output=None, num_evals=3) → EvalResult`
 
 Runs N independent LLM evaluations and aggregates the results. Requires an `llm` provider.
 
 ```python
-result = brain.evaluate(
+result = mem.evaluate(
     task="Parse CSV file",
     code="import csv\n...",
     output="done",    # optional
@@ -144,12 +180,14 @@ print(result.adversarial_detected)  # True if code contains hardcoded output
 
 ---
 
-### `brain.compose(task) → Pipeline`
+### `mem.compose(task) → Pipeline` *(Experimental)*
 
 Decomposes a task into a staged pipeline from existing success patterns. Requires an `llm` provider.
 
+> **Experimental:** This feature works best as an assistive tool. Pipeline validity depends on pattern coverage and LLM output quality. Do not treat composed pipelines as guaranteed production-ready outputs.
+
 ```python
-pipeline = brain.compose(task="Fetch stock data, compute moving average, write report")
+pipeline = mem.compose(task="Fetch stock data, compute moving average, write report")
 
 print(f"valid={pipeline.valid}, errors={pipeline.contract_errors}")
 for stage in pipeline.stages:
@@ -163,12 +201,12 @@ for stage in pipeline.stages:
 
 ---
 
-### `brain.get_feedback(task_type=None, limit=5) → list[str]`
+### `mem.get_feedback(task_type=None, limit=5) → list[str]`
 
 Returns recurring feedback patterns for injection into prompts.
 
 ```python
-feedback = brain.get_feedback(limit=4)
+feedback = mem.get_feedback(limit=4)
 # ["Add error handling for missing input files.",
 #  "Validate CSV headers before processing.", ...]
 ```
@@ -179,24 +217,24 @@ feedback = brain.get_feedback(limit=4)
 
 ---
 
-### `brain.delete_pattern(pattern_key) → bool`
+### `mem.delete_pattern(pattern_key) → bool`
 
 Permanently deletes a stored pattern. Returns `True` if the pattern existed.
 
 ```python
-matches = brain.recall(task="Parse CSV")
-deleted = brain.delete_pattern(matches[0].pattern_key)
+matches = mem.recall(task="Parse CSV")
+deleted = mem.delete_pattern(matches[0].pattern_key)
 print(deleted)  # True
 ```
 
 ---
 
-### `brain.run_aging() → int`
+### `mem.run_aging() → int`
 
 Applies time-decay to all success patterns. Returns the number of removed patterns.
 
 ```python
-pruned = brain.run_aging()
+pruned = mem.run_aging()
 print(f"Removed {pruned} outdated patterns")
 ```
 
@@ -206,12 +244,12 @@ print(f"Removed {pruned} outdated patterns")
 
 ---
 
-### `brain.metrics → Metrics`
+### `mem.metrics → Metrics`
 
-Current metrics of the brain instance.
+Current metrics of the memory instance.
 
 ```python
-m = brain.metrics
+m = mem.metrics
 
 print(m.runs)            # total number of recorded runs
 print(m.success_rate)    # fraction of successful runs
@@ -222,12 +260,14 @@ print(m.pipeline_reuse)  # number of runs where an existing pattern was used
 
 ---
 
-### `brain.evolve_prompt(role, current_prompt) → EvolutionResult`
+### `mem.evolve_prompt(role, current_prompt) → EvolutionResult` *(Experimental)*
 
 Generates an improved prompt based on recurring quality issues.
 
+> **Experimental:** Returns a candidate for manual review and A/B testing — not for direct automatic deployment.
+
 ```python
-result = brain.evolve_prompt(role="coder", current_prompt="You are a coder...")
+result = mem.evolve_prompt(role="coder", current_prompt="You are a coder...")
 if result.accepted:
     print(result.improved_prompt)
     print(f"Changes: {result.changes}")
@@ -239,34 +279,36 @@ if result.accepted:
 
 ---
 
-### `brain.analyze_failures(min_count=1) → list[FailureCluster]`
+### `mem.analyze_failures(min_count=1) → list[FailureCluster]` *(Experimental)*
 
 Groups recurring errors into clusters for identifying systemic issues.
 
+> **Experimental:** Cluster quality depends on pattern volume and LLM classification accuracy.
+
 ```python
-clusters = brain.analyze_failures(min_count=2)
+clusters = mem.analyze_failures(min_count=2)
 for c in clusters:
     print(f"{c.representative} (count={c.total_count}, members={len(c.members)})")
 ```
 
 ---
 
-### `brain.register_skills(pattern_key, skills)` / `brain.find_by_skills(required)`
+### `mem.register_skills(pattern_key, skills)` / `mem.find_by_skills(required)`
 
 Skill registry for capability-based pattern search.
 
 ```python
 # Register
-matches = brain.recall(task="Parse CSV")
-brain.register_skills(matches[0].pattern_key, ["csv_parsing", "statistics"])
+matches = mem.recall(task="Parse CSV")
+mem.register_skills(matches[0].pattern_key, ["csv_parsing", "statistics"])
 
 # Find
-results = brain.find_by_skills(["csv_parsing"], match_all=True)
+results = mem.find_by_skills(["csv_parsing"], match_all=True)
 ```
 
 ---
 
-### `brain.export() → list[dict]` / `brain.import_data(records, overwrite=False) → int`
+### `mem.export() → list[dict]` / `mem.import_data(records, overwrite=False) → int`
 
 Backup and migration of patterns (JSON storage → PostgreSQL or vice versa).
 
@@ -274,7 +316,7 @@ Backup and migration of patterns (JSON storage → PostgreSQL or vice versa).
 # Export all patterns to a JSONL file
 import json
 
-records = brain.export()
+records = mem.export()
 with open("backup.jsonl", "w") as f:
     for r in records:
         f.write(json.dumps(r) + "\n")
@@ -292,13 +334,13 @@ print(f"Imported {imported} patterns")
 
 ### Exceptions
 
-Brain uses a custom exception hierarchy for precise error handling:
+Engramia uses a custom exception hierarchy for precise error handling:
 
 ```python
 from engramia import MemoryError, ProviderError, ValidationError, StorageError
 
 try:
-    result = brain.evaluate(task, code)
+    result = mem.evaluate(task, code)
 except ProviderError:
     # LLM provider is not configured
     pass
@@ -306,7 +348,7 @@ except ValidationError:
     # Invalid input (empty task, code too long, ...)
     pass
 except EngramiaError:
-    # Any Brain exception
+    # Any Engramia exception
     pass
 ```
 
@@ -317,9 +359,9 @@ except EngramiaError:
 ```python
 from engramia.sdk.langchain import EngramiaCallback
 
-callback = EngramiaCallback(brain, auto_learn=True, auto_recall=True)
+callback = EngramiaCallback(mem, auto_learn=True, auto_recall=True)
 chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
-# Brain automatically learns from chain runs and recalls relevant context
+# Engramia automatically learns from chain runs and recalls relevant context
 ```
 
 ---
@@ -346,7 +388,7 @@ docker compose up
 
 # PostgreSQL storage (prod)
 ENGRAMIA_STORAGE=postgres \
-ENGRAMIA_DATABASE_URL=postgresql://user:pass@localhost:5432/brain \
+ENGRAMIA_DATABASE_URL=postgresql://user:pass@localhost:5432/engramia \
 OPENAI_API_KEY=sk-... \
 docker compose up
 ```
@@ -358,7 +400,7 @@ After startup: Swagger UI at [http://localhost:8000/docs](http://localhost:8000/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENGRAMIA_STORAGE` | `json` | `json` or `postgres` |
-| `ENGRAMIA_DATA_PATH` | `./brain_data` | Path for JSON storage |
+| `ENGRAMIA_DATA_PATH` | `./engramia_data` | Path for JSON storage |
 | `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (only for `postgres`) |
 | `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM provider |
 | `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model ID |
@@ -375,12 +417,12 @@ All endpoints are available under the `/v1/` prefix:
 |--------|------|-------------|
 | `POST` | `/v1/learn` | Stores a success pattern |
 | `POST` | `/v1/recall` | Finds relevant patterns |
-| `POST` | `/v1/compose` | Assembles a pipeline |
+| `POST` | `/v1/compose` | Assembles a pipeline *(Experimental)* |
 | `POST` | `/v1/evaluate` | Multi-eval scoring |
 | `POST` | `/v1/aging` | Runs pattern aging (decay + prune) |
 | `POST` | `/v1/feedback/decay` | Runs feedback decay |
-| `POST` | `/v1/evolve` | Generates an improved prompt |
-| `POST` | `/v1/analyze-failures` | Groups failure patterns |
+| `POST` | `/v1/evolve` | Generates an improved prompt *(Experimental)* |
+| `POST` | `/v1/analyze-failures` | Groups failure patterns *(Experimental)* |
 | `POST` | `/v1/skills/register` | Registers skill tags on a pattern |
 | `POST` | `/v1/skills/search` | Searches patterns by skill tags |
 | `GET` | `/v1/feedback` | Top recurring feedback |
@@ -438,11 +480,11 @@ Starting with pgvector backend:
 
 # 2. Start
 ENGRAMIA_STORAGE=postgres \
-ENGRAMIA_DATABASE_URL=postgresql://brain:brain@pgvector:5432/brain \
+ENGRAMIA_DATABASE_URL=postgresql://engramia:engramia@pgvector:5432/engramia \
 docker compose up
 
 # 3. Apply migrations (first run)
-docker compose exec brain-api alembic upgrade head
+docker compose exec engramia-api alembic upgrade head
 ```
 
 Or without Docker:
@@ -470,7 +512,7 @@ from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(model="text-embedding-3-small"),
-    storage=JSONStorage(path="./brain_data"),
+    storage=JSONStorage(path="./engramia_data"),
 )
 ```
 
@@ -479,7 +521,7 @@ mem = Memory(
 ```python
 mem = Memory(
     embeddings=OpenAIEmbeddings(),
-    storage=JSONStorage(path="./brain_data"),
+    storage=JSONStorage(path="./engramia_data"),
     llm=None,  # default
 )
 
@@ -497,19 +539,19 @@ mem.evaluate(...) # ❌ ProviderError: evaluate() requires llm=...
 pip install "engramia[cli]"
 
 # Initialize
-engramia init --path ./brain_data
+engramia init --path ./engramia_data
 
 # Start REST API server
 engramia serve --host 0.0.0.0 --port 8000
 
 # Metrics and statistics
-engramia status --path ./brain_data
+engramia status --path ./engramia_data
 
 # Semantic search
 engramia recall "Parse CSV and compute statistics" --limit 5
 
 # Pattern aging (decay + prune)
-engramia aging --path ./brain_data
+engramia aging --path ./engramia_data
 ```
 
 ---
@@ -544,7 +586,7 @@ The server runs via **stdio transport** — the MCP client starts it as a subpro
     "engramia": {
       "command": "engramia-mcp",
       "env": {
-        "ENGRAMIA_DATA_PATH": "/path/to/brain_data",
+        "ENGRAMIA_DATA_PATH": "/path/to/engramia_data",
         "OPENAI_API_KEY": "sk-..."
       }
     }
@@ -558,13 +600,13 @@ The server runs via **stdio transport** — the MCP client starts it as a subpro
 
 | Tool | Description |
 |------|-------------|
-| `brain_learn` | Stores a run result as a success pattern |
-| `brain_recall` | Finds relevant patterns for a new task (semantic search) |
-| `brain_evaluate` | N independent LLM evaluations, median + variance |
-| `brain_compose` | Decomposes a task into a validated multi-agent pipeline |
-| `brain_feedback` | Returns recurring quality issues for injection into prompts |
-| `brain_metrics` | Statistics (runs, success rate, pattern count, reuse rate) |
-| `brain_aging` | Runs time-based decay + prune of outdated patterns |
+| `engramia_learn` | Stores a run result as a success pattern |
+| `engramia_recall` | Finds relevant patterns for a new task (semantic search) |
+| `engramia_evaluate` | N independent LLM evaluations, median + variance |
+| `engramia_compose` | Decomposes a task into a validated multi-agent pipeline *(Experimental)* |
+| `engramia_feedback` | Returns recurring quality issues for injection into prompts |
+| `engramia_metrics` | Statistics (runs, success rate, pattern count, reuse rate) |
+| `engramia_aging` | Runs time-based decay + prune of outdated patterns |
 
 ### Configuration (env vars)
 
@@ -573,7 +615,7 @@ The MCP server uses the same env vars as the REST API:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENGRAMIA_STORAGE` | `json` | `json` or `postgres` |
-| `ENGRAMIA_DATA_PATH` | `./brain_data` | Path for JSON storage |
+| `ENGRAMIA_DATA_PATH` | `./engramia_data` | Path for JSON storage |
 | `ENGRAMIA_DATABASE_URL` | — | PostgreSQL URL (only for `postgres`) |
 | `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM provider |
 | `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model ID |
@@ -585,7 +627,7 @@ The MCP server uses the same env vars as the REST API:
 
 ```
 engramia/
-├── brain.py             # Brain facade (public API)
+├── brain.py             # Memory facade (public API)
 ├── types.py             # Pydantic models
 ├── _util.py             # Shared utility
 │
@@ -598,7 +640,7 @@ engramia/
 │
 ├── reuse/               # Reuse engine
 │   ├── matcher.py            # Semantic search + eval weighting
-│   ├── composer.py           # LLM pipeline decomposition
+│   ├── composer.py           # LLM pipeline decomposition (Experimental)
 │   └── contracts.py          # Data-flow validation + cycle detection
 │
 ├── eval/
@@ -624,20 +666,20 @@ engramia/
 │   └── migrations/           # Alembic
 │
 ├── evolution/           # Prompt evolution + failure clustering (Phase 3)
-│   ├── prompt_evolver.py    # LLM-based prompt improvement
-│   └── failure_cluster.py   # Failure pattern clustering
+│   ├── prompt_evolver.py    # LLM-based prompt improvement (Experimental)
+│   └── failure_cluster.py   # Failure pattern clustering (Experimental)
 │
 ├── sdk/                 # Framework integrations (Phase 3)
 │   ├── langchain.py         # LangChain EngramiaCallback
 │   └── webhook.py           # Lightweight HTTP SDK client
 │
 ├── exceptions.py        # Custom exception hierarchy (EngramiaError, ProviderError, ...)
-├── _factory.py          # Shared Brain provider factory (REST API + MCP)
+├── _factory.py          # Shared provider factory (REST API + MCP)
 │
 ├── cli/                 # CLI tool (Typer + Rich)
 │
 └── mcp/                 # MCP server (Phase 4.6.9)
-    └── server.py            # stdio MCP server — 7 Brain tools
+    └── server.py            # stdio MCP server — 7 tools
 ```
 
 ---
@@ -646,31 +688,31 @@ engramia/
 
 | Component | Status |
 |-----------|--------|
-| `brain.learn()` | ✅ |
-| `brain.recall()` | ✅ |
-| `brain.evaluate()` | ✅ |
-| `brain.compose()` | ✅ |
-| `brain.get_feedback()` | ✅ |
-| `brain.run_aging()` | ✅ |
-| `brain.delete_pattern()` | ✅ |
-| `brain.evolve_prompt()` | ✅ Phase 3 |
-| `brain.analyze_failures()` | ✅ Phase 3 |
-| `brain.register_skills()` / `find_by_skills()` | ✅ Phase 3 |
-| `brain.metrics` | ✅ |
-| `brain.export()` / `brain.import_data()` | ✅ Phase 4 |
-| Custom exception hierarchy | ✅ Phase 4 |
-| OpenAI provider | ✅ |
-| Anthropic provider | ✅ Phase 3 |
-| Local embeddings (sentence-transformers) | ✅ Phase 3 |
-| JSON storage (thread-safe) | ✅ |
-| REST API (FastAPI) — 14 endpoints | ✅ Phase 2+3+4 |
-| PostgreSQL + pgvector | ✅ Phase 2 |
-| Docker + docker-compose | ✅ Phase 2 |
-| LangChain EngramiaCallback | ✅ Phase 3 |
-| Webhook SDK client | ✅ Phase 3 |
-| CLI (Typer + Rich) | ✅ Phase 4 |
-| MCP server (7 tools, stdio transport) | ✅ Phase 4.6.9 |
-| CrewAI EngramiaCrewCallback | ✅ Phase 4.6.8 |
+| `mem.learn()` | ✅ Stable |
+| `mem.recall()` | ✅ Stable |
+| `mem.evaluate()` | ✅ Stable |
+| `mem.compose()` | ✅ Experimental |
+| `mem.get_feedback()` | ✅ Stable |
+| `mem.run_aging()` | ✅ Stable |
+| `mem.delete_pattern()` | ✅ Stable |
+| `mem.evolve_prompt()` | ✅ Experimental |
+| `mem.analyze_failures()` | ✅ Experimental |
+| `mem.register_skills()` / `find_by_skills()` | ✅ Stable |
+| `mem.metrics` | ✅ Stable |
+| `mem.export()` / `mem.import_data()` | ✅ Stable |
+| Custom exception hierarchy | ✅ Stable |
+| OpenAI provider | ✅ Stable |
+| Anthropic provider | ✅ Stable |
+| Local embeddings (sentence-transformers) | ✅ Stable |
+| JSON storage (thread-safe) | ✅ Stable |
+| REST API (FastAPI) — 14 endpoints | ✅ Stable |
+| PostgreSQL + pgvector | ✅ Stable |
+| Docker + docker-compose | ✅ Stable |
+| LangChain EngramiaCallback | ✅ Stable |
+| Webhook SDK client | ✅ Stable |
+| CLI (Typer + Rich) | ✅ Stable |
+| MCP server (7 tools, stdio transport) | ✅ Stable |
+| CrewAI EngramiaCrewCallback | ✅ Stable |
 
 ---
 
@@ -694,7 +736,7 @@ Tests do not require API keys — they use `FakeEmbeddings` (deterministic vecto
 ## Origin
 
 Extracted from Agent Factory V2 — a self-improving AI agent factory.
-Factory remains as an open-source reference implementation that proves Brain works in practice.
+Agent Factory V2 remains as an open-source reference implementation that demonstrates Engramia working in a production-grade multi-agent system.
 
 ---
 

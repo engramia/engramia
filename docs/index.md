@@ -1,6 +1,6 @@
 # Engramia
 
-**Self-learning memory layer for AI agent frameworks.**
+**Reusable execution memory and evaluation infrastructure for AI agent frameworks.**
 
 Engramia solves a problem every agent framework has: **agents don't learn from previous runs**.
 
@@ -24,7 +24,7 @@ from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),
-    storage=JSONStorage(path="./brain_data"),
+    storage=JSONStorage(path="./engramia_data"),
 )
 
 # Learn from a successful run

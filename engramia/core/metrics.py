@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Marek Čermák
 """Run and success metrics store.
 
-Tracks aggregate statistics across all Brain runs. Persisted as a single
+Tracks aggregate statistics across all Engramia runs. Persisted as a single
 JSON document under the "metrics/_global" storage key.
 """
 
@@ -19,7 +19,7 @@ _MAX_HISTORY = 100
 
 
 class MetricsStore:
-    """Persistent counter for Brain run statistics.
+    """Persistent counter for Engramia run statistics.
 
     Args:
         storage: Storage backend to persist metrics.
@@ -38,7 +38,7 @@ class MetricsStore:
         pipeline_reuse: bool = False,
         eval_score: float | None = None,
     ) -> None:
-        """Record a single Brain run.
+        """Record a single Engramia run.
 
         Args:
             success: Whether the run succeeded.

@@ -3,13 +3,13 @@
 """SQLAlchemy 2.x models for PostgreSQL + pgvector storage backend.
 
 Schema design:
-- ``brain_data``       — generic key-value store (TEXT key, JSONB data)
-- ``brain_embeddings`` — vector index (TEXT key, pgvector vector(1536))
+- ``memory_data``       — generic key-value store (TEXT key, JSONB data)
+- ``memory_embeddings`` — vector index (TEXT key, pgvector vector(1536))
 
-The two tables share the same key namespace. ``brain_embeddings`` has a
-foreign key to ``brain_data`` so deleting a data row cascades to its vector.
+The two tables share the same key namespace. ``memory_embeddings`` has a
+foreign key to ``memory_data`` so deleting a data row cascades to its vector.
 
-HNSW index on ``brain_embeddings.embedding`` enables sub-millisecond ANN
+HNSW index on ``memory_embeddings.embedding`` enables sub-millisecond ANN
 search via pgvector's ``<=>`` cosine distance operator.
 """
 
@@ -23,10 +23,10 @@ class Base(DeclarativeBase):
     pass
 
 
-class BrainData(Base):
-    """Generic key-value store for all Brain data objects."""
+class MemoryData(Base):
+    """Generic key-value store for all Engramia data objects."""
 
-    __tablename__ = "brain_data"
+    __tablename__ = "memory_data"
 
     key: Mapped[str] = mapped_column(Text, primary_key=True)
     data: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -38,10 +38,10 @@ class BrainData(Base):
     )
 
 
-class BrainEmbedding(Base):
+class MemoryEmbedding(Base):
     """Embedding vectors stored separately for efficient pgvector indexing."""
 
-    __tablename__ = "brain_embeddings"
+    __tablename__ = "memory_embeddings"
 
     key: Mapped[str] = mapped_column(
         Text,
@@ -56,8 +56,8 @@ class BrainEmbedding(Base):
 # HNSW index for cosine similarity search.
 # m=16, ef_construction=64 are pgvector defaults — tune for dataset size.
 hnsw_index = Index(
-    "idx_brain_embeddings_hnsw",
-    BrainEmbedding.embedding,
+    "idx_memory_embeddings_hnsw",
+    MemoryEmbedding.embedding,
     postgresql_using="hnsw",
     postgresql_with={"m": 16, "ef_construction": 64},
     postgresql_ops={"embedding": "vector_cosine_ops"},

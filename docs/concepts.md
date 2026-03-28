@@ -97,7 +97,7 @@ Instead of a single LLM evaluation, Engramia runs **N independent evaluations** 
 
 ```
 engramia/
-├── brain.py                 # Memory facade (public API)
+├── memory.py                 # Memory facade (public API)
 ├── types.py                 # Pydantic models (Pattern, Match, EvalResult, ...)
 ├── exceptions.py            # EngramiaError hierarchy
 ├── _util.py                 # Shared utilities

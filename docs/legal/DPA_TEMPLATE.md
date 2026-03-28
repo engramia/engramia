@@ -1,6 +1,6 @@
 # Data Processing Agreement (DPA)
 
-**Engramia — Self-Learning Memory Layer for AI Agents**
+**Engramia — Reusable Execution Memory for AI Agents**
 
 Template version: 2026-03-23
 
@@ -113,8 +113,8 @@ The Processor maintains a current list of Sub-processors at **https://engramia.d
 
 | Sub-processor | Purpose | Location |
 |---------------|---------|----------|
-| [Cloud hosting provider — TBD] | Infrastructure hosting | EU |
-| [Payment processor — TBD] | Billing and payments | EU/US |
+| Hetzner Online GmbH | Infrastructure hosting | EU (DE) |
+| [Payment processor — to be selected before Cloud tier launch] | Billing and payments | TBD |
 | OpenAI (if configured by Controller) | AI model inference | US |
 | Anthropic (if configured by Controller) | AI model inference | US |
 

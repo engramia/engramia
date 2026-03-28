@@ -3,7 +3,7 @@
 """OpenAI provider implementations.
 
 Requires the ``openai`` extra:
-    pip install agent-brain[openai]
+    pip install engramia[openai]
 
 Both providers use lazy imports so the module can be imported without the
 ``openai`` package installed — the ImportError is raised at instantiation.
@@ -16,7 +16,7 @@ from engramia.providers.base import EmbeddingProvider, LLMProvider
 
 _log = logging.getLogger(__name__)
 
-_OPENAI_INSTALL_MSG = "OpenAI providers require the openai package. Install it with: pip install agent-brain[openai]"
+_OPENAI_INSTALL_MSG = "OpenAI providers require the openai package. Install it with: pip install engramia[openai]"
 
 #: Errors that should not be retried (client-side mistakes).
 _NO_RETRY_STATUS = {400, 401, 403}

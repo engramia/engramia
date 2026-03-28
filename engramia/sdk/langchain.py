@@ -3,24 +3,24 @@
 """LangChain integration for Engramia.
 
 Requires the ``langchain`` extra:
-    pip install agent-brain[langchain]
+    pip install engramia[langchain]
 
 Usage:
     from engramia.sdk.langchain import EngramiaCallback
 
-    callback = EngramiaCallback(brain, auto_learn=True, auto_recall=True)
+    callback = EngramiaCallback(mem, auto_learn=True, auto_recall=True)
     chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
-    # Brain automatically learns from successful runs and recalls relevant context.
+    # Engramia automatically learns from successful runs and recalls relevant context.
 """
 
 import logging
 from typing import Any
 
-from engramia.brain import Memory
+from engramia.memory import Memory
 
 _log = logging.getLogger(__name__)
 
-_INSTALL_MSG = "LangChain callback requires langchain-core. Install with: pip install agent-brain[langchain]"
+_INSTALL_MSG = "LangChain callback requires langchain-core. Install with: pip install engramia[langchain]"
 
 
 class EngramiaCallback:
@@ -30,9 +30,9 @@ class EngramiaCallback:
     relevant patterns before a chain starts.
 
     Args:
-        brain: Brain instance to use for learn/recall.
-        auto_learn: If True, call brain.learn() after successful chain runs.
-        auto_recall: If True, call brain.recall() before chain runs and
+        memory: Memory instance to use for learn/recall.
+        auto_learn: If True, call mem.learn() after successful chain runs.
+        auto_recall: If True, call mem.recall() before chain runs and
             attach context to the run metadata.
         min_score: Minimum eval score to consider a run successful for learning.
             Below this threshold, the run is not stored.
@@ -41,7 +41,7 @@ class EngramiaCallback:
 
     def __init__(
         self,
-        brain: Memory,
+        memory: Memory,
         auto_learn: bool = True,
         auto_recall: bool = True,
         min_score: float = 5.0,
@@ -51,7 +51,7 @@ class EngramiaCallback:
             from langchain_core.callbacks import BaseCallbackHandler  # noqa: F401
         except ImportError:
             raise ImportError(_INSTALL_MSG) from None
-        self._brain = brain
+        self._memory = memory
         self._auto_learn = auto_learn
         self._auto_recall = auto_recall
         self._min_score = min_score
@@ -74,7 +74,7 @@ class EngramiaCallback:
 
         if self._auto_recall and task:
             try:
-                matches = self._brain.recall(task=task, limit=self._recall_limit)
+                matches = self._memory.recall(task=task, limit=self._recall_limit)
                 if matches:
                     context = [
                         {
@@ -117,7 +117,7 @@ class EngramiaCallback:
         code = output_text  # In LangChain, the "code" is typically the output
 
         try:
-            self._brain.learn(
+            self._memory.learn(
                 task=task,
                 code=code or "(no output)",
                 eval_score=self._min_score,

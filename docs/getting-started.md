@@ -41,7 +41,7 @@ from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
     embeddings=OpenAIEmbeddings(),
-    storage=JSONStorage(path="./brain_data"),
+    storage=JSONStorage(path="./engramia_data"),
 )
 ```
 
@@ -52,7 +52,7 @@ mem = Memory(
     ```python
     mem = Memory(
         embeddings=OpenAIEmbeddings(),
-        storage=JSONStorage(path="./brain_data"),
+        storage=JSONStorage(path="./engramia_data"),
     )
     ```
 

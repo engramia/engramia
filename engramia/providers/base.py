@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Marek Čermák
-"""Abstract base classes for all pluggable Brain providers.
+"""Abstract base classes for all pluggable Engramia providers.
 
 Three provider roles:
 - LLMProvider    — generates text (OpenAI, Anthropic, any LLM)
@@ -8,7 +8,7 @@ Three provider roles:
 - StorageBackend — persists data and serves vector search (JSON, Postgres, ...)
 
 To add a new provider, subclass the relevant ABC and implement all
-@abstractmethod methods. Brain accepts any compliant implementation.
+@abstractmethod methods. Engramia accepts any compliant implementation.
 """
 
 from abc import ABC, abstractmethod
@@ -19,7 +19,7 @@ class LLMProvider(ABC):
     """Generates text from a prompt.
 
     Implementations handle model selection, retries, and cost tracking
-    internally. Brain only calls call() and expects a string back.
+    internally. Engramia only calls call() and expects a string back.
     """
 
     @abstractmethod
@@ -74,7 +74,7 @@ class EmbeddingProvider(ABC):
 
 
 class StorageBackend(ABC):
-    """Persists Brain data and provides vector similarity search.
+    """Persists Engramia data and provides vector similarity search.
 
     Two concerns in one interface:
     1. Key-value store for structured data (patterns, evals, metrics, ...)

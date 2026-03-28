@@ -8,7 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from engramia.brain import Memory
+from engramia.memory import Memory
 from engramia.providers.json_storage import JSONStorage
 from tests.conftest import FakeEmbeddings
 
@@ -40,7 +40,7 @@ def _make_test_app(api_keys: str = "") -> FastAPI:
 
 
 @pytest.fixture
-def tmp_brain(tmp_path):
+def tmp_mem(tmp_path):
     storage = JSONStorage(path=tmp_path)
     embeddings = FakeEmbeddings()
     return Memory(embeddings=embeddings, storage=storage)
@@ -49,17 +49,17 @@ def tmp_brain(tmp_path):
 class TestAuthDevMode:
     """When ENGRAMIA_API_KEYS is empty, all requests pass (dev mode)."""
 
-    def test_no_auth_required_in_dev_mode(self, tmp_brain):
+    def test_no_auth_required_in_dev_mode(self, tmp_mem):
         app = _make_test_app("")
-        app.state.brain = tmp_brain
+        app.state.memory = tmp_mem
 
         client = TestClient(app)
         resp = client.get("/v1/health")
         assert resp.status_code == 200
 
-    def test_request_with_token_also_works_in_dev(self, tmp_brain):
+    def test_request_with_token_also_works_in_dev(self, tmp_mem):
         app = _make_test_app("")
-        app.state.brain = tmp_brain
+        app.state.memory = tmp_mem
 
         client = TestClient(app)
         resp = client.get("/v1/health", headers={"Authorization": "Bearer any-token"})
@@ -69,42 +69,42 @@ class TestAuthDevMode:
 class TestAuthEnabled:
     """When ENGRAMIA_API_KEYS is set, Bearer tokens are required."""
 
-    def test_missing_token_returns_401(self, tmp_brain):
+    def test_missing_token_returns_401(self, tmp_mem):
         app = _make_test_app("secret-key-123")
-        app.state.brain = tmp_brain
+        app.state.memory = tmp_mem
 
         client = TestClient(app)
         resp = client.get("/v1/health")
         assert resp.status_code == 401
 
-    def test_wrong_token_returns_401(self, tmp_brain):
+    def test_wrong_token_returns_401(self, tmp_mem):
         app = _make_test_app("secret-key-123")
-        app.state.brain = tmp_brain
+        app.state.memory = tmp_mem
 
         client = TestClient(app)
         resp = client.get("/v1/health", headers={"Authorization": "Bearer wrong-key"})
         assert resp.status_code == 401
 
-    def test_valid_token_returns_200(self, tmp_brain):
+    def test_valid_token_returns_200(self, tmp_mem):
         app = _make_test_app("secret-key-123")
-        app.state.brain = tmp_brain
+        app.state.memory = tmp_mem
 
         client = TestClient(app)
         resp = client.get("/v1/health", headers={"Authorization": "Bearer secret-key-123"})
         assert resp.status_code == 200
 
-    def test_multiple_keys_supported(self, tmp_brain):
+    def test_multiple_keys_supported(self, tmp_mem):
         app = _make_test_app("key-a,key-b,key-c")
-        app.state.brain = tmp_brain
+        app.state.memory = tmp_mem
 
         client = TestClient(app)
         for key in ("key-a", "key-b", "key-c"):
             resp = client.get("/v1/health", headers={"Authorization": f"Bearer {key}"})
             assert resp.status_code == 200
 
-    def test_invalid_auth_scheme_returns_401(self, tmp_brain):
+    def test_invalid_auth_scheme_returns_401(self, tmp_mem):
         app = _make_test_app("secret-key-123")
-        app.state.brain = tmp_brain
+        app.state.memory = tmp_mem
 
         client = TestClient(app)
         resp = client.get("/v1/health", headers={"Authorization": "Basic dXNlcjpwYXNz"})

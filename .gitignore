@@ -23,7 +23,7 @@ venv/
 .env.*
 
 # Brain data (local development)
-brain_data/
+engramia_data/
 
 # Test
 .pytest_cache/
@@ -42,3 +42,4 @@ AUDIT_PROMPT.md
 AUDIT_RESULTS*.md
 AUDIT_RESULTS/
 docs/legal/key-legal-design-decisions.md
+test_run_prompt.md

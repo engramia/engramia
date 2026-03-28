@@ -27,7 +27,7 @@ _EMBEDDINGS_FILE = "_embeddings.json"
 
 
 class JSONStorage(StorageBackend):
-    """Stores Brain data in a directory of JSON files.
+    """Stores Engramia data in a directory of JSON files.
 
     Each key maps to a file: ``{root}/{key}.json``.
     Embeddings are stored in a single index file ``{root}/_embeddings.json``

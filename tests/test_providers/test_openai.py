@@ -93,7 +93,7 @@ class TestOpenAIProvider:
             return real_import(name, *args, **kwargs)
 
         monkeypatch.setattr(builtins, "__import__", mock_import)
-        with pytest.raises(ImportError, match="pip install agent-brain"):
+        with pytest.raises(ImportError, match="pip install engramia"):
             OpenAIProvider()
 
 

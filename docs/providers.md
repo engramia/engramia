@@ -94,7 +94,7 @@ class MyEmbeddings(EmbeddingProvider):
 ```python
 from engramia.providers import JSONStorage
 
-storage = JSONStorage(path="./brain_data")
+storage = JSONStorage(path="./engramia_data")
 ```
 
 - Thread-safe with `threading.Lock`

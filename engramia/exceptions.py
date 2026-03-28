@@ -24,7 +24,7 @@ class ProviderError(EngramiaError):
     Example::
 
         try:
-            result = brain.evaluate(task, code)
+            result = memory.evaluate(task, code)
         except ProviderError:
             print("No LLM configured — skipping evaluation")
     """

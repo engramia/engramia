@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from engramia import Memory
 from engramia.api.routes import router
-from engramia.exceptions import ValidationError as BrainValidationError
+from engramia.exceptions import ValidationError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -56,15 +56,15 @@ def mock_llm():
 def api_client(fake_embeddings, storage, mock_llm):
     """TestClient with a fresh Brain instance backed by FakeEmbeddings + JSONStorage."""
     app = FastAPI()
-    brain = Memory(embeddings=fake_embeddings, storage=storage, llm=mock_llm)
-    app.state.brain = brain
+    mem = Memory(embeddings=fake_embeddings, storage=storage, llm=mock_llm)
+    app.state.memory = mem
 
     @app.exception_handler(ValueError)
     async def _value_error(request: Request, exc: ValueError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
-    @app.exception_handler(BrainValidationError)
-    async def _brain_validation_error(request: Request, exc: BrainValidationError) -> JSONResponse:
+    @app.exception_handler(ValidationError)
+    async def _brain_validation_error(request: Request, exc: ValidationError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
     app.include_router(router, prefix="/v1")

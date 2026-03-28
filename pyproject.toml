@@ -5,14 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "engramia"
 version = "0.5.0"
-description = "Self-learning memory layer for AI agent frameworks"
+description = "Reusable execution memory and evaluation infrastructure for AI agent frameworks"
 authors = [
     {name = "Marek Čermák"},
 ]
 readme = "README.md"
 requires-python = ">=3.12"
 license = {file = "LICENSE.txt"}
-keywords = ["ai", "agents", "memory", "langchain", "crewai", "llm", "rag", "self-learning"]
+keywords = ["ai", "agents", "memory", "langchain", "crewai", "llm", "rag", "evaluation", "execution-memory"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -23,6 +23,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
     "License :: Other/Proprietary License",
+    "License :: Free for non-commercial use"
 ]
 dependencies = [
     "pydantic>=2.0",

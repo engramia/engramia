@@ -38,12 +38,12 @@ else:
     print("No LLM configured — learn/recall work without it, evaluate/compose require one")
 
 # ---------------------------------------------------------------------------
-# 3. Create Brain (fully local, no cloud calls for learn/recall)
+# 3. Create Memory instance (fully local, no cloud calls for learn/recall)
 # ---------------------------------------------------------------------------
-brain = Memory(
+mem = Memory(
     llm=llm,
     embeddings=embeddings,   # 384-dim local vectors
-    storage=JSONStorage(path="./brain_data_local"),
+    storage=JSONStorage(path="./engramia_data_local"),
 )
 
 # ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ patterns = [
 ]
 
 for task, code, score in patterns:
-    result = brain.learn(task=task, code=code, eval_score=score)
+    result = mem.learn(task=task, code=code, eval_score=score)
     print(f"Stored: {result.stored} — {task[:50]}")
 
 # ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ queries = [
 ]
 
 for query in queries:
-    matches = brain.recall(task=query, limit=2)
+    matches = mem.recall(task=query, limit=2)
     print(f"\nQuery: {query[:50]}")
     for m in matches:
         print(f"  [{m.reuse_tier}] {m.similarity:.3f} — {m.pattern.task[:60]}")
@@ -91,19 +91,19 @@ for query in queries:
 # ---------------------------------------------------------------------------
 # 6. Skill registry — tag patterns with capabilities
 # ---------------------------------------------------------------------------
-all_matches = brain.recall(task="log file parsing", limit=1)
+all_matches = mem.recall(task="log file parsing", limit=1)
 if all_matches:
     key = all_matches[0].pattern_key
-    brain.register_skills(key, ["log_parsing", "regex", "file_io"])
+    mem.register_skills(key, ["log_parsing", "regex", "file_io"])
 
-skill_results = brain.find_by_skills(["log_parsing"])
+skill_results = mem.find_by_skills(["log_parsing"])
 print(f"\nSkill search 'log_parsing': {len(skill_results)} pattern(s)")
 
 # ---------------------------------------------------------------------------
 # 7. Evaluate (requires LLM)
 # ---------------------------------------------------------------------------
 if llm:
-    eval_result = brain.evaluate(
+    eval_result = mem.evaluate(
         task="Parse log files and extract error lines",
         code="errors = [l for l in open('app.log') if 'ERROR' in l]",
         num_evals=2,
@@ -116,5 +116,5 @@ else:
 # ---------------------------------------------------------------------------
 # 8. Metrics
 # ---------------------------------------------------------------------------
-m = brain.metrics
-print(f"\nMetrics: {m.pattern_count} patterns | {m.runs} runs | storage: {brain.storage_type}")
+m = mem.metrics
+print(f"\nMetrics: {m.pattern_count} patterns | {m.runs} runs | storage: {mem.storage_type}")

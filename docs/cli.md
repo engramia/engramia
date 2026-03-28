@@ -12,10 +12,10 @@ pip install "engramia[cli]"
 
 ### init
 
-Initialize a new brain data directory.
+Initialize a new Engramia data directory.
 
 ```bash
-engramia init --path ./brain_data
+engramia init --path ./engramia_data
 ```
 
 ### serve
@@ -36,7 +36,7 @@ engramia serve --host 0.0.0.0 --port 8000
 Show memory metrics and statistics.
 
 ```bash
-engramia status --path ./brain_data
+engramia status --path ./engramia_data
 ```
 
 Displays: pattern count, total runs, success rate, average eval score, reuse count.
@@ -58,7 +58,7 @@ engramia recall "Parse CSV and compute statistics" --limit 5
 Run pattern aging (decay + prune).
 
 ```bash
-engramia aging --path ./brain_data
+engramia aging --path ./engramia_data
 ```
 
 Applies 2%/week decay and removes patterns with score < 0.1.
@@ -70,5 +70,5 @@ The CLI uses the same environment variables as the REST API:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENGRAMIA_STORAGE` | `json` | Storage backend |
-| `ENGRAMIA_DATA_PATH` | `./brain_data` | JSON storage path |
+| `ENGRAMIA_DATA_PATH` | `./engramia_data` | JSON storage path |
 | `OPENAI_API_KEY` | — | Required for recall (embeddings) |

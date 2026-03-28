@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Engramia — Self-Learning Memory Layer for AI Agents**
+**Engramia — Reusable Execution Memory for AI Agents**
 
 Last updated: 2026-03-23
 
@@ -197,7 +197,7 @@ If you are in the EU/EEA, you have the following rights regarding your personal 
 | **Withdraw Consent** (Art. 7) | Withdraw consent at any time (where processing is based on consent) |
 | **Complaint** (Art. 77) | Lodge a complaint with a supervisory authority |
 
-To exercise any of these rights, contact us at [to be added]. We will respond within 30 days.
+To exercise any of these rights, contact us at support@engramia.dev. We will respond within 30 days.
 
 **Supervisory authority:** If you are in the Czech Republic, the relevant authority is the Office for Personal Data Protection (Úřad pro ochranu osobních údajů, ÚOOÚ), https://www.uoou.cz.
 
