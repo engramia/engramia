@@ -41,7 +41,8 @@ import functools
 import inspect
 import logging
 import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 _log = logging.getLogger(__name__)
 
@@ -190,7 +191,7 @@ class EngramiaBridge:
             task: Task description.
             code: Agent-generated source code.
             output: Captured stdout / agent output (optional).
-            eval_score: Pre-computed quality score 0–10 (optional).
+            eval_score: Pre-computed quality score 0-10 (optional).
         """
         try:
             client = self._get_client()
@@ -246,7 +247,7 @@ class EngramiaBridge:
             task: Task description.
             code: Agent-generated source code.
             output: Captured stdout / agent output (optional).
-            eval_score: Pre-computed quality score 0–10 (optional).
+            eval_score: Pre-computed quality score 0-10 (optional).
             success: Set to ``False`` to skip recording (e.g. on exception).
         """
         if not success:
