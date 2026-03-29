@@ -15,6 +15,7 @@ by checking the storage backend's scoped count against the per-key limit.
 """
 
 import logging
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
@@ -30,6 +31,8 @@ from engramia.api.schemas import (
     AnalyzeFailuresResponse,
     ComposeRequest,
     ComposeResponse,
+    DeepHealthCheckResult,
+    DeepHealthResponse,
     DeletePatternResponse,
     EvalScoreOut,
     EvaluateRequest,
@@ -56,6 +59,8 @@ from engramia.api.schemas import (
 )
 from engramia.exceptions import ProviderError
 from engramia.types import AuthContext
+
+_STARTUP_TIME = time.monotonic()
 
 _log = logging.getLogger(__name__)
 
@@ -415,6 +420,48 @@ def health(memory: Memory = Depends(get_memory)) -> HealthResponse:
         storage=memory.storage_type,
         pattern_count=memory.metrics.pattern_count,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /health/deep  (Phase 5.5)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/health/deep",
+    response_model=DeepHealthResponse,
+    dependencies=[require_permission("health")],
+)
+def health_deep(request: Request, memory: Memory = Depends(get_memory)):
+    """Deep health check — probes storage, LLM, and embedding connectivity.
+
+    Returns HTTP 200 with status "ok" or "degraded", and HTTP 503 when
+    all non-optional backends are unavailable.
+    """
+    from engramia import __version__
+    from engramia.telemetry.health import (
+        aggregate_status,
+        check_embedding,
+        check_llm,
+        check_storage,
+    )
+
+    checks = {
+        "storage": check_storage(memory.storage),
+        "llm": check_llm(memory.llm),
+        "embedding": check_embedding(memory.embeddings),
+    }
+
+    overall = aggregate_status(checks)
+    http_status = status.HTTP_503_SERVICE_UNAVAILABLE if overall == "error" else status.HTTP_200_OK
+
+    body = DeepHealthResponse(
+        status=overall,
+        version=__version__,
+        uptime_seconds=round(time.monotonic() - _STARTUP_TIME, 1),
+        checks={k: DeepHealthCheckResult(**v) for k, v in checks.items()},
+    )
+    return JSONResponse(content=body.model_dump(), status_code=http_status)
 
 
 # ---------------------------------------------------------------------------

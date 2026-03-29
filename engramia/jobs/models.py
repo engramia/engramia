@@ -46,6 +46,7 @@ class JobInfo(BaseModel):
     created_at: str
     started_at: str | None = None
     completed_at: str | None = None
+    request_id: str | None = None
 
 
 class JobSubmitResult(BaseModel):
