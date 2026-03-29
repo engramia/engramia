@@ -15,6 +15,10 @@ Commands::
     engramia keys list          — List API keys for current project (DB auth, admin+)
     engramia keys revoke <id>   — Revoke an API key (DB auth, admin+)
 
+    engramia governance retention    — Apply retention policy (delete old patterns)
+    engramia governance export       — Export patterns as NDJSON (GDPR Art. 20)
+    engramia governance purge-project — Wipe all data for a project (GDPR Art. 17)
+
 Provider selection (for recall):
     Set OPENAI_API_KEY to use OpenAI embeddings (default).
     Set ENGRAMIA_LOCAL_EMBEDDINGS=1 to use local sentence-transformers (no API key).
@@ -38,6 +42,9 @@ app = typer.Typer(
 )
 keys_app = typer.Typer(name="keys", help="Manage API keys (requires DB auth mode).")
 app.add_typer(keys_app)
+
+governance_app = typer.Typer(name="governance", help="Data governance: retention, export, deletion (Phase 5.6).")
+app.add_typer(governance_app)
 
 console = Console()
 
@@ -474,6 +481,140 @@ def keys_revoke(
         raise typer.Exit(1)
 
     console.print(f"[green]✓[/green] Key {key_id[:8]}... revoked.")
+
+
+# ---------------------------------------------------------------------------
+# governance retention
+# ---------------------------------------------------------------------------
+
+
+@governance_app.command("retention")
+def governance_retention(
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data directory."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview what would be deleted without deleting."),
+    retention_days: int = typer.Option(365, "--days", help="Retention threshold in days."),
+) -> None:
+    """Apply retention policy — delete patterns older than the configured threshold.
+
+    Works with JSON storage. For PostgreSQL, prefer POST /v1/governance/retention/apply.
+    """
+    from engramia.governance.retention import RetentionManager
+
+    storage = _make_storage(path)
+    manager = RetentionManager(default_retention_days=retention_days)
+    result = manager.apply(storage, dry_run=dry_run)
+
+    if dry_run:
+        console.print(
+            f"[yellow]Dry run:[/yellow] Would delete [bold]{result.purged_count}[/bold] pattern(s) "
+            f"older than {retention_days} days."
+        )
+    elif result.purged_count == 0:
+        console.print(f"[green]✓[/green] Retention applied — no patterns older than {retention_days} days.")
+    else:
+        console.print(
+            f"[green]✓[/green] Retention applied — deleted [bold]{result.purged_count}[/bold] pattern(s)."
+        )
+
+
+# ---------------------------------------------------------------------------
+# governance export
+# ---------------------------------------------------------------------------
+
+
+@governance_app.command("export")
+def governance_export(
+    output: str = typer.Option("-", "--output", "-o", help="Output file path. Use '-' for stdout."),
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data directory."),
+    classification: str = typer.Option(
+        None, "--classification", "-c", help="Comma-separated classification filter."
+    ),
+) -> None:
+    """Export all patterns to NDJSON (GDPR Art. 20 data portability).
+
+    Each line is a JSON object. Use --classification to filter by sensitivity level.
+
+    Example::
+
+        engramia governance export --output patterns.ndjson
+        engramia governance export --classification public,internal | gzip > archive.ndjson.gz
+    """
+    import json
+    import sys
+
+    from engramia.governance.export import DataExporter
+
+    storage = _make_storage(path)
+    cls_filter = [c.strip() for c in classification.split(",")] if classification else None
+    exporter = DataExporter()
+
+    out = open(output, "w", encoding="utf-8") if output != "-" else sys.stdout
+    count = 0
+    try:
+        for record in exporter.stream(storage, classification_filter=cls_filter):
+            out.write(json.dumps(record, default=str) + "\n")
+            count += 1
+    finally:
+        if output != "-":
+            out.close()
+
+    if output != "-":
+        console.print(f"[green]✓[/green] Exported [bold]{count}[/bold] patterns to [cyan]{output}[/cyan].")
+
+
+# ---------------------------------------------------------------------------
+# governance purge-project (GDPR Art. 17)
+# ---------------------------------------------------------------------------
+
+
+@governance_app.command("purge-project")
+def governance_purge_project(
+    project_id: str = typer.Argument(..., help="Project ID to permanently wipe."),
+    tenant_id: str = typer.Option("default", "--tenant", "-t", help="Tenant ID."),
+    confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data directory."),
+) -> None:
+    """Permanently delete all data for a project (GDPR Art. 17).
+
+    This is irreversible. Patterns and embeddings are deleted immediately.
+    Requires ENGRAMIA_DATABASE_URL for full cascade (jobs, keys, audit log).
+    """
+    if not confirm:
+        typer.confirm(
+            f"Permanently delete ALL data for project '{project_id}' in tenant '{tenant_id}'? "
+            "This cannot be undone.",
+            abort=True,
+        )
+
+    from engramia._context import reset_scope, set_scope
+    from engramia.governance.deletion import ScopedDeletion
+    from engramia.types import Scope
+
+    storage = _make_storage(path)
+    engine = None
+    db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
+    if db_url:
+        try:
+            from sqlalchemy import create_engine
+            engine = create_engine(db_url, pool_pre_ping=True)
+        except ImportError:
+            pass
+
+    deletion = ScopedDeletion(engine=engine)
+    token = set_scope(Scope(tenant_id=tenant_id, project_id=project_id))
+    try:
+        result = deletion.delete_project(storage, tenant_id=tenant_id, project_id=project_id)
+    finally:
+        reset_scope(token)
+
+    console.print(f"\n[green]✓[/green] Project [bold]{project_id}[/bold] wiped.")
+    table = Table(show_header=False, box=None)
+    table.add_column("Field", style="dim")
+    table.add_column("Value", style="bold")
+    table.add_row("Patterns deleted", str(result.patterns_deleted))
+    table.add_row("Jobs deleted", str(result.jobs_deleted))
+    table.add_row("Keys revoked", str(result.keys_revoked))
+    console.print(table)
 
 
 # ---------------------------------------------------------------------------

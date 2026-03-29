@@ -19,7 +19,7 @@ search via pgvector's ``<=>`` cosine distance operator.
 """
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, ForeignKey, Index, Integer, SmallInteger, Text, func
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, SmallInteger, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -48,6 +48,13 @@ class MemoryData(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+    # Phase 5.6: Data Governance
+    classification: Mapped[str] = mapped_column(Text, nullable=False, server_default="internal")
+    source: Mapped[str | None] = mapped_column(Text, nullable=True)         # 'api'|'sdk'|'cli'|'import'
+    run_id: Mapped[str | None] = mapped_column(Text, nullable=True)          # caller correlation ID
+    author: Mapped[str | None] = mapped_column(Text, nullable=True)          # key_id or identifier
+    redacted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    expires_at: Mapped[str | None] = mapped_column(Text, nullable=True)      # ISO-8601 UTC
 
 
 class MemoryEmbedding(Base):
@@ -100,6 +107,9 @@ class Tenant(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     plan_tier: Mapped[str] = mapped_column(Text, nullable=False, server_default="free")
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
+    # Phase 5.6: Data Governance
+    retention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = use global default
+    deleted_at: Mapped[str | None] = mapped_column(Text, nullable=True)          # soft-delete timestamp
 
 
 class Project(Base):
@@ -112,6 +122,11 @@ class Project(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     max_patterns: Mapped[int] = mapped_column(Integer, nullable=False, server_default="10000")
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
+    # Phase 5.6: Data Governance
+    retention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)         # None = inherit tenant
+    default_classification: Mapped[str] = mapped_column(Text, nullable=False, server_default="internal")
+    redaction_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    deleted_at: Mapped[str | None] = mapped_column(Text, nullable=True)                # soft-delete timestamp
 
 
 # ---------------------------------------------------------------------------
@@ -162,12 +177,21 @@ class AuditLogEntry(Base):
     resource_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
+    # Phase 5.6: structured event context (counts, params, reason, etc.)
+    detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 audit_log_index = Index(
     "idx_audit_log_tenant",
     AuditLogEntry.tenant_id,
     AuditLogEntry.created_at,
+)
+
+# Phase 5.6: governance indexes
+memory_data_classification_index = Index(
+    "idx_memory_data_classification",
+    MemoryData.tenant_id,
+    MemoryData.classification,
 )
 
 

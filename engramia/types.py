@@ -8,6 +8,7 @@ other modules import from here, never define their own ad-hoc dicts.
 
 import time
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -217,6 +218,26 @@ class Metrics(BaseModel):
 # ---------------------------------------------------------------------------
 # Model Routing
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Data Governance (Phase 5.6)
+# ---------------------------------------------------------------------------
+
+
+class DataClassification(StrEnum):
+    """Sensitivity level for stored patterns.
+
+    Controls export filtering, access logging, and future data residency rules.
+
+    PUBLIC       — shareable, no sensitive content
+    INTERNAL     — default; tenant-internal, not shareable (default)
+    CONFIDENTIAL — contains sensitive business logic or proprietary information
+    """
+
+    PUBLIC = "public"
+    INTERNAL = "internal"
+    CONFIDENTIAL = "confidential"
 
 
 # ---------------------------------------------------------------------------

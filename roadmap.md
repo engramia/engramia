@@ -94,12 +94,12 @@ Project status: **Early Commercial Candidate** — usable for pilots, not yet en
 | ~~P1~~ | ~~Reliability~~ | ~~No async/job processing — long ops block API~~ | ✅ Phase 5.4 done |
 | ~~P1~~ | ~~Observability~~ | ~~No telemetry/tracing — blind in production~~ | ✅ Phase 5.5 done |
 | ~~P1~~ | ~~Positioning~~ | ~~README overclaims vs reality — trust erosion~~ | ✅ Phase 5.0 done |
-| P1 | Privacy | No data governance/retention/redaction | Phase 5.6 |
+| ~~P1~~ | ~~Privacy~~ | ~~No data governance/retention/redaction~~ | ✅ Phase 5.6 done |
 | P1 | Commercial | No ROI proof layer — hard to sell vs "build in-house" | Phase 5.7 |
 | P1 | Tests | PostgreSQL 0% coverage; LLM error paths untested | Phase 5.8 |
 | P1 | Production | Bare `except Exception` in brain.py, eval_feedback.py | Phase 5.8 |
 | P2 | Backend | Memory class growing toward god object | Phase 5.8 |
-| P2 | DB | No schema/data lifecycle (retention, compaction, reindex) | Phase 5.6 |
+| ~~P2~~ | ~~DB~~ | ~~No schema/data lifecycle (retention, compaction, reindex)~~ | ✅ Phase 5.6 done |
 | P2 | Security | Dev mode without auth dangerous if misconfigured | Phase 5.8 |
 | ~~P3~~ | ~~Branding~~ | ~~Naming drift (Brain/Engramia/agent-brain)~~ | ✅ Phase 5.0 done |
 | ~~P3~~ | ~~Features~~ | ~~compose/evolve position as demo, not mission-critical~~ | ✅ Phase 5.0 done |
@@ -193,15 +193,15 @@ Project status: **Early Commercial Candidate** — usable for pilots, not yet en
 - [ ] **Eval history** — scores over time, variance alerts
 - [ ] **Deploy** — bundled with API or separate static site
 
-#### Phase 5.6: Data Governance + Privacy 
+#### Phase 5.6: Data Governance + Privacy ✅
 
-- [ ] **Retention policies** — configurable TTL per project, auto-cleanup
-- [ ] **Data classification flags** — mark patterns as public/internal/confidential
-- [ ] **PII/secrets redaction hooks** — optional pre-storage redaction pipeline
-- [ ] **Scoped deletion** — delete all data for a tenant/project (GDPR Art. 17)
-- [ ] **Scoped export** — export all data for a tenant/project (GDPR Art. 20)
-- [ ] **Data provenance metadata** — source, timestamp, run_id, author on all patterns
-- [ ] **Schema/data lifecycle** — compaction, dedup, index maintenance jobs
+- [x] **Retention policies** — configurable TTL per project, auto-cleanup
+- [x] **Data classification flags** — mark patterns as public/internal/confidential
+- [x] **PII/secrets redaction hooks** — optional pre-storage redaction pipeline
+- [x] **Scoped deletion** — delete all data for a tenant/project (GDPR Art. 17)
+- [x] **Scoped export** — export all data for a tenant/project (GDPR Art. 20)
+- [x] **Data provenance metadata** — source, timestamp, run_id, author on all patterns
+- [x] **Schema/data lifecycle** — compaction, dedup, index maintenance jobs
 
 #### Phase 5.7: ROI Analytics + Evidence Layer
 
@@ -286,7 +286,7 @@ Project status: **Early Commercial Candidate** — usable for pilots, not yet en
 | 5.3 | Admin UI | Functional dashboard deployed |
 | ~~5.4~~ | ~~Async jobs~~ | ✅ Long ops return job ID, no API timeout |
 | ~~5.5~~ | ~~Observability~~ | ✅ Request traces visible in OTel collector; /v1/health/deep; Prometheus /metrics |
-| 5.6 | Data governance | Retention + scoped delete working |
+| ~~5.6~~ | ~~Data governance~~ | ✅ Retention + scoped delete + PII redaction + NDJSON export + provenance metadata |
 | 5.7 | ROI analytics | Reuse rate + success lift metrics available |
 | 5.9 | Enterprise trust | Security architecture doc complete |
 | 7 | Memory architecture | Knowledge graph + taxonomy + compression |

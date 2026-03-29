@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] — Phase 5.6
+
+### Added — Data Governance + Privacy (Phase 5.6)
+
+- **`engramia/governance/` package** — standalone data governance layer; six modules: `redaction`, `retention`, `deletion`, `export`, `lifecycle`, `__init__`.
+- **PII/secrets redaction pipeline** (`RedactionPipeline`) — regex-based hooks for email, IPv4, JWT, OpenAI key, AWS access key, GitHub token, hex secrets; keyword-prefix hook for `password=`, `token=`, `secret=`, `key=` etc. Zero LLM calls. Plug into `Memory.__init__(redaction=RedactionPipeline.default())`. Returns `(clean_dict, findings)` with per-field `Finding` records.
+- **Data classification** (`DataClassification` StrEnum) — `PUBLIC`, `INTERNAL`, `CONFIDENTIAL`. Stored in `memory_data.classification`; passed per `learn()` call.
+- **Retention policies** (`RetentionManager`) — per-project and per-tenant configurable TTL; cascade: `pattern.expires_at > project.retention_days > tenant.retention_days > global default (365 d)`. `apply(dry_run=True)` for preview. Two code paths: fast `expires_at` SQL query for Postgres, timestamp-scan fallback for JSON storage.
+- **Scoped deletion** (`ScopedDeletion`) — GDPR Art. 17 right to erasure. `delete_project()` / `delete_tenant()` cascade: storage records + embeddings → jobs → audit_log scrub (detail=NULL) → api_keys revoke → soft-delete in DB. Returns `DeletionResult` with per-type counts.
+- **Scoped NDJSON export** (`DataExporter`) — GDPR Art. 20 data portability. Streams all patterns for current scope with governance metadata (`classification`, `redacted`, `source`, `run_id`). Optional `classification_filter` for partial exports. Each record is stable for re-import via `Memory.import_data()`.
+- **Lifecycle jobs** — three new async job operations: `retention_cleanup`, `compact_audit_log`, `cleanup_old_jobs`. Wired into existing `JobOperation` enum and `DISPATCHERS` table. All support `dry_run` param.
+- **Data provenance metadata** — `Memory.learn()` extended with `run_id`, `classification`, `source`, `author` kwargs. Stored in `memory_data` columns via `StorageBackend.save_pattern_meta()`.
+- **Governance REST API** (`/v1/governance`) — seven endpoints: `GET /retention`, `PUT /retention`, `POST /retention/apply`, `GET /export` (StreamingResponse NDJSON), `PUT /patterns/{key}/classify`, `DELETE /projects/{project_id}`, `DELETE /tenants/{tenant_id}`. Guarded by `governance:read/write/admin/delete` permissions.
+- **Governance permissions** — `governance:read`, `governance:write`, `governance:admin`, `governance:delete` added to admin role.
+- **Audit events** — `SCOPE_DELETED`, `SCOPE_EXPORTED`, `RETENTION_APPLIED`, `PII_REDACTED` added to `AuditEvent`.
+- **StorageBackend ABC extensions** — optional `save_pattern_meta()` and `delete_scope()` methods with no-op defaults; `PostgresStorage` provides efficient bulk-delete implementations.
+- **Alembic migration 006** — governance columns: `tenants.retention_days`, `tenants.deleted_at`, `projects.retention_days`, `projects.default_classification`, `projects.redaction_enabled`, `projects.deleted_at`, `memory_data.classification`, `memory_data.source`, `memory_data.run_id`, `memory_data.author`, `memory_data.redacted`, `memory_data.expires_at`, `audit_log.detail`; partial index on `expires_at`, classification index.
+- **CLI governance commands** — `engramia governance retention`, `engramia governance export`, `engramia governance purge-project`.
+- **`LearnRequest` schema extensions** — `run_id`, `classification`, `source` fields.
+- **16 new tests** (lifecycle mock-engine, retention mock-engine, export mock-engine) + prior 80 governance tests. 656 tests total, 78.70% coverage.
+
+---
+
 ## [Unreleased] — Phase 5.4 + 5.5
 
 ### Added — Observability + Telemetry (Phase 5.5)

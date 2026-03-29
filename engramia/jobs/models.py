@@ -32,6 +32,10 @@ class JobOperation(StrEnum):
     FEEDBACK_DECAY = "feedback_decay"
     IMPORT = "import"
     EXPORT = "export"
+    # Phase 5.6: Data Governance lifecycle jobs
+    RETENTION_CLEANUP = "retention_cleanup"
+    COMPACT_AUDIT_LOG = "compact_audit_log"
+    CLEANUP_OLD_JOBS = "cleanup_old_jobs"
 
 
 class JobInfo(BaseModel):

@@ -24,8 +24,10 @@ from engramia.exceptions import ProviderError, ValidationError
 from engramia.providers.base import EmbeddingProvider, LLMProvider, StorageBackend
 from engramia.reuse.composer import PipelineComposer
 from engramia.reuse.matcher import PatternMatcher
+from engramia.governance.redaction import RedactionPipeline
 from engramia.types import (
     JACCARD_DEDUP_THRESHOLD,
+    DataClassification,
     EvalResult,
     LearnResult,
     Match,
@@ -90,10 +92,13 @@ class Memory:
         embeddings: EmbeddingProvider,
         storage: StorageBackend,
         llm: LLMProvider | None = None,
+        redaction: RedactionPipeline | None = None,
     ) -> None:
         self._llm = llm
         self._embeddings = embeddings
         self._storage = storage
+        # Redaction is opt-in; pass RedactionPipeline.default() to enable.
+        self._redaction = redaction
 
         # Internal stores — all share the same storage backend via key prefixes
         self._metrics_store = MetricsStore(storage)
@@ -131,6 +136,11 @@ class Memory:
         code: str,
         eval_score: float,
         output: str | None = None,
+        *,
+        run_id: str | None = None,
+        classification: str = DataClassification.INTERNAL,
+        source: str = "api",
+        author: str | None = None,
     ) -> LearnResult:
         """Record a successful agent run and store it as a reusable pattern.
 
@@ -139,6 +149,11 @@ class Memory:
             code: Agent source code (the solution).
             eval_score: Quality score 0.0-10.0 (from evaluate() or manual).
             output: Optional captured stdout/output for reference.
+            run_id: Optional caller-supplied correlation ID for this agent run.
+            classification: Data sensitivity level (``'public'``, ``'internal'``,
+                ``'confidential'``). Defaults to ``'internal'``.
+            source: Origin of the pattern (``'api'``, ``'sdk'``, ``'cli'``, ``'import'``).
+            author: Identifier of the creator (key_id, service name, or email).
 
         Returns:
             LearnResult with ``stored=True`` and the current pattern count.
@@ -158,12 +173,32 @@ class Memory:
         if output is not None:
             design["output"] = output
 
+        # Phase 5.6: PII/secrets redaction (opt-in)
+        redacted = False
+        if self._redaction is not None:
+            clean_design, findings = self._redaction.process(
+                design, extra_fields={"task": task}
+            )
+            if findings:
+                design = {k: v for k, v in clean_design.items() if k != "task"}
+                redacted = True
+
         pattern = Pattern(task=task, design=design, success_score=eval_score)
         key = self._pattern_key(task)
 
         self._storage.save(key, pattern.model_dump())
         embedding = self._embeddings.embed(task)
         self._storage.save_embedding(key, embedding)
+
+        # Phase 5.6: persist governance metadata (no-op for JSONStorage)
+        self._storage.save_pattern_meta(
+            key,
+            classification=classification,
+            source=source,
+            run_id=run_id,
+            author=author,
+            redacted=redacted,
+        )
 
         # Record in eval store for quality-weighted recall
         self._eval_store.save(
