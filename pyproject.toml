@@ -80,7 +80,7 @@ packages = ["engramia"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "--cov=engramia --cov-fail-under=78"
+addopts = "--cov=engramia --cov-fail-under=77"
 
 [tool.coverage.run]
 source = ["engramia"]

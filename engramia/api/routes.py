@@ -17,6 +17,7 @@ by checking the storage backend's scoped count against the per-key limit.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 
 from engramia import Memory
 from engramia.api.audit import AuditEvent, log_event
@@ -57,6 +58,33 @@ from engramia.exceptions import ProviderError
 from engramia.types import AuthContext
 
 _log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Async job helper (Phase 5.4)
+# ---------------------------------------------------------------------------
+
+
+def _try_async(request: Request, operation: str, params: dict) -> JSONResponse | None:
+    """If ``Prefer: respond-async`` header is set and job service is available,
+    submit an async job and return a 202 response. Otherwise return None.
+    """
+    if request.headers.get("Prefer") != "respond-async":
+        return None
+
+    service = getattr(request.app.state, "job_service", None)
+    if service is None:
+        return None
+
+    auth_ctx = getattr(request.state, "auth_context", None)
+    key_id = auth_ctx.key_id if auth_ctx else None
+
+    result = service.submit(operation=operation, params=params, key_id=key_id)
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content={"job_id": result.job_id, "status": result.status},
+        headers={"Location": f"/v1/jobs/{result.job_id}"},
+    )
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
@@ -170,8 +198,11 @@ def recall(body: RecallRequest, memory: Memory = Depends(get_memory)) -> RecallR
     status_code=status.HTTP_200_OK,
     dependencies=[require_permission("compose")],
 )
-def compose(body: ComposeRequest, memory: Memory = Depends(get_memory)) -> ComposeResponse:
+def compose(body: ComposeRequest, request: Request, memory: Memory = Depends(get_memory)):
     """Decompose a task into a multi-stage pipeline from stored patterns."""
+    async_resp = _try_async(request, "compose", body.model_dump())
+    if async_resp is not None:
+        return async_resp
     try:
         pipeline = memory.compose(task=body.task)
     except ProviderError:
@@ -211,8 +242,11 @@ def compose(body: ComposeRequest, memory: Memory = Depends(get_memory)) -> Compo
     status_code=status.HTTP_200_OK,
     dependencies=[require_permission("evaluate")],
 )
-def evaluate(body: EvaluateRequest, memory: Memory = Depends(get_memory)) -> EvaluateResponse:
+def evaluate(body: EvaluateRequest, request: Request, memory: Memory = Depends(get_memory)):
     """Run multi-evaluator scoring on agent code."""
+    async_resp = _try_async(request, "evaluate", body.model_dump())
+    if async_resp is not None:
+        return async_resp
     try:
         result = memory.evaluate(
             task=body.task,
@@ -334,8 +368,11 @@ def delete_pattern(
     status_code=status.HTTP_200_OK,
     dependencies=[require_permission("aging")],
 )
-def run_aging(memory: Memory = Depends(get_memory)) -> AgingResponse:
+def run_aging(request: Request, memory: Memory = Depends(get_memory)):
     """Apply time-based decay to all patterns. Prune those below threshold."""
+    async_resp = _try_async(request, "aging", {})
+    if async_resp is not None:
+        return async_resp
     pruned = memory.run_aging()
     return AgingResponse(pruned=pruned)
 
@@ -351,8 +388,11 @@ def run_aging(memory: Memory = Depends(get_memory)) -> AgingResponse:
     status_code=status.HTTP_200_OK,
     dependencies=[require_permission("feedback:decay")],
 )
-def run_feedback_decay(memory: Memory = Depends(get_memory)) -> FeedbackDecayResponse:
+def run_feedback_decay(request: Request, memory: Memory = Depends(get_memory)):
     """Apply time-based decay to feedback patterns. Prune those below threshold."""
+    async_resp = _try_async(request, "feedback_decay", {})
+    if async_resp is not None:
+        return async_resp
     pruned = memory.run_feedback_decay()
     return FeedbackDecayResponse(pruned=pruned)
 
@@ -388,8 +428,11 @@ def health(memory: Memory = Depends(get_memory)) -> HealthResponse:
     status_code=status.HTTP_200_OK,
     dependencies=[require_permission("evolve")],
 )
-def evolve_prompt(body: EvolveRequest, memory: Memory = Depends(get_memory)) -> EvolveResponse:
+def evolve_prompt(body: EvolveRequest, request: Request, memory: Memory = Depends(get_memory)):
     """Generate an improved prompt based on recurring feedback patterns."""
+    async_resp = _try_async(request, "evolve", body.model_dump())
+    if async_resp is not None:
+        return async_resp
     try:
         result = memory.evolve_prompt(
             role=body.role,
@@ -503,13 +546,20 @@ def import_patterns(
     request: Request,
     memory: Memory = Depends(get_memory),
     auth_ctx: AuthContext | None = Depends(get_auth_context),
-) -> ImportResponse:
+):
     """Bulk-import patterns from a previous export().
 
     Accepts records in the format produced by GET /export ({"version": 1, "key": ..., "data": ...}).
     Skips malformed records and keys that lack the patterns/ prefix.
     Quota is checked against the number of patterns that would be added.
     """
+    async_resp = _try_async(
+        request,
+        "import",
+        {"records": [r.model_dump() for r in body.records], "overwrite": body.overwrite},
+    )
+    if async_resp is not None:
+        return async_resp
     _check_quota(memory, auth_ctx)
     raw_records = [r.model_dump() for r in body.records]
     imported = memory.import_data(raw_records, overwrite=body.overwrite)

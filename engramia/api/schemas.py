@@ -251,3 +251,34 @@ class ImportRequest(BaseModel):
 class ImportResponse(BaseModel):
     imported: int = Field(description="Number of patterns successfully imported.")
     total: int = Field(description="Total records submitted.")
+
+
+# ---------------------------------------------------------------------------
+# Async jobs (Phase 5.4)
+# ---------------------------------------------------------------------------
+
+
+class JobResponse(BaseModel):
+    id: str
+    operation: str
+    status: str
+    result: dict | None = None
+    error: str | None = None
+    attempts: int = 0
+    created_at: str
+    started_at: str | None = None
+    completed_at: str | None = None
+
+
+class JobAcceptedResponse(BaseModel):
+    job_id: str
+    status: str = "pending"
+
+
+class JobListResponse(BaseModel):
+    jobs: list[JobResponse]
+
+
+class JobCancelResponse(BaseModel):
+    cancelled: bool
+    job_id: str

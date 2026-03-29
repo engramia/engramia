@@ -37,11 +37,12 @@ class OpenAIProvider(LLMProvider):
         self,
         model: str = "gpt-4.1",
         max_retries: int = 3,
+        timeout: float = 30.0,
     ) -> None:
         try:
             from openai import OpenAI
 
-            self._client = OpenAI()
+            self._client = OpenAI(timeout=timeout)
         except ImportError:
             raise ImportError(_OPENAI_INSTALL_MSG) from None
         self._model = model
@@ -90,11 +91,11 @@ class OpenAIEmbeddings(EmbeddingProvider):
             Produces 1536-dimensional vectors.
     """
 
-    def __init__(self, model: str = "text-embedding-3-small") -> None:
+    def __init__(self, model: str = "text-embedding-3-small", timeout: float = 15.0) -> None:
         try:
             from openai import OpenAI
 
-            self._client = OpenAI()
+            self._client = OpenAI(timeout=timeout)
         except ImportError:
             raise ImportError(_OPENAI_INSTALL_MSG) from None
         self._model = model

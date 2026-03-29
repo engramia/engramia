@@ -19,7 +19,7 @@ search via pgvector's ``<=>`` cosine distance operator.
 """
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, ForeignKey, Index, Integer, Text, func
+from sqlalchemy import BigInteger, ForeignKey, Index, Integer, SmallInteger, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -168,4 +168,50 @@ audit_log_index = Index(
     "idx_audit_log_tenant",
     AuditLogEntry.tenant_id,
     AuditLogEntry.created_at,
+)
+
+
+# ---------------------------------------------------------------------------
+# Async job queue (Phase 5.4)
+# ---------------------------------------------------------------------------
+
+
+class Job(Base):
+    """DB-backed async job for long-running operations.
+
+    Uses PostgreSQL ``SELECT ... FOR UPDATE SKIP LOCKED`` for competing-consumer
+    claims without external queue infrastructure (Redis/Celery).
+    """
+
+    __tablename__ = "jobs"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(Text, nullable=False, server_default="default")
+    project_id: Mapped[str] = mapped_column(Text, nullable=False, server_default="default")
+    key_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    operation: Mapped[str] = mapped_column(Text, nullable=False)
+    params: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
+    result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    max_attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="3")
+    created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
+    scheduled_at: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completed_at: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+jobs_poll_index = Index(
+    "idx_jobs_poll",
+    Job.status,
+    Job.created_at,
+)
+
+jobs_tenant_index = Index(
+    "idx_jobs_tenant",
+    Job.tenant_id,
+    Job.project_id,
+    Job.created_at,
 )
