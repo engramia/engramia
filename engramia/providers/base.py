@@ -177,3 +177,60 @@ class StorageBackend(ABC):
         Returns:
             Number of matching keys in the current tenant/project scope.
         """
+
+    # ------------------------------------------------------------------
+    # Governance (Phase 5.6) — optional, default no-ops
+    # ------------------------------------------------------------------
+
+    def save_pattern_meta(
+        self,
+        key: str,
+        *,
+        classification: str = "internal",
+        source: str | None = None,
+        run_id: str | None = None,
+        author: str | None = None,
+        redacted: bool = False,
+        expires_at: str | None = None,
+    ) -> None:
+        """Persist governance metadata for a pattern key.
+
+        Called after ``save()`` when provenance or governance attributes are
+        available. Default implementation is a no-op — JSONStorage silently
+        ignores this; PostgresStorage overrides to write the dedicated columns.
+
+        Args:
+            key: Storage key of the pattern (e.g. ``"patterns/abc123"``).
+            classification: Data sensitivity level (``"internal"`` by default).
+            source: Origin of the pattern (``'api'``, ``'sdk'``, ``'cli'``, ``'import'``).
+            run_id: Caller-supplied correlation ID for this agent run.
+            author: Identifier of the creator (key_id or service name).
+            redacted: True if PII/secrets were removed before storage.
+            expires_at: ISO-8601 UTC timestamp when this pattern expires (or None).
+        """
+
+    def delete_scope(self, tenant_id: str, project_id: str) -> int:
+        """Delete all data keys for a tenant/project scope.
+
+        Used by scoped deletion (GDPR Art. 17). Returns the number of keys
+        deleted. Default implementation iterates ``list_keys`` — backends may
+        override for bulk-delete efficiency.
+
+        Args:
+            tenant_id: Tenant to delete.
+            project_id: Project to delete (``"*"`` means all projects in tenant).
+
+        Returns:
+            Number of keys deleted.
+        """
+        from engramia._context import get_scope, reset_scope, set_scope
+        from engramia.types import Scope
+
+        token = set_scope(Scope(tenant_id=tenant_id, project_id=project_id))
+        try:
+            keys = self.list_keys()
+            for key in keys:
+                self.delete(key)
+            return len(keys)
+        finally:
+            reset_scope(token)

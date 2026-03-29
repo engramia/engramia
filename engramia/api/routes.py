@@ -150,6 +150,10 @@ def learn(
         code=body.code,
         eval_score=body.eval_score,
         output=body.output,
+        run_id=body.run_id,
+        classification=body.classification,
+        source=body.source,
+        author=auth_ctx.key_id if auth_ctx else None,
     )
     return LearnResponse(stored=result.stored, pattern_count=result.pattern_count)
 

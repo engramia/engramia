@@ -88,6 +88,24 @@ def _dispatch_export(memory: Memory, params: dict[str, Any]) -> dict[str, Any]:
     return {"records": records, "count": len(records)}
 
 
+def _dispatch_retention_cleanup(memory: Memory, params: dict[str, Any]) -> dict[str, Any]:
+    from engramia.governance.lifecycle import cleanup_expired_patterns
+
+    return cleanup_expired_patterns(memory, params)
+
+
+def _dispatch_compact_audit_log(memory: Memory, params: dict[str, Any]) -> dict[str, Any]:
+    from engramia.governance.lifecycle import compact_audit_log
+
+    return compact_audit_log(memory, params)
+
+
+def _dispatch_cleanup_old_jobs(memory: Memory, params: dict[str, Any]) -> dict[str, Any]:
+    from engramia.governance.lifecycle import cleanup_old_jobs
+
+    return cleanup_old_jobs(memory, params)
+
+
 DISPATCHERS: dict[str, Any] = {
     JobOperation.EVALUATE: _dispatch_evaluate,
     JobOperation.COMPOSE: _dispatch_compose,
@@ -96,6 +114,10 @@ DISPATCHERS: dict[str, Any] = {
     JobOperation.FEEDBACK_DECAY: _dispatch_feedback_decay,
     JobOperation.IMPORT: _dispatch_import,
     JobOperation.EXPORT: _dispatch_export,
+    # Phase 5.6: Data Governance lifecycle jobs
+    JobOperation.RETENTION_CLEANUP: _dispatch_retention_cleanup,
+    JobOperation.COMPACT_AUDIT_LOG: _dispatch_compact_audit_log,
+    JobOperation.CLEANUP_OLD_JOBS: _dispatch_cleanup_old_jobs,
 }
 
 

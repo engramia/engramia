@@ -33,6 +33,11 @@ class AuditEvent(StrEnum):
     KEY_REVOKED = "key_revoked"
     KEY_ROTATED = "key_rotated"
     QUOTA_EXCEEDED = "quota_exceeded"
+    # Phase 5.6: Data Governance
+    SCOPE_DELETED = "scope_deleted"
+    SCOPE_EXPORTED = "scope_exported"
+    RETENTION_APPLIED = "retention_applied"
+    PII_REDACTED = "pii_redacted"
 
 
 def log_event(event: AuditEvent, **kwargs: Any) -> None:

@@ -59,6 +59,11 @@ _ADMIN_PERMS: frozenset[str] = _EDITOR_PERMS | frozenset(
         "keys:list",
         "keys:revoke",
         "keys:rotate",
+        # Phase 5.6: Data Governance
+        "governance:read",
+        "governance:write",
+        "governance:admin",
+        "governance:delete",
     }
 )
 

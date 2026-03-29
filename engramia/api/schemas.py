@@ -20,6 +20,10 @@ class LearnRequest(BaseModel):
     code: str = Field(max_length=500_000, description="Agent source code (the solution).")
     eval_score: float = Field(ge=0.0, le=10.0, description="Quality score 0-10.")
     output: str | None = Field(default=None, max_length=500_000, description="Optional captured stdout.")
+    # Phase 5.6: Data Governance provenance
+    run_id: str | None = Field(default=None, max_length=200, description="Caller-supplied run correlation ID.")
+    classification: str = Field(default="internal", max_length=50, description="Data sensitivity: public|internal|confidential.")
+    source: str = Field(default="api", max_length=50, description="Pattern origin: api|sdk|cli|import.")
 
 
 class LearnResponse(BaseModel):
@@ -300,3 +304,54 @@ class JobListResponse(BaseModel):
 class JobCancelResponse(BaseModel):
     cancelled: bool
     job_id: str
+
+
+# ---------------------------------------------------------------------------
+# Data Governance (Phase 5.6)
+# ---------------------------------------------------------------------------
+
+
+class RetentionPolicyResponse(BaseModel):
+    tenant_id: str
+    project_id: str
+    retention_days: int
+    source: str = Field(description="Where the policy comes from: project|tenant|default")
+
+
+class SetRetentionRequest(BaseModel):
+    retention_days: int | None = Field(
+        description="Retention in days. Null = inherit from tenant/global default.",
+        ge=1,
+        le=36500,
+        default=None,
+    )
+
+
+class RetentionApplyRequest(BaseModel):
+    dry_run: bool = Field(default=False, description="Preview without deleting.")
+
+
+class RetentionApplyResponse(BaseModel):
+    purged_count: int
+    dry_run: bool
+
+
+class ClassifyPatternRequest(BaseModel):
+    classification: str = Field(
+        max_length=50,
+        description="New classification: public|internal|confidential",
+    )
+
+
+class ClassifyPatternResponse(BaseModel):
+    pattern_key: str
+    classification: str
+
+
+class ScopedDeleteResponse(BaseModel):
+    tenant_id: str
+    project_id: str
+    patterns_deleted: int
+    jobs_deleted: int
+    keys_revoked: int
+    projects_deleted: int

@@ -214,6 +214,69 @@ class PostgresStorage(StorageBackend):
                 {"key": key, **sp},
             )
 
+    # ------------------------------------------------------------------
+    # Governance (Phase 5.6)
+    # ------------------------------------------------------------------
+
+    def save_pattern_meta(
+        self,
+        key: str,
+        *,
+        classification: str = "internal",
+        source: str | None = None,
+        run_id: str | None = None,
+        author: str | None = None,
+        redacted: bool = False,
+        expires_at: str | None = None,
+    ) -> None:
+        """Update governance metadata columns for a pattern row."""
+        sp = self._scope_params()
+        try:
+            with self._engine.begin() as conn:
+                conn.execute(
+                    self._text(
+                        "UPDATE memory_data "
+                        "SET classification = :cls, source = :src, run_id = :rid, "
+                        "    author = :author, redacted = :redacted, expires_at = :expires "
+                        "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
+                    ),
+                    {
+                        "cls": classification,
+                        "src": source,
+                        "rid": run_id,
+                        "author": author,
+                        "redacted": redacted,
+                        "expires": expires_at,
+                        "key": key,
+                        **sp,
+                    },
+                )
+        except Exception as exc:
+            _log.warning("save_pattern_meta failed for key %r: %s", key, exc)
+
+    def delete_scope(self, tenant_id: str, project_id: str) -> int:
+        """Bulk-delete all memory_data and memory_embeddings rows for a scope."""
+        try:
+            with self._engine.begin() as conn:
+                conn.execute(
+                    self._text(
+                        "DELETE FROM memory_embeddings "
+                        "WHERE tenant_id = :tid AND project_id = :pid"
+                    ),
+                    {"tid": tenant_id, "pid": project_id},
+                )
+                r = conn.execute(
+                    self._text(
+                        "DELETE FROM memory_data "
+                        "WHERE tenant_id = :tid AND project_id = :pid"
+                    ),
+                    {"tid": tenant_id, "pid": project_id},
+                )
+            return r.rowcount
+        except Exception as exc:
+            _log.error("delete_scope failed for %s/%s: %s", tenant_id, project_id, exc)
+            raise
+
     def search_similar(
         self,
         embedding: list[float],
