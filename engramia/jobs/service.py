@@ -15,6 +15,7 @@ import uuid
 from engramia._context import get_scope, reset_scope, set_scope
 from engramia.jobs.dispatch import dispatch_job
 from engramia.jobs.models import JobInfo, JobOperation, JobStatus, JobSubmitResult
+from engramia.telemetry.context import get_request_id, reset_request_id, set_request_id
 from engramia.types import Scope
 
 _log = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ class JobService:
             raise ValueError(f"Unknown operation: {operation}")
 
         scope = scope or get_scope()
+        request_id = get_request_id()
         job_id = str(uuid.uuid4())
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         expires = time.strftime(
@@ -76,13 +78,14 @@ class JobService:
         )
 
         if self._use_db:
-            self._db_submit(job_id, operation, params, scope, key_id, now, expires)
+            self._db_submit(job_id, operation, params, scope, key_id, now, expires, request_id)
         else:
             self._mem_store[job_id] = {
                 "id": job_id,
                 "tenant_id": scope.tenant_id,
                 "project_id": scope.project_id,
                 "key_id": key_id,
+                "request_id": request_id or None,
                 "operation": operation,
                 "params": params,
                 "status": JobStatus.PENDING,
@@ -236,6 +239,7 @@ class JobService:
         """Execute a single job dict, updating status and result in place."""
         scope = Scope(tenant_id=job["tenant_id"], project_id=job["project_id"])
         token = set_scope(scope)
+        rid_token = set_request_id(job.get("request_id") or "")
         try:
             result = dispatch_job(self._memory, job["operation"], job["params"])
             now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -260,26 +264,28 @@ class JobService:
                 )
         finally:
             reset_scope(token)
+            reset_request_id(rid_token)
 
     # ------------------------------------------------------------------
     # PostgreSQL implementation
     # ------------------------------------------------------------------
 
-    def _db_submit(self, job_id, operation, params, scope, key_id, now, expires):
+    def _db_submit(self, job_id, operation, params, scope, key_id, now, expires, request_id=None):
         from sqlalchemy import text
 
         with self._engine.begin() as conn:
             conn.execute(
                 text(
-                    "INSERT INTO jobs (id, tenant_id, project_id, key_id, operation, "
+                    "INSERT INTO jobs (id, tenant_id, project_id, key_id, request_id, operation, "
                     "params, status, attempts, max_attempts, created_at, expires_at) "
-                    "VALUES (:id, :tid, :pid, :kid, :op, :params, 'pending', 0, 3, :now, :exp)"
+                    "VALUES (:id, :tid, :pid, :kid, :rid, :op, :params, 'pending', 0, 3, :now, :exp)"
                 ),
                 {
                     "id": job_id,
                     "tid": scope.tenant_id,
                     "pid": scope.project_id,
                     "kid": key_id,
+                    "rid": request_id or None,
                     "op": operation,
                     "params": params,
                     "now": now,
@@ -294,7 +300,7 @@ class JobService:
             row = conn.execute(
                 text(
                     "SELECT id, operation, status, result, error, attempts, "
-                    "created_at, started_at, completed_at "
+                    "created_at, started_at, completed_at, request_id "
                     "FROM jobs WHERE id = :id AND tenant_id = :tid AND project_id = :pid"
                 ),
                 {"id": job_id, "tid": scope.tenant_id, "pid": scope.project_id},
@@ -312,6 +318,7 @@ class JobService:
             created_at=row[6],
             started_at=row[7],
             completed_at=row[8],
+            request_id=row[9],
         )
 
     def _db_list(self, scope, status_filter, limit):
@@ -319,7 +326,7 @@ class JobService:
 
         query = (
             "SELECT id, operation, status, result, error, attempts, "
-            "created_at, started_at, completed_at "
+            "created_at, started_at, completed_at, request_id "
             "FROM jobs WHERE tenant_id = :tid AND project_id = :pid"
         )
         params: dict = {"tid": scope.tenant_id, "pid": scope.project_id}
@@ -343,6 +350,7 @@ class JobService:
                 created_at=r[6],
                 started_at=r[7],
                 completed_at=r[8],
+                request_id=r[9],
             )
             for r in rows
         ]
@@ -376,7 +384,7 @@ class JobService:
                     "  ORDER BY created_at "
                     "  LIMIT :batch "
                     "  FOR UPDATE SKIP LOCKED"
-                    ") RETURNING id, operation, params, tenant_id, project_id, attempts, max_attempts"
+                    ") RETURNING id, operation, params, tenant_id, project_id, attempts, max_attempts, request_id"
                 ),
                 {"batch": batch_size},
             ).fetchall()
@@ -391,6 +399,7 @@ class JobService:
                 "project_id": row[4],
                 "attempts": row[5],
                 "max_attempts": row[6],
+                "request_id": row[7],
             }
             self._db_execute_one(job_dict)
             count += 1
@@ -401,6 +410,7 @@ class JobService:
 
         scope = Scope(tenant_id=job_dict["tenant_id"], project_id=job_dict["project_id"])
         token = set_scope(scope)
+        rid_token = set_request_id(job_dict.get("request_id") or "")
         try:
             result = dispatch_job(self._memory, job_dict["operation"], job_dict["params"])
             with self._engine.begin() as conn:
@@ -445,6 +455,7 @@ class JobService:
                     )
         finally:
             reset_scope(token)
+            reset_request_id(rid_token)
 
     def _db_reap_expired(self, now):
         from sqlalchemy import text
@@ -477,4 +488,5 @@ class JobService:
             created_at=job["created_at"],
             started_at=job.get("started_at"),
             completed_at=job.get("completed_at"),
+            request_id=job.get("request_id"),
         )

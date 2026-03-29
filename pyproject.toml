@@ -58,6 +58,14 @@ cli = [
 langchain = ["langchain-core>=0.1"]
 crewai = ["crewai>=0.28"]
 mcp = ["mcp>=1.0"]
+telemetry = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20",
+    "opentelemetry-instrumentation-fastapi>=0.41b0",
+    "prometheus-client>=0.20",
+    "python-json-logger>=2.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
@@ -67,7 +75,7 @@ dev = [
     "mypy>=1.14",
 ]
 all = [
-    "engramia[openai,anthropic,local,postgres,api,cli,langchain,crewai,mcp]",
+    "engramia[openai,anthropic,local,postgres,api,cli,langchain,crewai,mcp,telemetry]",
 ]
 
 [project.scripts]

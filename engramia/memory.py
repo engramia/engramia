@@ -103,6 +103,25 @@ class Memory:
         self._skill_registry = SkillRegistry(storage)
 
     # ------------------------------------------------------------------
+    # Provider accessors (read-only, used by deep health check)
+    # ------------------------------------------------------------------
+
+    @property
+    def storage(self) -> StorageBackend:
+        """The active storage backend."""
+        return self._storage
+
+    @property
+    def llm(self) -> LLMProvider | None:
+        """The active LLM provider, or None if not configured."""
+        return self._llm
+
+    @property
+    def embeddings(self) -> EmbeddingProvider:
+        """The active embedding provider."""
+        return self._embeddings
+
+    # ------------------------------------------------------------------
     # Learn
     # ------------------------------------------------------------------
 

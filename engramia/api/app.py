@@ -136,6 +136,13 @@ def create_app() -> FastAPI:
     All core routes are mounted under ``/v1``.
     Key management routes are mounted under ``/v1/keys``.
     """
+    # ------------------------------------------------------------------
+    # Telemetry (Phase 5.5) — must be first so logging is structured
+    # from the very first line of startup output.
+    # ------------------------------------------------------------------
+    from engramia.telemetry import setup_telemetry
+    setup_telemetry()
+
     app = FastAPI(
         title="Engramia API",
         description=(
@@ -150,13 +157,15 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     # Security middleware
     # Order matters: middleware is applied LIFO (last added = outermost).
-    # Stack (outermost → innermost): CORS → SecurityHeaders → BodySize → RateLimit → routes
+    # Stack (outermost → innermost):
+    #   CORS → RequestID → Timing → SecurityHeaders → BodySize → RateLimit → routes
     # ------------------------------------------------------------------
     from engramia.api.middleware import (
         BodySizeLimitMiddleware,
         RateLimitMiddleware,
         SecurityHeadersMiddleware,
     )
+    from engramia.telemetry.middleware import RequestIDMiddleware, TimingMiddleware
 
     cors_origins_raw = os.environ.get("ENGRAMIA_CORS_ORIGINS", "")
     cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
@@ -168,6 +177,10 @@ def create_app() -> FastAPI:
             allow_headers=["Authorization", "Content-Type"],
         )
     app.add_middleware(SecurityHeadersMiddleware)
+    # Telemetry middleware (innermost of the outer stack so request_id is
+    # available to all handlers; timing wraps the actual route dispatch).
+    app.add_middleware(TimingMiddleware)
+    app.add_middleware(RequestIDMiddleware)
 
     max_body = int(os.environ.get("ENGRAMIA_MAX_BODY_SIZE", str(1024 * 1024)))
     app.add_middleware(BodySizeLimitMiddleware, max_body_size=max_body)
@@ -229,6 +242,19 @@ def create_app() -> FastAPI:
     @app.on_event("shutdown")
     def _stop_job_worker():
         worker.stop()
+
+    # ------------------------------------------------------------------
+    # Prometheus /metrics endpoint (Phase 5.5, opt-in)
+    # ------------------------------------------------------------------
+    if os.environ.get("ENGRAMIA_METRICS", "false").lower() == "true":
+        try:
+            from prometheus_client import make_asgi_app as _make_prom_app
+
+            metrics_app = _make_prom_app()
+            app.mount("/metrics", metrics_app)
+            _log.info("Prometheus /metrics endpoint enabled.")
+        except ImportError:
+            _log.warning("prometheus_client not installed — /metrics not mounted.")
 
     # ------------------------------------------------------------------
     # API v1 routes

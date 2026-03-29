@@ -170,6 +170,24 @@ class HealthResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# GET /health/deep  (Phase 5.5)
+# ---------------------------------------------------------------------------
+
+
+class DeepHealthCheckResult(BaseModel):
+    status: str
+    latency_ms: float | None = None
+    error: str | None = None
+
+
+class DeepHealthResponse(BaseModel):
+    status: str
+    version: str
+    uptime_seconds: float
+    checks: dict[str, DeepHealthCheckResult]
+
+
+# ---------------------------------------------------------------------------
 # POST /evolve
 # ---------------------------------------------------------------------------
 

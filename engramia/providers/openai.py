@@ -13,6 +13,8 @@ import logging
 import time
 
 from engramia.providers.base import EmbeddingProvider, LLMProvider
+from engramia.telemetry import metrics as _metrics
+from engramia.telemetry import tracing as _tracing
 
 _log = logging.getLogger(__name__)
 
@@ -48,6 +50,7 @@ class OpenAIProvider(LLMProvider):
         self._model = model
         self._max_retries = max_retries
 
+    @_tracing.traced("llm.call", {"llm.provider": "openai"})
     def call(
         self,
         prompt: str,
@@ -62,12 +65,14 @@ class OpenAIProvider(LLMProvider):
         messages.append({"role": "user", "content": prompt})
 
         last_exc: Exception | None = None
+        t0 = time.perf_counter()
         for attempt in range(self._max_retries):
             try:
                 response = self._client.chat.completions.create(
                     model=self._model,
                     messages=messages,  # type: ignore[arg-type]
                 )
+                _metrics.observe_llm("openai", self._model, time.perf_counter() - t0)
                 return response.choices[0].message.content or ""
             except (AuthenticationError, BadRequestError, PermissionDeniedError):
                 raise
@@ -100,13 +105,17 @@ class OpenAIEmbeddings(EmbeddingProvider):
             raise ImportError(_OPENAI_INSTALL_MSG) from None
         self._model = model
 
+    @_tracing.traced("embedding.embed", {"embedding.provider": "openai"})
     def embed(self, text: str) -> list[float]:
+        t0 = time.perf_counter()
         response = self._client.embeddings.create(
             model=self._model,
             input=text,
         )
+        _metrics.observe_embedding("openai", time.perf_counter() - t0)
         return response.data[0].embedding
 
+    @_tracing.traced("embedding.embed_batch", {"embedding.provider": "openai"})
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple texts in a single API call.
 
@@ -115,9 +124,11 @@ class OpenAIEmbeddings(EmbeddingProvider):
         """
         if not texts:
             return []
+        t0 = time.perf_counter()
         response = self._client.embeddings.create(
             model=self._model,
             input=texts,
         )
+        _metrics.observe_embedding("openai", time.perf_counter() - t0)
         # OpenAI guarantees results are in the same order as the input list.
         return [item.embedding for item in response.data]

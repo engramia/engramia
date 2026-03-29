@@ -189,6 +189,7 @@ class Job(Base):
     tenant_id: Mapped[str] = mapped_column(Text, nullable=False, server_default="default")
     project_id: Mapped[str] = mapped_column(Text, nullable=False, server_default="default")
     key_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    request_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     operation: Mapped[str] = mapped_column(Text, nullable=False)
     params: Mapped[dict] = mapped_column(JSONB, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")

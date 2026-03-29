@@ -13,6 +13,8 @@ import logging
 import time
 
 from engramia.providers.base import LLMProvider
+from engramia.telemetry import metrics as _metrics
+from engramia.telemetry import tracing as _tracing
 
 _log = logging.getLogger(__name__)
 
@@ -53,6 +55,7 @@ class AnthropicProvider(LLMProvider):
         self._max_retries = max_retries
         self._max_tokens = max_tokens
 
+    @_tracing.traced("llm.call", {"llm.provider": "anthropic"})
     def call(
         self,
         prompt: str,
@@ -76,9 +79,11 @@ class AnthropicProvider(LLMProvider):
             kwargs["system"] = system
 
         last_exc: Exception | None = None
+        t0 = time.perf_counter()
         for attempt in range(self._max_retries):
             try:
                 response = self._client.messages.create(**kwargs)
+                _metrics.observe_llm("anthropic", self._model, time.perf_counter() - t0)
                 # Extract text from the first content block
                 for block in response.content:
                     if block.type == "text":
