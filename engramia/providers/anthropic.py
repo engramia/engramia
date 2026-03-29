@@ -41,11 +41,12 @@ class AnthropicProvider(LLMProvider):
         model: str = "claude-sonnet-4-6",
         max_retries: int = 3,
         max_tokens: int = 4096,
+        timeout: float = 30.0,
     ) -> None:
         try:
             from anthropic import Anthropic
 
-            self._client = Anthropic()
+            self._client = Anthropic(timeout=timeout)
         except ImportError:
             raise ImportError(_ANTHROPIC_INSTALL_MSG) from None
         self._model = model

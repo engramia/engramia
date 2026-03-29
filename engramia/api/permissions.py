@@ -31,6 +31,8 @@ _READER_PERMS: frozenset[str] = frozenset(
         "recall",
         "feedback:read",
         "skills:search",
+        "jobs:list",
+        "jobs:read",
     }
 )
 
@@ -44,6 +46,7 @@ _EDITOR_PERMS: frozenset[str] = _READER_PERMS | frozenset(
         "skills:register",
         "aging",
         "feedback:decay",
+        "jobs:cancel",
     }
 )
 

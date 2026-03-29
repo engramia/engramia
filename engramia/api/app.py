@@ -43,6 +43,7 @@ from fastapi.responses import JSONResponse
 
 from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
+from engramia.api.jobs import router as jobs_router
 from engramia.api.keys import router as keys_router
 from engramia.api.routes import router
 from engramia.exceptions import ValidationError
@@ -207,10 +208,34 @@ def create_app() -> FastAPI:
     app.state.auth_engine = _make_auth_engine()
 
     # ------------------------------------------------------------------
+    # Async job service + worker (Phase 5.4)
+    # ------------------------------------------------------------------
+    from engramia.jobs import JobService, JobWorker
+
+    # Use the storage engine for job queue if Postgres is configured,
+    # otherwise use in-memory fallback (suitable for dev/JSON mode).
+    job_engine = getattr(storage, "_engine", None)
+    job_service = JobService(engine=job_engine, memory=app.state.memory)
+    app.state.job_service = job_service
+
+    worker = JobWorker(
+        service=job_service,
+        poll_interval=float(os.environ.get("ENGRAMIA_JOB_POLL_INTERVAL", "2.0")),
+        max_concurrent=int(os.environ.get("ENGRAMIA_JOB_MAX_CONCURRENT", "3")),
+    )
+    app.state.job_worker = worker
+    worker.start()
+
+    @app.on_event("shutdown")
+    def _stop_job_worker():
+        worker.stop()
+
+    # ------------------------------------------------------------------
     # API v1 routes
     # ------------------------------------------------------------------
     app.include_router(router, prefix="/v1")
     app.include_router(keys_router, prefix="/v1")
+    app.include_router(jobs_router, prefix="/v1")
 
     # ------------------------------------------------------------------
     # Startup security diagnostics
