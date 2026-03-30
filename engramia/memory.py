@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 from engramia._util import PATTERNS_PREFIX, jaccard, reuse_tier
+from engramia.analytics.collector import ROICollector
 from engramia.core.eval_feedback import EvalFeedbackStore
 from engramia.core.eval_store import EvalStore
 from engramia.core.metrics import MetricsStore
@@ -21,10 +22,10 @@ from engramia.eval.evaluator import MultiEvaluator
 from engramia.evolution.failure_cluster import FailureCluster, FailureClusterer
 from engramia.evolution.prompt_evolver import EvolutionResult, PromptEvolver
 from engramia.exceptions import ProviderError, ValidationError
+from engramia.governance.redaction import RedactionPipeline
 from engramia.providers.base import EmbeddingProvider, LLMProvider, StorageBackend
 from engramia.reuse.composer import PipelineComposer
 from engramia.reuse.matcher import PatternMatcher
-from engramia.governance.redaction import RedactionPipeline
 from engramia.types import (
     JACCARD_DEDUP_THRESHOLD,
     DataClassification,
@@ -106,6 +107,8 @@ class Memory:
         self._feedback_store = EvalFeedbackStore(storage)
         self._pattern_store = SuccessPatternStore(storage)
         self._skill_registry = SkillRegistry(storage)
+        # Phase 5.7: ROI event collection
+        self._roi_collector = ROICollector(storage)
 
     # ------------------------------------------------------------------
     # Provider accessors (read-only, used by deep health check)
@@ -207,6 +210,8 @@ class Memory:
             scores={"overall": eval_score, "feedback": ""},
         )
         self._metrics_store.record_run(success=True, eval_score=eval_score)
+        # Phase 5.7: ROI event collection (fire-and-ignore)
+        self._roi_collector.record_learn(pattern_key=key, eval_score=eval_score)
 
         pattern_count = len(self._storage.list_keys(prefix=PATTERNS_PREFIX))
         return LearnResult(stored=True, pattern_count=pattern_count)
@@ -265,6 +270,21 @@ class Memory:
         result = matches[:limit]
         for m in result:
             self._pattern_store.mark_reused(m.pattern_key)
+
+        # Phase 5.7: ROI event collection (fire-and-ignore)
+        if result:
+            best = result[0]
+            self._roi_collector.record_recall(
+                best_similarity=best.similarity,
+                best_reuse_tier=best.reuse_tier,
+                best_pattern_key=best.pattern_key,
+            )
+        else:
+            self._roi_collector.record_recall(
+                best_similarity=None,
+                best_reuse_tier=None,
+                best_pattern_key="",
+            )
         return result
 
     # ------------------------------------------------------------------

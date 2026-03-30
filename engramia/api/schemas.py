@@ -355,3 +355,62 @@ class ScopedDeleteResponse(BaseModel):
     jobs_deleted: int
     keys_revoked: int
     projects_deleted: int
+
+
+# ---------------------------------------------------------------------------
+# ROI Analytics (Phase 5.7)
+# ---------------------------------------------------------------------------
+
+
+class RecallOutcomeOut(BaseModel):
+    total: int
+    duplicate_hits: int
+    adapt_hits: int
+    fresh_misses: int
+    reuse_rate: float
+    avg_similarity: float
+
+
+class LearnSummaryOut(BaseModel):
+    total: int
+    avg_eval_score: float
+    p50_eval_score: float
+    p90_eval_score: float
+
+
+class ROIRollupResponse(BaseModel):
+    tenant_id: str
+    project_id: str
+    window: str
+    window_start: str
+    recall: RecallOutcomeOut
+    learn: LearnSummaryOut
+    roi_score: float
+    computed_at: str
+
+
+class ROIRollupRequest(BaseModel):
+    window: str = Field(
+        default="daily",
+        description="Aggregation window: hourly | daily | weekly",
+        max_length=20,
+    )
+
+
+class ROIRollupListResponse(BaseModel):
+    window: str
+    rollups: list[ROIRollupResponse]
+
+
+class ROIEventOut(BaseModel):
+    kind: str
+    ts: float
+    eval_score: float | None = None
+    similarity: float | None = None
+    reuse_tier: str | None = None
+    pattern_key: str
+
+
+class ROIEventsResponse(BaseModel):
+    events: list[ROIEventOut]
+    total: int

@@ -106,6 +106,21 @@ def _dispatch_cleanup_old_jobs(memory: Memory, params: dict[str, Any]) -> dict[s
     return cleanup_old_jobs(memory, params)
 
 
+def _dispatch_roi_rollup(memory: Memory, params: dict[str, Any]) -> dict[str, Any]:
+    from engramia.analytics.aggregator import ROIAggregator
+    from engramia.analytics.collector import ROICollector
+
+    collector = ROICollector(memory._storage)
+    aggregator = ROIAggregator(memory._storage, collector)
+    window = params.get("window", "daily")
+    rollups = aggregator.rollup(window=window)
+    return {
+        "window": window,
+        "scopes_processed": len(rollups),
+        "rollups": [r.model_dump() for r in rollups],
+    }
+
+
 DISPATCHERS: dict[str, Any] = {
     JobOperation.EVALUATE: _dispatch_evaluate,
     JobOperation.COMPOSE: _dispatch_compose,
@@ -118,6 +133,8 @@ DISPATCHERS: dict[str, Any] = {
     JobOperation.RETENTION_CLEANUP: _dispatch_retention_cleanup,
     JobOperation.COMPACT_AUDIT_LOG: _dispatch_compact_audit_log,
     JobOperation.CLEANUP_OLD_JOBS: _dispatch_cleanup_old_jobs,
+    # Phase 5.7: ROI Analytics rollup
+    JobOperation.ROI_ROLLUP: _dispatch_roi_rollup,
 }
 
 
