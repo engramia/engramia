@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] — Phase 5.7
+
+### Added — ROI Analytics + Evidence Layer (Phase 5.7)
+
+- **`engramia/analytics/` package** — standalone ROI analytics layer; four modules: `models`, `collector`, `aggregator`, `__init__`.
+- **`ROIEvent` model** — captures learn and recall events with `kind`, `ts`, `eval_score`, `similarity`, `reuse_tier`, `pattern_key`, `scope_tenant`, `scope_project`.
+- **`ROICollector`** — fire-and-ignore event recorder; appends to `analytics/events` key in existing storage backend (rolling window 10 000 events). Wired into `Memory.learn()` and `Memory.recall()` — never raises into callers. Supports scope filtering in `load_events()`.
+- **`ROIAggregator`** — computes per-scope hourly/daily/weekly `ROIRollup` snapshots. Composite ROI score 0–10 = `0.6 × reuse_rate × 10 + 0.4 × avg_eval_score`. Persists results to `analytics/rollup/{window}/{tenant}/{project}`; O(1) reads by API.
+- **`ROIRollup` model** — aggregated snapshot with `RecallOutcome` (total, duplicate_hits, adapt_hits, fresh_misses, reuse_rate, avg_similarity) and `LearnSummary` (total, avg/p50/p90 eval_score).
+- **`ROI_ROLLUP` job operation** — added to `JobOperation` enum and `DISPATCHERS`; supports `Prefer: respond-async` for background execution.
+- **Analytics REST API** (`/v1/analytics`) — three endpoints: `POST /rollup` (trigger/async rollup), `GET /rollup/{window}` (fetch latest snapshot for current scope), `GET /events` (raw events, newest-first, filterable by `since` + `limit`).
+- **Analytics permissions** — `analytics:read` (reader+) for read endpoints, `analytics:rollup` (editor+) for rollup trigger; added to RBAC permission sets.
+- **Roadmap update** — Analytics API + Dashboard integration moved from Phase 5.7 to Phase 5.3 (UI blocker); Phase 5.7 scoped to backend data collection only.
+- 629 tests, 77.18% coverage (no new tests — analytics hot-path is fire-and-ignore; unit tests planned in Phase 5.8).
+
+---
+
 ## [Unreleased] — Phase 5.6
 
 ### Added — Data Governance + Privacy (Phase 5.6)
