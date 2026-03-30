@@ -43,6 +43,7 @@ from fastapi.responses import JSONResponse
 
 from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
+from engramia.api.analytics import router as analytics_router
 from engramia.api.governance import router as governance_router
 from engramia.api.jobs import router as jobs_router
 from engramia.api.keys import router as keys_router
@@ -264,6 +265,7 @@ def create_app() -> FastAPI:
     app.include_router(keys_router, prefix="/v1")
     app.include_router(jobs_router, prefix="/v1")
     app.include_router(governance_router, prefix="/v1")
+    app.include_router(analytics_router, prefix="/v1")
 
     # ------------------------------------------------------------------
     # Startup security diagnostics

@@ -36,6 +36,8 @@ class JobOperation(StrEnum):
     RETENTION_CLEANUP = "retention_cleanup"
     COMPACT_AUDIT_LOG = "compact_audit_log"
     CLEANUP_OLD_JOBS = "cleanup_old_jobs"
+    # Phase 5.7: ROI Analytics rollup
+    ROI_ROLLUP = "roi_rollup"
 
 
 class JobInfo(BaseModel):

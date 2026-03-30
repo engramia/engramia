@@ -95,7 +95,7 @@ Project status: **Early Commercial Candidate** — usable for pilots, not yet en
 | ~~P1~~ | ~~Observability~~ | ~~No telemetry/tracing — blind in production~~ | ✅ Phase 5.5 done |
 | ~~P1~~ | ~~Positioning~~ | ~~README overclaims vs reality — trust erosion~~ | ✅ Phase 5.0 done |
 | ~~P1~~ | ~~Privacy~~ | ~~No data governance/retention/redaction~~ | ✅ Phase 5.6 done |
-| P1 | Commercial | No ROI proof layer — hard to sell vs "build in-house" | Phase 5.7 |
+| P1 | Commercial | No ROI proof layer — hard to sell vs "build in-house" | Phase 5.7 (data) + 5.3 (API/UI) |
 | P1 | Tests | PostgreSQL 0% coverage; LLM error paths untested | Phase 5.8 |
 | P1 | Production | Bare `except Exception` in brain.py, eval_feedback.py | Phase 5.8 |
 | P2 | Backend | Memory class growing toward god object | Phase 5.8 |
@@ -191,6 +191,8 @@ Project status: **Early Commercial Candidate** — usable for pilots, not yet en
 - [ ] **API key management UI** — create, rotate, revoke keys
 - [ ] **Pattern explorer** — search, filter, view details, manual delete
 - [ ] **Eval history** — scores over time, variance alerts
+- [ ] **Analytics API** — `GET /v1/analytics` endpoints (reuse rate, success lift, cost savings, top patterns)
+- [ ] **Dashboard integration** — ROI metrics visible in admin UI (charts, trends, leaderboard)
 - [ ] **Deploy** — bundled with API or separate static site
 
 #### Phase 5.6: Data Governance + Privacy ✅
@@ -204,13 +206,12 @@ Project status: **Early Commercial Candidate** — usable for pilots, not yet en
 - [x] **Schema/data lifecycle** — compaction, dedup, index maintenance jobs
 
 #### Phase 5.7: ROI Analytics + Evidence Layer
+> Backend data collection + aggregation that feeds the Analytics API (Phase 5.3).
 
-- [ ] **Reuse rate tracking** — % of tasks that reuse existing patterns
+- [ ] **Reuse rate tracking** — % of tasks that reuse existing patterns (time-series, per-project)
 - [ ] **Success lift metrics** — success rate improvement with vs without Engramia context
 - [ ] **Token/cost savings proxy** — estimated tokens/iterations saved via reuse
 - [ ] **Top reused patterns** — most valuable patterns leaderboard
-- [ ] **Analytics API** — `GET /v1/analytics` endpoints
-- [ ] **Dashboard integration** — ROI metrics visible in admin UI
 
 #### Phase 5.8: Architecture Cleanup (Ongoing)
 
@@ -287,7 +288,7 @@ Project status: **Early Commercial Candidate** — usable for pilots, not yet en
 | ~~5.4~~ | ~~Async jobs~~ | ✅ Long ops return job ID, no API timeout |
 | ~~5.5~~ | ~~Observability~~ | ✅ Request traces visible in OTel collector; /v1/health/deep; Prometheus /metrics |
 | ~~5.6~~ | ~~Data governance~~ | ✅ Retention + scoped delete + PII redaction + NDJSON export + provenance metadata |
-| 5.7 | ROI analytics | Reuse rate + success lift metrics available |
+| 5.7 | ROI analytics | Reuse rate + success lift data collected; exposed via 5.3 Analytics API |
 | 5.9 | Enterprise trust | Security architecture doc complete |
 | 7 | Memory architecture | Knowledge graph + taxonomy + compression |
 | 8 | Multimodal | ≥1 non-text modality supported |

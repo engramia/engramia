@@ -33,6 +33,8 @@ _READER_PERMS: frozenset[str] = frozenset(
         "skills:search",
         "jobs:list",
         "jobs:read",
+        # Phase 5.7: ROI Analytics
+        "analytics:read",
     }
 )
 
@@ -47,6 +49,8 @@ _EDITOR_PERMS: frozenset[str] = _READER_PERMS | frozenset(
         "aging",
         "feedback:decay",
         "jobs:cancel",
+        # Phase 5.7: ROI Analytics
+        "analytics:rollup",
     }
 )
 
