@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] — Phase 5.3
+
+### Added — Admin Dashboard (Phase 5.3)
+
+- **`dashboard/` project** — Next.js 15 (App Router) with static export (`output: "export"`), React 19, TypeScript 5, Tailwind CSS 4, Recharts 2, TanStack Query v5, Lucide React icons.
+- **10 pages** — Login (API key auth), Overview (KPIs + health + ROI chart + activity), Patterns (semantic search + table), Pattern Detail (code view + classify + delete), Analytics (ROI trend + recall breakdown + eval distribution + top patterns + event stream), Evaluations (score timeline + variance alerts + feedback), Keys (CRUD + one-time secret display + rotate/revoke), Governance (retention policy + NDJSON export + scoped delete), Jobs (status table + auto-refresh + cancel + detail modal), Audit (event viewer).
+- **Typed API client** (`lib/api.ts`) — `EngramiaClient` class wrapping all `/v1/*` endpoints with Bearer auth, typed request/response, `ApiError` class.
+- **Auth system** (`lib/auth.ts`) — `AuthProvider` React context with localStorage persistence, role detection via `GET /v1/keys`, login/logout flow validated via `GET /v1/health`.
+- **RBAC sidebar** (`lib/permissions.ts`) — mirrors backend `ROLE_PERMISSIONS` (reader/editor/admin/owner); nav items hidden when permission missing; action buttons conditionally rendered.
+- **8 data hooks** — `useHealth` (30s poll), `useMetrics` (30s poll), `useAnalytics` (rollup + events + trigger), `usePatterns` (recall + delete + classify), `useKeys` (CRUD + rotate), `useJobs` (auto-refresh 5s when running), `useGovernance` (retention + apply + export + delete).
+- **4 chart components** — `ROIScoreChart` (line), `RecallBreakdown` (horizontal bar), `EvalScoreTrend` (line), `ReuseTierPie` (donut). All use Recharts with dark theme styling.
+- **6 UI primitives** — `Button` (4 variants), `Card` (header/title/value), `Badge` (7 colors), `Table` (sortable), `Modal` (dialog-based), `Input`/`Select`.
+- **Layout components** — `Shell` (auth gate + sidebar + topbar + content), `Sidebar` (role-gated nav, active state), `Topbar` (health dot + version + role badge + logout).
+- **Dark theme** — Engramia brand tokens (indigo accent, slate backgrounds), Inter + JetBrains Mono fonts.
+- **FastAPI static mount** — `app.mount("/dashboard", StaticFiles(directory=dashboard/out, html=True))` serves built dashboard at `/dashboard` path. Added `PUT` to CORS allowed methods for governance endpoints.
+- **Build output** — 14 static pages, ~102 KB shared JS (gzipped), zero Node.js runtime in production.
+
+---
+
 ## [Unreleased] — Phase 5.7
 
 ### Added — ROI Analytics + Evidence Layer (Phase 5.7)
