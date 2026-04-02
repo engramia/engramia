@@ -175,7 +175,7 @@ def create_app() -> FastAPI:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=cors_origins,
-            allow_methods=["GET", "POST", "DELETE"],
+            allow_methods=["GET", "POST", "PUT", "DELETE"],
             allow_headers=["Authorization", "Content-Type"],
         )
     app.add_middleware(SecurityHeadersMiddleware)
@@ -266,6 +266,21 @@ def create_app() -> FastAPI:
     app.include_router(jobs_router, prefix="/v1")
     app.include_router(governance_router, prefix="/v1")
     app.include_router(analytics_router, prefix="/v1")
+
+    # ------------------------------------------------------------------
+    # Dashboard static files (Phase 5.3)
+    # ------------------------------------------------------------------
+    from pathlib import Path
+    from fastapi.staticfiles import StaticFiles
+
+    dashboard_dir = Path(__file__).parent.parent.parent / "dashboard" / "out"
+    if dashboard_dir.exists():
+        app.mount(
+            "/dashboard",
+            StaticFiles(directory=str(dashboard_dir), html=True),
+            name="dashboard",
+        )
+        _log.info("Dashboard mounted from %s", dashboard_dir)
 
     # ------------------------------------------------------------------
     # Startup security diagnostics

@@ -29,6 +29,12 @@ engramia_data/
 .pytest_cache/
 .coverage
 htmlcov/
+tests/recall_quality/results
+
+# Dashboard build
+dashboard/node_modules/
+dashboard/out/
+dashboard/.next/
 
 # OS
 .DS_Store
