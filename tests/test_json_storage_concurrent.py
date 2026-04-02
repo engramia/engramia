@@ -104,6 +104,51 @@ class TestConcurrentEmbeddings:
         assert errors == [], f"Concurrent read/write raised: {errors}"
 
 
+class TestConcurrentListKeys:
+    """list_keys() called concurrently with ongoing save() calls is consistent."""
+
+    def test_list_keys_never_raises_during_concurrent_writes(self, tmp_path):
+        storage = JSONStorage(path=tmp_path)
+        errors: list[Exception] = []
+
+        def writer(i: int) -> None:
+            try:
+                storage.save(f"patterns/lk_{i:04d}", {"v": i})
+            except Exception as exc:
+                errors.append(exc)
+
+        def reader() -> None:
+            try:
+                keys = storage.list_keys(prefix="patterns")
+                # Result must be a list (may be partial, but must be consistent)
+                assert isinstance(keys, list)
+            except Exception as exc:
+                errors.append(exc)
+
+        with ThreadPoolExecutor(max_workers=20) as pool:
+            futures = (
+                [pool.submit(writer, i) for i in range(50)]
+                + [pool.submit(reader) for _ in range(20)]
+            )
+            for f in as_completed(futures):
+                f.result()
+
+        assert errors == [], f"Concurrent list_keys raised: {errors}"
+
+    def test_list_keys_count_eventually_consistent(self, tmp_path):
+        """After all writers finish, list_keys returns the exact count."""
+        storage = JSONStorage(path=tmp_path)
+        n = 60
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            futures = [pool.submit(storage.save, f"patterns/cnt_{i:04d}", {"i": i}) for i in range(n)]
+            for f in as_completed(futures):
+                f.result()
+
+        keys = storage.list_keys(prefix="patterns")
+        assert len(keys) == n
+
+
 class TestConcurrentDeleteAndRead:
     """Delete while concurrent reads must not raise KeyError or similar."""
 
@@ -137,3 +182,49 @@ class TestConcurrentDeleteAndRead:
                 f.result()
 
         assert errors == [], f"Concurrent delete/read raised: {errors}"
+
+
+class TestHighConcurrencyStress:
+    """High-concurrency stress: many writers + readers, no corruption, no exceptions."""
+
+    def test_stress_mixed_operations(self, tmp_path):
+        storage = JSONStorage(path=tmp_path)
+        vec = [0.25, 0.25, 0.25, 0.25]
+        n_workers = 30  # concurrency level — matches the barrier party count
+        n_write = 20
+        n_read = 10
+        errors: list[Exception] = []
+
+        # Barrier ensures all threads start together to maximise contention
+        barrier = threading.Barrier(n_workers)
+
+        def writer(i: int) -> None:
+            try:
+                barrier.wait()
+                key = f"patterns/stress_{i:04d}"
+                storage.save(key, {"value": i, "name": f"item-{i}"})
+                storage.save_embedding(key, vec)
+            except Exception as exc:
+                errors.append(exc)
+
+        def reader() -> None:
+            try:
+                barrier.wait()
+                storage.search_similar(vec, limit=10, prefix="patterns")
+                storage.list_keys(prefix="patterns")
+            except Exception as exc:
+                errors.append(exc)
+
+        with ThreadPoolExecutor(max_workers=n_workers) as pool:
+            futures = (
+                [pool.submit(writer, i) for i in range(n_write)]
+                + [pool.submit(reader) for _ in range(n_read)]
+            )
+            for f in as_completed(futures):
+                f.result()
+
+        assert errors == [], f"Stress test raised {len(errors)} errors: {errors[:3]}"
+
+        # All writes must be retrievable after completion
+        keys = storage.list_keys(prefix="patterns")
+        assert len(keys) == n_write

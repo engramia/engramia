@@ -122,6 +122,6 @@ class PipelineComposer:
             if not isinstance(stages, list) or not stages:
                 raise ValueError("No stages returned")
             return stages
-        except Exception as exc:
+        except (ValueError, RuntimeError, OSError, ConnectionError, TimeoutError) as exc:
             _log.warning("LLM decomposition failed, falling back to single stage: %s", exc)
             return [{"task": task, "reads": [], "writes": ["output.json"]}]

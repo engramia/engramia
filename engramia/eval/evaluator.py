@@ -159,7 +159,12 @@ class MultiEvaluator:
                 raw_text = self._llm.call(prompt=prompt, system=_EVAL_SYSTEM, role="eval")
                 raw = extract_json_from_llm(raw_text)
                 return _parse_score(raw)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
+                # Intentionally broad: provider-agnostic retry logic.
+                # Any exception from a specific LLM SDK (openai, anthropic, …)
+                # should make this single attempt return None, not abort the
+                # entire multi-evaluator run. KeyboardInterrupt / SystemExit
+                # are excluded by Exception so shutdown signals still propagate.
                 _log.debug("Eval attempt %d failed: %s", attempt + 1, exc)
                 if attempt == 1:
                     return None

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] — Phase 5.8
+
+### Added — Architecture Cleanup + Test Coverage (Phase 5.8)
+
+- **Service layer** (`engramia/core/services/`) — four single-responsibility services extracted from the `Memory` god object: `LearningService` (pattern storage, embeddings, governance meta, ROI recording), `RecallService` (semantic search, deduplication, eval-weighted matching, ROI recording), `EvaluationService` (multi-evaluator LLM scoring, eval store + feedback recording), `CompositionService` (LLM task decomposition, pipeline assembly). `Memory` is now a thin facade (~165 LOC) that wires shared stores and delegates each public method.
+- **PostgreSQL integration tests** (`tests/test_postgres_storage.py`) — 30 tests across 6 classes using `testcontainers[postgres]` (`pgvector/pgvector:pg16`): save/load round-trips, list_keys with prefix + sort + LIKE escape, delete (data + embedding), embedding save + ANN search, dimension mismatch errors, overwrite, `count_patterns`, scope isolation (tenant A cannot read/search/list tenant B's data), `delete_scope` bulk removal, `save_pattern_meta` governance columns. New `postgres` pytest marker; `testcontainers[postgres]>=4.0` added to dev dependencies.
+- **Analytics unit tests** (`tests/test_analytics.py`) — 34 tests covering `ROICollector` (fire-and-ignore learn/recall recording, scope-aware storage, window eviction), `ROIAggregator` (rollup persistence, window types, empty-store no-op), and `_compute_rollup` formula correctness (`roi = 0.6 × reuse_rate × 10 + 0.4 × avg_eval`).
+- **LLM error path tests** (extended `tests/test_llm_errors.py`) — `ConnectionError`, `TimeoutError`, malformed JSON, all-concurrent-failures (no hang), partial flaky success, `ProviderError` propagation through the multi-evaluator.
+- **Concurrent JSONStorage tests** (extended `tests/test_json_storage_concurrent.py`) — `list_keys` during concurrent writes (50 writers + 20 readers, no exceptions), eventual-consistency count check, high-concurrency stress test (30 workers via `threading.Barrier`, 20 writers + 10 readers with `search_similar` + `list_keys`).
+
+### Fixed — Exception Handling (Phase 5.8)
+
+- **`engramia/evolution/prompt_evolver.py`** — narrowed three `except Exception` blocks to `(ValueError, RuntimeError, OSError, ConnectionError, TimeoutError)` (LLM call path) and `RuntimeError` (evaluator sub-calls). Rationale: sequential code paths should not silently swallow unexpected exceptions.
+- **`engramia/reuse/composer.py`** — narrowed decomposition fallback to `(ValueError, RuntimeError, OSError, ConnectionError, TimeoutError)`.
+- **`engramia/reuse/matcher.py`** — narrowed pattern deserialization skip to `(ValueError, KeyError)`.
+- **`engramia/eval/evaluator.py`** — retained broad `except Exception` in `_single_eval` with explicit `# noqa: BLE001` justification: the evaluator is a concurrent retry aggregation pattern; any SDK-level exception in one attempt must return `None`, not abort all N parallel evaluations. `KeyboardInterrupt`/`SystemExit` are still excluded.
+
+### Fixed — Dev Mode Safety (Phase 5.8)
+
+- **`engramia/api/app.py`** — added `ENGRAMIA_ENVIRONMENT` startup guard in `_log_security_config()`: if `AUTH_MODE=dev` is set and `ENGRAMIA_ENVIRONMENT` is not one of `""`, `local`, `test`, `development`, the application calls `sys.exit(1)` with a `CRITICAL` log explaining why. This prevents accidentally running unauthenticated in staging/production.
+
+726 tests, 0 failures, 80.29% coverage (+1.34 pp vs Phase 5.7).
+
+---
+
 ## [Unreleased] — Phase 5.3
 
 ### Added — Admin Dashboard (Phase 5.3)

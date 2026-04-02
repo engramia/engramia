@@ -62,7 +62,7 @@ class PatternMatcher:
                 continue
             try:
                 pattern = Pattern.model_validate(data)
-            except Exception as exc:
+            except (ValueError, KeyError) as exc:
                 _log.warning("Skipping corrupted pattern at %r: %s", key, exc)
                 continue
             multiplier = self._eval_store.get_eval_multiplier(key, task)

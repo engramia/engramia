@@ -104,7 +104,7 @@ class PromptEvolver:
             parsed = extract_json_from_llm(raw)
             improved = parsed.get("improved_prompt", current_prompt)
             changes = parsed.get("changes", [])
-        except Exception as exc:
+        except (ValueError, RuntimeError, OSError, ConnectionError, TimeoutError) as exc:
             _log.warning("Prompt evolution LLM call failed: %s", exc)
             return EvolutionResult(
                 improved_prompt=current_prompt,
@@ -157,7 +157,7 @@ class PromptEvolver:
         try:
             current_eval = evaluator.evaluate(test_task, test_code, test_output)
             current_score = current_eval.median_score
-        except Exception as exc:
+        except RuntimeError as exc:
             _log.warning("Current prompt evaluation failed: %s", exc)
             candidate_result.accepted = False
             candidate_result.reason = f"eval_error: {exc}"
@@ -167,7 +167,7 @@ class PromptEvolver:
         try:
             candidate_eval = evaluator.evaluate(test_task, test_code, test_output)
             candidate_score = candidate_eval.median_score
-        except Exception as exc:
+        except RuntimeError as exc:
             _log.warning("Candidate evaluation failed: %s", exc)
             candidate_result.accepted = False
             candidate_result.reason = f"eval_error: {exc}"
