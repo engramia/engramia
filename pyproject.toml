@@ -73,6 +73,7 @@ dev = [
     "httpx>=0.27",
     "ruff>=0.9",
     "mypy>=1.14",
+    "testcontainers[postgres]>=4.0",
 ]
 all = [
     "engramia[openai,anthropic,local,postgres,api,cli,langchain,crewai,mcp,telemetry]",
@@ -89,6 +90,9 @@ packages = ["engramia"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "--cov=engramia --cov-fail-under=77"
+markers = [
+    "postgres: integration tests requiring Docker + PostgreSQL+pgvector container",
+]
 
 [tool.coverage.run]
 source = ["engramia"]

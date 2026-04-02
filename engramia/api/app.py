@@ -36,6 +36,7 @@ Run:
 
 import logging
 import os
+import sys
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -60,6 +61,15 @@ def _log_security_config() -> None:
     api_keys_set = bool(os.environ.get("ENGRAMIA_API_KEYS", "").strip())
 
     if auth_mode == "dev":
+        env = os.environ.get("ENGRAMIA_ENVIRONMENT", "").lower().strip()
+        if env not in ("", "local", "test", "development"):
+            _log.critical(
+                "FATAL: ENGRAMIA_AUTH_MODE=dev is not permitted in environment %r. "
+                "This would expose the entire API without authentication. "
+                "Set ENGRAMIA_AUTH_MODE=db or ENGRAMIA_AUTH_MODE=env for non-local environments.",
+                env,
+            )
+            sys.exit(1)
         _log.warning(
             "SECURITY WARNING: Running in dev mode — API is unauthenticated. "
             "Never use ENGRAMIA_AUTH_MODE=dev in production."

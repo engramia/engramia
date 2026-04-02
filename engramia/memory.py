@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Marek Čermák
-"""Memory — the central facade for Engramia.
+"""Memory — thin facade for Engramia.
 
-Users interact exclusively with this class. All internal modules
-(storage, embeddings, LLM, eval, reuse, metrics) are wired here.
+Users interact exclusively with this class. All business logic lives in
+the service layer (engramia.core.services.*). Memory wires the shared
+stores and providers together and delegates each public operation to the
+appropriate service.
 """
 
 import hashlib
@@ -11,23 +13,25 @@ import logging
 import time
 from typing import Any
 
-from engramia._util import PATTERNS_PREFIX, jaccard, reuse_tier
+from engramia._util import PATTERNS_PREFIX
 from engramia.analytics.collector import ROICollector
 from engramia.core.eval_feedback import EvalFeedbackStore
 from engramia.core.eval_store import EvalStore
 from engramia.core.metrics import MetricsStore
+from engramia.core.services import (
+    CompositionService,
+    EvaluationService,
+    LearningService,
+    RecallService,
+)
 from engramia.core.skill_registry import SkillRegistry
 from engramia.core.success_patterns import SuccessPatternStore
-from engramia.eval.evaluator import MultiEvaluator
 from engramia.evolution.failure_cluster import FailureCluster, FailureClusterer
 from engramia.evolution.prompt_evolver import EvolutionResult, PromptEvolver
 from engramia.exceptions import ProviderError, ValidationError
 from engramia.governance.redaction import RedactionPipeline
 from engramia.providers.base import EmbeddingProvider, LLMProvider, StorageBackend
-from engramia.reuse.composer import PipelineComposer
-from engramia.reuse.matcher import PatternMatcher
 from engramia.types import (
-    JACCARD_DEDUP_THRESHOLD,
     DataClassification,
     EvalResult,
     LearnResult,
@@ -39,32 +43,14 @@ from engramia.types import (
 
 _MAX_EVAL_SCORE = 10.0
 _MIN_EVAL_SCORE = 0.0
-_MAX_NUM_EVALS = 10
+
+# Re-exported for backward compatibility (used by tests and external tooling)
+from engramia.core.services.evaluation import _MAX_NUM_EVALS  # noqa: E402
 
 _log = logging.getLogger(__name__)
 
 _MAX_TASK_LEN = 10_000
 _MAX_CODE_LEN = 500_000  # 500 KB
-_MAX_PATTERN_COUNT = 100_000  # safety cap -- prevents unbounded storage growth
-
-_DEDUP_FETCH_MULTIPLIER = 3
-
-
-def _deduplicate_matches(matches: list[Match]) -> list[Match]:
-    """Keep only the best-scoring pattern per task group (Jaccard > threshold)."""
-    groups: list[Match] = []
-    for match in matches:
-        merged = False
-        for i, best in enumerate(groups):
-            if jaccard(match.pattern.task, best.pattern.task) > JACCARD_DEDUP_THRESHOLD:
-                if match.pattern.success_score > best.pattern.success_score:
-                    groups[i] = match
-                merged = True
-                break
-        if not merged:
-            groups.append(match)
-    groups.sort(key=lambda m: m.similarity, reverse=True)
-    return groups
 
 
 class Memory:
@@ -86,6 +72,7 @@ class Memory:
         storage: Storage backend for persistence and vector search.
         llm: LLM provider for evaluate(), compose(), and evolve_prompt().
             May be ``None`` if you only need learn() and recall().
+        redaction: Optional redaction pipeline for PII/secrets stripping.
     """
 
     def __init__(
@@ -98,17 +85,32 @@ class Memory:
         self._llm = llm
         self._embeddings = embeddings
         self._storage = storage
-        # Redaction is opt-in; pass RedactionPipeline.default() to enable.
         self._redaction = redaction
 
-        # Internal stores — all share the same storage backend via key prefixes
+        # Shared stores — all share the same storage backend via key prefixes
         self._metrics_store = MetricsStore(storage)
         self._eval_store = EvalStore(storage)
         self._feedback_store = EvalFeedbackStore(storage)
         self._pattern_store = SuccessPatternStore(storage)
         self._skill_registry = SkillRegistry(storage)
-        # Phase 5.7: ROI event collection
         self._roi_collector = ROICollector(storage)
+
+        # Service layer — each service owns one domain
+        self._learning = LearningService(
+            storage=storage,
+            embeddings=embeddings,
+            metrics_store=self._metrics_store,
+            eval_store=self._eval_store,
+            roi_collector=self._roi_collector,
+            redaction=redaction,
+        )
+        self._recall_svc = RecallService(
+            storage=storage,
+            embeddings=embeddings,
+            eval_store=self._eval_store,
+            pattern_store=self._pattern_store,
+            roi_collector=self._roi_collector,
+        )
 
     # ------------------------------------------------------------------
     # Provider accessors (read-only, used by deep health check)
@@ -164,57 +166,16 @@ class Memory:
         self._validate_task(task)
         self._validate_code(code)
         self._validate_eval_score(eval_score)
-
-        current_count = len(self._storage.list_keys(prefix=PATTERNS_PREFIX))
-        if current_count >= _MAX_PATTERN_COUNT:
-            raise ValidationError(
-                f"Pattern store is full ({current_count}/{_MAX_PATTERN_COUNT}). "
-                "Run aging or delete patterns before learning new ones."
-            )
-
-        design: dict[str, Any] = {"code": code}
-        if output is not None:
-            design["output"] = output
-
-        # Phase 5.6: PII/secrets redaction (opt-in)
-        redacted = False
-        if self._redaction is not None:
-            clean_design, findings = self._redaction.process(
-                design, extra_fields={"task": task}
-            )
-            if findings:
-                design = {k: v for k, v in clean_design.items() if k != "task"}
-                redacted = True
-
-        pattern = Pattern(task=task, design=design, success_score=eval_score)
-        key = self._pattern_key(task)
-
-        self._storage.save(key, pattern.model_dump())
-        embedding = self._embeddings.embed(task)
-        self._storage.save_embedding(key, embedding)
-
-        # Phase 5.6: persist governance metadata (no-op for JSONStorage)
-        self._storage.save_pattern_meta(
-            key,
+        return self._learning.learn(
+            task=task,
+            code=code,
+            eval_score=eval_score,
+            output=output,
+            run_id=run_id,
             classification=classification,
             source=source,
-            run_id=run_id,
             author=author,
-            redacted=redacted,
         )
-
-        # Record in eval store for quality-weighted recall
-        self._eval_store.save(
-            agent_name=key,
-            task=task,
-            scores={"overall": eval_score, "feedback": ""},
-        )
-        self._metrics_store.record_run(success=True, eval_score=eval_score)
-        # Phase 5.7: ROI event collection (fire-and-ignore)
-        self._roi_collector.record_learn(pattern_key=key, eval_score=eval_score)
-
-        pattern_count = len(self._storage.list_keys(prefix=PATTERNS_PREFIX))
-        return LearnResult(stored=True, pattern_count=pattern_count)
 
     # ------------------------------------------------------------------
     # Recall
@@ -241,51 +202,12 @@ class Memory:
         """
         self._validate_task(task)
         self._validate_limit(limit)
-        fetch_limit = limit * _DEDUP_FETCH_MULTIPLIER if deduplicate else limit
-
-        if eval_weighted:
-            matcher = PatternMatcher(self._storage, self._embeddings, self._eval_store)
-            matches = matcher.find(task, limit=fetch_limit)
-        else:
-            embedding = self._embeddings.embed(task)
-            results = self._storage.search_similar(embedding, limit=fetch_limit, prefix=PATTERNS_PREFIX)
-            matches = []
-            for key, similarity in results:
-                data = self._storage.load(key)
-                if data is None:
-                    continue
-                pattern = Pattern.model_validate(data)
-                matches.append(
-                    Match(
-                        pattern=pattern,
-                        similarity=min(similarity, 1.0),
-                        reuse_tier=reuse_tier(similarity),
-                        pattern_key=key,
-                    )
-                )
-
-        if deduplicate:
-            matches = _deduplicate_matches(matches)
-
-        result = matches[:limit]
-        for m in result:
-            self._pattern_store.mark_reused(m.pattern_key)
-
-        # Phase 5.7: ROI event collection (fire-and-ignore)
-        if result:
-            best = result[0]
-            self._roi_collector.record_recall(
-                best_similarity=best.similarity,
-                best_reuse_tier=best.reuse_tier,
-                best_pattern_key=best.pattern_key,
-            )
-        else:
-            self._roi_collector.record_recall(
-                best_similarity=None,
-                best_reuse_tier=None,
-                best_pattern_key="",
-            )
-        return result
+        return self._recall_svc.recall(
+            task=task,
+            limit=limit,
+            deduplicate=deduplicate,
+            eval_weighted=eval_weighted,
+        )
 
     # ------------------------------------------------------------------
     # Evaluate
@@ -318,27 +240,12 @@ class Memory:
         self._validate_task(task)
         self._validate_code(code)
         self._require_llm("evaluate")
-        num_evals = min(num_evals, _MAX_NUM_EVALS)
-        evaluator = MultiEvaluator(self._llm, num_evals=num_evals)  # type: ignore[arg-type]
-        result = evaluator.evaluate(task, code, output)
-
-        agent_key = hashlib.sha256(code.encode()).hexdigest()[:12]
-        self._eval_store.save(
-            agent_name=agent_key,
-            task=task,
-            scores={
-                "overall": result.median_score,
-                "task_alignment": result.scores[0].task_alignment if result.scores else 0,
-                "code_quality": result.scores[0].code_quality if result.scores else 0,
-                "workspace_usage": result.scores[0].workspace_usage if result.scores else 0,
-                "robustness": result.scores[0].robustness if result.scores else 0,
-                "feedback": result.feedback,
-            },
+        svc = EvaluationService(
+            llm=self._llm,  # type: ignore[arg-type]
+            eval_store=self._eval_store,
+            feedback_store=self._feedback_store,
         )
-        if result.feedback:
-            self._feedback_store.record(result.feedback)
-
-        return result
+        return svc.evaluate(task=task, code=code, output=output, num_evals=num_evals)
 
     # ------------------------------------------------------------------
     # Compose
@@ -361,9 +268,13 @@ class Memory:
         """
         self._validate_task(task)
         self._require_llm("compose")
-        matcher = PatternMatcher(self._storage, self._embeddings, self._eval_store)
-        composer = PipelineComposer(self._llm, matcher)  # type: ignore[arg-type]
-        return composer.compose(task)
+        svc = CompositionService(
+            llm=self._llm,  # type: ignore[arg-type]
+            storage=self._storage,
+            embeddings=self._embeddings,
+            eval_store=self._eval_store,
+        )
+        return svc.compose(task)
 
     # ------------------------------------------------------------------
     # Feedback

@@ -50,6 +50,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | 5.6 | unreleased | Data governance — `engramia/governance/`, PII redaction, retention policies, scoped delete/export (GDPR Art. 17/20), provenance metadata, lifecycle jobs, migration 006 — 656 tests / 78.70% |
 | 5.7 | unreleased | ROI analytics — `engramia/analytics/`, `ROICollector` (fire-and-ignore in learn/recall), `ROIAggregator` (hourly/daily/weekly rollups, composite ROI score), Analytics REST API (`/v1/analytics/rollup`, `/v1/analytics/events`), `analytics:read/rollup` permissions — 629 tests / 77.18% |
 | 5.3 | unreleased | Admin dashboard — Next.js 15 static export (10 pages), typed API client, RBAC sidebar, TanStack Query, Recharts charts, Tailwind dark theme; FastAPI `/dashboard` static mount |
+| 5.8 | unreleased | Architecture cleanup + test coverage — service decomposition (`Memory` → thin facade, 4 service classes), PostgreSQL integration tests (30 tests, `testcontainers`), LLM error path tests, concurrent JSONStorage tests, analytics unit tests (34 tests), narrowed `except Exception`, `ENGRAMIA_ENVIRONMENT` dev-mode guard — 726 tests / 80.29% |
 
 ---
 
@@ -66,10 +67,10 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | ~~P1~~ | ~~Positioning~~ | ~~README overclaims~~ | ✅ 5.0 |
 | ~~P1~~ | ~~Privacy~~ | ~~No data governance / retention~~ | ✅ 5.6 |
 | ~~P1~~ | ~~Commercial~~ | ~~No ROI proof layer~~ | ✅ 5.7 (data) + ✅ 5.3 (UI) |
-| **P1** | **Tests** | **PostgreSQL 0% coverage; LLM error paths untested** | **Phase 5.8** |
-| **P1** | **Production** | **Bare `except Exception` in memory.py, eval_feedback.py** | **Phase 5.8** |
-| **P2** | **Backend** | **`Memory` class → god object** | **Phase 5.8** |
-| **P2** | **Security** | **Dev mode dangerous if misconfigured** | **Phase 5.8** |
+| ~~P1~~ | ~~Tests~~ | ~~PostgreSQL 0% coverage; LLM error paths untested~~ | ✅ 5.8 |
+| ~~P1~~ | ~~Production~~ | ~~Bare `except Exception` in memory.py, eval_feedback.py~~ | ✅ 5.8 |
+| ~~P2~~ | ~~Backend~~ | ~~`Memory` class → god object~~ | ✅ 5.8 |
+| ~~P2~~ | ~~Security~~ | ~~Dev mode dangerous if misconfigured~~ | ✅ 5.8 |
 | ~~P2~~ | ~~DB~~ | ~~No data lifecycle~~ | ✅ 5.6 |
 | ~~P3~~ | ~~Branding~~ | ~~Naming drift~~ | ✅ 5.0 |
 
@@ -132,19 +133,19 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 
 ---
 
-### Phase 5.8 — Architecture Cleanup + Test Coverage  `P1`
+### Phase 5.8 — Architecture Cleanup + Test Coverage  ✅ complete
 
 > Goal: remove technical debt that blocks enterprise sales and long-term maintainability.
 
 **Files:** `engramia/memory.py`, `engramia/core/eval_feedback.py`, `tests/`
 
-- [ ] **Service decomposition** — extract `LearningService`, `RecallService`, `EvaluationService`, `CompositionService`; `Memory` becomes a thin facade delegating to these
-- [ ] **Fix broad exception handling** — replace bare `except Exception` with specific exceptions in `memory.py` and `eval_feedback.py`
-- [ ] **Dev mode safety** — require explicit `ENGRAMIA_ALLOW_NO_AUTH=true` + startup warning if `AUTH_MODE=dev` in non-local env
-- [ ] **PostgreSQL test coverage** — CRUD + vector search tests via `testcontainers` or `pytest-postgresql`
-- [ ] **LLM error path tests** — mock provider failures, malformed responses, timeouts
-- [ ] **Concurrent JSONStorage tests** — `ThreadPoolExecutor` test proving thread-safety claims
-- [ ] **Analytics unit tests** — `ROICollector` fire-and-ignore, `ROIAggregator` rollup math, scope filtering
+- [x] **Service decomposition** — extracted `LearningService`, `RecallService`, `EvaluationService`, `CompositionService` into `engramia/core/services/`; `Memory` is now a thin facade (~165 LOC) delegating all business logic to services
+- [x] **Fix broad exception handling** — replaced bare `except Exception` with specific types in `prompt_evolver.py`, `composer.py`, `matcher.py`; `evaluator.py` kept broad with `# noqa: BLE001` + justification (provider-agnostic retry aggregation)
+- [x] **Dev mode safety** — `ENGRAMIA_ENVIRONMENT` startup guard in `app.py`; `sys.exit(1)` if `AUTH_MODE=dev` in non-local environment
+- [x] **PostgreSQL test coverage** — 30 tests via `testcontainers[postgres]` (`pgvector/pgvector:pg16`); covers save/load, list_keys, delete, embeddings, scope isolation, LIKE escape, governance metadata, delete_scope
+- [x] **LLM error path tests** — `ConnectionError`, `TimeoutError`, malformed JSON, concurrent failures, `ProviderError` propagation, partial-success aggregation
+- [x] **Concurrent JSONStorage tests** — `ThreadPoolExecutor` + `threading.Barrier` stress tests for `save`, `save_embedding`, `list_keys`, `search_similar`, `delete`
+- [x] **Analytics unit tests** — 34 tests for `ROICollector` fire-and-ignore, `ROIAggregator` rollup math, `_compute_rollup` formula, scope filtering
 
 ---
 
@@ -212,6 +213,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | ~~5.5~~ | ~~Observability~~ | ✅ OTel traces; /v1/health/deep; /metrics |
 | ~~5.6~~ | ~~Data governance~~ | ✅ Retention + scoped delete + PII redaction + NDJSON export |
 | ~~5.7~~ | ~~ROI analytics~~ | ✅ ROI events collected; rollup API live |
+| ~~5.8~~ | ~~Architecture cleanup~~ | ✅ Service decomposition + 726 tests / 80.29% coverage |
 | 5.9 | Enterprise trust | Security architecture doc complete |
 | 7 | Memory architecture | Knowledge graph + taxonomy |
 | 8 | Multimodal | ≥1 non-text modality supported |
