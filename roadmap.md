@@ -49,6 +49,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | 5.5 | unreleased | Observability — `engramia/telemetry/`, OTel `@traced`, Prometheus `/metrics`, JSON logging, `GET /v1/health/deep`, request_id propagation, migration 005 — 560 tests / 77.76% |
 | 5.6 | unreleased | Data governance — `engramia/governance/`, PII redaction, retention policies, scoped delete/export (GDPR Art. 17/20), provenance metadata, lifecycle jobs, migration 006 — 656 tests / 78.70% |
 | 5.7 | unreleased | ROI analytics — `engramia/analytics/`, `ROICollector` (fire-and-ignore in learn/recall), `ROIAggregator` (hourly/daily/weekly rollups, composite ROI score), Analytics REST API (`/v1/analytics/rollup`, `/v1/analytics/events`), `analytics:read/rollup` permissions — 629 tests / 77.18% |
+| 5.3 | unreleased | Admin dashboard — Next.js 15 static export (10 pages), typed API client, RBAC sidebar, TanStack Query, Recharts charts, Tailwind dark theme; FastAPI `/dashboard` static mount |
 
 ---
 
@@ -59,12 +60,12 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | ~~P0~~ | ~~Architecture~~ | ~~No tenant/scope isolation~~ | ✅ 5.1 |
 | ~~P0~~ | ~~Security~~ | ~~No RBAC~~ | ✅ 5.2 |
 | ~~P0~~ | ~~Security~~ | ~~No quota — DoS via unlimited patterns~~ | ✅ 5.2 |
-| **P0** | **Product** | **No admin UI — remains "just a library"** | **Phase 5.3** |
+| ~~P0~~ | ~~Product~~ | ~~No admin UI — remains "just a library"~~ | ✅ 5.3 |
 | ~~P1~~ | ~~Reliability~~ | ~~No async jobs — long ops block API~~ | ✅ 5.4 |
 | ~~P1~~ | ~~Observability~~ | ~~No telemetry — blind in production~~ | ✅ 5.5 |
 | ~~P1~~ | ~~Positioning~~ | ~~README overclaims~~ | ✅ 5.0 |
 | ~~P1~~ | ~~Privacy~~ | ~~No data governance / retention~~ | ✅ 5.6 |
-| ~~P1~~ | ~~Commercial~~ | ~~No ROI proof layer~~ | ✅ 5.7 (data) + 5.3 (UI) |
+| ~~P1~~ | ~~Commercial~~ | ~~No ROI proof layer~~ | ✅ 5.7 (data) + ✅ 5.3 (UI) |
 | **P1** | **Tests** | **PostgreSQL 0% coverage; LLM error paths untested** | **Phase 5.8** |
 | **P1** | **Production** | **Bare `except Exception` in memory.py, eval_feedback.py** | **Phase 5.8** |
 | **P2** | **Backend** | **`Memory` class → god object** | **Phase 5.8** |
@@ -111,19 +112,23 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 
 ---
 
-### Phase 5.3 — Admin Dashboard + Analytics UI  `P0 blocker`
+### Phase 5.3 — Admin Dashboard + Analytics UI  ✅ complete
 
 > Goal: transform from "just a library" into a commercially credible product with visible ROI.
 
-**Technology:** lightweight React/Next.js (or similar) — static build bundled with API.
+**Technology:** Next.js 15 (App Router, static export) + React 19 + TypeScript + Tailwind CSS 4 + Recharts + TanStack Query.
 
-- [ ] Core views: projects, patterns/memories, recall history, eval history, metrics
-- [ ] API key management UI — create, rotate, revoke (`/v1/keys`)
-- [ ] Pattern explorer — search, filter, view details, manual delete
-- [ ] Eval history — scores over time, variance alerts
-- [ ] **Analytics API** — `GET /v1/analytics` endpoints (reuse rate, success lift, cost savings, top patterns) — backend data from Phase 5.7 ✅
-- [ ] **Dashboard integration** — ROI metrics charts, trend lines, top-pattern leaderboard
-- [ ] Deploy — static site bundled with API or separate CDN
+- [x] Core views: overview (KPIs + health + ROI chart + activity), patterns, analytics, evaluations
+- [x] API key management UI — create, rotate, revoke (`/v1/keys`)
+- [x] Pattern explorer — semantic search, table, detail view, classify, delete
+- [x] Eval history — scores over time, variance alerts, recurring feedback
+- [x] **Analytics API** — backend data from Phase 5.7 ✅, dashboard reads `/v1/analytics/rollup` + `/v1/analytics/events`
+- [x] **Dashboard integration** — ROI score chart, recall breakdown, eval distribution, top-pattern leaderboard, event stream
+- [x] Deploy — static site bundled with API via `FastAPI.mount("/dashboard", StaticFiles(...))`
+- [x] Governance page — retention policy, NDJSON export, scoped delete
+- [x] Jobs page — status table, auto-refresh, cancel, detail modal
+- [x] Audit page — event viewer (requires GET /v1/audit endpoint)
+- [x] RBAC-aware sidebar — nav items hidden per role permissions
 
 ---
 
@@ -202,7 +207,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | 4.6 | Benchmark: success rate improvement | ≥15% vs baseline |
 | ~~5.1~~ | ~~Tenant isolation~~ | ✅ Cross-tenant leak = 0 |
 | ~~5.2~~ | ~~RBAC~~ | ✅ Role-based tests PASS |
-| 5.3 | Admin UI | Functional dashboard deployed |
+| ~~5.3~~ | ~~Admin UI~~ | ✅ 10 pages, 35 files, static export builds |
 | ~~5.4~~ | ~~Async jobs~~ | ✅ Long ops return job_id, no timeout |
 | ~~5.5~~ | ~~Observability~~ | ✅ OTel traces; /v1/health/deep; /metrics |
 | ~~5.6~~ | ~~Data governance~~ | ✅ Retention + scoped delete + PII redaction + NDJSON export |
