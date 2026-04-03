@@ -91,7 +91,7 @@ class LearningService:
                 "Run aging or delete patterns before learning new ones."
             )
 
-        design: dict[str, Any] = {"code": code}
+        design: dict[str, Any] = {"code": code, "classification": classification, "source": source}
         if output is not None:
             design["output"] = output
 

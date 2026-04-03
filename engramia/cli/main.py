@@ -276,6 +276,73 @@ def aging(
 
 
 # ---------------------------------------------------------------------------
+# reindex
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def reindex(
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data directory."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview what would be re-embedded without writing."),
+) -> None:
+    """Re-embed all stored patterns with the current embedding provider.
+
+    Use this command after changing the embedding model or provider to ensure
+    all stored pattern embeddings are consistent with the current configuration.
+    """
+    from engramia.memory import _EMBED_META_KEY
+    from engramia.providers.json_storage import JSONStorage
+
+    embeddings = _make_embeddings()
+    storage = _make_storage(path)
+
+    # List all pattern keys
+    pattern_keys = storage.list_keys(prefix="patterns/")
+    if not pattern_keys:
+        console.print("[yellow]No patterns found — nothing to reindex.[/yellow]")
+        return
+
+    provider_name = type(embeddings).__name__
+    model_name = getattr(embeddings, "_model", None) or getattr(embeddings, "_model_name", "unknown")
+
+    console.print(
+        f"Reindexing [bold]{len(pattern_keys)}[/bold] pattern(s) "
+        f"using [cyan]{provider_name}[/cyan] model=[cyan]{model_name}[/cyan]"
+    )
+    if dry_run:
+        console.print("[yellow]Dry-run mode — no changes will be written.[/yellow]")
+
+    ok = 0
+    failed = 0
+    for key in pattern_keys:
+        data = storage.load(key)
+        if not data or "task" not in data:
+            continue
+        try:
+            embedding = embeddings.embed(data["task"])
+            if not dry_run:
+                storage.save_embedding(key, embedding)
+            ok += 1
+        except Exception as exc:
+            console.print(f"[red]Failed[/red] {key}: {exc}")
+            failed += 1
+
+    if not dry_run:
+        storage.save(
+            _EMBED_META_KEY,
+            {
+                "provider": provider_name,
+                "model": str(model_name),
+                "created_at": __import__("time").strftime("%Y-%m-%dT%H:%M:%SZ", __import__("time").gmtime()),
+                "reindexed_count": ok,
+            },
+        )
+
+    status_str = "[green]✓[/green]" if not failed else "[yellow]⚠[/yellow]"
+    console.print(f"{status_str} Reindex complete — {ok} re-embedded, {failed} failed.")
+
+
+# ---------------------------------------------------------------------------
 # keys bootstrap
 # ---------------------------------------------------------------------------
 
@@ -560,6 +627,27 @@ def governance_export(
 
     if output != "-":
         console.print(f"[green]✓[/green] Exported [bold]{count}[/bold] patterns to [cyan]{output}[/cyan].")
+
+    # Audit the export into the DB audit_log when PostgreSQL is configured.
+    # Fire-and-forget: failures are logged but never interrupt the export.
+    db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
+    if db_url:
+        try:
+            from sqlalchemy import create_engine
+
+            from engramia.api.audit import log_db_event
+
+            _engine = create_engine(db_url, pool_pre_ping=True)
+            log_db_event(
+                _engine,
+                tenant_id="default",
+                project_id="default",
+                action="data_exported",
+                resource_type="patterns",
+                resource_id=f"count:{count}",
+            )
+        except Exception as exc:
+            _log.debug("CLI export: DB audit failed (non-fatal): %s", exc)
 
 
 # ---------------------------------------------------------------------------

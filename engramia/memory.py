@@ -43,6 +43,8 @@ from engramia.types import (
 
 _MAX_EVAL_SCORE = 10.0
 _MIN_EVAL_SCORE = 0.0
+_EXPORT_VERSION = 1
+_EMBED_META_KEY = "metadata/embedding_config"
 
 # Re-exported for backward compatibility (used by tests and external tooling)
 from engramia.core.services.evaluation import _MAX_NUM_EVALS  # noqa: E402
@@ -94,6 +96,9 @@ class Memory:
         self._pattern_store = SuccessPatternStore(storage)
         self._skill_registry = SkillRegistry(storage)
         self._roi_collector = ROICollector(storage)
+
+        # Persist + verify embedding provider identity on startup
+        self._check_embedding_config()
 
         # Service layer — each service owns one domain
         self._learning = LearningService(
@@ -280,18 +285,19 @@ class Memory:
     # Feedback
     # ------------------------------------------------------------------
 
-    def get_feedback(self, task_type: str | None = None, limit: int = 5) -> list[str]:
+    def get_feedback(self, task_type: str | None = None, limit: int = 5, offset: int = 0) -> list[str]:
         """Return top recurring quality issues for prompt injection.
 
         Args:
             task_type: Optional filter (e.g. "csv", "api"). Only feedback
                 patterns containing this string are returned.
             limit: Maximum number of feedback strings.
+            offset: Number of results to skip (for pagination).
 
         Returns:
             List of feedback strings sorted by relevance (score * count).
         """
-        return self._feedback_store.get_top(n=limit, task_type=task_type)
+        return self._feedback_store.get_top(n=limit, task_type=task_type, offset=offset)
 
     # ------------------------------------------------------------------
     # Delete
@@ -444,29 +450,41 @@ class Memory:
     # Export / Import
     # ------------------------------------------------------------------
 
+    #: Export format version. Increment when the record schema changes.
+    #: ``import_data()`` rejects records whose version exceeds this value so
+    #: that an older binary safely refuses to load data from a newer Engramia.
+    _EXPORT_VERSION: int = _EXPORT_VERSION
+
     def export(self) -> list[dict]:
         """Export all stored patterns as a list of dicts (JSONL-compatible).
 
-        Each record has ``"key"`` (the storage key) and ``"data"`` (the
-        pattern dict). Pass to :meth:`import_data` to restore.
+        Each record contains:
+        - ``"version"`` — export format version (forward-compatibility guard)
+        - ``"key"`` — the storage key
+        - ``"data"`` — the pattern dict
+
+        Pass the returned list directly to :meth:`import_data` to restore.
 
         Returns:
-            List of ``{"key": str, "data": dict}`` records for all patterns.
+            List of ``{"version": int, "key": str, "data": dict}`` records.
         """
         keys = self._storage.list_keys(prefix=PATTERNS_PREFIX)
         records = []
         for key in keys:
             data = self._storage.load(key)
             if data is not None:
-                records.append({"version": 1, "key": key, "data": data})
+                records.append({"version": _EXPORT_VERSION, "key": key, "data": data})
         return records
 
     def import_data(self, records: list[dict], overwrite: bool = False) -> int:
         """Import patterns from previously exported data.
 
         Args:
-            records: List of ``{"key": str, "data": dict}`` records as
-                returned by :meth:`export`.
+            records: List of ``{"version": int, "key": str, "data": dict}``
+                records as returned by :meth:`export`. Records whose
+                ``version`` exceeds the current :attr:`_EXPORT_VERSION` are
+                skipped so that an older Engramia binary safely rejects data
+                produced by a newer one.
             overwrite: If ``False`` (default), skip patterns whose key
                 already exists. If ``True``, overwrite existing patterns.
 
@@ -475,6 +493,15 @@ class Memory:
         """
         imported = 0
         for record in records:
+            version = record.get("version", 1)
+            if not isinstance(version, int) or version > _EXPORT_VERSION:
+                _log.warning(
+                    "Skipping import record with unsupported version %r "
+                    "(max supported: %d) — upgrade Engramia to import this data",
+                    version,
+                    _EXPORT_VERSION,
+                )
+                continue
             key = record.get("key")
             data = record.get("data")
             if not key or not isinstance(data, dict):
@@ -514,6 +541,40 @@ class Memory:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _check_embedding_config(self) -> None:
+        """Persist embedding provider identity; warn if it changed since last run.
+
+        Writes ``metadata/embedding_config`` on first use. On subsequent starts,
+        compares the stored model name against the current provider and emits a
+        WARNING if they differ — this indicates a potential reindex is needed.
+
+        Uses a default scope (no tenant prefix) because embedding metadata is
+        storage-level, not per-tenant. Never raises — mismatches are warnings only.
+        """
+        try:
+            provider_name = type(self._embeddings).__name__
+            model_name = getattr(self._embeddings, "_model", None) or getattr(
+                self._embeddings, "_model_name", "unknown"
+            )
+            config = {"provider": provider_name, "model": str(model_name)}
+
+            # Use storage directly with a non-scoped key (metadata namespace)
+            existing = self._storage.load(_EMBED_META_KEY)
+
+            if existing is None:
+                self._storage.save(_EMBED_META_KEY, {**config, "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+                _log.info("Embedding config initialised: provider=%s, model=%s", provider_name, model_name)
+            elif existing.get("model") != str(model_name):
+                _log.warning(
+                    "EMBEDDING MODEL CHANGED: stored=%r, current=%r. "
+                    "Existing pattern embeddings may be incompatible — "
+                    "run 'engramia reindex' to re-embed all patterns.",
+                    existing.get("model"),
+                    model_name,
+                )
+        except Exception as exc:
+            _log.debug("_check_embedding_config skipped: %s", exc)
 
     def _require_llm(self, method: str) -> None:
         if self._llm is None:

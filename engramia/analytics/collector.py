@@ -11,6 +11,7 @@ Thread-safety relies on the StorageBackend implementation:
 """
 
 import logging
+import threading
 import time
 from typing import Literal
 
@@ -33,6 +34,7 @@ class ROICollector:
 
     def __init__(self, storage: StorageBackend) -> None:
         self._storage = storage
+        self._append_lock = threading.Lock()
 
     def record_learn(self, pattern_key: str, eval_score: float) -> None:
         """Append a learn event.
@@ -129,10 +131,11 @@ class ROICollector:
     # ------------------------------------------------------------------
 
     def _append(self, event: ROIEvent) -> None:
-        raw = self._load_raw()
-        raw.append(event.model_dump())
-        raw = raw[-_MAX_EVENTS:]
-        self._storage.save(_EVENTS_KEY, raw)
+        with self._append_lock:
+            raw = self._load_raw()
+            raw.append(event.model_dump())
+            raw = raw[-_MAX_EVENTS:]
+            self._storage.save(_EVENTS_KEY, raw)
 
     def _load_raw(self) -> list:
         data = self._storage.load(_EVENTS_KEY)

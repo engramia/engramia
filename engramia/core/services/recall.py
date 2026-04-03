@@ -8,6 +8,7 @@ from engramia._util import PATTERNS_PREFIX, jaccard, reuse_tier
 from engramia.analytics.collector import ROICollector
 from engramia.core.eval_store import EvalStore
 from engramia.core.success_patterns import SuccessPatternStore
+from engramia.exceptions import ProviderError
 from engramia.providers.base import EmbeddingProvider, StorageBackend
 from engramia.reuse.matcher import PatternMatcher
 from engramia.types import JACCARD_DEDUP_THRESHOLD, Match, Pattern
@@ -59,6 +60,43 @@ class RecallService:
         self._pattern_store = pattern_store
         self._roi_collector = roi_collector
 
+    def _keyword_fallback(self, task: str, limit: int) -> list[Match]:
+        """Brute-force keyword recall used when embeddings are unavailable.
+
+        Scores all stored patterns using word-level Jaccard similarity and
+        returns the top *limit* results sorted by score descending.
+
+        Args:
+            task: The query task string.
+            limit: Maximum number of matches to return.
+
+        Returns:
+            List of Match objects, may be empty if no patterns are stored.
+        """
+        all_keys = self._storage.list_keys(prefix=PATTERNS_PREFIX)
+        scored: list[tuple[float, str, Pattern]] = []
+        for key in all_keys:
+            data = self._storage.load(key)
+            if data is None:
+                continue
+            try:
+                pattern = Pattern.model_validate(data)
+            except (ValueError, KeyError):
+                continue
+            score = jaccard(task, pattern.task)
+            if score > 0.0:
+                scored.append((score, key, pattern))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [
+            Match(
+                pattern=p,
+                similarity=s,
+                reuse_tier=reuse_tier(s),
+                pattern_key=k,
+            )
+            for s, k, p in scored[:limit]
+        ]
+
     def recall(
         self,
         task: str,
@@ -67,6 +105,10 @@ class RecallService:
         eval_weighted: bool = True,
     ) -> list[Match]:
         """Find stored patterns most relevant to task.
+
+        Falls back to keyword-based (Jaccard) search if the embedding
+        provider raises an exception, enabling graceful degradation when
+        the embedding API is unavailable.
 
         Args:
             task: Natural language description of the new task.
@@ -80,26 +122,33 @@ class RecallService:
         """
         fetch_limit = limit * _DEDUP_FETCH_MULTIPLIER if deduplicate else limit
 
-        if eval_weighted:
-            matcher = PatternMatcher(self._storage, self._embeddings, self._eval_store)
-            matches = matcher.find(task, limit=fetch_limit)
-        else:
-            embedding = self._embeddings.embed(task)
-            results = self._storage.search_similar(embedding, limit=fetch_limit, prefix=PATTERNS_PREFIX)
-            matches = []
-            for key, similarity in results:
-                data = self._storage.load(key)
-                if data is None:
-                    continue
-                pattern = Pattern.model_validate(data)
-                matches.append(
-                    Match(
-                        pattern=pattern,
-                        similarity=min(similarity, 1.0),
-                        reuse_tier=reuse_tier(similarity),
-                        pattern_key=key,
+        try:
+            if eval_weighted:
+                matcher = PatternMatcher(self._storage, self._embeddings, self._eval_store)
+                matches = matcher.find(task, limit=fetch_limit)
+            else:
+                embedding = self._embeddings.embed(task)
+                results = self._storage.search_similar(embedding, limit=fetch_limit, prefix=PATTERNS_PREFIX)
+                matches = []
+                for key, similarity in results:
+                    data = self._storage.load(key)
+                    if data is None:
+                        continue
+                    pattern = Pattern.model_validate(data)
+                    matches.append(
+                        Match(
+                            pattern=pattern,
+                            similarity=min(similarity, 1.0),
+                            reuse_tier=reuse_tier(similarity),
+                            pattern_key=key,
+                        )
                     )
-                )
+        except (ProviderError, Exception) as exc:
+            _log.warning(
+                "Embedding provider failed during recall, falling back to keyword search: %s",
+                exc,
+            )
+            matches = self._keyword_fallback(task, fetch_limit)
 
         if deduplicate:
             matches = _deduplicate_matches(matches)

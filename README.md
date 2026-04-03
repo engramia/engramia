@@ -6,7 +6,8 @@ Reusable execution memory and evaluation infrastructure for AI agent frameworks.
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![License: BSL 1.1](https://img.shields.io/badge/license-BSL%201.1-orange)](LICENSE.txt)
 
-> **Status:** Phases 0–4.5 complete — core library + REST API + SDK plugins + prompt evolution + CLI + exceptions + export/import + security hardening (OWASP ASVS Level 2/3).
+> **Status:** v0.6.0 — phases 0–5.8 complete — 726 tests / 80.29% coverage.
+> Core library · REST API · multi-tenancy · RBAC · async jobs · observability · data governance · ROI analytics · admin dashboard · service layer.
 > See [roadmap.md](roadmap.md) for what's next.
 
 ---
@@ -55,12 +56,19 @@ Extracted from Agent Factory V2 — a system that reached a 93% task success rat
 | `metrics` — aggregate run statistics | **Stable** |
 | `export` / `import_data` — backup and migration | **Stable** |
 | `register_skills` / `find_by_skills` — capability tagging | **Stable** |
+| Tenant / project isolation (contextvars scope propagation) | **Stable** |
+| RBAC (owner / admin / editor / reader) | **Stable** |
+| DB API key management — bootstrap, create, rotate, revoke | **Stable** |
+| OIDC SSO — JWT validation, JWKS, role + scope mapping | **Stable** |
+| Async job layer — `Prefer: respond-async`, job status polling | **Stable** |
+| Observability — OTel traces, Prometheus `/metrics`, JSON logs | **Stable** |
+| Deep health — `GET /v1/health/deep` (storage + LLM + embeddings) | **Stable** |
+| Data governance — PII redaction, retention, GDPR delete/export | **Stable** |
+| ROI analytics — event collection, rollup API, composite score | **Stable** |
+| Admin dashboard — Next.js 15 static export, 10 pages | **Stable** |
 | `compose` — LLM pipeline decomposition from patterns | **Experimental** |
 | `evolve_prompt` — LLM-based prompt improvement | **Experimental** |
 | `analyze_failures` — failure pattern clustering | **Experimental** |
-| Tenant / project isolation | **Roadmap** |
-| RBAC / admin dashboard | **Roadmap** |
-| Async job layer | **Roadmap** |
 
 ---
 
@@ -90,6 +98,7 @@ pip install "engramia[openai,api,postgres]"
 | `crewai` | CrewAI EngramiaCrewCallback | ✅ |
 | `cli` | CLI tool (Typer + Rich) | ✅ |
 | `mcp` | MCP server (Claude Desktop, Cursor, Windsurf) | ✅ |
+| `oidc` | SSO via OIDC JWT validation (Okta, Azure AD, Auth0, Keycloak) | ✅ |
 | `dev` | pytest, coverage, development tools | ✅ |
 
 ---
@@ -337,7 +346,7 @@ print(f"Imported {imported} patterns")
 Engramia uses a custom exception hierarchy for precise error handling:
 
 ```python
-from engramia import MemoryError, ProviderError, ValidationError, StorageError
+from engramia import EngramiaError, ProviderError, ValidationError, StorageError
 
 try:
     result = mem.evaluate(task, code)
@@ -406,8 +415,11 @@ After startup: Swagger UI at [http://localhost:8000/docs](http://localhost:8000/
 | `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model ID |
 | `OPENAI_API_KEY` | — | OpenAI API key |
 | `ENGRAMIA_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
-| `ENGRAMIA_API_KEYS` | *(empty)* | Bearer tokens (empty = dev mode, no auth) |
+| `ENGRAMIA_AUTH_MODE` | `auto` | Auth mode: `auto` / `env` / `db` / `dev` |
+| `ENGRAMIA_API_KEYS` | *(empty)* | Bearer tokens — used when `AUTH_MODE=env` |
+| `ENGRAMIA_ENVIRONMENT` | *(empty)* | `local` / `development` / `staging` / `production` — guards dev auth mode |
 | `ENGRAMIA_PORT` | `8000` | Port |
+| `ENGRAMIA_MAINTENANCE` | `false` | Maintenance mode (all endpoints → 503 except health) |
 
 ### Endpoints
 
@@ -425,10 +437,31 @@ All endpoints are available under the `/v1/` prefix:
 | `POST` | `/v1/analyze-failures` | Groups failure patterns *(Experimental)* |
 | `POST` | `/v1/skills/register` | Registers skill tags on a pattern |
 | `POST` | `/v1/skills/search` | Searches patterns by skill tags |
+| `POST` | `/v1/import` | Bulk import patterns |
 | `GET` | `/v1/feedback` | Top recurring feedback |
 | `GET` | `/v1/metrics` | Statistics |
 | `GET` | `/v1/health` | Health check + storage type |
+| `GET` | `/v1/health/deep` | Deep probe: storage + LLM + embeddings latency |
+| `GET` | `/v1/metrics` | Prometheus metrics (if `ENGRAMIA_METRICS=true`) |
 | `DELETE` | `/v1/patterns/{key}` | Deletes a pattern |
+| `POST` | `/v1/keys/bootstrap` | One-time owner key setup |
+| `POST` | `/v1/keys` | Create API key (admin+) |
+| `GET` | `/v1/keys` | List API keys (admin+) |
+| `DELETE` | `/v1/keys/{id}` | Revoke key (admin+) |
+| `POST` | `/v1/keys/{id}/rotate` | Rotate key (admin+) |
+| `GET` | `/v1/jobs` | List async jobs |
+| `GET` | `/v1/jobs/{id}` | Get job status + result |
+| `POST` | `/v1/jobs/{id}/cancel` | Cancel pending job |
+| `GET` | `/v1/governance/retention` | Get retention policy |
+| `PUT` | `/v1/governance/retention` | Set retention policy |
+| `POST` | `/v1/governance/retention/apply` | Run retention cleanup |
+| `GET` | `/v1/governance/export` | NDJSON data export (GDPR Art. 20) |
+| `PUT` | `/v1/governance/patterns/{key}/classify` | Set data classification |
+| `DELETE` | `/v1/governance/projects/{id}` | Delete project data (GDPR Art. 17) |
+| `DELETE` | `/v1/governance/tenants/{id}` | Delete tenant data (GDPR Art. 17) |
+| `POST` | `/v1/analytics/rollup` | Trigger ROI rollup computation |
+| `GET` | `/v1/analytics/rollup/{window}` | Fetch ROI snapshot (hourly/daily/weekly) |
+| `GET` | `/v1/analytics/events` | Raw ROI events |
 
 ### Examples
 
@@ -468,6 +501,15 @@ curl -H "Authorization: Bearer my-secret-key" http://localhost:8000/v1/metrics
 | `ENGRAMIA_RATE_LIMIT_DEFAULT` | `60` | Max requests/min for standard endpoints |
 | `ENGRAMIA_RATE_LIMIT_EXPENSIVE` | `10` | Max requests/min for LLM-intensive endpoints |
 | `ENGRAMIA_MAX_BODY_SIZE` | `1048576` | Max request body size in bytes (1 MB) |
+
+### Observability configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENGRAMIA_TELEMETRY` | `false` | Enable OpenTelemetry tracing |
+| `ENGRAMIA_OTEL_ENDPOINT` | — | OTLP gRPC endpoint (e.g. `http://otel-collector:4317`) |
+| `ENGRAMIA_METRICS` | `false` | Enable Prometheus `/metrics` endpoint |
+| `ENGRAMIA_JSON_LOGS` | `false` | Emit structured JSON logs (request_id, trace_id, tenant_id) |
 
 ---
 
@@ -627,11 +669,19 @@ The MCP server uses the same env vars as the REST API:
 
 ```
 engramia/
-├── brain.py             # Memory facade (public API)
-├── types.py             # Pydantic models
-├── _util.py             # Shared utility
+├── memory.py            # Memory facade — thin delegator (~165 LOC)
+├── types.py             # Pydantic models (Scope, AuthContext, Pattern, ...)
+├── exceptions.py        # EngramiaError hierarchy (ProviderError, StorageError, ...)
+├── _context.py          # Scope contextvar: get_scope / set_scope / reset_scope
+├── _util.py             # Helpers (extract_json_from_llm, jaccard, reuse_tier)
+├── _factory.py          # Provider factory from env vars
 │
-├── core/                # Internal stores
+├── core/                # Pattern storage + evaluation
+│   ├── services/             # Business logic (extracted from Memory god object)
+│   │   ├── learning.py       # LearningService — store patterns, embeddings, ROI
+│   │   ├── recall.py         # RecallService — semantic search, dedup, eval-weighted
+│   │   ├── evaluation.py     # EvaluationService — multi-evaluator scoring + feedback
+│   │   └── composition.py    # CompositionService — LLM pipeline decomposition
 │   ├── success_patterns.py   # Aging, reuse boost
 │   ├── eval_store.py         # Eval history + quality multiplier
 │   ├── eval_feedback.py      # Feedback clustering + decay
@@ -652,34 +702,59 @@ engramia/
 │   ├── anthropic.py          # Anthropic/Claude LLM provider
 │   ├── local_embeddings.py   # sentence-transformers (no API key)
 │   ├── json_storage.py       # JSON storage (thread-safe, atomic writes)
-│   └── postgres.py           # PostgreSQL + pgvector
+│   └── postgres.py           # PostgreSQL + pgvector (scope-aware queries)
 │
-├── api/                 # REST API (Phase 2)
-│   ├── app.py                # App factory, env var configuration
-│   ├── routes.py             # Endpoints
-│   ├── auth.py               # Bearer token middleware
-│   ├── deps.py               # Dependency injection
-│   └── schemas.py            # API models
+├── api/                 # REST API
+│   ├── app.py                # App factory, lifespan, dashboard static mount
+│   ├── routes.py             # Core endpoints (learn, recall, evaluate, ...)
+│   ├── auth.py               # Multi-mode auth (auto/env/db/dev)
+│   ├── keys.py               # API key management router (/v1/keys)
+│   ├── permissions.py        # RBAC: 4 roles, require_permission() factory
+│   ├── deps.py               # Dependency injection (Memory singleton, AuthContext)
+│   ├── schemas.py            # Request/response Pydantic models
+│   ├── audit.py              # Structured audit logging
+│   ├── middleware.py         # SecurityHeaders, RateLimit, BodySize, RequestID, Timing
+│   └── prom_metrics.py       # Prometheus counter/histogram definitions
 │
-├── db/                  # Database (Phase 2)
-│   ├── models.py             # SQLAlchemy models
-│   └── migrations/           # Alembic
+├── jobs/                # Async job queue
+│   ├── service.py            # JobService — submit, poll, cancel, retry/backoff
+│   ├── worker.py             # JobWorker — daemon thread, ThreadPoolExecutor
+│   └── dispatch.py           # Operation → Memory method dispatcher
 │
-├── evolution/           # Prompt evolution + failure clustering (Phase 3)
-│   ├── prompt_evolver.py    # LLM-based prompt improvement (Experimental)
-│   └── failure_cluster.py   # Failure pattern clustering (Experimental)
+├── analytics/           # ROI analytics
+│   ├── collector.py          # ROICollector — fire-and-ignore event recorder
+│   ├── aggregator.py         # ROIAggregator — hourly/daily/weekly rollups
+│   └── models.py             # ROIEvent, ROIRollup, RecallOutcome, LearnSummary
 │
-├── sdk/                 # Framework integrations (Phase 3)
-│   ├── langchain.py         # LangChain EngramiaCallback
-│   └── webhook.py           # Lightweight HTTP SDK client
+├── governance/          # Data governance (GDPR)
+│   ├── redaction.py          # PII/secrets redaction pipeline
+│   ├── retention.py          # RetentionManager — per-tenant/project TTL policies
+│   ├── deletion.py           # ScopedDeletion — GDPR Art. 17 right to erasure
+│   ├── export.py             # DataExporter — NDJSON export (GDPR Art. 20)
+│   └── lifecycle.py          # Async lifecycle jobs (retention_cleanup, compact_audit)
 │
-├── exceptions.py        # Custom exception hierarchy (EngramiaError, ProviderError, ...)
-├── _factory.py          # Shared provider factory (REST API + MCP)
+├── telemetry/           # Observability (opt-in, zero overhead when disabled)
+│   ├── tracing.py            # OTel init + @traced decorator
+│   └── metrics.py            # Prometheus histogram/counter definitions
+│
+├── db/                  # Database
+│   ├── models.py             # SQLAlchemy 2.x models (6 migrations applied)
+│   └── migrations/           # Alembic (001_initial → 006_governance)
+│
+├── evolution/           # Prompt evolution + failure clustering (Experimental)
+│   ├── prompt_evolver.py
+│   └── failure_cluster.py
+│
+├── sdk/                 # Framework integrations
+│   ├── langchain.py          # LangChain EngramiaCallback
+│   ├── crewai.py             # CrewAI EngramiaCrewCallback
+│   ├── bridge.py             # EngramiaBridge — drop-in for any agent factory
+│   └── webhook.py            # Lightweight HTTP SDK client (stdlib only)
 │
 ├── cli/                 # CLI tool (Typer + Rich)
 │
-└── mcp/                 # MCP server (Phase 4.6.9)
-    └── server.py            # stdio MCP server — 7 tools
+└── mcp/                 # MCP server (stdio transport)
+    └── server.py             # 7 MCP tools (learn, recall, evaluate, ...)
 ```
 
 ---
@@ -704,15 +779,23 @@ engramia/
 | OpenAI provider | ✅ Stable |
 | Anthropic provider | ✅ Stable |
 | Local embeddings (sentence-transformers) | ✅ Stable |
-| JSON storage (thread-safe) | ✅ Stable |
-| REST API (FastAPI) — 14 endpoints | ✅ Stable |
-| PostgreSQL + pgvector | ✅ Stable |
+| JSON storage (thread-safe, concurrent) | ✅ Stable |
+| PostgreSQL + pgvector (scope-aware) | ✅ Stable |
 | Docker + docker-compose | ✅ Stable |
+| Multi-tenancy + scope isolation (contextvars) | ✅ Stable |
+| RBAC (4 roles, DB API key management) | ✅ Stable |
+| Async job layer (SKIP LOCKED, retry, backoff) | ✅ Stable |
+| Observability (OTel, Prometheus, JSON logs) | ✅ Stable |
+| Data governance (PII redaction, retention, GDPR) | ✅ Stable |
+| ROI analytics (collector, rollup, REST API) | ✅ Stable |
+| Admin dashboard (Next.js 15, 10 pages) | ✅ Stable |
+| Service layer (LearningService, RecallService, ...) | ✅ Stable |
 | LangChain EngramiaCallback | ✅ Stable |
+| CrewAI EngramiaCrewCallback | ✅ Stable |
+| EngramiaBridge (drop-in agent factory adapter) | ✅ Stable |
 | Webhook SDK client | ✅ Stable |
 | CLI (Typer + Rich) | ✅ Stable |
 | MCP server (7 tools, stdio transport) | ✅ Stable |
-| CrewAI EngramiaCrewCallback | ✅ Stable |
 
 ---
 

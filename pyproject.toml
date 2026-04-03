@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "engramia"
-version = "0.5.4"
+version = "0.6.4"
 description = "Reusable execution memory and evaluation infrastructure for AI agent frameworks"
 authors = [
     {name = "Marek Čermák"},
@@ -58,6 +58,7 @@ cli = [
 langchain = ["langchain-core>=0.1"]
 crewai = ["crewai>=0.28"]
 mcp = ["mcp>=1.0"]
+oidc = ["PyJWT>=2.8", "cryptography>=42.0"]
 telemetry = [
     "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
@@ -92,6 +93,7 @@ asyncio_mode = "auto"
 addopts = "--cov=engramia --cov-fail-under=77"
 markers = [
     "postgres: integration tests requiring Docker + PostgreSQL+pgvector container",
+    "local_embeddings: tests requiring sentence-transformers (pip install engramia[local])",
 ]
 
 [tool.coverage.run]

@@ -15,21 +15,31 @@ from tests.conftest import FakeEmbeddings
 
 @pytest.fixture(autouse=True)
 def _clean_env():
-    """Ensure ENGRAMIA_API_KEYS is cleaned up after each test."""
-    old = os.environ.pop("ENGRAMIA_API_KEYS", None)
+    """Ensure auth env vars are cleaned up after each test."""
+    old_keys = os.environ.pop("ENGRAMIA_API_KEYS", None)
+    old_no_auth = os.environ.pop("ENGRAMIA_ALLOW_NO_AUTH", None)
     yield
-    if old is not None:
-        os.environ["ENGRAMIA_API_KEYS"] = old
+    if old_keys is not None:
+        os.environ["ENGRAMIA_API_KEYS"] = old_keys
     else:
         os.environ.pop("ENGRAMIA_API_KEYS", None)
+    if old_no_auth is not None:
+        os.environ["ENGRAMIA_ALLOW_NO_AUTH"] = old_no_auth
+    else:
+        os.environ.pop("ENGRAMIA_ALLOW_NO_AUTH", None)
 
 
-def _make_test_app(api_keys: str = "") -> FastAPI:
+def _make_test_app(api_keys: str = "", allow_no_auth: bool = False) -> FastAPI:
     """Create a minimal test app with auth middleware."""
     if api_keys:
         os.environ["ENGRAMIA_API_KEYS"] = api_keys
     else:
         os.environ.pop("ENGRAMIA_API_KEYS", None)
+
+    if allow_no_auth:
+        os.environ["ENGRAMIA_ALLOW_NO_AUTH"] = "true"
+    else:
+        os.environ.pop("ENGRAMIA_ALLOW_NO_AUTH", None)
 
     # Import router fresh (auth reads env at request time)
     from engramia.api.routes import router
@@ -47,23 +57,32 @@ def tmp_mem(tmp_path):
 
 
 class TestAuthDevMode:
-    """When ENGRAMIA_API_KEYS is empty, all requests pass (dev mode)."""
+    """When ENGRAMIA_API_KEYS is empty and ENGRAMIA_ALLOW_NO_AUTH=true, all requests pass."""
 
-    def test_no_auth_required_in_dev_mode(self, tmp_mem):
-        app = _make_test_app("")
+    def test_no_auth_required_when_allow_no_auth_set(self, tmp_mem):
+        app = _make_test_app("", allow_no_auth=True)
         app.state.memory = tmp_mem
 
         client = TestClient(app)
         resp = client.get("/v1/health")
         assert resp.status_code == 200
 
-    def test_request_with_token_also_works_in_dev(self, tmp_mem):
-        app = _make_test_app("")
+    def test_request_with_token_also_works_when_allow_no_auth_set(self, tmp_mem):
+        app = _make_test_app("", allow_no_auth=True)
         app.state.memory = tmp_mem
 
         client = TestClient(app)
         resp = client.get("/v1/health", headers={"Authorization": "Bearer any-token"})
         assert resp.status_code == 200
+
+    def test_no_keys_and_no_allow_returns_503(self, tmp_mem):
+        """Without ENGRAMIA_ALLOW_NO_AUTH, missing keys must return 503, not 200."""
+        app = _make_test_app("", allow_no_auth=False)
+        app.state.memory = tmp_mem
+
+        client = TestClient(app)
+        resp = client.get("/v1/health")
+        assert resp.status_code == 503
 
 
 class TestAuthEnabled:

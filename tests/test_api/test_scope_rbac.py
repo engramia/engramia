@@ -30,6 +30,14 @@ from tests.conftest import FakeEmbeddings
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _clean_auth_env():
+    """Reset auth env vars after each test to prevent leakage."""
+    yield
+    os.environ.pop("ENGRAMIA_API_KEYS", None)
+    os.environ.pop("ENGRAMIA_ALLOW_NO_AUTH", None)
+
+
 @pytest.fixture
 def tmp_storage(tmp_path):
     return JSONStorage(path=tmp_path)
@@ -52,6 +60,7 @@ def _make_auth_app(role: str = "editor", max_patterns: int | None = None):
     app.include_router(router, prefix="/v1")
 
     os.environ.pop("ENGRAMIA_API_KEYS", None)
+    os.environ["ENGRAMIA_ALLOW_NO_AUTH"] = "true"
 
     # Inject a fake auth_context so permission checks work without a real DB
     from fastapi import Request
@@ -384,6 +393,7 @@ class TestQuotaEnforcement:
         from engramia.api.routes import router
 
         os.environ.pop("ENGRAMIA_API_KEYS", None)
+        os.environ["ENGRAMIA_ALLOW_NO_AUTH"] = "true"
         storage = JSONStorage(path=tmp_path)
         # Fill beyond any quota
         for i in range(20):
