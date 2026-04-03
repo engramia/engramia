@@ -139,6 +139,21 @@ def _decode_jwt(token: str) -> dict:
     if kid is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token missing 'kid' header.")
 
+    # Explicit algorithm allowlist — reject anything outside asymmetric RSA/EC
+    # families.  This prevents "alg:none" and symmetric HMAC attacks where an
+    # attacker supplies a known secret as the public key.
+    _ALLOWED_ALGORITHMS: frozenset[str] = frozenset({
+        "RS256", "RS384", "RS512",
+        "ES256", "ES384", "ES512",
+        "PS256", "PS384", "PS512",
+    })
+    if alg not in _ALLOWED_ALGORITHMS:
+        _log.warning("OIDC: rejected token with disallowed algorithm %r", alg)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Signing algorithm '{alg}' is not permitted.",
+        )
+
     jwk = _get_jwk(kid)
     if jwk is None:
         # Key not found even after refresh — unknown key or very stale cache.
@@ -151,11 +166,6 @@ def _decode_jwt(token: str) -> dict:
         from jwt.algorithms import get_default_algorithms
 
         algorithms = get_default_algorithms()
-        if alg not in algorithms:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Unsupported signing algorithm: {alg}",
-            )
         public_key = algorithms[alg].from_jwk(jwk)
     except (KeyError, ValueError, Exception) as exc:
         _log.warning("OIDC: failed to load public key from JWK: %s", exc)
@@ -201,8 +211,29 @@ def oidc_auth(request: Request, token: str) -> None:
         _log.warning("OIDC: unrecognised role %r in claim %r; falling back to reader", role, _ROLE_CLAIM)
         role = "reader"
 
-    tenant_id = str(claims.get(_TENANT_CLAIM, "default")) if _TENANT_CLAIM else "default"
-    project_id = str(claims.get(_PROJECT_CLAIM, "default")) if _PROJECT_CLAIM else "default"
+    if _TENANT_CLAIM:
+        raw_tenant = claims.get(_TENANT_CLAIM)
+        if raw_tenant is None:
+            _log.warning(
+                "OIDC: tenant claim '%s' missing from token for sub=%s — falling back to 'default'.",
+                _TENANT_CLAIM,
+                claims.get("sub", "?"),
+            )
+        tenant_id = str(raw_tenant) if raw_tenant is not None else "default"
+    else:
+        tenant_id = "default"
+
+    if _PROJECT_CLAIM:
+        raw_project = claims.get(_PROJECT_CLAIM)
+        if raw_project is None:
+            _log.warning(
+                "OIDC: project claim '%s' missing from token for sub=%s — falling back to 'default'.",
+                _PROJECT_CLAIM,
+                claims.get("sub", "?"),
+            )
+        project_id = str(raw_project) if raw_project is not None else "default"
+    else:
+        project_id = "default"
 
     scope = Scope(tenant_id=tenant_id, project_id=project_id)
 

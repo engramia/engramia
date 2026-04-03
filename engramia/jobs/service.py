@@ -436,14 +436,23 @@ class JobService:
                 exc,
             )
             tb = traceback.format_exc()
+            # Log full traceback server-side only — never exposed to API clients.
+            _log.error(
+                "Job %s failed permanently after %d attempts:\n%s",
+                job_dict["id"],
+                job_dict["attempts"],
+                tb,
+            )
             if job_dict["attempts"] >= job_dict["max_attempts"]:
+                # Store only a sanitized public error message in the DB.
+                public_error = f"{type(exc).__name__}: {exc}"
                 with self._engine.begin() as conn:
                     conn.execute(
                         text(
                             "UPDATE jobs SET status = 'failed', "
                             "error = :error, completed_at = now()::text WHERE id = :id"
                         ),
-                        {"id": job_dict["id"], "error": f"{type(exc).__name__}: {exc}\n{tb}"},
+                        {"id": job_dict["id"], "error": public_error},
                     )
             else:
                 backoff = 2 ** job_dict["attempts"]

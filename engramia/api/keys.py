@@ -22,7 +22,9 @@ on creation or rotation and cannot be recovered afterwards.
 """
 
 import hashlib
+import hmac
 import logging
+import os
 import secrets
 import uuid
 from typing import Literal
@@ -95,6 +97,7 @@ class BootstrapRequest(BaseModel):
     tenant_name: str = Field(default="Default", min_length=1, max_length=100)
     project_name: str = Field(default="default", min_length=1, max_length=100)
     key_name: str = Field(default="Owner key", min_length=1, max_length=100)
+    bootstrap_token: str | None = Field(default=None, description="Must match ENGRAMIA_BOOTSTRAP_TOKEN.")
 
 
 # ---------------------------------------------------------------------------
@@ -187,24 +190,57 @@ def _create_key_in_db(
         "One-time bootstrap endpoint. Only works when the ``api_keys`` table "
         "is empty. Creates (or reuses) the default tenant and project, then "
         "issues an owner-role API key. Once any key exists, this endpoint "
-        "returns 409 Conflict."
+        "returns 409 Conflict.\n\n"
+        "Requires ``ENGRAMIA_BOOTSTRAP_TOKEN`` to be set in the server environment. "
+        "The same value must be supplied as ``bootstrap_token`` in the request body. "
+        "Remove the env var after first use to disable the endpoint permanently."
     ),
 )
 def bootstrap(body: BootstrapRequest, request: Request) -> KeyCreateResponse:
     engine = _require_engine(request)
 
-    from sqlalchemy import text
-
-    with engine.connect() as conn:
-        count = conn.execute(text("SELECT COUNT(*) FROM api_keys")).fetchone()
-    if count and int(count[0]) > 0:
+    # ------------------------------------------------------------------
+    # B: Token guard — endpoint is disabled unless ENGRAMIA_BOOTSTRAP_TOKEN
+    # is explicitly configured.  Validate with timing-safe compare.
+    # ------------------------------------------------------------------
+    expected_token = os.environ.get("ENGRAMIA_BOOTSTRAP_TOKEN", "").strip()
+    if not expected_token:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Bootstrap already completed. Use an existing admin/owner key to create more keys.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Bootstrap is disabled. Set ENGRAMIA_BOOTSTRAP_TOKEN in the server "
+                "environment and supply it as 'bootstrap_token' in the request body."
+            ),
+        )
+    supplied = (body.bootstrap_token or "").strip()
+    if not hmac.compare_digest(supplied.encode(), expected_token.encode()):
+        ip = request.client.host if request.client else "unknown"
+        _log.warning("Bootstrap attempt with invalid token from %s", ip)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid bootstrap token.",
         )
 
-    # Ensure default tenant exists
+    from sqlalchemy import text
+
+    # ------------------------------------------------------------------
+    # A: Atomic race-condition guard — acquire a DB-level advisory lock so
+    # that concurrent bootstrap calls are serialised.  The count check and
+    # all inserts happen inside the same transaction; the lock is released
+    # automatically at transaction end.
+    # ------------------------------------------------------------------
     with engine.begin() as conn:
+        # Exclusive session-level advisory lock (arbitrary stable integer).
+        conn.execute(text("SELECT pg_advisory_xact_lock(7369726d616e)"))
+
+        count = conn.execute(text("SELECT COUNT(*) FROM api_keys")).fetchone()
+        if count and int(count[0]) > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Bootstrap already completed. Use an existing admin/owner key to create more keys.",
+            )
+
+        # Ensure default tenant + project exist inside the same transaction.
         conn.execute(
             text(
                 "INSERT INTO tenants (id, name) VALUES ('default', :name) "
@@ -220,14 +256,37 @@ def bootstrap(body: BootstrapRequest, request: Request) -> KeyCreateResponse:
             {"pname": body.project_name},
         )
 
-    result = _create_key_in_db(
-        engine,
+        # Create the owner key inside the same locked transaction.
+        full_key, display_prefix, key_hash = _generate_key()
+        key_id = str(uuid.uuid4())
+        conn.execute(
+            text(
+                "INSERT INTO api_keys "
+                "(id, tenant_id, project_id, name, key_prefix, key_hash, role, max_patterns, created_at, expires_at) "
+                "VALUES (:id, 'default', 'default', :name, :prefix, :hash, 'owner', NULL, now()::text, NULL)"
+            ),
+            {
+                "id": key_id,
+                "name": body.key_name,
+                "prefix": display_prefix,
+                "hash": key_hash,
+            },
+        )
+        row = conn.execute(
+            text("SELECT created_at FROM api_keys WHERE id = :id"),
+            {"id": key_id},
+        ).fetchone()
+
+    result = KeyCreateResponse(
+        id=key_id,
+        name=body.key_name,
+        key=full_key,
+        key_prefix=display_prefix,
+        role="owner",
         tenant_id="default",
         project_id="default",
-        name=body.key_name,
-        role="owner",
         max_patterns=None,
-        expires_at=None,
+        created_at=str(row[0]) if row else "",
     )
     log_event(AuditEvent.KEY_CREATED, key_id=result.id, role="owner", source="bootstrap")
     _log.info("Bootstrap complete — owner key created: %s", result.key_prefix)
@@ -237,6 +296,16 @@ def bootstrap(body: BootstrapRequest, request: Request) -> KeyCreateResponse:
 # ---------------------------------------------------------------------------
 # Create key
 # ---------------------------------------------------------------------------
+
+
+_ROLE_RANK: dict[str, int] = {"reader": 0, "editor": 1, "admin": 2, "owner": 3}
+# Maximum role that each caller role may assign to a new key.
+_MAX_ASSIGNABLE: dict[str, str] = {
+    "owner": "owner",
+    "admin": "editor",   # admin cannot escalate to admin/owner
+    "editor": "reader",  # should never reach here — editor lacks keys:create
+    "reader": "reader",  # should never reach here — reader lacks keys:create
+}
 
 
 @router.post(
@@ -249,6 +318,21 @@ def bootstrap(body: BootstrapRequest, request: Request) -> KeyCreateResponse:
 def create_key(body: KeyCreateRequest, request: Request) -> KeyCreateResponse:
     engine = _require_engine(request)
     ctx = request.state.auth_context  # guaranteed by require_auth + DB mode
+
+    # Enforce role hierarchy: callers cannot grant roles higher than they are
+    # allowed to assign.  Owners may assign any role; admins max out at editor.
+    caller_rank = _ROLE_RANK.get(ctx.role, 0)
+    requested_rank = _ROLE_RANK.get(body.role, 0)
+    max_assignable = _MAX_ASSIGNABLE.get(ctx.role, "reader")
+    max_rank = _ROLE_RANK[max_assignable]
+    if requested_rank > max_rank:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"Role '{ctx.role}' may assign at most '{max_assignable}' keys. "
+                f"Requested role '{body.role}' is not permitted."
+            ),
+        )
 
     result = _create_key_in_db(
         engine,
