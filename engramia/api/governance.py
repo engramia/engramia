@@ -292,11 +292,28 @@ def delete_project(
 
     This is irreversible. Patterns, embeddings, and jobs are permanently
     deleted. API keys are revoked. Audit logs are scrubbed.
+
+    Authorization:
+    - admin: may only delete their own project (project_id must match scope).
+    - owner: may delete any project within their tenant.
     """
     from engramia.governance.deletion import ScopedDeletion
     from engramia._context import get_scope
 
     scope = get_scope()
+
+    # Admins are scoped to their own project — only owners may perform
+    # cross-project deletion within the tenant.
+    if auth_ctx is not None and auth_ctx.role != "owner":
+        if project_id != scope.project_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Role '{auth_ctx.role}' may only delete its own project. "
+                    "Cross-project deletion requires the 'owner' role."
+                ),
+            )
+
     engine = _get_engine(request)
     deletion = ScopedDeletion(engine=engine)
 

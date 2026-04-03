@@ -124,7 +124,7 @@ class PostgresStorage(StorageBackend):
                     """
                     INSERT INTO memory_data (key, tenant_id, project_id, data, updated_at)
                     VALUES (:key, :tid, :pid, CAST(:data AS jsonb), now()::text)
-                    ON CONFLICT (key) DO UPDATE
+                    ON CONFLICT (tenant_id, project_id, key) DO UPDATE
                         SET data       = EXCLUDED.data,
                             updated_at = EXCLUDED.updated_at
                     """
@@ -207,7 +207,7 @@ class PostgresStorage(StorageBackend):
                     f"""
                     INSERT INTO memory_embeddings (key, tenant_id, project_id, embedding)
                     VALUES (:key, :tid, :pid, '{vec_str}'::vector)
-                    ON CONFLICT (key) DO UPDATE
+                    ON CONFLICT (tenant_id, project_id, key) DO UPDATE
                         SET embedding = EXCLUDED.embedding
                     """
                 ),

@@ -47,10 +47,11 @@ from fastapi.responses import JSONResponse
 from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
 from engramia.api.analytics import router as analytics_router
+from engramia.billing.webhooks import router as billing_router
 from engramia.api.governance import router as governance_router
 from engramia.api.jobs import router as jobs_router
 from engramia.api.keys import router as keys_router
-from engramia.api.routes import router
+from engramia.api.routes import meta_router, router
 from engramia.exceptions import ValidationError
 
 _log = logging.getLogger(__name__)
@@ -267,12 +268,31 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     storage = make_storage()
     embeddings = make_embeddings()
+    if embeddings is None:
+        _log.warning(
+            "No embedding provider configured — learn() and recall() will return "
+            "503 ProviderError. Set ENGRAMIA_EMBEDDING_MODEL and install 'engramia[openai]' "
+            "to enable semantic search."
+        )
     llm = make_llm()
+
+    # Redaction is enabled by default to protect PII/secrets at rest.
+    # Set ENGRAMIA_REDACTION=false to disable (dev/local use only).
+    from engramia.governance.redaction import RedactionPipeline
+
+    _redaction_enabled = os.environ.get("ENGRAMIA_REDACTION", "true").lower() not in ("false", "0", "no")
+    redaction = RedactionPipeline.default() if _redaction_enabled else None
+    if not _redaction_enabled:
+        _log.warning(
+            "SECURITY: PII/secrets redaction is disabled (ENGRAMIA_REDACTION=false). "
+            "Do not use this in production."
+        )
 
     app.state.memory = Memory(
         embeddings=embeddings,
         storage=storage,
         llm=llm,
+        redaction=redaction,
     )
 
     # ------------------------------------------------------------------
@@ -317,19 +337,66 @@ def create_app() -> FastAPI:
             from engramia.api.prom_metrics import build_metrics_app
 
             metrics_app = build_metrics_app(app.state.memory)
-            app.mount("/metrics", metrics_app)
-            _log.info("Prometheus /metrics endpoint enabled.")
+
+            # Wrap the metrics ASGI app with a lightweight token guard.
+            # Set ENGRAMIA_METRICS_TOKEN to require a Bearer token on /metrics.
+            # Without a token configured, /metrics is only safe behind a private
+            # network or Caddy access rule.
+            _metrics_token = os.environ.get("ENGRAMIA_METRICS_TOKEN", "").strip()
+
+            if _metrics_token:
+                import hmac as _hmac
+                from starlette.responses import Response as _StarletteResponse
+
+                _expected = _metrics_token.encode()
+
+                async def _guarded_metrics(scope, receive, send):
+                    if scope["type"] == "http":
+                        headers = dict(scope.get("headers", []))
+                        auth = headers.get(b"authorization", b"").decode()
+                        token = auth[len("Bearer "):] if auth.startswith("Bearer ") else ""
+                        if not _hmac.compare_digest(token.encode(), _expected):
+                            resp = _StarletteResponse(
+                                "Unauthorized", status_code=401,
+                                media_type="text/plain",
+                            )
+                            await resp(scope, receive, send)
+                            return
+                    await metrics_app(scope, receive, send)
+
+                app.mount("/metrics", _guarded_metrics)
+                _log.info("Prometheus /metrics endpoint enabled (token-protected).")
+            else:
+                app.mount("/metrics", metrics_app)
+                _log.warning(
+                    "SECURITY: Prometheus /metrics is enabled without a token. "
+                    "Set ENGRAMIA_METRICS_TOKEN or restrict access via network policy."
+                )
         except ImportError:
             _log.warning("prometheus_client not installed — /metrics not mounted.")
 
     # ------------------------------------------------------------------
+    # Billing service (Phase 6) — no-op when DB engine is not available
+    # ------------------------------------------------------------------
+    from engramia.billing import BillingService
+
+    billing_engine = getattr(storage, "_engine", None) or app.state.auth_engine
+    app.state.billing_service = BillingService(engine=billing_engine)
+    if billing_engine is not None:
+        _log.info("Billing service initialised (DB engine available).")
+    else:
+        _log.info("Billing service in no-op mode (no DB engine — dev/JSON storage).")
+
+    # ------------------------------------------------------------------
     # API v1 routes
     # ------------------------------------------------------------------
+    app.include_router(meta_router, prefix="/v1")
     app.include_router(router, prefix="/v1")
     app.include_router(keys_router, prefix="/v1")
     app.include_router(jobs_router, prefix="/v1")
     app.include_router(governance_router, prefix="/v1")
     app.include_router(analytics_router, prefix="/v1")
+    app.include_router(billing_router, prefix="/v1")
 
     # ------------------------------------------------------------------
     # Dashboard static files (Phase 5.3)

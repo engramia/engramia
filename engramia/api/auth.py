@@ -226,7 +226,8 @@ async def require_auth(request: Request) -> None:
     - auto: DB if ENGRAMIA_DATABASE_URL set, else env.
     """
     if _AUTH_MODE == "dev":
-        if not os.environ.get("ENGRAMIA_ALLOW_NO_AUTH"):
+        allow_no_auth = os.environ.get("ENGRAMIA_ALLOW_NO_AUTH", "").lower() in ("true", "1", "yes")
+        if not allow_no_auth:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=(
@@ -234,6 +235,10 @@ async def require_auth(request: Request) -> None:
                     "as a deliberate safety acknowledgement."
                 ),
             )
+        _log.warning(
+            "SECURITY: Dev auth mode active — all requests are unauthenticated "
+            "(ENGRAMIA_ALLOW_NO_AUTH=true). Do not use this in production."
+        )
         return  # unauthenticated dev mode
 
     # Env-var auth with no keys configured: require explicit opt-in via ENGRAMIA_ALLOW_NO_AUTH.
