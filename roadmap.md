@@ -54,6 +54,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | 5.9 | v0.6.1 | Enterprise Trust Pack — OIDC SSO (`engramia[oidc]`, PyJWT + JWKS), security architecture doc, data handling doc, production hardening guide, backup/restore playbook (RTO 4h/RPO 24h), incident response runbook, SOC 2 control mapping |
 | audit fixes | v0.6.2–0.6.3 | Resolved all P1–P2 findings from 2026-04-02 audit (auth fallback, cross-tenant feedback leak, analytics race, test coverage, job durability, embedding metadata, RBAC in env mode) |
 | 4.6 | v0.6.4 | Benchmark suite — reproducible recall quality validation; 12 realistic agent domains, 254 tasks, auto-calibrated thresholds; full_library 98.8% success rate validates Agent Factory V2 93% claim |
+| security | v0.6.5 | Resolved all P0–P2 findings from 2026-04-04 audit (role escalation, bootstrap takeover, cross-project delete, traceback leak, ALLOW_NO_AUTH parsing, redaction wiring, /metrics auth, scope-aware DB identity, OIDC algorithm allowlist, prompt evolver delimiter) |
 
 ---
 
@@ -79,7 +80,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 
 ---
 
-## Audit Findings (2026-04-02, score 83/100)
+## Audit Findings (2026-04-02, score 83/100) — all resolved
 
 | P | Area | Finding | Status |
 |---|------|---------|--------|
@@ -96,9 +97,50 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 
 ---
 
+## Audit Findings (2026-04-04) — all resolved
+
+| P | Area | Finding | Status |
+|---|------|---------|--------|
+| ~~P0~~ | ~~Security~~ | ~~Admin může vystavit owner API key — chybí role hierarchy check v `POST /v1/keys`~~ | ✅ v0.6.5 |
+| ~~P0~~ | ~~Security~~ | ~~Bootstrap endpoint bez ochrany — first-requester takeover + race condition~~ | ✅ v0.6.5 — `ENGRAMIA_BOOTSTRAP_TOKEN` + `pg_advisory_xact_lock` |
+| ~~P0~~ | ~~Multi-tenancy~~ | ~~Admin projektu A může smazat projekt B ve stejném tenantu~~ | ✅ v0.6.5 |
+| ~~P0~~ | ~~Security~~ | ~~`ALLOW_NO_AUTH=false` v dev módu stále pustí request (truthy string)~~ | ✅ v0.6.5 |
+| ~~P0~~ | ~~Security~~ | ~~Async job error ukládá plný traceback do DB a vrací ho v API~~ | ✅ v0.6.5 |
+| ~~P1~~ | ~~Privacy~~ | ~~`RedactionPipeline` existuje, ale není zapojena do `Memory` factory~~ | ✅ v0.6.5 — defaultně zapnuta, opt-out `ENGRAMIA_REDACTION=false` |
+| ~~P1~~ | ~~Observability~~ | ~~`/metrics` bez autentizace při `ENGRAMIA_METRICS=true`~~ | ✅ v0.6.5 — `ENGRAMIA_METRICS_TOKEN` Bearer guard |
+| ~~P1~~ | ~~DB~~ | ~~PK `memory_data`/`memory_embeddings` je jen `key` — ON CONFLICT přepisuje cizí scope~~ | ✅ v0.6.5 — `UNIQUE(tenant_id, project_id, key)`, migrace 009 |
+| ~~P2~~ | ~~Security~~ | ~~OIDC přijímá libovolný algoritmus z JWT hlavičky~~ | ✅ v0.6.5 — allowlist RS/ES/PS; `"none"` a HMAC odmítnuty |
+| ~~P2~~ | ~~Security~~ | ~~`{issues}` v `PromptEvolver` vstříknutý bez delimiteru~~ | ✅ v0.6.5 — `<recurring_issues>` wrapper |
+
+---
+
 ## Open Work
 
-### Pre-launch (Phase 4.6 — ongoing)
+### Pre-launch (Phase 6.5)
+
+#### Příprava prostředí — dev / test / preprod / PROD
+
+Vyžadováno před prvním releasem přes nový VCS-based versioning pipeline.
+
+**Dev (lokální)**
+- [ ] `pip install hatch-vcs` do dev prostředí (nebo `pip install -e ".[dev]"` — hatch-vcs je už v `build-system.requires`, takže se nainstaluje automaticky)
+- [ ] Ověřit, že `python -c "import engramia; print(engramia.__version__)"` vrací verzi z Git tagu (ne `0.0.0+dev`)
+- [ ] Vytvořit první annotated tag `v0.6.5` jako bootstrap: `git tag -a v0.6.5 -m "v0.6.5"` — od tohoto momentu celý versioning pipeline běží automaticky
+
+**Test (CI)**
+- [ ] Ověřit, že nový `version-consistency` job v `ci.yml` prochází na main větvi
+- [ ] Ověřit, že na tagovaném commitu job validuje paritu `tag == runtime`
+- [ ] Přidat `hatch-vcs` smoke: `python -m hatchling version` jako součást CI health checku
+
+**Preprod (staging — Hetzner `engramia-staging`)**
+- [ ] Sestavit image s build-args: `GIT_COMMIT`, `BUILD_TIME`, `APP_VERSION`
+- [ ] Ověřit OCI labels: `docker inspect ghcr.io/engramia/engramia:<tag> | jq '.[0].Config.Labels'`
+- [ ] Zavolat `GET /v1/version` na staging a ověřit, že `app_version`, `git_commit`, `build_time` odpovídají releasu
+
+**PROD (`api.engramia.dev`)**
+- [ ] Post-deploy smoke test v `docker.yml` hlídá `app_version == git tag` automaticky — ověřit, že job projde při prvním release po přechodu na hatch-vcs
+- [ ] Zkontrolovat, že `GET /v1/version` je dostupný bez autentizace (veřejný meta endpoint)
+- [ ] Přidat `/v1/version` do monitoring checklistu (Uptime Kuma nebo ekvivalent)
 
 #### Legal
 
@@ -109,6 +151,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 - [ ] Privacy Policy: add encryption at rest (§7), anonymization (§4.3)
 - [ ] DPA: add sub-processor list (§4.4) + public `/legal/subprocessors` page
 - [ ] Verify trade license active for invoicing
+- [ ] Verify all project email addresses exist and are monitored: `security@engramia.dev`, `legal@engramia.dev`, `sales@engramia.dev`
 
 #### Launch
 
@@ -120,11 +163,6 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 - [ ] Docker image public (`ghcr.io/engramia/engramia:latest`)
 - [ ] Launch blog post — "How self-learning agents achieve a 93% success rate"
 
-#### Agent Factory V2 — Phase 3
-
-- [ ] Inject Engramia context into architect prompt (`agents/architect.py`)
-- [ ] Inject Engramia feedback into coder prompt
-- [ ] Benchmark: success rate before/after Brain integration (baseline: 8.6→8.8)
 
 #### Deferred
 
@@ -134,14 +172,15 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 
 ### Phase 6 — Commercial Platform
 
-- [ ] Hosted SKU definition: OSS Core / Managed API / Team Plan / Enterprise Self-Hosted
-- [ ] Stripe billing integration (Team/Cloud tier)
-- [ ] Commercial licensing page — "Can I use this for X?" matrix
-- [ ] CLA / contributor policy (before accepting external PRs)
-- [ ] Dependency license inventory (transitive audit)
+- [x] Hosted SKU definition — Sandbox / Pro ($29) / Team ($99) / Enterprise Cloud + Developer License / Enterprise Self-hosted
+- [x] Stripe billing integration — `engramia/billing/`, migration 008, eval_runs metering + enforcement, overage opt-in
+- [x] Commercial licensing page — `docs/legal/licensing.html`, "Can I use this for X?" matrix, CTAs per tier
+- [x] CLA / contributor policy — `CONTRIBUTING.md`, no external PRs, bug reports via Issues
+- [x] Dependency license inventory — `docs/legal/dependency-licenses.md` + `.json`, 103 Python + 13 frontend packages, 0 blockers
 - [ ] Webhook notifications — Slack/Discord for events
 - [ ] YAML/TOML config file as optional override
 - [ ] Deep framework integrations — LangChain, CrewAI, OpenAI Agents SDK adapters
+- [x] Marketing website (engramia.dev) — integrate licensing page, pricing page, blog; replace static HTML stránky
 
 ### Phase 7 — Memory Architecture
 

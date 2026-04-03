@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.5] — 2026-04-04
+
+### Fixed — Security Audit P0–P2 (2026-04-04 audit)
+
+- **Role escalation (P0)** — `POST /v1/keys` now enforces a role hierarchy: admins may create at most `editor` keys; creating `admin` or `owner` keys requires the `owner` role. `_ROLE_RANK` + `_MAX_ASSIGNABLE` enforced at the API layer; returns HTTP 403 on violation.
+- **Bootstrap takeover (P0)** — `/v1/keys/bootstrap` is **disabled by default**. Set `ENGRAMIA_BOOTSTRAP_TOKEN` in the server environment to enable it. The supplied token is validated with `hmac.compare_digest`. All operations (count check + tenant/project/key insert) execute inside a single transaction protected by `pg_advisory_xact_lock` to eliminate the race condition.
+- **Cross-project delete (P0)** — `DELETE /v1/governance/projects/{project_id}` now verifies that non-owner roles can only delete their own project. Cross-project deletion requires the `owner` role; admins receive HTTP 403.
+- **`ALLOW_NO_AUTH` boolean parsing (P0)** — Dev mode now uses the same boolean parser as the rest of `auth.py` (`"true"/"1"/"yes"`). Strings like `"false"` or `"0"` no longer unlock unauthenticated access. Startup emits an audit-level warning when dev mode is active.
+- **Job traceback leak (P0)** — `JobService` now logs full tracebacks server-side only. The `error` field stored in DB and returned by the jobs API contains only the sanitized `ExcType: message` string.
+- **Redaction not wired (P1)** — `RedactionPipeline.default()` is now injected into `Memory` in the app factory by default. Disable with `ENGRAMIA_REDACTION=false` (dev/local only; logs a security warning).
+- **Unprotected `/metrics` (P1)** — When `ENGRAMIA_METRICS=true`, the endpoint now requires a Bearer token if `ENGRAMIA_METRICS_TOKEN` is set. Without a token configured, startup logs a security warning.
+- **Postgres scope isolation (P1)** — `memory_data` and `memory_embeddings` now have composite `UNIQUE(tenant_id, project_id, key)` constraints. `ON CONFLICT` in `postgres.py` updated to target the scope-aware constraint, preventing cross-tenant/project row collisions. Migration `009_scope_key_uniqueness`.
+- **OIDC algorithm confusion (P2)** — Explicit allowlist: only `RS256/384/512`, `ES256/384/512`, `PS256/384/512` are accepted. `"none"`, HMAC, and unknown algorithms are rejected with HTTP 401. Missing tenant/project claims log a warning instead of silently falling back to `"default"`.
+- **Prompt injection in evolver (P2)** — `{issues}` in `PromptEvolver` is now wrapped in `<recurring_issues>` XML delimiters, matching the delimiter style already used in `composer.py` and `evaluator.py`.
+
+---
+
 ## [0.6.4] — 2026-04-03
 
 ### Added — Benchmark Suite (Phase 4.6)
