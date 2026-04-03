@@ -45,16 +45,19 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | 4.6 | v0.5.1–0.5.3 | Branding, CI/CD, docs, Hetzner deploy, CrewAI + MCP, Agent Factory V2, EngramiaBridge SDK, recall quality suite |
 | 5.0 | v0.5.3+ | Positioning reset — README, feature labels, ICP, naming cleanup |
 | 5.1 + 5.2 | v0.5.4 | Multi-tenancy (scope isolation via contextvars), RBAC (4 roles), DB API key management, quota enforcement, migration 003 — 462 tests / 78.51% |
-| 5.4 | unreleased | Async job queue (`SKIP LOCKED`), `JobWorker`, dual-mode `Prefer: respond-async`, provider timeouts, migration 004 — 537 tests / 77.81% |
-| 5.5 | unreleased | Observability — `engramia/telemetry/`, OTel `@traced`, Prometheus `/metrics`, JSON logging, `GET /v1/health/deep`, request_id propagation, migration 005 — 560 tests / 77.76% |
-| 5.6 | unreleased | Data governance — `engramia/governance/`, PII redaction, retention policies, scoped delete/export (GDPR Art. 17/20), provenance metadata, lifecycle jobs, migration 006 — 656 tests / 78.70% |
-| 5.7 | unreleased | ROI analytics — `engramia/analytics/`, `ROICollector` (fire-and-ignore in learn/recall), `ROIAggregator` (hourly/daily/weekly rollups, composite ROI score), Analytics REST API (`/v1/analytics/rollup`, `/v1/analytics/events`), `analytics:read/rollup` permissions — 629 tests / 77.18% |
-| 5.3 | unreleased | Admin dashboard — Next.js 15 static export (10 pages), typed API client, RBAC sidebar, TanStack Query, Recharts charts, Tailwind dark theme; FastAPI `/dashboard` static mount |
-| 5.8 | unreleased | Architecture cleanup + test coverage — service decomposition (`Memory` → thin facade, 4 service classes), PostgreSQL integration tests (30 tests, `testcontainers`), LLM error path tests, concurrent JSONStorage tests, analytics unit tests (34 tests), narrowed `except Exception`, `ENGRAMIA_ENVIRONMENT` dev-mode guard — 726 tests / 80.29% |
+| 5.4 | v0.5.5 | Async job queue (`SKIP LOCKED`), `JobWorker`, dual-mode `Prefer: respond-async`, provider timeouts, migration 004 — 537 tests / 77.81% |
+| 5.5 | v0.5.6 | Observability — `engramia/telemetry/`, OTel `@traced`, Prometheus `/metrics`, JSON logging, `GET /v1/health/deep`, request_id propagation, migration 005 — 560 tests / 77.76% |
+| 5.6 | v0.5.7 | Data governance — `engramia/governance/`, PII redaction, retention policies, scoped delete/export (GDPR Art. 17/20), provenance metadata, lifecycle jobs, migration 006 — 656 tests / 78.70% |
+| 5.7 | v0.5.8 | ROI analytics — `engramia/analytics/`, `ROICollector` (fire-and-ignore in learn/recall), `ROIAggregator` (hourly/daily/weekly rollups, composite ROI score), Analytics REST API (`/v1/analytics/rollup`, `/v1/analytics/events`), `analytics:read/rollup` permissions — 629 tests / 77.18% |
+| 5.3 | v0.5.9 | Admin dashboard — Next.js 15 static export (10 pages), typed API client, RBAC sidebar, TanStack Query, Recharts charts, Tailwind dark theme; FastAPI `/dashboard` static mount |
+| 5.8 | v0.6.0 | Architecture cleanup + test coverage — service decomposition (`Memory` → thin facade, 4 service classes), PostgreSQL integration tests (30 tests, `testcontainers`), LLM error path tests, concurrent JSONStorage tests, analytics unit tests (34 tests), narrowed `except Exception`, `ENGRAMIA_ENVIRONMENT` dev-mode guard — 726 tests / 80.29% |
+| 5.9 | v0.6.1 | Enterprise Trust Pack — OIDC SSO (`engramia[oidc]`, PyJWT + JWKS), security architecture doc, data handling doc, production hardening guide, backup/restore playbook (RTO 4h/RPO 24h), incident response runbook, SOC 2 control mapping |
+| audit fixes | v0.6.2–0.6.3 | Resolved all P1–P2 findings from 2026-04-02 audit (auth fallback, cross-tenant feedback leak, analytics race, test coverage, job durability, embedding metadata, RBAC in env mode) |
+| 4.6 | v0.6.4 | Benchmark suite — reproducible recall quality validation; 12 realistic agent domains, 254 tasks, auto-calibrated thresholds; full_library 98.8% success rate validates Agent Factory V2 93% claim |
 
 ---
 
-## Audit Findings (2026-03-28, score 78/100)
+## Audit Findings (2026-03-28, score 78/100) — all resolved
 
 | P | Area | Finding | Status |
 |---|------|---------|--------|
@@ -76,6 +79,23 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 
 ---
 
+## Audit Findings (2026-04-02, score 83/100)
+
+| P | Area | Finding | Status |
+|---|------|---------|--------|
+| ~~P1~~ | ~~Security~~ | ~~Unauthenticated fallback still active when `ENGRAMIA_API_KEYS` empty in env auth mode — `auth.py:82-85, 223-232`~~ | ✅ v0.6.2 |
+| ~~P1~~ | ~~Multi-tenancy~~ | ~~`test_feedback_not_visible_across_tenants` fails — cross-tenant feedback leak in `EvalFeedbackStore`~~ | ✅ v0.6.2 |
+| ~~P1~~ | ~~Analytics~~ | ~~ROI `_append()` is read-modify-write race — concurrent writes silently lose events (`collector.py:131-135`)~~ | ✅ v0.6.2 |
+| ~~P1~~ | ~~Tests~~ | ~~43 failures + 60 errors in snapshot; optional deps (`sentence-transformers`) not gated with pytest markers~~ | ✅ v0.6.2 — `pytest.importorskip` in recall_quality + test_features conftest |
+| ~~P2~~ | ~~Tests~~ | ~~`postgres.py` 21% coverage; `api/keys.py` 63%; `jobs/service.py` 64%; `api/analytics.py` 35%~~ | ✅ v0.6.3 — `test_postgres_storage_unit.py` (22 tests), `test_jobs_service.py` (36 tests) |
+| ~~P2~~ | ~~Tests~~ | ~~`oidc.py`, `prom_metrics.py`, `mcp/server.py`, `telemetry/logging.py` all at 0%~~ | ✅ v0.6.2 — tests for prom_metrics + telemetry/logging; oidc + mcp marked experimental |
+| ~~P2~~ | ~~Security~~ | ~~`.gitignore` missing `*.pem`, `*.key`, `*.crt`, `*.p12`, `credentials*`~~ | ✅ v0.6.2 |
+| ~~P2~~ | ~~Async~~ | ~~Async job layer is not durable (no crash recovery, no backpressure) — `jobs/service.py`~~ | ✅ v0.6.3 — `_recover_orphaned_jobs()` při startu (DB mód); in-memory best-effort warning |
+| ~~P2~~ | ~~Embedding~~ | ~~No embedding model/provider/version metadata stored — breaks reindex after model change~~ | ✅ v0.6.3 — `Memory._check_embedding_config()` + `engramia reindex` CLI |
+| ~~P2~~ | ~~RBAC~~ | ~~In env/dev mode RBAC is a no-op — dangerous for any serious deployment~~ | ✅ v0.6.3 — `ENGRAMIA_ENV_AUTH_ROLE` (default: owner, backward compat), `auth_context` nastaven v env módu |
+
+---
+
 ## Open Work
 
 ### Pre-launch (Phase 4.6 — ongoing)
@@ -93,7 +113,6 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 #### Launch
 
 - [ ] Anthropic API key on VM (for Anthropic provider in production)
-- [ ] Benchmark suite — reproduce Agent Factory V2 results (93% success rate baseline)
 - [ ] Final README review
 - [ ] Switch repo to public
 - [ ] PyPI environment protection → release trigger in `publish.yml`
@@ -110,56 +129,6 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 #### Deferred
 
 - [ ] **Model routing** module — data-driven model selection per role/task-type
-
----
-
-### Phase 5.3 — Admin Dashboard + Analytics UI  ✅ complete
-
-> Goal: transform from "just a library" into a commercially credible product with visible ROI.
-
-**Technology:** Next.js 15 (App Router, static export) + React 19 + TypeScript + Tailwind CSS 4 + Recharts + TanStack Query.
-
-- [x] Core views: overview (KPIs + health + ROI chart + activity), patterns, analytics, evaluations
-- [x] API key management UI — create, rotate, revoke (`/v1/keys`)
-- [x] Pattern explorer — semantic search, table, detail view, classify, delete
-- [x] Eval history — scores over time, variance alerts, recurring feedback
-- [x] **Analytics API** — backend data from Phase 5.7 ✅, dashboard reads `/v1/analytics/rollup` + `/v1/analytics/events`
-- [x] **Dashboard integration** — ROI score chart, recall breakdown, eval distribution, top-pattern leaderboard, event stream
-- [x] Deploy — static site bundled with API via `FastAPI.mount("/dashboard", StaticFiles(...))`
-- [x] Governance page — retention policy, NDJSON export, scoped delete
-- [x] Jobs page — status table, auto-refresh, cancel, detail modal
-- [x] Audit page — event viewer (requires GET /v1/audit endpoint)
-- [x] RBAC-aware sidebar — nav items hidden per role permissions
-
----
-
-### Phase 5.8 — Architecture Cleanup + Test Coverage  ✅ complete
-
-> Goal: remove technical debt that blocks enterprise sales and long-term maintainability.
-
-**Files:** `engramia/memory.py`, `engramia/core/eval_feedback.py`, `tests/`
-
-- [x] **Service decomposition** — extracted `LearningService`, `RecallService`, `EvaluationService`, `CompositionService` into `engramia/core/services/`; `Memory` is now a thin facade (~165 LOC) delegating all business logic to services
-- [x] **Fix broad exception handling** — replaced bare `except Exception` with specific types in `prompt_evolver.py`, `composer.py`, `matcher.py`; `evaluator.py` kept broad with `# noqa: BLE001` + justification (provider-agnostic retry aggregation)
-- [x] **Dev mode safety** — `ENGRAMIA_ENVIRONMENT` startup guard in `app.py`; `sys.exit(1)` if `AUTH_MODE=dev` in non-local environment
-- [x] **PostgreSQL test coverage** — 30 tests via `testcontainers[postgres]` (`pgvector/pgvector:pg16`); covers save/load, list_keys, delete, embeddings, scope isolation, LIKE escape, governance metadata, delete_scope
-- [x] **LLM error path tests** — `ConnectionError`, `TimeoutError`, malformed JSON, concurrent failures, `ProviderError` propagation, partial-success aggregation
-- [x] **Concurrent JSONStorage tests** — `ThreadPoolExecutor` + `threading.Barrier` stress tests for `save`, `save_embedding`, `list_keys`, `search_similar`, `delete`
-- [x] **Analytics unit tests** — 34 tests for `ROICollector` fire-and-ignore, `ROIAggregator` rollup math, `_compute_rollup` formula, scope filtering
-
----
-
-### Phase 5.9 — Enterprise Trust Pack  `P2`
-
-> Goal: unblock enterprise pilots that require security documentation before signing.
-
-- [ ] Security architecture document — system overview, trust boundaries, data flow diagram
-- [ ] Data handling document — what is stored, how, where, retention
-- [ ] Deployment hardening guide — production checklist beyond Docker basics
-- [ ] Backup/restore playbook — automated backups, RTO/RPO targets
-- [ ] Incident response playbook — IR process, contact points, escalation path
-- [ ] SSO/OIDC integration (optional enterprise auth)
-- [ ] SOC 2 controls implemented (no formal cert yet)
 
 ---
 
@@ -205,7 +174,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | Phase | KPI | Target |
 |-------|-----|--------|
 | 4.6 | PyPI weekly downloads | tracking starts at launch |
-| 4.6 | Benchmark: success rate improvement | ≥15% vs baseline |
+| ~~4.6~~ | ~~Benchmark: success rate improvement~~ | ✅ +93.3 pp vs cold start (5.5% → 98.8%) |
 | ~~5.1~~ | ~~Tenant isolation~~ | ✅ Cross-tenant leak = 0 |
 | ~~5.2~~ | ~~RBAC~~ | ✅ Role-based tests PASS |
 | ~~5.3~~ | ~~Admin UI~~ | ✅ 10 pages, 35 files, static export builds |
@@ -214,6 +183,6 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes per phase.
 | ~~5.6~~ | ~~Data governance~~ | ✅ Retention + scoped delete + PII redaction + NDJSON export |
 | ~~5.7~~ | ~~ROI analytics~~ | ✅ ROI events collected; rollup API live |
 | ~~5.8~~ | ~~Architecture cleanup~~ | ✅ Service decomposition + 726 tests / 80.29% coverage |
-| 5.9 | Enterprise trust | Security architecture doc complete |
+| ~~5.9~~ | ~~Enterprise trust~~ | ✅ Security architecture + data handling + IR playbook + SOC 2 mapping + OIDC SSO |
 | 7 | Memory architecture | Knowledge graph + taxonomy |
 | 8 | Multimodal | ≥1 non-text modality supported |

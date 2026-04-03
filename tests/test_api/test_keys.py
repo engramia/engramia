@@ -193,6 +193,33 @@ class TestListKeys:
         assert resp.status_code == 200
         assert resp.json() == {"keys": []}
 
+    def test_list_returns_keys_with_fields(self):
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.fetchall.return_value = [
+            ("key-id-1", "CI Key", "engramia_sk_abc12345...", "editor",
+             "default", "default", 100, "2026-01-01T00:00:00", None, None, None),
+        ]
+        engine = MagicMock()
+        engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        app = _make_keys_app(engine=engine)
+        client = TestClient(app)
+        resp = client.get("/keys")
+        assert resp.status_code == 200
+        keys = resp.json()["keys"]
+        assert len(keys) == 1
+        assert keys[0]["id"] == "key-id-1"
+        assert keys[0]["role"] == "editor"
+        assert keys[0]["max_patterns"] == 100
+
+    def test_reader_cannot_list_keys(self):
+        engine = MagicMock()
+        app = _make_keys_app(engine=engine, role="reader")
+        client = TestClient(app)
+        resp = client.get("/keys")
+        assert resp.status_code == 403
+
 
 # ---------------------------------------------------------------------------
 # Revoke key endpoint
@@ -225,6 +252,42 @@ class TestRevokeKey:
         resp = client.delete("/keys/already-revoked-id")
         assert resp.status_code == 409
 
+    def test_revoke_success_returns_200(self):
+        key_hash = hashlib.sha256(b"active-key").hexdigest()
+
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.fetchone.return_value = (key_hash, None)
+        engine = MagicMock()
+        engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        begin_inner = MagicMock()
+        begin_ctx = MagicMock()
+        begin_ctx.__enter__ = MagicMock(return_value=begin_inner)
+        begin_ctx.__exit__ = MagicMock(return_value=False)
+        engine.begin.return_value = begin_ctx
+
+        app = _make_keys_app(engine=engine)
+        client = TestClient(app)
+        resp = client.delete("/keys/active-key-id")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == "active-key-id"
+        assert data["revoked"] is True
+
+    def test_revoke_returns_503_without_engine(self):
+        app = _make_keys_app(engine=None)
+        client = TestClient(app)
+        resp = client.delete("/keys/some-id")
+        assert resp.status_code == 503
+
+    def test_reader_cannot_revoke(self):
+        engine = MagicMock()
+        app = _make_keys_app(engine=engine, role="reader")
+        client = TestClient(app)
+        resp = client.delete("/keys/some-id")
+        assert resp.status_code == 403
+
 
 # ---------------------------------------------------------------------------
 # Rotate key endpoint
@@ -243,6 +306,31 @@ class TestRotateKey:
         client = TestClient(app)
         resp = client.post("/keys/nonexistent-id/rotate")
         assert resp.status_code == 404
+
+    def test_rotate_returns_409_when_key_already_revoked(self):
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.fetchone.return_value = ("some-hash", "2026-01-01")
+        engine = MagicMock()
+        engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        app = _make_keys_app(engine=engine)
+        client = TestClient(app)
+        resp = client.post("/keys/revoked-key-id/rotate")
+        assert resp.status_code == 409
+
+    def test_rotate_returns_503_without_engine(self):
+        app = _make_keys_app(engine=None)
+        client = TestClient(app)
+        resp = client.post("/keys/some-id/rotate")
+        assert resp.status_code == 503
+
+    def test_reader_cannot_rotate(self):
+        engine = MagicMock()
+        app = _make_keys_app(engine=engine, role="reader")
+        client = TestClient(app)
+        resp = client.post("/keys/some-id/rotate")
+        assert resp.status_code == 403
 
     def test_rotate_success_returns_200_with_new_key(self):
         old_hash = hashlib.sha256(b"old-key").hexdigest()

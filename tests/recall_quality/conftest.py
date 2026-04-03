@@ -330,6 +330,10 @@ def client(tmp_path_factory, run_tag):
         return TestClient(backend, mode="remote")
 
     # Local mode — isolated tmp storage per session
+    pytest.importorskip(
+        "sentence_transformers",
+        reason="sentence-transformers not installed; run: pip install engramia[local]",
+    )
     from engramia import Memory
     from engramia.providers import JSONStorage
     from engramia.providers.local_embeddings import LocalEmbeddings

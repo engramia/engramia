@@ -82,3 +82,37 @@ class TestImportData:
         after = mem.export()
         assert len(after) == 1
         assert after[0]["data"]["task"] == "Roundtrip task"
+
+    def test_import_rejects_future_version(self, mem):
+        """Records with a version newer than _EXPORT_VERSION must be skipped."""
+        future_record = {
+            "version": 9999,
+            "key": "patterns/future",
+            "data": {"task": "future task", "code": "future()", "eval_score": 8.0},
+        }
+        imported = mem.import_data([future_record])
+        assert imported == 0
+
+    def test_import_accepts_current_version(self, mem):
+        from engramia.memory import _EXPORT_VERSION
+
+        record = {
+            "version": _EXPORT_VERSION,
+            "key": "patterns/current_ver",
+            "data": {
+                "task": "versioned task",
+                "code": "versioned()",
+                "success_score": 8.0,
+                "reuse_count": 0,
+                "timestamp": 0.0,
+            },
+        }
+        imported = mem.import_data([record])
+        assert imported == 1
+
+    def test_export_version_matches_constant(self, mem):
+        from engramia.memory import _EXPORT_VERSION
+
+        mem.learn(task="Version constant check", code="pass", eval_score=7.0)
+        records = mem.export()
+        assert records[0]["version"] == _EXPORT_VERSION

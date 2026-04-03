@@ -7,7 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — Phase 5.8
+## [0.6.4] — 2026-04-03
+
+### Added — Benchmark Suite (Phase 4.6)
+
+- **`benchmarks/` package** — reproducible benchmark suite validating the 93% task success rate claim from Agent Factory V2 (254 runs). No API keys required; runs locally with `all-MiniLM-L6-v2` embeddings.
+- **12 realistic agent domains** (`benchmarks/snippets/a01–a12`) — code generation, bug diagnosis, test generation, refactoring, data pipeline/ETL, API integration, infrastructure/IaC, database migration, security hardening, documentation, performance optimization, CI/CD deployment. Each domain has 3 code quality tiers (good/medium/bad) with realistic agent-generated code.
+- **254-task dataset** (`benchmarks/dataset.py`) — 210 in-domain tasks (5 variants + paraphrases per domain), 30 boundary tasks (cross-domain), 14 noise tasks (completely unrelated). Ground truth labels with `expected_domains` per task.
+- **Auto-calibration** (`BenchmarkRunner.calibrate()`) — computes intra-domain vs cross-domain similarity distributions at startup to derive model-appropriate thresholds. Works correctly with both local MiniLM-L6-v2 (384-dim) and OpenAI `text-embedding-3-small` (1536-dim) without manual tuning.
+- **Three benchmark scenarios** — `cold_start` (no memory, baseline), `warm_up` (12 patterns, 1 per domain), `full_library` (36 patterns, 3 per domain). Full library validates the 93% claim.
+- **CLI** (`python -m benchmarks`) — `--scenario {all,cold,warm,full}`, `--clean` (purge previous results), `--keep` (preserve temp storage), `--output DIR`, `--validate` (dataset integrity check). Exit code 1 if success rate < 90%.
+- **Timestamped JSON results** (`benchmarks/results/`) — per-run metrics including precision@1, recall hits, quality rank, boundary matching, noise rejection, git metadata, calibration parameters.
+- **`benchmarks/README.md`** — public methodology documentation for external audit.
+
+**Benchmark results (all-MiniLM-L6-v2, 2026-04-03):**
+
+| Scenario | Patterns | Success rate | Precision@1 |
+|----------|----------|-------------|-------------|
+| Cold start | 0 | 5.5% | 0% |
+| Warm-up | 12 | 94.0% | 94.6% |
+| Full library | 36 | **98.8%** | **98.8%** |
+
+Agent Factory V2 claim (93%) **VALIDATED**.
+
+---
+
+## [0.6.3] — 2026-04-03
+
+### Fixed — Audit Findings P2 (2026-04-02 audit)
+
+- **PostgreSQL coverage** — `tests/test_postgres_storage_unit.py` (22 tests), `tests/test_jobs_service.py` (36 tests) — `postgres.py` and `jobs/service.py` coverage brought to acceptable levels.
+- **Zero-coverage modules** — `tests/test_prom_metrics.py`, `tests/test_telemetry_logging.py` added; `oidc.py` and `mcp/server.py` marked experimental (no coverage requirement).
+- **Async job durability** — `JobService._recover_orphaned_jobs()` called on startup in DB mode; in-memory mode logs a best-effort warning.
+- **Embedding metadata** — `Memory._check_embedding_config()` validates dimension consistency on startup; `engramia reindex` CLI command added to support model migration.
+- **RBAC in env/dev mode** — `ENGRAMIA_ENV_AUTH_ROLE` env var (default: `owner`, backward compatible); `auth_context` populated in env mode so RBAC checks are enforced consistently.
+- **`.gitignore`** — added `*.pem`, `*.key`, `*.crt`, `*.p12`, `credentials*`, `secrets*`.
+
+---
+
+## [0.6.2] — 2026-04-03
+
+### Fixed — Audit Findings P1 (2026-04-02 audit)
+
+- **Auth** — unauthenticated fallback disabled when `ENGRAMIA_API_KEYS` is empty in env auth mode (`auth.py:82-85, 223-232`); empty key list now returns 401.
+- **Multi-tenancy** — cross-tenant feedback leak in `EvalFeedbackStore` resolved; storage keys now always scoped to `tenant_id/project_id`.
+- **Analytics** — `ROICollector._append()` race condition fixed with `threading.Lock`; concurrent writes no longer silently drop events.
+- **Tests** — `pytest.importorskip` guards added to `recall_quality/conftest.py` and `test_features/conftest.py` for `sentence-transformers`; `local_embeddings` pytest marker registered. Test suite runs cleanly without optional deps.
+
+---
+
+## [0.6.1] — 2026-04-02
+
+### Added — Enterprise Trust Pack (Phase 5.9)
+
+- **`engramia/api/oidc.py`** — OIDC JWT authentication mode (`ENGRAMIA_AUTH_MODE=oidc`). Validates RS256/ECDSA Bearer tokens against any standards-compliant IdP (Okta, Auth0, Azure AD, Keycloak). JWKS keys fetched from `{issuer}/.well-known/jwks.json` and cached 1 hour. Role mapped from configurable JWT claim (`ENGRAMIA_OIDC_ROLE_CLAIM`); tenant/project optionally from JWT claims. Requires `pip install "engramia[oidc]"` (`PyJWT>=2.8` + `cryptography>=42.0`).
+- **`auth.py`** — extended `require_auth` with `oidc` branch; `_use_db_auth()` skips DB for `oidc` mode.
+- **`pyproject.toml`** — `[oidc]` optional extra added.
+- **`docs/security-architecture.md`** — system boundary diagram, trust model, auth mode table, RBAC, token security, multi-tenancy isolation, transport security, input validation, data at rest/transit, audit events, rate limiting, secrets management, known limitations.
+- **`docs/data-handling.md`** — complete data model (what is stored, where, how), data lifecycle (retention, aging, deletion), GDPR portability, PII redaction, data classification, sub-processor list, RTO/RPO summary.
+- **`docs/production-hardening.md`** — pre-deployment checklist, network hardening (Caddy, firewall, PostgreSQL), Docker security options, resource limits, log rotation, monitoring (healthcheck, Prometheus, OTel), periodic maintenance schedule, secret rotation procedures, disk management.
+- **`docs/backup-restore.md`** — manual + automated daily `pg_dump` to Hetzner Object Storage, cron script, weekly integrity verification, full restore procedure (maintenance mode → pg_restore → migrations), JSON storage backup, RTO/RPO targets (4h / 24h), pre-migration backup mandatory step.
+- **`docs/runbooks/incident-response.md`** — severity levels (P0–P3), contact points, P0 response playbooks (API down, data breach/key compromise, DB corruption), P1 response (high latency, backup failure), GDPR 72-hour notification reminder, blameless post-mortem template, SOC 2 incident classification.
+- **`docs/soc2-controls.md`** — SOC 2 Type II control mapping for CC1–CC9, A1, PI1, C1; gap summary (P1: no formal audit, P1: no SIEM; P2: pen test, vendor questionnaires); reviewer summary (EU data residency, GDPR implemented, 80.29% test coverage).
+
+---
+
+## [0.6.0] — 2026-04-02
 
 ### Added — Architecture Cleanup + Test Coverage (Phase 5.8)
 
@@ -32,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — Phase 5.3
+## [0.5.9] — 2026-04-02
 
 ### Added — Admin Dashboard (Phase 5.3)
 
@@ -51,7 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — Phase 5.7
+## [0.5.8] — 2026-03-30
 
 ### Added — ROI Analytics + Evidence Layer (Phase 5.7)
 
@@ -68,7 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — Phase 5.6
+## [0.5.7] — 2026-03-30
 
 ### Added — Data Governance + Privacy (Phase 5.6)
 
@@ -91,7 +156,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — Phase 5.4 + 5.5
+## [0.5.6] — 2026-03-29
 
 ### Added — Observability + Telemetry (Phase 5.5)
 
@@ -109,7 +174,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`[telemetry]` optional dep group** — `opentelemetry-api/sdk>=1.20`, `opentelemetry-exporter-otlp-proto-grpc`, `opentelemetry-instrumentation-fastapi`, `prometheus-client>=0.20`, `python-json-logger>=2.0`; included in `[all]`.
 - **23 new tests** — request_id contextvar, middleware (UUID generation, caller-supplied ID), health probes (storage/LLM/embedding), aggregate status logic, deep health endpoint, tracing decorator, metrics no-ops. 560 tests total, 77.76% coverage.
 
-### Added — Async job layer (Phase 5.4)
+---
+
+## [0.5.5] — 2026-03-29
+
+### Added — Async Job Layer (Phase 5.4)
 
 - **DB-backed async job queue** — `engramia/jobs/` package using PostgreSQL `SELECT … FOR UPDATE SKIP LOCKED`; in-memory fallback for JSON storage mode. No Redis or Celery required.
 - **`JobService`** — submit, get, list, cancel, poll-and-execute, reap-expired. Tenant/project scoped. Exponential backoff (2^attempt seconds) on failure; dead-letter after `max_attempts` (default 3).

@@ -38,6 +38,7 @@ class AuditEvent(StrEnum):
     SCOPE_EXPORTED = "scope_exported"
     RETENTION_APPLIED = "retention_applied"
     PII_REDACTED = "pii_redacted"
+    DATA_EXPORTED = "data_exported"
 
 
 def log_event(event: AuditEvent, **kwargs: Any) -> None:

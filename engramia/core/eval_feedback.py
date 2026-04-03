@@ -14,12 +14,13 @@ import logging
 import re
 import time
 
+from engramia._context import get_scope
 from engramia._util import jaccard
 from engramia.providers.base import StorageBackend
 
 _log = logging.getLogger(__name__)
 
-_KEY = "feedback/_list"
+_KEY_PREFIX = "feedback"
 _MAX_KEEP = 50
 _MAX_FEEDBACK_LEN = 5000
 _DECAY_PER_WEEK = 0.90  # 10% decay per week (faster than success patterns)
@@ -44,6 +45,11 @@ class EvalFeedbackStore:
 
     def __init__(self, storage: StorageBackend) -> None:
         self._storage = storage
+
+    def _key(self) -> str:
+        """Return a scope-aware storage key for this tenant/project."""
+        scope = get_scope()
+        return f"{_KEY_PREFIX}/{scope.tenant_id}/{scope.project_id}/_list"
 
     # ------------------------------------------------------------------
     # Write
@@ -75,20 +81,20 @@ class EvalFeedbackStore:
                 p["count"] += 1
                 p["score"] = min(p["score"] + 0.1, 1.0)
                 p["last_seen"] = now_iso
-                self._storage.save(_KEY, patterns)
+                self._storage.save(self._key(), patterns)
                 return
 
         patterns.append(
             {"pattern": feedback_text.strip(), "count": 1, "score": 0.5, "last_seen": now_iso, "last_decayed": now_iso}
         )
         patterns = patterns[-_MAX_KEEP:]
-        self._storage.save(_KEY, patterns)
+        self._storage.save(self._key(), patterns)
 
     # ------------------------------------------------------------------
     # Read
     # ------------------------------------------------------------------
 
-    def get_top(self, n: int = 5, task_type: str | None = None) -> list[str]:
+    def get_top(self, n: int = 5, task_type: str | None = None, offset: int = 0) -> list[str]:
         """Return the most relevant recurring feedback strings.
 
         Only patterns with count >= 2 are returned (avoids one-offs).
@@ -97,6 +103,7 @@ class EvalFeedbackStore:
             n: Maximum number of feedback strings to return.
             task_type: Optional filter — only return patterns whose text
                 contains the task_type string (case-insensitive).
+            offset: Number of results to skip (for pagination).
 
         Returns:
             List of feedback strings sorted by relevance.
@@ -108,7 +115,7 @@ class EvalFeedbackStore:
             recurring = [p for p in recurring if task_type.lower() in p["pattern"].lower()]
 
         recurring.sort(key=lambda p: p["score"] * p["count"], reverse=True)
-        return [p["pattern"] for p in recurring[:n]]
+        return [p["pattern"] for p in recurring[offset : offset + n]]
 
     # ------------------------------------------------------------------
     # Decay
@@ -134,7 +141,7 @@ class EvalFeedbackStore:
                 surviving.append(p)
 
         pruned = len(patterns) - len(surviving)
-        self._storage.save(_KEY, surviving)
+        self._storage.save(self._key(), surviving)
         return pruned
 
     # ------------------------------------------------------------------
@@ -142,7 +149,7 @@ class EvalFeedbackStore:
     # ------------------------------------------------------------------
 
     def _load_raw(self) -> list:
-        data = self._storage.load(_KEY)
+        data = self._storage.load(self._key())
         return data if isinstance(data, list) else []
 
 

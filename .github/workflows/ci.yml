@@ -46,3 +46,29 @@ jobs:
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for trufflehog
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,openai,api,cli]"
+
+      - name: Dependency audit (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit --strict --desc
+
+      - name: Secret scanning (trufflehog)
+        uses: trufflesecurity/trufflehog@v3.88.17
+        with:
+          extra_args: --only-verified

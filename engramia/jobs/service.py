@@ -43,6 +43,12 @@ class JobService:
         # In-memory fallback for JSON storage / tests
         self._mem_store: dict[str, dict] = {}
 
+        if engine is None:
+            _log.warning(
+                "Async jobs running in best-effort in-memory mode — jobs are lost on crash. "
+                "Configure ENGRAMIA_DATABASE_URL for durable job execution."
+            )
+
     @property
     def _use_db(self) -> bool:
         return self._engine is not None

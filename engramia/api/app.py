@@ -26,8 +26,10 @@ Security configuration:
     ENGRAMIA_CORS_ORIGINS       comma-separated allowed origins (default: none)
     ENGRAMIA_RATE_LIMIT_DEFAULT requests/min for regular endpoints (default: 60)
     ENGRAMIA_RATE_LIMIT_EXPENSIVE requests/min for LLM endpoints (default: 10)
+    ENGRAMIA_RATE_LIMIT_PER_KEY total requests/min per API key across all paths (default: 120)
     ENGRAMIA_MAX_BODY_SIZE      max request body in bytes (default: 1048576 = 1MB)
     ENGRAMIA_ALLOW_NO_AUTH      required when ENGRAMIA_AUTH_MODE=dev
+    ENGRAMIA_LLM_CONCURRENCY    max parallel LLM provider calls (default: 10)
 
 Run:
     uvicorn engramia.api.app:create_app --factory
@@ -77,7 +79,13 @@ def _log_security_config() -> None:
     elif auth_mode in ("db", "auto") and db_url_set:
         _log.info("SECURITY: DB auth enabled (ENGRAMIA_AUTH_MODE=%s).", auth_mode)
     elif api_keys_set:
-        _log.info("SECURITY: Env-var auth enabled (ENGRAMIA_API_KEYS).")
+        env_role = os.environ.get("ENGRAMIA_ENV_AUTH_ROLE", "owner").lower()
+        _log.info("SECURITY: Env-var auth enabled (ENGRAMIA_API_KEYS), role=%s.", env_role)
+        if env_role == "owner":
+            _log.warning(
+                "SECURITY: ENGRAMIA_ENV_AUTH_ROLE=owner — all API key holders have full access. "
+                "Set ENGRAMIA_ENV_AUTH_ROLE=editor|admin for multi-user deployments."
+            )
     else:
         _log.warning(
             "SECURITY WARNING: No auth configured — API is unauthenticated. "
@@ -98,10 +106,12 @@ def _log_security_config() -> None:
     max_body = int(os.environ.get("ENGRAMIA_MAX_BODY_SIZE", str(1024 * 1024)))
     rate_default = int(os.environ.get("ENGRAMIA_RATE_LIMIT_DEFAULT", "60"))
     rate_expensive = int(os.environ.get("ENGRAMIA_RATE_LIMIT_EXPENSIVE", "10"))
+    rate_per_key = int(os.environ.get("ENGRAMIA_RATE_LIMIT_PER_KEY", "120"))
     _log.info(
-        "SECURITY: rate_limit=%d/min (LLM-intensive=%d/min), max_body=%d bytes",
+        "SECURITY: rate_limit=%d/min (LLM-intensive=%d/min, per-key=%d/min), max_body=%d bytes",
         rate_default,
         rate_expensive,
+        rate_per_key,
         max_body,
     )
 
@@ -139,6 +149,36 @@ def _make_auth_engine():
         return None
 
 
+def _recover_orphaned_jobs(engine) -> None:
+    """Reset 'running' jobs that were interrupted by a crash to 'pending'.
+
+    Called at startup with the job engine. Any job that has been in 'running'
+    state for more than 10 minutes is treated as orphaned and reset so the
+    worker can retry it.
+    """
+    import time
+
+    from sqlalchemy import text
+
+    cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 600))
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    "UPDATE jobs SET status = 'pending', started_at = NULL "
+                    "WHERE status = 'running' AND started_at < :cutoff"
+                ),
+                {"cutoff": cutoff},
+            )
+        if result.rowcount:
+            _log.warning(
+                "Crash recovery: reset %d orphaned 'running' job(s) to 'pending'.",
+                result.rowcount,
+            )
+    except Exception as exc:
+        _log.warning("Crash recovery query failed (non-fatal): %s", exc)
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -174,6 +214,7 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     from engramia.api.middleware import (
         BodySizeLimitMiddleware,
+        MaintenanceModeMiddleware,
         RateLimitMiddleware,
         SecurityHeadersMiddleware,
     )
@@ -188,6 +229,7 @@ def create_app() -> FastAPI:
             allow_methods=["GET", "POST", "PUT", "DELETE"],
             allow_headers=["Authorization", "Content-Type"],
         )
+    app.add_middleware(MaintenanceModeMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     # Telemetry middleware (innermost of the outer stack so request_id is
     # available to all handlers; timing wraps the actual route dispatch).
@@ -199,7 +241,13 @@ def create_app() -> FastAPI:
 
     rate_default = int(os.environ.get("ENGRAMIA_RATE_LIMIT_DEFAULT", "60"))
     rate_expensive = int(os.environ.get("ENGRAMIA_RATE_LIMIT_EXPENSIVE", "10"))
-    app.add_middleware(RateLimitMiddleware, default_limit=rate_default, expensive_limit=rate_expensive)
+    rate_per_key = int(os.environ.get("ENGRAMIA_RATE_LIMIT_PER_KEY", "120"))
+    app.add_middleware(
+        RateLimitMiddleware,
+        default_limit=rate_default,
+        expensive_limit=rate_expensive,
+        key_limit=rate_per_key,
+    )
 
     # ------------------------------------------------------------------
     # Error handlers
@@ -243,6 +291,9 @@ def create_app() -> FastAPI:
     job_service = JobService(engine=job_engine, memory=app.state.memory)
     app.state.job_service = job_service
 
+    if job_engine is not None:
+        _recover_orphaned_jobs(job_engine)
+
     worker = JobWorker(
         service=job_service,
         poll_interval=float(os.environ.get("ENGRAMIA_JOB_POLL_INTERVAL", "2.0")),
@@ -256,13 +307,16 @@ def create_app() -> FastAPI:
         worker.stop()
 
     # ------------------------------------------------------------------
-    # Prometheus /metrics endpoint (Phase 5.5, opt-in)
+    # Prometheus /metrics endpoint (opt-in via ENGRAMIA_METRICS=true)
+    # Exposes Python process metrics + custom Engramia Gauges:
+    #   engramia_pattern_count, engramia_avg_eval_score,
+    #   engramia_total_runs, engramia_success_rate, engramia_reuse_rate
     # ------------------------------------------------------------------
     if os.environ.get("ENGRAMIA_METRICS", "false").lower() == "true":
         try:
-            from prometheus_client import make_asgi_app as _make_prom_app
+            from engramia.api.prom_metrics import build_metrics_app
 
-            metrics_app = _make_prom_app()
+            metrics_app = build_metrics_app(app.state.memory)
             app.mount("/metrics", metrics_app)
             _log.info("Prometheus /metrics endpoint enabled.")
         except ImportError:

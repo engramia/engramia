@@ -12,6 +12,7 @@ Both providers use lazy imports so the module can be imported without the
 import logging
 import time
 
+from engramia.providers._concurrency import llm_semaphore
 from engramia.providers.base import EmbeddingProvider, LLMProvider
 from engramia.telemetry import metrics as _metrics
 from engramia.telemetry import tracing as _tracing
@@ -66,21 +67,22 @@ class OpenAIProvider(LLMProvider):
 
         last_exc: Exception | None = None
         t0 = time.perf_counter()
-        for attempt in range(self._max_retries):
-            try:
-                response = self._client.chat.completions.create(
-                    model=self._model,
-                    messages=messages,  # type: ignore[arg-type]
-                )
-                _metrics.observe_llm("openai", self._model, time.perf_counter() - t0)
-                return response.choices[0].message.content or ""
-            except (AuthenticationError, BadRequestError, PermissionDeniedError):
-                raise
-            except Exception as exc:
-                last_exc = exc
-                if attempt < self._max_retries - 1:
-                    _log.warning("OpenAI call failed (attempt %d/%d): %s", attempt + 1, self._max_retries, exc)
-                    time.sleep(2**attempt)
+        with llm_semaphore():
+            for attempt in range(self._max_retries):
+                try:
+                    response = self._client.chat.completions.create(
+                        model=self._model,
+                        messages=messages,  # type: ignore[arg-type]
+                    )
+                    _metrics.observe_llm("openai", self._model, time.perf_counter() - t0)
+                    return response.choices[0].message.content or ""
+                except (AuthenticationError, BadRequestError, PermissionDeniedError):
+                    raise
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < self._max_retries - 1:
+                        _log.warning("OpenAI call failed (attempt %d/%d): %s", attempt + 1, self._max_retries, exc)
+                        time.sleep(2**attempt)
 
         raise last_exc or RuntimeError(f"All {self._max_retries} retries exhausted with no exception recorded")
 

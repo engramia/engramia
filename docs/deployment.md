@@ -12,7 +12,7 @@ docker compose up
 
 ```bash
 ENGRAMIA_STORAGE=postgres \
-ENGRAMIA_DATABASE_URL=postgresql://brain:brain@pgvector:5432/brain \
+ENGRAMIA_DATABASE_URL=postgresql://engramia:engramia@pgvector:5432/engramia \
 OPENAI_API_KEY=sk-... \
 ENGRAMIA_API_KEYS=your-secret-key \
 docker compose up
@@ -21,13 +21,13 @@ docker compose up
 Apply database migrations on first run:
 
 ```bash
-docker compose exec brain-api alembic upgrade head
+docker compose exec engramia-api alembic upgrade head
 ```
 
 ### Docker image details
 
 - Multi-stage build (builder + runtime)
-- Non-root user (`brain:1001`)
+- Non-root user (`engramia:1001`)
 - Default port: 8000
 
 ## PostgreSQL + pgvector
@@ -120,8 +120,135 @@ curl -X POST http://localhost:8000/v1/aging -H "Authorization: Bearer $KEY"
 curl -X POST http://localhost:8000/v1/feedback/decay -H "Authorization: Bearer $KEY"
 ```
 
+### Async job processing
+
+Async jobs (via `Prefer: respond-async`) use a lightweight DB-backed queue
+(`SELECT … FOR UPDATE SKIP LOCKED` on PostgreSQL, in-memory fallback for
+JSON storage). Crash recovery resets orphaned jobs on startup.
+
+!!! warning "Best-effort durability"
+    Engramia async jobs are **best-effort**.  Jobs are not guaranteed to
+    complete exactly once.  There are no durable retries, no dead-letter
+    queue, and no backpressure.  If the worker process is killed mid-job,
+    the job is retried after the next restart — but only once.
+    For Celery-level guarantees (at-least-once delivery, DLQ, retry
+    policies), wrap Engramia behind a task queue such as Celery or ARQ.
+
 ### Monitoring
 
 - **Health check:** `GET /v1/health` returns storage type and status
 - **Metrics:** `GET /v1/metrics` returns run counts, success rate, pattern count
+- **Prometheus:** `GET /metrics` (opt-in via `ENGRAMIA_METRICS=true`, requires `prometheus_client`)
 - **Audit log:** Structured JSON logging for security events (auth failures, deletions, rate limits)
+
+### Maintenance mode
+
+Set `ENGRAMIA_MAINTENANCE=true` to put the API into maintenance mode. All endpoints except `/v1/health` and `/v1/health/deep` return `503 Service Unavailable`. Use this before applying migrations or deploying a new version.
+
+```bash
+# Enter maintenance mode (update .env or pass directly)
+ENGRAMIA_MAINTENANCE=true docker compose up -d
+
+# Exit maintenance mode
+ENGRAMIA_MAINTENANCE=false docker compose up -d
+```
+
+---
+
+## Backup and restore
+
+### JSON storage
+
+```bash
+# Backup — copy the data directory
+cp -r ./engramia_data ./engramia_data_backup_$(date +%Y%m%d)
+
+# Restore
+cp -r ./engramia_data_backup_20260101 ./engramia_data
+```
+
+Export via CLI (portable across storage backends):
+
+```bash
+engramia export --path ./engramia_data --output backup.json
+```
+
+Import:
+
+```bash
+engramia import --path ./engramia_data --input backup.json
+```
+
+### PostgreSQL storage
+
+Always take a dump **before** running migrations:
+
+```bash
+# Dump
+pg_dump $ENGRAMIA_DATABASE_URL -Fc -f engramia_$(date +%Y%m%d).dump
+
+# Restore
+pg_restore -d $ENGRAMIA_DATABASE_URL -c engramia_20260101.dump
+```
+
+With Docker Compose:
+
+```bash
+# Dump from running container
+docker compose exec pgvector pg_dump -U engramia engramia -Fc > engramia_$(date +%Y%m%d).dump
+
+# Restore into running container
+cat engramia_20260101.dump | docker compose exec -T pgvector pg_restore -U engramia -d engramia -c
+```
+
+---
+
+## Rollback strategy
+
+### Docker image rollback
+
+Each GitHub Actions release tags the image as `ghcr.io/engramia/engramia:<version>`. To roll back:
+
+```bash
+# On the production host
+cd /opt/engramia
+
+# 1. (Optional) Enter maintenance mode first
+echo "ENGRAMIA_MAINTENANCE=true" >> .env && docker compose up -d
+
+# 2. Take a database dump before rolling back
+pg_dump $ENGRAMIA_DATABASE_URL -Fc -f pre_rollback_$(date +%Y%m%d%H%M).dump
+
+# 3. Pin the image to the previous version in docker-compose.prod.yml
+#    Change: image: ghcr.io/engramia/engramia:0.6.0
+#    To:     image: ghcr.io/engramia/engramia:0.5.9
+
+# 4. Downgrade the Alembic migration (if the new version added one)
+docker compose -f docker-compose.prod.yml exec engramia-api alembic downgrade -1
+
+# 5. Restart with the old image
+docker compose -f docker-compose.prod.yml up -d
+
+# 6. Exit maintenance mode
+sed -i '/ENGRAMIA_MAINTENANCE/d' .env && docker compose up -d
+```
+
+### Alembic migration rollback
+
+```bash
+# Show current migration head
+docker compose exec engramia-api alembic current
+
+# Roll back one revision
+docker compose exec engramia-api alembic downgrade -1
+
+# Roll back to a specific revision
+docker compose exec engramia-api alembic downgrade <revision_id>
+
+# List all revisions
+docker compose exec engramia-api alembic history
+```
+
+!!! warning
+    Always take a `pg_dump` before running `alembic downgrade`. Downgrade scripts
+    may drop columns or tables that cannot be recovered without a backup.

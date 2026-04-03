@@ -39,8 +39,12 @@ class LearnResponse(BaseModel):
 class RecallRequest(BaseModel):
     task: str = Field(max_length=10_000, description="Task to find relevant patterns for.")
     limit: int = Field(default=5, ge=1, le=50)
+    offset: int = Field(default=0, ge=0, le=10_000, description="Number of results to skip (for pagination).")
     deduplicate: bool = Field(default=True)
     eval_weighted: bool = Field(default=True)
+    classification: str | None = Field(default=None, max_length=50, description="Filter by classification: public|internal|confidential.")
+    source: str | None = Field(default=None, max_length=50, description="Filter by origin: api|sdk|cli|import.")
+    min_score: float | None = Field(default=None, ge=0.0, le=10.0, description="Minimum success_score filter.")
 
 
 class PatternOut(BaseModel):
@@ -59,6 +63,8 @@ class MatchOut(BaseModel):
 
 class RecallResponse(BaseModel):
     matches: list[MatchOut]
+    has_more: bool = False
+    next_offset: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +130,8 @@ class EvaluateResponse(BaseModel):
 
 class FeedbackResponse(BaseModel):
     feedback: list[str]
+    has_more: bool = False
+    next_offset: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +281,11 @@ class ImportRequest(BaseModel):
 class ImportResponse(BaseModel):
     imported: int = Field(description="Number of patterns successfully imported.")
     total: int = Field(description="Total records submitted.")
+
+
+class ExportResponse(BaseModel):
+    records: list[ImportRecord] = Field(description="Exported patterns — pass directly to POST /v1/import.")
+    count: int = Field(description="Total number of exported patterns.")
 
 
 # ---------------------------------------------------------------------------
