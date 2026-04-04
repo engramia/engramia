@@ -43,6 +43,17 @@ dashboard/node_modules/
 dashboard/out/
 dashboard/.next/
 
+# Website build
+website/website/node_modules/
+website/website/.next/
+
+# General node artifacts (catch-all)
+node_modules/
+.next/
+
+# Test / CI artifacts
+coverage.xml
+
 # OS
 .DS_Store
 Thumbs.db

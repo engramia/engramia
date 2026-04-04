@@ -107,7 +107,6 @@ def _try_async(request: Request, operation: str, params: dict) -> JSONResponse |
     )
 
 router = APIRouter(dependencies=[Depends(require_auth)])
-meta_router = _meta_router  # re-export for app.py
 
 
 # ---------------------------------------------------------------------------
@@ -498,6 +497,7 @@ def run_feedback_decay(request: Request, memory: Memory = Depends(get_memory)):
 
 # Separate router so /version is reachable without authentication.
 _meta_router = APIRouter()
+meta_router = _meta_router  # re-export for app.py
 
 
 @_meta_router.get("/version", tags=["meta"], include_in_schema=True)
