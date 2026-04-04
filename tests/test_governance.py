@@ -110,8 +110,20 @@ class TestSecretPatternRedactor:
 
 class TestRedactionPipeline:
     def test_default_pipeline_has_hooks(self):
+        """Default pipeline must actively redact both email and secret patterns.
+
+        Verifies behaviour (redaction fires) rather than internal hook count,
+        so the test remains valid if the pipeline implementation changes.
+        """
         pipeline = RedactionPipeline.default()
-        assert len(pipeline._hooks) >= 2
+        _, email_findings = pipeline.process({"code": "contact: admin@example.com"})
+        _, secret_findings = pipeline.process({"code": "api_key = supersecretvalue123"})
+        assert any(f.kind == "email" for f in email_findings), (
+            "default pipeline must detect email addresses"
+        )
+        assert len(secret_findings) > 0, (
+            "default pipeline must detect secret/credential patterns"
+        )
 
     def test_empty_pipeline_is_noop(self):
         pipeline = RedactionPipeline.empty()
@@ -474,6 +486,7 @@ class TestMemoryLearnGovernance:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestGovernanceAPI:
     @pytest.fixture
     def client(self, fake_embeddings, storage):

@@ -14,6 +14,8 @@ from engramia import Memory
 from engramia.api.routes import router
 from engramia.exceptions import ValidationError
 
+pytestmark = pytest.mark.integration
+
 EVOLVE_RESPONSE = json.dumps(
     {
         "improved_prompt": "You are an expert coder. Always handle file I/O errors.",

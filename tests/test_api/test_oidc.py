@@ -24,6 +24,8 @@ import engramia.api.oidc as oidc_module
 from engramia.api.oidc import oidc_auth
 from engramia.types import Scope
 
+pytestmark = pytest.mark.security
+
 
 # ---------------------------------------------------------------------------
 # Helpers

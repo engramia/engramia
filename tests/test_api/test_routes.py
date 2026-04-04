@@ -13,6 +13,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI, Request
+
+pytestmark = pytest.mark.integration
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
@@ -103,7 +105,7 @@ class TestLearnEndpoint:
 
     def test_learn_empty_task_returns_422(self, api_client):
         resp = api_client.post("/v1/learn", json={"task": "", "code": "import csv", "eval_score": 7.0})
-        assert resp.status_code in (422, 400, 500)  # depends on validation depth
+        assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +153,12 @@ class TestEvaluateEndpoint:
 
     def test_evaluate_returns_feedback(self, api_client):
         resp = api_client.post("/v1/evaluate", json={"task": "Parse CSV", "code": "import csv", "num_evals": 1})
-        assert "error handling" in resp.json()["feedback"].lower()
+        assert resp.status_code == 200
+        feedback = resp.json()["feedback"]
+        # Verify the evaluator extracted and returned a non-empty feedback string.
+        # The exact content is LLM-dependent; we only assert structural correctness.
+        assert isinstance(feedback, str)
+        assert len(feedback) > 0
 
     def test_evaluate_num_evals_zero_returns_422(self, api_client):
         resp = api_client.post("/v1/evaluate", json={"task": "Task", "code": "code", "num_evals": 0})

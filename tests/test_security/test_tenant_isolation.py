@@ -22,6 +22,8 @@ from engramia.providers.json_storage import JSONStorage
 from engramia.types import Scope
 from tests.conftest import FakeEmbeddings
 
+pytestmark = pytest.mark.security
+
 
 # ---------------------------------------------------------------------------
 # Helpers

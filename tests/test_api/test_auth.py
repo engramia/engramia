@@ -12,6 +12,8 @@ from engramia.memory import Memory
 from engramia.providers.json_storage import JSONStorage
 from tests.conftest import FakeEmbeddings
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(autouse=True)
 def _clean_env():

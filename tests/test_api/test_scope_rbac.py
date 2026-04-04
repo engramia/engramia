@@ -24,6 +24,7 @@ from engramia.api.permissions import PERMISSIONS
 from engramia.providers.json_storage import JSONStorage
 from engramia.types import AuthContext, Scope
 from tests.conftest import FakeEmbeddings
+from tests.factories import make_auth_dep
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -54,31 +55,18 @@ def make_memory(tmp_path):
 
 def _make_auth_app(role: str = "editor", max_patterns: int | None = None):
     """Build a minimal FastAPI app with a pre-set auth_context (no real DB)."""
+    from engramia.api.auth import require_auth
     from engramia.api.routes import router
 
     app = FastAPI()
     app.include_router(router, prefix="/v1")
 
-    os.environ.pop("ENGRAMIA_API_KEYS", None)
-    os.environ["ENGRAMIA_ALLOW_NO_AUTH"] = "true"
-
-    # Inject a fake auth_context so permission checks work without a real DB
-    from fastapi import Request
-    from starlette.middleware.base import BaseHTTPMiddleware
-
-    class FakeAuthMiddleware(BaseHTTPMiddleware):
-        async def dispatch(self, request: Request, call_next):
-            request.state.auth_context = AuthContext(
-                key_id="test-key-id",
-                tenant_id="acme",
-                project_id="prod",
-                role=role,
-                max_patterns=max_patterns,
-                scope=Scope(tenant_id="acme", project_id="prod"),
-            )
-            return await call_next(request)
-
-    app.add_middleware(FakeAuthMiddleware)
+    app.dependency_overrides[require_auth] = make_auth_dep(
+        role=role,
+        tenant_id="acme",
+        project_id="prod",
+        max_patterns=max_patterns,
+    )
     return app
 
 
@@ -289,6 +277,7 @@ class TestJSONStorageScopeIsolation:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.security
 class TestPermissions:
     def test_reader_cannot_learn(self):
         assert "learn" not in PERMISSIONS["reader"]
@@ -366,13 +355,19 @@ class TestPermissions:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.security
 class TestQuotaEnforcement:
     def test_quota_exceeded_returns_429(self, tmp_path):
         """When pattern count >= max_patterns, /learn returns 429."""
         storage = JSONStorage(path=tmp_path)
-        # Pre-fill with patterns up to quota
-        for i in range(3):
-            storage.save(f"patterns/existing_{i}", {"task": f"task {i}", "design": {}})
+        # Pre-fill with patterns in the scope the auth dep will use (acme/prod)
+        scope = Scope(tenant_id="acme", project_id="prod")
+        token = set_scope(scope)
+        try:
+            for i in range(3):
+                storage.save(f"patterns/existing_{i}", {"task": f"task {i}", "design": {}})
+        finally:
+            reset_scope(token)
 
         app = _make_auth_app(role="editor", max_patterns=3)
         app.state.memory = Memory(embeddings=FakeEmbeddings(), storage=storage)

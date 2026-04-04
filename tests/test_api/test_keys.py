@@ -6,14 +6,18 @@ Uses a mock SQLAlchemy engine; no real PostgreSQL required.
 """
 
 import hashlib
+import os
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from engramia.api.keys import _generate_key
 from engramia.api.keys import router as keys_router
-from engramia.types import AuthContext, Scope
+from tests.factories import make_auth_dep
+
+BOOTSTRAP_TOKEN = "test-bootstrap-secret-token"
 
 # ---------------------------------------------------------------------------
 # _generate_key helper
@@ -46,25 +50,16 @@ class TestGenerateKey:
 
 
 def _make_keys_app(engine=None, role: str = "owner") -> FastAPI:
+    from engramia.api.auth import require_auth
+
     app = FastAPI()
     app.include_router(keys_router)
     app.state.auth_engine = engine
 
-    from fastapi import Request
-    from starlette.middleware.base import BaseHTTPMiddleware
-
-    class FakeAuthMiddleware(BaseHTTPMiddleware):
-        async def dispatch(self, request: Request, call_next):
-            request.state.auth_context = AuthContext(
-                key_id="caller-key-id",
-                tenant_id="default",
-                project_id="default",
-                role=role,
-                scope=Scope(),
-            )
-            return await call_next(request)
-
-    app.add_middleware(FakeAuthMiddleware)
+    app.dependency_overrides[require_auth] = make_auth_dep(
+        role=role,
+        key_id="caller-key-id",
+    )
     return app
 
 
@@ -88,40 +83,72 @@ def _mock_engine_for_bootstrap(empty: bool = True):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestBootstrap:
+    @pytest.fixture(autouse=True)
+    def _set_bootstrap_token(self, monkeypatch):
+        """All bootstrap tests need ENGRAMIA_BOOTSTRAP_TOKEN configured."""
+        monkeypatch.setenv("ENGRAMIA_BOOTSTRAP_TOKEN", BOOTSTRAP_TOKEN)
+
     def test_bootstrap_returns_409_when_keys_exist(self):
         engine = _mock_engine_for_bootstrap(empty=False)
         app = _make_keys_app(engine=engine)
         client = TestClient(app)
 
-        resp = client.post("/keys/bootstrap", json={})
+        resp = client.post("/keys/bootstrap", json={"bootstrap_token": BOOTSTRAP_TOKEN})
         assert resp.status_code == 409
 
     def test_bootstrap_returns_503_without_engine(self):
         app = _make_keys_app(engine=None)
         client = TestClient(app)
-        resp = client.post("/keys/bootstrap", json={})
+        resp = client.post("/keys/bootstrap", json={"bootstrap_token": BOOTSTRAP_TOKEN})
         assert resp.status_code == 503
 
-    def test_bootstrap_success_returns_201(self):
-        # connect() used only for COUNT(*) check — returns 0
-        count_conn = MagicMock()
-        count_conn.execute.return_value.fetchone.return_value = (0,)
-        engine = MagicMock()
-        engine.connect.return_value.__enter__ = MagicMock(return_value=count_conn)
-        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+    def test_bootstrap_disabled_without_env_token(self, monkeypatch):
+        """Bootstrap is disabled when ENGRAMIA_BOOTSTRAP_TOKEN is not set."""
+        monkeypatch.delenv("ENGRAMIA_BOOTSTRAP_TOKEN", raising=False)
+        engine = _mock_engine_for_bootstrap(empty=True)
+        app = _make_keys_app(engine=engine)
+        client = TestClient(app)
+        resp = client.post("/keys/bootstrap", json={})
+        assert resp.status_code == 503
+        assert "disabled" in resp.json()["detail"].lower()
 
-        # begin() used for INSERT tenants/projects and INSERT+SELECT api_key
-        begin_inner = MagicMock()
-        begin_inner.execute.return_value.fetchone.return_value = ("2026-01-01T00:00:00Z",)
+    def test_bootstrap_rejects_wrong_token(self):
+        engine = _mock_engine_for_bootstrap(empty=True)
+        app = _make_keys_app(engine=engine)
+        client = TestClient(app)
+        resp = client.post("/keys/bootstrap", json={"bootstrap_token": "wrong-token"})
+        assert resp.status_code == 401
+
+    def test_bootstrap_success_returns_201(self):
+        # All SQL runs inside a single engine.begin() transaction:
+        #   1. advisory lock  (execute, no fetchone needed)
+        #   2. COUNT(*)       (fetchone → (0,) means table is empty)
+        #   3. INSERT tenant  (execute)
+        #   4. INSERT project (execute)
+        #   5. INSERT key     (execute)
+        #   6. SELECT created_at (fetchone → timestamp string)
+        #
+        # We use side_effect to return different values for each fetchone() call.
+        conn = MagicMock()
+        exec_result = MagicMock()
+        exec_result.fetchone = MagicMock(side_effect=[(0,), ("2026-01-01T00:00:00Z",)])
+        conn.execute.return_value = exec_result
+
         begin_ctx = MagicMock()
-        begin_ctx.__enter__ = MagicMock(return_value=begin_inner)
+        begin_ctx.__enter__ = MagicMock(return_value=conn)
         begin_ctx.__exit__ = MagicMock(return_value=False)
+
+        engine = MagicMock()
         engine.begin.return_value = begin_ctx
 
         app = _make_keys_app(engine=engine)
         client = TestClient(app)
-        resp = client.post("/keys/bootstrap", json={"tenant_name": "Test Org", "key_name": "My Key"})
+        resp = client.post(
+            "/keys/bootstrap",
+            json={"tenant_name": "Test Org", "key_name": "My Key", "bootstrap_token": BOOTSTRAP_TOKEN},
+        )
 
         assert resp.status_code == 201
         data = resp.json()
@@ -134,6 +161,7 @@ class TestBootstrap:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestCreateKey:
     def test_create_returns_503_without_engine(self):
         app = _make_keys_app(engine=None)
@@ -173,6 +201,7 @@ class TestCreateKey:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestListKeys:
     def test_list_returns_503_without_engine(self):
         app = _make_keys_app(engine=None)
@@ -226,6 +255,7 @@ class TestListKeys:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestRevokeKey:
     def test_revoke_returns_404_when_key_not_found(self):
         mock_conn = MagicMock()
@@ -294,6 +324,7 @@ class TestRevokeKey:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestRotateKey:
     def test_rotate_returns_404_when_key_not_found(self):
         mock_conn = MagicMock()
