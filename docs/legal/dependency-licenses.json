@@ -1,0 +1,931 @@
+{
+  "generated_at": "2026-04-03",
+  "engramia_version": "0.6.4",
+  "summary": {
+    "python_packages": 103,
+    "high_risk": 0,
+    "medium_risk": 1,
+    "low_risk": 3,
+    "ok": 99
+  },
+  "python": [
+    {
+      "name": "psycopg2-binary",
+      "version": "2.9.11",
+      "license": "GNU Library or Lesser General Public License (LGPL)",
+      "url": "https://psycopg.org/",
+      "risk": "MEDIUM",
+      "notes": "LGPL-2.1 \u2014 used as dynamic library; Python import model does not trigger copyleft propagation. Standard commercial use is safe. Widely used in commercial products (Django, SQLAlchemy ecosystem)."
+    },
+    {
+      "name": "certifi",
+      "version": "2026.2.25",
+      "license": "Mozilla Public License 2.0 (MPL 2.0)",
+      "url": "https://github.com/certifi/python-certifi",
+      "risk": "LOW",
+      "notes": "MPL-2.0 \u2014 file-level copyleft only. Unmodified use in commercial product is safe; only modified MPL files must be shared."
+    },
+    {
+      "name": "pathspec",
+      "version": "1.0.4",
+      "license": "Mozilla Public License 2.0 (MPL 2.0)",
+      "url": "https://python-path-specification.readthedocs.io/en/latest/index.html",
+      "risk": "LOW",
+      "notes": "MPL-2.0 \u2014 file-level copyleft only. Unmodified use in commercial product is safe; only modified MPL files must be shared."
+    },
+    {
+      "name": "tqdm",
+      "version": "4.67.3",
+      "license": "MPL-2.0 AND MIT",
+      "url": "https://tqdm.github.io",
+      "risk": "LOW",
+      "notes": "MPL-2.0 \u2014 file-level copyleft only. Unmodified use in commercial product is safe; only modified MPL files must be shared."
+    },
+    {
+      "name": "annotated-doc",
+      "version": "0.0.4",
+      "license": "MIT",
+      "url": "https://github.com/fastapi/annotated-doc",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "annotated-types",
+      "version": "0.7.0",
+      "license": "MIT License",
+      "url": "https://github.com/annotated-types/annotated-types",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "anyio",
+      "version": "4.12.1",
+      "license": "MIT",
+      "url": "https://anyio.readthedocs.io/en/stable/versionhistory.html",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "babel",
+      "version": "2.18.0",
+      "license": "BSD License",
+      "url": "https://babel.pocoo.org/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "backrefs",
+      "version": "6.2",
+      "license": "MIT",
+      "url": "https://github.com/facelessuser/backrefs",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.4.6",
+      "license": "MIT",
+      "url": "https://github.com/jawah/charset_normalizer/blob/master/CHANGELOG.md",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "click",
+      "version": "8.3.1",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/pallets/click/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6",
+      "license": "BSD License",
+      "url": "https://github.com/tartley/colorama",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "coverage",
+      "version": "7.13.5",
+      "license": "Apache-2.0",
+      "url": "https://github.com/coveragepy/coveragepy",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "distro",
+      "version": "1.9.0",
+      "license": "Apache Software License",
+      "url": "https://github.com/python-distro/distro",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "dnspython",
+      "version": "2.8.0",
+      "license": "ISC License (ISCL)",
+      "url": "https://www.dnspython.org",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "docker",
+      "version": "7.1.0",
+      "license": "Apache-2.0",
+      "url": "https://github.com/docker/docker-py",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "email-validator",
+      "version": "2.3.0",
+      "license": "The Unlicense (Unlicense)",
+      "url": "https://github.com/JoshData/python-email-validator",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "fastapi",
+      "version": "0.135.1",
+      "license": "MIT",
+      "url": "https://github.com/fastapi/fastapi",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "fastapi-cli",
+      "version": "0.0.24",
+      "license": "MIT",
+      "url": "https://github.com/fastapi/fastapi-cli",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "fastapi-cloud-cli",
+      "version": "0.15.0",
+      "license": "MIT License",
+      "url": "https://github.com/fastapilabs/fastapi-cloud-cli",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "fastar",
+      "version": "0.9.0",
+      "license": "MIT",
+      "url": "https://github.com/DoctorJohn/fastar",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "filelock",
+      "version": "3.25.2",
+      "license": "MIT",
+      "url": "https://github.com/tox-dev/py-filelock",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "fsspec",
+      "version": "2026.3.0",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/fsspec/filesystem_spec",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "ghp-import",
+      "version": "2.1.0",
+      "license": "Apache Software License",
+      "url": "https://github.com/c-w/ghp-import",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "greenlet",
+      "version": "3.3.2",
+      "license": "MIT AND PSF-2.0",
+      "url": "https://greenlet.readthedocs.io",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "license": "MIT License",
+      "url": "https://github.com/python-hyper/h11",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "hf-xet",
+      "version": "1.4.2",
+      "license": "Apache-2.0",
+      "url": "https://github.com/huggingface/xet-core",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "license": "BSD-3-Clause",
+      "url": "https://www.encode.io/httpcore/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "httptools",
+      "version": "0.7.1",
+      "license": "MIT",
+      "url": "https://github.com/MagicStack/httptools",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "license": "BSD License",
+      "url": "https://github.com/encode/httpx",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "huggingface_hub",
+      "version": "1.8.0",
+      "license": "Apache Software License",
+      "url": "https://github.com/huggingface/huggingface_hub",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "idna",
+      "version": "3.11",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/kjd/idna",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "iniconfig",
+      "version": "2.3.0",
+      "license": "MIT",
+      "url": "https://github.com/pytest-dev/iniconfig",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "Jinja2",
+      "version": "3.1.6",
+      "license": "BSD License",
+      "url": "https://github.com/pallets/jinja/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "jiter",
+      "version": "0.13.0",
+      "license": "MIT License",
+      "url": "https://github.com/pydantic/jiter/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "joblib",
+      "version": "1.5.3",
+      "license": "BSD-3-Clause",
+      "url": "https://joblib.readthedocs.io",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "librt",
+      "version": "0.8.1",
+      "license": "MIT License",
+      "url": "https://github.com/mypyc/librt",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "Markdown",
+      "version": "3.10.2",
+      "license": "BSD-3-Clause",
+      "url": "https://Python-Markdown.github.io/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "4.0.0",
+      "license": "MIT License",
+      "url": "https://github.com/executablebooks/markdown-it-py",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.3",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/pallets/markupsafe/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2",
+      "license": "MIT License",
+      "url": "https://github.com/executablebooks/mdurl",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "mergedeep",
+      "version": "1.3.4",
+      "license": "MIT License",
+      "url": "https://github.com/clarketm/mergedeep",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "mkdocs",
+      "version": "1.6.1",
+      "license": "BSD-2-Clause",
+      "url": "https://github.com/mkdocs/mkdocs",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "mkdocs-get-deps",
+      "version": "0.2.2",
+      "license": "MIT",
+      "url": "https://github.com/mkdocs/get-deps",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "mkdocs-material",
+      "version": "9.7.6",
+      "license": "MIT",
+      "url": "https://github.com/squidfunk/mkdocs-material",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "mkdocs-material-extensions",
+      "version": "1.3.1",
+      "license": "MIT",
+      "url": "https://github.com/facelessuser/mkdocs-material-extensions",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "mpmath",
+      "version": "1.3.0",
+      "license": "BSD License",
+      "url": "http://mpmath.org/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "mypy",
+      "version": "1.19.1",
+      "license": "MIT License",
+      "url": "https://www.mypy-lang.org/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "mypy_extensions",
+      "version": "1.1.0",
+      "license": "MIT",
+      "url": "https://github.com/python/mypy_extensions",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "networkx",
+      "version": "3.6.1",
+      "license": "BSD-3-Clause",
+      "url": "https://networkx.org/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "numpy",
+      "version": "2.4.3",
+      "license": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "url": "https://numpy.org",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "openai",
+      "version": "2.26.0",
+      "license": "Apache Software License",
+      "url": "https://github.com/openai/openai-python",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "packaging",
+      "version": "26.0",
+      "license": "Apache-2.0 OR BSD-2-Clause",
+      "url": "https://github.com/pypa/packaging",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "paginate",
+      "version": "0.5.7",
+      "license": "MIT License",
+      "url": "https://github.com/Signum/paginate",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pgvector",
+      "version": "0.4.2",
+      "license": "MIT",
+      "url": "https://github.com/pgvector/pgvector-python",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.9.4",
+      "license": "MIT",
+      "url": "https://github.com/tox-dev/platformdirs",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pluggy",
+      "version": "1.6.0",
+      "license": "MIT License",
+      "url": "UNKNOWN",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pydantic",
+      "version": "2.12.5",
+      "license": "MIT",
+      "url": "https://github.com/pydantic/pydantic",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pydantic-extra-types",
+      "version": "2.11.1",
+      "license": "MIT",
+      "url": "https://github.com/pydantic/pydantic-extra-types",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pydantic-settings",
+      "version": "2.13.1",
+      "license": "MIT",
+      "url": "https://github.com/pydantic/pydantic-settings",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.41.5",
+      "license": "MIT",
+      "url": "https://github.com/pydantic/pydantic-core",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "Pygments",
+      "version": "2.19.2",
+      "license": "BSD License",
+      "url": "https://pygments.org",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pymdown-extensions",
+      "version": "10.21",
+      "license": "MIT",
+      "url": "https://github.com/facelessuser/pymdown-extensions",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pytest",
+      "version": "9.0.2",
+      "license": "MIT",
+      "url": "https://docs.pytest.org/en/latest/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pytest-asyncio",
+      "version": "1.3.0",
+      "license": "Apache-2.0",
+      "url": "https://github.com/pytest-dev/pytest-asyncio",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pytest-cov",
+      "version": "7.1.0",
+      "license": "MIT",
+      "url": "https://pytest-cov.readthedocs.io/en/latest/changelog.html",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0",
+      "license": "Apache Software License; BSD License",
+      "url": "https://github.com/dateutil/dateutil",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.2.2",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/theskumar/python-dotenv",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "python-multipart",
+      "version": "0.0.22",
+      "license": "Apache-2.0",
+      "url": "https://github.com/Kludex/python-multipart",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pywin32",
+      "version": "311",
+      "license": "Python Software Foundation License",
+      "url": "https://github.com/mhammond/pywin32",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "license": "MIT License",
+      "url": "https://pyyaml.org/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "pyyaml_env_tag",
+      "version": "1.1",
+      "license": "MIT",
+      "url": "https://github.com/waylan/pyyaml-env-tag",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "regex",
+      "version": "2026.2.28",
+      "license": "Apache-2.0 AND CNRI-Python",
+      "url": "https://github.com/mrabarnett/mrab-regex",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "requests",
+      "version": "2.33.0",
+      "license": "Apache Software License",
+      "url": "https://github.com/psf/requests",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "rich",
+      "version": "14.3.3",
+      "license": "MIT License",
+      "url": "https://github.com/Textualize/rich",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "rich-toolkit",
+      "version": "0.19.7",
+      "license": "MIT",
+      "url": "UNKNOWN",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "rignore",
+      "version": "0.7.6",
+      "license": "MIT",
+      "url": "UNKNOWN",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "ruff",
+      "version": "0.15.7",
+      "license": "MIT",
+      "url": "https://docs.astral.sh/ruff",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "safetensors",
+      "version": "0.7.0",
+      "license": "Apache Software License",
+      "url": "https://github.com/huggingface/safetensors",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "scikit-learn",
+      "version": "1.8.0",
+      "license": "BSD-3-Clause",
+      "url": "https://scikit-learn.org",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "scipy",
+      "version": "1.17.1",
+      "license": "BSD License",
+      "url": "https://scipy.org/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "sentence-transformers",
+      "version": "5.3.0",
+      "license": "Apache Software License",
+      "url": "https://www.SBERT.net",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "sentry-sdk",
+      "version": "2.55.0",
+      "license": "BSD License",
+      "url": "https://github.com/getsentry/sentry-python",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "shellingham",
+      "version": "1.5.4",
+      "license": "ISC License (ISCL)",
+      "url": "https://github.com/sarugaku/shellingham",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "license": "MIT License",
+      "url": "https://github.com/benjaminp/six",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "sniffio",
+      "version": "1.3.1",
+      "license": "Apache Software License; MIT License",
+      "url": "https://github.com/python-trio/sniffio",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "SQLAlchemy",
+      "version": "2.0.48",
+      "license": "MIT",
+      "url": "https://www.sqlalchemy.org",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "starlette",
+      "version": "0.52.1",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/Kludex/starlette",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "sympy",
+      "version": "1.14.0",
+      "license": "BSD License",
+      "url": "https://sympy.org",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "testcontainers",
+      "version": "4.14.2",
+      "license": "Apache-2.0",
+      "url": "https://github.com/testcontainers/testcontainers-python",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "threadpoolctl",
+      "version": "3.6.0",
+      "license": "BSD License",
+      "url": "https://github.com/joblib/threadpoolctl",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.22.2",
+      "license": "Apache Software License",
+      "url": "https://github.com/huggingface/tokenizers",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "torch",
+      "version": "2.11.0",
+      "license": "BSD-3-Clause",
+      "url": "https://pytorch.org",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "transformers",
+      "version": "5.4.0",
+      "license": "Apache 2.0 License",
+      "url": "https://github.com/huggingface/transformers",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "typer",
+      "version": "0.24.1",
+      "license": "MIT",
+      "url": "https://github.com/fastapi/typer",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.2",
+      "license": "MIT",
+      "url": "https://github.com/pydantic/typing-inspection",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.15.0",
+      "license": "PSF-2.0",
+      "url": "https://github.com/python/typing_extensions",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "urllib3",
+      "version": "2.6.3",
+      "license": "MIT",
+      "url": "https://github.com/urllib3/urllib3/blob/main/CHANGES.rst",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.42.0",
+      "license": "BSD-3-Clause",
+      "url": "https://uvicorn.dev/",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "watchdog",
+      "version": "6.0.0",
+      "license": "Apache Software License",
+      "url": "https://github.com/gorakhargosh/watchdog",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "watchfiles",
+      "version": "1.1.1",
+      "license": "MIT License",
+      "url": "https://github.com/samuelcolvin/watchfiles",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "websockets",
+      "version": "16.0",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/python-websockets/websockets",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "wrapt",
+      "version": "2.1.2",
+      "license": "BSD-2-Clause",
+      "url": "https://github.com/GrahamDumpleton/wrapt",
+      "risk": "OK",
+      "notes": ""
+    }
+  ],
+  "frontend": [
+    {
+      "name": "next",
+      "version": "^15.3.0",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "react",
+      "version": "^19.1.0",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "react-dom",
+      "version": "^19.1.0",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "@tanstack/react-query",
+      "version": "^5.74.4",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "recharts",
+      "version": "^2.15.3",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "lucide-react",
+      "version": "^0.484.0",
+      "license": "ISC",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "clsx",
+      "version": "^2.1.1",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "tailwind-merge",
+      "version": "^3.2.0",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "tailwindcss",
+      "version": "^4.1.4",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": ""
+    },
+    {
+      "name": "typescript",
+      "version": "^5.8.3",
+      "license": "Apache-2.0",
+      "risk": "OK",
+      "notes": "devDependency"
+    },
+    {
+      "name": "postcss",
+      "version": "^8.5.3",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": "devDependency"
+    },
+    {
+      "name": "@types/react",
+      "version": "^19.1.2",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": "devDependency"
+    },
+    {
+      "name": "@types/node",
+      "version": "^22.14.1",
+      "license": "MIT",
+      "risk": "OK",
+      "notes": "devDependency"
+    }
+  ],
+  "frontend_note": "Transitive frontend audit skipped \u2014 license-checker incompatible with Node.js v24. Direct dependencies manually verified. Re-run when Node 24 support is added to license-checker."
+}

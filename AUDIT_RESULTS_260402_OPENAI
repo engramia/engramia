@@ -1,0 +1,253 @@
+Executive Summary
+Overall score: 83/100
+Audit date: 2026-04-02
+Audited version: v0.6.1 (b1d5e82)
+
+Top 5 priorities:
+1. [❌] Security / Auth — Unauthenticated fallback still active when ENGRAMIA_API_KEYS is empty in env auth mode — Production exposure risk
+2. [❌] Async / Jobs / DoS — ThreadPoolExecutor scales directly with user-controlled num_evals and async jobs are not backed by a real queue — Cost / resource exhaustion risk
+3. [⚠️] Test Quality — 43 failed + 60 errored tests in current snapshot; many failures are environment-related, but several indicate real regressions or missing optional dependency gating
+4. [⚠️] ROI Analytics — Collector append is non-atomic at logical level; concurrent writes can lose analytics events
+5. [⚠️] Production Readiness — Several critical modules remain weakly tested or effectively untested (OIDC, Prometheus metrics, DB models, MCP)
+Metrics
+Test coverage: 80% (measured)
+Number of tests: 761 total outcomes (614 passed, 43 failed, 60 errors, 44 skipped)
+Number of ❌ findings: 7
+Number of ⚠️ findings: 23
+New issues since last audit: cannot determine reliably
+Resolved issues since last audit: cannot determine reliably
+Detailed Table
+1. SECURITY AUDIT
+#	Section	Rating	Findings	Action Items
+1	Security — Auth & AuthZ	❌	engramia/api/auth.py:82-85, 223-232 allow unauthenticated access if ENGRAMIA_API_KEYS is empty and DB auth is not used. This is explicitly logged as risky, but still active. RBAC is bypassed in env/dev mode via engramia/api/permissions.py:103-105.	P1: Remove implicit no-auth fallback in non-dev environments. P1: Require explicit ENGRAMIA_AUTH_MODE=dev + ENGRAMIA_ALLOW_NO_AUTH=true. P1: Fail app startup if running production profile without auth configured.
+2	Security — Input Validation	⚠️	API schemas are generally strong and surprisingly complete (engramia/api/schemas.py:18-424), including eval_score bounds and num_evals <= 10. Core layer also validates eval_score in engramia/memory.py:568-572. However, not all response/public string fields have length constraints (e.g. PatternOut.task, StageOut.task, EvalScoreOut.feedback).	P2: Add explicit response/output max lengths where responses may echo user/provider content. P2: Add centralized constants for repeated limits.
+3	Security — SQL / LIKE / Prompt / Path / Command Injection	⚠️	SQL: Most Postgres queries are parameterized (engramia/providers/postgres.py:108-115, 121-133, etc.). LIKE escaping is correctly handled via _escape_like() (336-338) and used in list/count/search. Prompt injection protections are actually solid: XML delimiters present in reuse/composer.py:30-45, eval/evaluator.py:48-63, and evolution prompts. Path traversal is defended in import and JSON storage: engramia/memory.py:506-512, engramia/providers/json_storage.py:108-125. CLI command injection: no use of subprocess, os.system, or shell execution found.	P2: Add tests for prompt injection on all prompt-bearing modules. P2: Add explicit validation for pattern_key route params before business logic.
+4	Security — Rate Limiting / DoS	❌	engramia/api/middleware.py:69-140 implements a correct in-memory fixed-window limiter with GC and lower limits for /evaluate, /compose, /evolve. Good start. But DoS/cost risk remains: engramia/eval/evaluator.py:129-130 creates a ThreadPoolExecutor(max_workers=self._num_evals) directly from user-controlled num_evals (capped at 10, so not catastrophic, but still bursty), and there is no global LLM concurrency limiter. Async job offloading is only logical, not infrastructural (engramia/api/routes.py:73-92).	P1: Add global LLM concurrency semaphore. P1: Add queue/backpressure for async endpoints. P2: Rate-limit by key/tenant in addition to IP.
+5	Security — Headers / CORS / Error Leakage	✅	Security headers are present: nosniff, DENY, no-referrer, cross-domain policies (engramia/api/middleware.py:60-66). Error responses are mostly clean and do not leak stack traces.	P3: Add CSP if dashboard and API are ever served from same surface.
+6	Security — Audit Logging	⚠️	Good coverage: auth failures (engramia/api/auth.py:87-94, 176-182, 238-244), rate limiting (middleware.py:131-138), pattern deletion (routes.py:397-400), quota exceeded (routes.py:112-118), bulk import (routes.py:652-658). Missing/unclear: export events, retention changes, key config changes, some governance mutations.	P2: Log all destructive/config-changing operations consistently. P2: Include actor/key_id where available.
+7	Security — Crypto & Secrets	⚠️	SHA-256 used for API key hashing (engramia/api/auth.py:104-105) and pattern hash prefix (engramia/memory.py:576-579). .gitignore excludes .env and .env.* (.gitignore:21-23). Gap: .gitignore does not exclude *.pem, *.key, credentials*.	P2: Add *.pem, *.key, credentials*, *.p12, *.crt to .gitignore. P2: Add repo secret scan in CI.
+8	Security — Docker	⚠️	Dockerfile is solid: pinned base image (Dockerfile:6,19), non-root user UID 1001 (23-25), runtime runs as non-root (49-50). .dockerignore correctly excludes .git, .env, tests (.dockerignore:1-14). Compose binds API only to localhost in prod (docker-compose.prod.yml:17-18). Minor issue: runtime user still has a shell by default via adduser, despite “no shell” requirement in your audit prompt.	P3: Create user with /usr/sbin/nologin or equivalent.
+2. TEST QUALITY AUDIT
+#	Section	Rating	Findings	Action Items
+9	Test Quality — Fake Coverage	⚠️	Coverage is not fake overall — many tests are meaningful and assert behavior. However, there are weak pockets: some route-level tests and health checks assert only shape/status, not semantics. There are also several tests that are effectively smoke tests for importability rather than correctness.	P2: Add mutation-style assertions to route tests. P2: Add negative-path assertions for every public API.
+10	Test Quality — Real Coverage vs Missing Lines	⚠️	Measured coverage is 80%. Low-value/high-risk under-tested modules: engramia/api/analytics.py 35%, engramia/cli/main.py 31%, engramia/providers/openai.py 54%, engramia/providers/postgres.py 21%, engramia/api/keys.py 63%, engramia/jobs/service.py 64%, engramia/api/oidc.py 0%, engramia/api/prom_metrics.py 0%, engramia/db/models.py 0%, engramia/mcp/server.py **0%, engramia/telemetry/logging.py` 0%.	P1: Raise coverage on providers/postgres.py, api/keys.py, jobs/service.py, api/analytics.py. P2: Either test or mark oidc, prom_metrics, mcp as experimental.
+11	Test Quality — Isolation & Determinism	⚠️	Some tests are environment-sensitive and optional-dependency-sensitive. 60 errors were caused by missing sentence-transformers for local embeddings. That means parts of the suite are not robustly isolated from extras. Also multiple recall-quality tests rely on a custom TestClient class that triggers Pytest collection warnings.	P1: Gate optional dependency tests with explicit markers/skips. P2: Clean up test collection warnings.
+12	Test Quality — Edge Cases & Negative Tests	✅	This is actually one of the stronger areas. There are dedicated robustness/security tests including tenant isolation, malformed input, deletion, import traversal, etc. Example: tests/test_security/test_tenant_isolation.py:193-202.	P3: Add malformed chunked body tests and malformed Content-Length tests.
+13	Test Quality — Integration / E2E	⚠️	Good breadth exists (tests/test_e2e.py, tests/test_integration.py, API/security/postgres suites), but current snapshot has non-trivial failures, meaning “green CI confidence” is not currently true.	P1: Restore all-red-to-green before relying on weekly audit automation.
+Test run summary
+Passed: 614
+Failed: 43
+Errors: 60
+Skipped: 44
+Most important test quality findings
+Optional dependency handling is incomplete
+Multiple tests error with:
+ImportError: Local embeddings require sentence-transformers
+At least one real regression is present
+tests/test_security/test_tenant_isolation.py::TestFeedbackIsolation::test_feedback_not_visible_across_tenants failed
+Coverage hides blind spots
+Some of the most security- and production-critical modules are weakly covered or untested
+3. FEATURE COMPLETENESS AUDIT
+#	Section	Rating	Findings	Action Items
+14	Feature Completeness — Core vs Roadmap	⚠️	Repo is impressively feature-complete for its size (analytics, governance, jobs, keys, dashboard, SDKs). I found no TODO/FIXME comments in code/docs via grep, which is a positive signal. However, breadth exceeds test depth in several advanced areas.	P2: Add “experimental” labels in README/docs for OIDC, MCP, Prom metrics, and maybe async jobs depending on intended support level.
+15	Feature Completeness — Public API Consistency	⚠️	Public Python export surface in engramia/__init__.py:3-17 is intentionally small and clean. Memory has strong docstrings. REST API is broad. However, REST and Python APIs are not 1:1 in all areas (e.g. jobs/governance/keys are API-first capabilities).	P3: Decide whether API-only features are intentional product boundaries or missing Python API surface.
+16	Feature Completeness — Provider Implementation	⚠️	Provider abstraction structure looks clean. The biggest practical issue is embedding-dimension compatibility between local and OpenAI providers, which is partially handled (good) but still operationally fragile.	P2: Persist embedding provider metadata and support explicit reindex/migration workflows.
+17	Feature Completeness — SDK / CLI	⚠️	CLI coverage is weak (engramia/cli/main.py 31%). LangChain SDK coverage is decent (79%), Webhook SDK strong (91%).	P2: Verify README command parity against actual CLI commands in a dedicated doc/test sweep.
+18	Feature Completeness — Persistence / Migration	⚠️	Export/import is versioned (engramia/memory.py:449-452, 492-500). Good. Migration story exists in docs, but actual migration confidence is limited by low Postgres backend test coverage.	P2: Add JSON → Postgres migration integration test with real fixture DB.
+4. PRODUCTION READINESS AUDIT
+#	Section	Rating	Findings	Action Items
+19	Production — Error Handling	⚠️	Error handling is generally sane, but there are multiple broad except Exception blocks used intentionally in hot-path protection and telemetry. Examples: engramia/analytics/collector.py:48-60, 80-93; engramia/eval/evaluator.py:162-170; engramia/providers/postgres.py:254-255, 276-278.	P2: Keep broad excepts only where deliberate and document them. P2: Add structured error taxonomy.
+20	Production — Concurrency / Thread Safety	⚠️	JSON storage uses a lock for embedding index operations (engramia/providers/json_storage.py:64, 203-215, 228-236) but not for ordinary JSON object save/load. That’s acceptable for per-file atomic writes, but logical multi-step operations remain race-prone. Rate limiter is correctly locked (middleware.py:92,115-121).	P1: Add concurrency tests for learn/import/analytics under contention. P2: Consider per-scope or per-key locks for high-contention writes.
+21	Production — Resource Management	⚠️	Postgres uses connection pooling with pool_pre_ping=True (engramia/providers/postgres.py:80-86). Good. JSON backend is still O(n) scan for list/search and can degrade badly at scale.	P2: Add explicit “JSON backend is dev/small-scale only” warnings in docs and startup logs.
+22	Production — Logging & Observability	⚠️	Logging mostly uses logging.getLogger(__name__) correctly. I did not find obvious stray print() usage in core paths. But engramia/telemetry/logging.py is 0% covered, so confidence is weak.	P2: Add tests to ensure structured logs don’t leak sensitive fields.
+23	Production — Configuration Management	⚠️	Environment-variable and deployment docs are actually fairly mature (docs present for env vars, deployment, security). But startup validation is not strict enough for auth and optional integrations.	P1: Fail-fast on insecure startup combinations.
+24	Production — Graceful Degradation	✅	One of the better-implemented areas. The system clearly supports “no LLM provider” for learn/recall while returning 501 for evaluate/compose/evolve via route handlers (engramia/api/routes.py:243-249, 294-298, 527-531). This is good product behavior.	P3: Add health surface that explicitly labels optional vs required degraded dependencies.
+5. CODE QUALITY AUDIT
+#	Section	Rating	Findings	Action Items
+25	Code Quality — Architecture / Design	✅	Architecture is notably good. Memory is now a thin façade over services (engramia/memory.py:3-9, 91-115) rather than a monolith. Separation into core/services, analytics, governance, jobs, sdk, api is coherent.	P3: Keep this direction; avoid backsliding into Memory bloat.
+26	Code Quality — Conventions / Duplication / Dead Code	⚠️	Style is consistent and professional. However, there is still some schema/model duplication between API schemas and internal types (intentional but maintenance-heavy). Also some modules appear implemented but not meaningfully exercised (mcp, oidc, prom_metrics).	P2: Mark dormant modules as beta/experimental or remove until supported.
+27	Code Quality — Dependency Health	⚠️	I did not run pip audit, so I won’t bluff vulnerability counts. But dependency strategy appears reasonable from repo shape.	P2: Add pip-audit / safety to CI.
+28	Code Quality — Documentation	✅	Docs footprint is unusually strong for a project this size: deployment, security, backup/restore, env vars, architecture, runbooks, legal. This is a real strength.	P3: Keep README brutally honest about what is production-ready vs advanced-but-you-own-the-risk.
+6. DATA INTEGRITY AUDIT
+#	Section	Rating	Findings	Action Items
+29	Data Integrity — Pattern Storage	⚠️	Pattern keys are SHA-256 prefix + timestamp (engramia/memory.py:575-579). This is deterministic only for the task hash portion, not full dedup identity. That means “same task + same code” does not map to same key. That is acceptable if intended, but not true deduplication.	P2: Decide whether storage key should represent identity or instance. If identity, use task+code hash.
+30	Data Integrity — JSON Corruption / Atomicity	⚠️	JSON writes are atomic per file via tmp→bak→replace (engramia/providers/json_storage.py:137-146). Good. But corrupted JSON reads are not gracefully recovered; json.load() exceptions will bubble.	P2: Add corruption recovery path or clearer operator guidance.
+31	Data Integrity — Embedding Consistency	⚠️	This is one of the better-handled risk areas: JSON storage checks embedding dimension on save/search (json_storage.py:205-213, 230-235), Postgres checks too (postgres.py:197-201, 291-294). However, there is no model/version metadata stored with embeddings, only dimensional compatibility.	P1: Store embedding model/provider/version metadata and support reindex.
+32	Data Integrity — Aging / Decay	⚠️	Core coverage suggests this is mostly implemented correctly, but I did not fully recalculate all formulas from source. Existing tests indicate this area is important and reasonably covered.	P2: Add explicit formula invariants to tests (compound vs linear decay).
+33	Data Integrity — Eval Feedback	⚠️	There is at least one real signal of tenant-scope leakage/handling weakness here: tests/test_security/test_tenant_isolation.py::TestFeedbackIsolation failed. That is a red flag for feedback-store isolation or filtering.	P1: Fix feedback isolation immediately and add regression test coverage around feedback store scope boundaries.
+7. COMPLIANCE AND LEGAL AUDIT
+#	Section	Rating	Findings	Action Items
+34	Compliance — License	✅	BUSL-1.1 is consistently applied in headers and package metadata (engramia/__init__.py:7, file headers throughout, LICENSE.txt present).	P3: Ensure all generated/non-core files follow your intended header convention if required.
+35	Compliance — Legal Docs	⚠️	Legal docs are present in docs/legal and root security/legal structure. I did not do a legal sufficiency review line-by-line here.	P2: Cross-check privacy/data-processing claims against actual telemetry and storage behavior before shipping B2B.
+8. REGRESSION CHECK
+#	Section	Rating	Findings	Action Items
+36	Regression — Since Last Audit	ℹ️	Cannot fully compare against previous audit artifact truthfully without normalized baseline. However, repo contains prior audit result folders, which is good process maturity.	P3: Store weekly audit summaries in machine-readable format for delta tracking.
+37	Regression — Git History	ℹ️	Commit hash available: b1d5e82. I did not do a full semantic git history audit in this pass.	P3: Add CI rule requiring tests for security-sensitive diffs.
+9. MULTI-TENANCY AND SCOPE ISOLATION AUDIT
+#	Section	Rating	Findings	Action Items
+38	Multi-Tenancy — Scope Model	✅	Contrary to the first-pass concern, multi-tenancy is actually architecturally present and thoughtful. Scope context is propagated through auth (engramia/api/auth.py:27-28, 184-193) and storage backends are scope-aware (engramia/providers/postgres.py:16-19, 94-99; engramia/providers/json_storage.py:74-103).	P3: Document scope guarantees more explicitly in public docs.
+39	Multi-Tenancy — Data Isolation	⚠️	Most storage/query paths appear correctly scoped. Import/export and storage filtering are also scope-aware. However, the failing tenant-isolation feedback test indicates at least one leak/logic bug around feedback data or store filtering.	P1: Fix feedback isolation bug. P1: Add tenant-isolation tests for analytics + jobs + governance endpoints too.
+10. RBAC AND PERMISSIONS AUDIT
+#	Section	Rating	Findings	Action Items
+40	RBAC — Role Model	✅	Clear role hierarchy exists in engramia/api/permissions.py:27-82: reader ⊂ editor ⊂ admin ⊂ owner. Permission strings are explicit and readable. This is clean.	P3: Add role matrix to docs.
+41	RBAC — Enforcement	⚠️	API-layer enforcement is well implemented for DB auth mode. But in env/dev/no-auth modes, RBAC becomes a no-op (permissions.py:103-105). That is intentional for backward compatibility, but dangerous if left enabled in any serious deployment.	P1: Tie env-mode auth to at least one explicit role or deprecate permissive env mode.
+42	RBAC — API Key Scoping	⚠️	API keys appear tenant/project scoped in DB auth mode, which is good. Rotation/revocation routes exist, but test coverage for api/keys.py is only 63%.	P2: Add adversarial tests for revoked/rotated keys across scopes.
+11. ASYNC PROCESSING AND JOB MANAGEMENT AUDIT
+#	Section	Rating	Findings	Action Items
+43	Async — Background Jobs	⚠️	There is a jobs subsystem (engramia/jobs/*) and async response support via Prefer: respond-async (engramia/api/routes.py:73-92, engramia/api/analytics.py:63-65). That’s better than expected. But this is still not equivalent to a durable queue like Celery/Arq/Dramatiq.	P1: If production async is a product promise, move to a durable job queue.
+44	Async — Backpressure / Limits	❌	No evidence of robust queue-depth limits, durable retries, or global LLM concurrency caps. jobs/service.py is only 64% covered.	P1: Add queue backpressure and bounded worker concurrency.
+12. OBSERVABILITY AND TELEMETRY AUDIT
+#	Section	Rating	Findings	Action Items
+45	Observability — Tracing	⚠️	Telemetry package exists, but there is no strong evidence of full OpenTelemetry/distributed tracing in this pass.	P2: Add request/trace IDs across API → jobs → provider calls.
+46	Observability — Metrics	⚠️	ROI analytics is a real differentiator and more mature than expected. But engramia/api/prom_metrics.py is 0% covered, which means Prometheus exposure is not yet confidence-worthy.	P2: Either harden and test Prom metrics or mark it experimental.
+47	Observability — Alerting Readiness	⚠️	/health and /health/deep are implemented (engramia/api/routes.py:448-502), which is good. Deep health is actually useful.	P3: Add operator runbook links to health/deep failure modes.
+13. DATA GOVERNANCE AND PRIVACY AUDIT
+#	Section	Rating	Findings	Action Items
+48	Governance — Data Lifecycle	⚠️	Governance modules exist (retention, deletion, lifecycle, redaction) and are reasonably covered. This is a strength. But not all destructive operations appear fully audited/logged, and retention behavior should be integration-tested under real storage backends.	P2: Add end-to-end governance scenario tests.
+49	Governance — Privacy / Redaction	✅	Redaction pipeline exists and is fully covered (engramia/governance/redaction.py 100%). That is genuinely good engineering hygiene.	P3: Validate redaction coverage against real secret formats used by target customers.
+50	Governance — Provenance	⚠️	Provenance metadata is present in learn/import paths (engramia/memory.py:145-149, 170-179; engramia/providers/postgres.py:221-255). Good. But full lineage surfacing is still more internal capability than polished product feature.	P3: Expose provenance in dashboard/API where useful.
+14. PRODUCT AND POSITIONING AUDIT
+#	Section	Rating	Findings	Action Items
+51	Product — Docs vs Reality	⚠️	The project is substantially real, not vaporware. But docs/marketing must be careful not to overstate “production-ready” in areas like OIDC, Prom metrics, durable async jobs, and MCP.	P1: Label maturity per feature.
+52	Product — Commercial Readiness	⚠️	Dashboard exists, ROI analytics exists, governance exists, key management exists — these are strong commercial signals. However, analytics integrity and async durability still need hardening before being sold as “ops-grade”.	P2: Define a “supported production profile” with only hardened features enabled.
+53	Product — API Maturity	⚠️	API design is generally coherent and versioned under /v1/. Pagination exists in some endpoints (recall, feedback, events). But consistency is not perfect across all list surfaces.	P2: Standardize envelope/error format and pagination semantics across all list endpoints.
+15. DEPLOYMENT AND OPERATIONAL MATURITY AUDIT
+#	Section	Rating	Findings	Action Items
+54	Deployment — Production Deployment	✅	Docs footprint includes deployment, backup/restore, hardening, security architecture, runbooks. This is genuinely ahead of many projects at this stage.	P3: Keep deployment docs version-locked to release versions.
+55	Deployment — Zero Downtime / Rollback	⚠️	Operational maturity is documented more than it is mechanically guaranteed. I did not validate migration rollback behavior against live DB schema.	P2: Add migration smoke tests and rollback rehearsal docs.
+56	Deployment — Secrets Management	⚠️	.env is excluded and compose uses env vars, which is fine for self-hosting. But there is no enforced secret manager integration, and repo ignore rules are incomplete for cert/key artifacts.	P2: Add guidance for Doppler/1Password/Vault/AWS/GCP secrets managers.
+16. ROI ANALYTICS AUDIT
+#	Section	Rating	Findings	Action Items
+57	ROI — Event Collection Integrity	❌	ROICollector.record_learn() and record_recall() are correctly wired conceptually and are nicely non-blocking (engramia/analytics/collector.py:37-60, 62-93). But _append() is a classic read-modify-write race: load list → append → truncate → save (131-135). Under concurrent writes, events can be silently lost. This is a real bug, not theory.	P1: Make append atomic per backend (lock or append-only store). P1: Add concurrency test proving no event loss.
+58	ROI — Scope Isolation	✅	Scope tagging is explicitly present in collector (collector.py:49-57, 81-90) and rollups are grouped by tenant/project (aggregator.py:96-100, 115-116). This is actually well-designed.	P3: Add adversarial tests around cross-scope analytics queries.
+59	ROI — Rollup Correctness	⚠️	Formula is implemented exactly as specified: 0.6 × reuse_rate × 10 + 0.4 × avg_eval (aggregator.py:209-214) and clamped to [0,10]. Edge cases for zero events are handled. However, p90 calculation is simplistic (195-198) and may not match expected percentile semantics for very small samples.	P2: Define and test percentile semantics explicitly.
+60	ROI — API Endpoints	⚠️	Analytics routes are structurally good and correctly permissioned (engramia/api/analytics.py:32-45, 91-96, 147-151). But coverage is only 35%, which is too low for a product-signature feature.	P1: Raise analytics API coverage substantially.
+Important Concrete Findings (with exact file:line references)
+❌ Critical / High Priority
+1) Unauthenticated fallback still exists in “normal” operation
+File: engramia/api/auth.py
+Lines: 82-85, 223-232
+
+Why it matters
+If ENGRAMIA_API_KEYS is empty and DB auth is not used, the API allows requests through. Yes, it logs a warning. No, that is not enough for production.
+
+Fix
+
+Make this behavior available only when:
+ENGRAMIA_AUTH_MODE=dev
+and ENGRAMIA_ALLOW_NO_AUTH=true
+Otherwise fail startup or return 503 on every request.
+2) ROI event collection can silently lose data under concurrency
+File: engramia/analytics/collector.py
+Lines: 131-135
+raw = self._load_raw()
+raw.append(event.model_dump())
+raw = raw[-_MAX_EVENTS:]
+self._storage.save(_EVENTS_KEY, raw)
+
+Why it matters
+Two concurrent writes can both read the same prior list and overwrite each other.
+
+Fix
+
+JSON backend: lock around append
+Postgres backend: append rows transactionally, don’t emulate append with JSON list overwrite
+3) Async “jobs” are not truly production-durable
+Files: engramia/api/routes.py, engramia/jobs/service.py
+Relevant lines: routes.py:73-92
+
+Why it matters
+Prefer: respond-async gives the shape of async, but not necessarily the guarantees users will assume (durability, retries, backpressure, persistence, crash recovery).
+
+Fix
+
+If this is a product promise, use a real job queue
+If not, label it clearly as “best-effort background execution”
+4) Feedback isolation likely has a real bug or missing guarantee
+File: tests/test_security/test_tenant_isolation.py
+Lines: 260-272
+
+Observed
+This test fails in the current snapshot:
+
+test_feedback_not_visible_across_tenants
+
+Why it matters
+Cross-tenant leakage in feedback is a hard stop issue for SaaS posture.
+
+Fix
+
+Trace EvalFeedbackStore storage/filtering path and patch immediately
+Add API-level cross-tenant regression tests too
+⚠️ Important Medium Priority
+5) Postgres backend is under-tested for how important it is
+File: engramia/providers/postgres.py
+Coverage: 21%
+
+Why it matters
+This backend is what you’ll want in production, yet it is one of the least verified pieces.
+
+Good news
+The implementation itself is better than expected:
+
+parameterized SQL
+LIKE escaping
+scope filtering
+connection pooling
+dimension checks
+
+Fix
+
+Add:
+save/load/list/delete roundtrip tests
+tenant isolation tests
+pgvector similarity tests
+migration compatibility tests
+6) OIDC, Prom metrics, MCP, telemetry logging are effectively “exists in repo” features
+Coverage:
+engramia/api/oidc.py → 0%
+engramia/api/prom_metrics.py → 0%
+engramia/mcp/server.py → 0%
+engramia/telemetry/logging.py → 0%
+
+Why it matters
+These are the kind of features customers/README readers interpret as “supported”.
+
+Fix
+Pick one:
+
+Test and support them properly
+Mark them experimental
+Remove them from primary positioning
+7) Secret/cert ignore rules are incomplete
+File: .gitignore
+Lines: 21-23
+
+Missing
+
+*.pem
+*.key
+*.crt
+*.p12
+credentials*
+
+Fix
+Add them now. This is cheap and worth it.
+
+What’s Actually Better Than Expected
+
+A few things deserve a straight answer:
+
+Genuinely strong areas
+Architecture — much cleaner and more mature than average
+RBAC design — simple and well-structured
+Tenant scoping design — mostly well thought through
+Prompt injection hardening — not hand-wavy, actually implemented
+Docs — unusually strong
+Deep health checks — useful, not decorative
+Governance / redaction / retention direction — commercially smart
+Areas where first-pass concern was too pessimistic
+Multi-tenancy is not absent
+Security headers / Docker hardening are not weak
+The project is not “prototype-only”
+ROI analytics is not fake feature theater — it’s a real system, just needs hardening

@@ -38,9 +38,16 @@ _fake_anthropic.PermissionDeniedError = type("PermissionDeniedError", (Exception
 
 @pytest.fixture(autouse=True)
 def _mock_anthropic_module():
-    """Ensure the anthropic module is available for import."""
+    """Ensure the anthropic module is available for import.
+
+    Calls reset_mock() in teardown so that call_count, called, call_args and
+    child-mock state accumulated during one test never bleed into the next.
+    The exception-type attributes (AuthenticationError etc.) are direct __dict__
+    assignments and survive reset_mock(), so they remain valid across tests.
+    """
     with patch.dict(sys.modules, {"anthropic": _fake_anthropic}):
         yield
+    _fake_anthropic.reset_mock()
 
 
 class TestAnthropicProvider:

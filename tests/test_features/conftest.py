@@ -4,6 +4,12 @@
 
 Mirrors the recall_quality/conftest.py session fixtures but uses a separate
 tmp storage directory so feature tests don't share state with quality tests.
+
+All tests in this package require sentence-transformers (engramia[local]).
+The ``local_embeddings`` mark is applied automatically via
+``pytest_collection_modifyitems`` below so the suite can be filtered with::
+
+    pytest -m "not local_embeddings"
 """
 from __future__ import annotations
 
@@ -12,7 +18,19 @@ import uuid
 
 import pytest
 
-from tests.recall_quality.conftest import TestClient
+from tests.helpers import TestClient
+
+
+def pytest_collection_modifyitems(items: list) -> None:
+    """Tag every test collected from test_features/ with local_embeddings mark.
+
+    This makes the dependency on sentence-transformers explicit in pytest
+    output and allows CI to skip the suite cleanly with ``-m 'not local_embeddings'``.
+    """
+    feature_mark = pytest.mark.local_embeddings
+    for item in items:
+        if "test_features" in str(item.fspath):
+            item.add_marker(feature_mark)
 
 
 @pytest.fixture(scope="session")

@@ -70,12 +70,12 @@ class TestROICollectorRecordLearn:
         assert events[0].scope_tenant == "acme"
         assert events[0].scope_project == "proj1"
 
-    def test_learn_event_has_timestamp(self, collector):
-        before = time.time()
+    def test_learn_event_has_timestamp(self, collector, monkeypatch):
+        fixed_ts = 1_700_000_000.0
+        monkeypatch.setattr(time, "time", lambda: fixed_ts)
         collector.record_learn(pattern_key="patterns/ts", eval_score=5.0)
-        after = time.time()
         events = collector.load_events()
-        assert before <= events[0].ts <= after
+        assert events[0].ts == fixed_ts
 
     def test_multiple_learn_events(self, collector):
         for i in range(5):
@@ -233,10 +233,9 @@ class TestROICollectorFiltering:
     def test_malformed_events_in_storage_are_skipped(self, storage):
         storage.save(_EVENTS_KEY, [{"bad": "data"}, {"kind": "learn", "ts": time.time()}])
         c = ROICollector(storage)
-        # Should not raise; malformed events are skipped
+        # Should not raise; both records are missing required fields and must be silently dropped
         events = c.load_events()
-        # Both are malformed (missing required fields); result may be empty or partial
-        assert isinstance(events, list)
+        assert events == []
 
 
 # ---------------------------------------------------------------------------
