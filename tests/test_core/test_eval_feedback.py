@@ -73,7 +73,7 @@ def test_decay_prunes_low_score(store):
             "last_decayed": "2020-01-01T00:00:00",
         }
     ]
-    store._storage.save("feedback/_list", patterns)
+    store._storage.save(store._key(), patterns)
     pruned = store.run_decay()
     assert pruned == 1
     assert store.get_top() == []

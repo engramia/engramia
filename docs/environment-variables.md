@@ -18,9 +18,11 @@ Complete reference for all Engramia environment variables, grouped by category.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM backend: `openai` or `anthropic`. |
+| `ENGRAMIA_LLM_PROVIDER` | `openai` | LLM backend: `openai` \| `anthropic` \| `none`. |
 | `ENGRAMIA_LLM_MODEL` | `gpt-4.1` | Model name passed to the LLM provider. |
-| `ENGRAMIA_EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI embedding model. |
+| `ENGRAMIA_LLM_TIMEOUT` | `30.0` | Timeout in seconds for LLM API calls (applies to both OpenAI and Anthropic). |
+| `ENGRAMIA_LLM_CONCURRENCY` | `10` | Max parallel LLM calls across the entire process (bounded semaphore). |
+| `ENGRAMIA_EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI embedding model. Set to `none` to disable semantic search. |
 | `ENGRAMIA_LOCAL_EMBEDDINGS` | — | Set to any non-empty value to use `sentence-transformers` (no API key required). |
 | `OPENAI_API_KEY` | — | OpenAI API key. Required when using OpenAI LLM or embeddings. |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key. Required when `ENGRAMIA_LLM_PROVIDER=anthropic`. |
@@ -31,7 +33,7 @@ Complete reference for all Engramia environment variables, grouped by category.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENGRAMIA_AUTH_MODE` | `auto` | Auth strategy: `auto` \| `env` \| `db` \| `dev`. |
+| `ENGRAMIA_AUTH_MODE` | `auto` | Auth strategy: `auto` \| `env` \| `db` \| `dev` \| `oidc`. |
 | `ENGRAMIA_API_KEYS` | — | Comma-separated static API keys for `env` auth mode, e.g. `key1,key2`. |
 | `ENGRAMIA_ALLOW_NO_AUTH` | — | Set to `true` to explicitly allow unauthenticated access in `dev` mode. **Never use in production.** |
 | `ENGRAMIA_ENVIRONMENT` | — | Deployment environment label (`local`, `development`, `staging`, `production`). Used to block `ENGRAMIA_AUTH_MODE=dev` in non-local environments. |
@@ -54,7 +56,10 @@ Complete reference for all Engramia environment variables, grouped by category.
 | `ENGRAMIA_CORS_ORIGINS` | — | Comma-separated allowed CORS origins. CORS is disabled when unset. Use `*` only in dev. |
 | `ENGRAMIA_RATE_LIMIT_DEFAULT` | `60` | Max requests per minute for standard endpoints (per IP). |
 | `ENGRAMIA_RATE_LIMIT_EXPENSIVE` | `10` | Max requests per minute for LLM-intensive endpoints (`/evaluate`, `/compose`, `/evolve`). |
+| `ENGRAMIA_RATE_LIMIT_PER_KEY` | `120` | Max requests per minute per API key across all paths. |
 | `ENGRAMIA_MAX_BODY_SIZE` | `1048576` | Max request body size in bytes (default 1 MB). |
+| `ENGRAMIA_MAX_LLM_RESPONSE` | `20000` | Max characters of LLM-generated response text before truncation. |
+| `ENGRAMIA_REDACTION` | `true` | PII/secrets redaction at rest. Set to `false`/`0`/`no` to disable (dev only — **not for production**). |
 | `ENGRAMIA_MAINTENANCE` | — | Set to `true` / `1` to activate maintenance mode. Returns `503` on all endpoints except `/v1/health`. |
 
 ---

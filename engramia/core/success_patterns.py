@@ -54,7 +54,12 @@ class SuccessPatternStore:
                 "success_score": min(10.0, pattern.success_score + _REUSE_BOOST),
             }
         )
-        self._storage.save(pattern_key, updated.model_dump())
+        save_data = updated.model_dump()
+        # Preserve internal metadata fields (e.g. _author_key_id)
+        for k, v in data.items():
+            if k.startswith("_") and k not in save_data:
+                save_data[k] = v
+        self._storage.save(pattern_key, save_data)
 
     def run_aging(self) -> int:
         """Apply time-based decay to all stored patterns.
@@ -83,7 +88,12 @@ class SuccessPatternStore:
                 pruned += 1
             else:
                 updated = pattern.model_copy(update={"success_score": round(decayed, 4), "timestamp": now})
-                self._storage.save(key, updated.model_dump())
+                save_data = updated.model_dump()
+                # Preserve internal metadata fields (e.g. _author_key_id)
+                for k, v in data.items():
+                    if k.startswith("_") and k not in save_data:
+                        save_data[k] = v
+                self._storage.save(key, save_data)
 
         return pruned
 

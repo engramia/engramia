@@ -238,8 +238,134 @@ curl http://localhost:8000/v1/health
 
 ### DELETE /v1/patterns/{key}
 
-Delete a pattern by key.
+Delete a pattern by key. Permission: `patterns:delete` (admin+).
 
 ```bash
 curl -X DELETE http://localhost:8000/v1/patterns/patterns%2Fabc123
 ```
+
+### GET /v1/export
+
+Export all patterns in the current scope. Permission: `export`.
+
+Returns `{"records": [...], "count": N}` — same format accepted by `POST /v1/import`.
+
+### POST /v1/import
+
+Bulk-import patterns. Permission: `import`. Supports `Prefer: respond-async`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `records` | `list` | yes | Export records (max 10,000) |
+| `overwrite` | `bool` | no | Overwrite existing keys (default `false`) |
+
+### GET /v1/health/deep
+
+Deep health check — probes storage, LLM, and embedding connectivity. Returns `status: ok|degraded|error`, per-check results, and uptime.
+
+### GET /v1/version
+
+Public endpoint (no auth). Returns `app_version`, `api_version`, `git_commit`, `build_time`.
+
+---
+
+## Key Management (`/v1/keys`)
+
+Requires DB auth mode (`ENGRAMIA_AUTH_MODE=db` or `auto` with `ENGRAMIA_DATABASE_URL`).
+
+### POST /v1/keys/bootstrap
+
+One-time setup. Creates default tenant, project, and owner key. Requires `ENGRAMIA_BOOTSTRAP_TOKEN` env var.
+
+### POST /v1/keys
+
+Create a new API key. Permission: `keys:create` (admin+). Role hierarchy enforced.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `str` | yes | Display name (1-100 chars) |
+| `role` | `str` | no | `owner`/`admin`/`editor`/`reader` (default `editor`) |
+| `max_patterns` | `int` | no | Pattern quota (inherit from project if unset) |
+| `expires_at` | `str` | no | ISO-8601 expiration |
+
+### GET /v1/keys
+
+List API keys for current project. Permission: `keys:list`.
+
+### DELETE /v1/keys/{id}
+
+Revoke an API key. Permission: `keys:revoke`.
+
+### POST /v1/keys/{id}/rotate
+
+Rotate key (generates new secret). Permission: `keys:rotate`.
+
+---
+
+## Analytics (`/v1/analytics`)
+
+### POST /v1/analytics/rollup
+
+Compute ROI rollup for a time window. Permission: `analytics:rollup`. Supports async.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `window` | `str` | `hourly` / `daily` / `weekly` |
+
+Response: composite ROI score (0-10), recall/learn summaries, percentiles.
+
+### GET /v1/analytics/rollup/{window}
+
+Fetch pre-computed rollup. Permission: `analytics:read`. Returns 404 if not yet computed.
+
+### GET /v1/analytics/events
+
+Raw ROI events. Permission: `analytics:read`. Query params: `limit` (1-1000), `since` (Unix timestamp).
+
+---
+
+## Jobs (`/v1/jobs`)
+
+### GET /v1/jobs
+
+List async jobs. Permission: `jobs:list`. Query params: `status`, `limit` (1-100).
+
+### GET /v1/jobs/{id}
+
+Get job status and result. Permission: `jobs:read`. Returns 404 if not found.
+
+### POST /v1/jobs/{id}/cancel
+
+Cancel a pending job. Permission: `jobs:cancel`.
+
+---
+
+## Data Governance (`/v1/governance`)
+
+### GET /v1/governance/export
+
+Stream patterns as NDJSON (GDPR Art. 20). Permission: `export`. Optional `classification` query filter.
+
+### GET /v1/governance/retention
+
+Get effective retention policy. Permission: `governance:read`.
+
+### PUT /v1/governance/retention
+
+Set retention policy (days). Permission: `governance:write`. Requires DB auth.
+
+### POST /v1/governance/retention/apply
+
+Apply retention — delete expired patterns. Permission: `governance:admin`. Supports async.
+
+### PUT /v1/governance/patterns/{key}/classify
+
+Update data classification (`public`/`internal`/`confidential`). Permission: `governance:write`.
+
+### DELETE /v1/governance/projects/{project_id}
+
+Delete ALL data for a project (GDPR Art. 17). Permission: `governance:delete`. Irreversible.
+
+### DELETE /v1/governance/tenants/{tenant_id}
+
+Delete ALL data for a tenant. Owner only. Irreversible.

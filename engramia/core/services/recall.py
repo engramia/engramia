@@ -123,6 +123,8 @@ class RecallService:
         fetch_limit = limit * _DEDUP_FETCH_MULTIPLIER if deduplicate else limit
 
         try:
+            if self._embeddings is None:
+                raise ProviderError("No embedding provider configured — using keyword fallback")
             if eval_weighted:
                 matcher = PatternMatcher(self._storage, self._embeddings, self._eval_store)
                 matches = matcher.find(task, limit=fetch_limit)

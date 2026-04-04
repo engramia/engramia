@@ -194,7 +194,7 @@ def _compute_rollup(
         avg_eval = round(sum(scores) / len(scores), 4)
         sorted_s = sorted(scores)
         p50 = round(statistics.median(sorted_s), 4)
-        idx_90 = max(0, int(len(sorted_s) * 0.9) - 1)
+        idx_90 = max(0, int((len(sorted_s) - 1) * 0.9))
         p90 = round(sorted_s[idx_90], 4)
     else:
         avg_eval = p50 = p90 = 0.0

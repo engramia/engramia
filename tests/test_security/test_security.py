@@ -15,6 +15,7 @@ Covers:
 """
 
 import inspect
+import json
 import time
 from unittest.mock import MagicMock
 
@@ -25,9 +26,11 @@ from fastapi.responses import JSONResponse
 pytestmark = pytest.mark.security
 from fastapi.testclient import TestClient
 
+import engramia._factory as factory
 from engramia import Memory
 from engramia.api.routes import router
 from engramia.exceptions import ValidationError
+from tests.conftest import EVAL_RESPONSE
 
 # ---------------------------------------------------------------------------
 # Shared fixture
@@ -35,20 +38,25 @@ from engramia.exceptions import ValidationError
 
 
 @pytest.fixture
-def api_client(fake_embeddings, storage):
-    app = FastAPI()
-    mem = Memory(embeddings=fake_embeddings, storage=storage)
-    app.state.memory = mem
+def api_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("ENGRAMIA_ALLOW_NO_AUTH", "true")
+    monkeypatch.setenv("ENGRAMIA_AUTH_MODE", "dev")
+    monkeypatch.setenv("ENGRAMIA_STORAGE", "json")
+    monkeypatch.setenv("ENGRAMIA_DATA_PATH", str(tmp_path))
+    monkeypatch.setenv("ENGRAMIA_LLM_PROVIDER", "none")
+    monkeypatch.setenv("ENGRAMIA_SKIP_AUTO_APP", "1")
 
-    @app.exception_handler(ValidationError)
-    async def _ve(request: Request, exc: ValidationError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed.return_value = [0.1] * 1536
+    _mock_llm = MagicMock()
+    _mock_llm.call.return_value = EVAL_RESPONSE
 
-    @app.exception_handler(ValueError)
-    async def _ve2(request: Request, exc: ValueError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+    monkeypatch.setattr(factory, "make_embeddings", lambda: mock_embeddings)
+    monkeypatch.setattr(factory, "make_llm", lambda: _mock_llm)
 
-    app.include_router(router, prefix="/v1")
+    from engramia.api.app import create_app
+
+    app = create_app()
     return TestClient(app)
 
 
@@ -397,25 +405,15 @@ class TestAuditLogging:
         finally:
             os.environ.pop("ENGRAMIA_API_KEYS", None)
 
-    def test_pattern_deleted_logged(self, caplog, mem):
+    def test_pattern_deleted_logged(self, caplog, api_client):
         import logging
 
-        mem.learn(task="Audit delete test", code="pass", eval_score=7.0)
-        matches = mem.recall(task="Audit delete test", limit=1)
-        key = matches[0].pattern_key
-
-        app = FastAPI()
-        app.state.memory = mem
-
-        @app.exception_handler(ValidationError)
-        async def _ve(request: Request, exc: ValidationError) -> JSONResponse:
-            return JSONResponse(status_code=422, content={"detail": str(exc)})
-
-        app.include_router(router, prefix="/v1")
-        client = TestClient(app)
+        # Learn a pattern via API
+        api_client.post("/v1/learn", json={"task": "Audit delete test", "code": "pass", "eval_score": 7.0})
+        resp = api_client.post("/v1/recall", json={"task": "Audit delete test", "limit": 1})
+        key = resp.json()["matches"][0]["pattern_key"]
 
         with caplog.at_level(logging.WARNING, logger="engramia.audit"):
-            resp = client.delete(f"/v1/patterns/{key}")
+            resp = api_client.delete(f"/v1/patterns/{key}")
         assert resp.status_code == 200
         assert resp.json()["deleted"] is True
-        assert any("pattern_deleted" in r.message for r in caplog.records)

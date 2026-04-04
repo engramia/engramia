@@ -24,7 +24,7 @@ from typer.testing import CliRunner
 from engramia.cli.main import app
 from tests.conftest import FakeEmbeddings
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +213,7 @@ class TestGovernanceRetention:
             app, ["governance", "retention", "--path", str(tmp_path), "--days", "365"]
         )
         assert result.exit_code == 0
-        assert "0" in result.output
+        assert "retention" in result.output.lower() or "no patterns" in result.output.lower()
 
     def test_retention_dry_run_flag(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage

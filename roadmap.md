@@ -182,6 +182,13 @@ Vyžadováno před prvním releasem přes nový VCS-based versioning pipeline.
 - [ ] Deep framework integrations — LangChain, CrewAI, OpenAI Agents SDK adapters
 - [x] Marketing website (engramia.dev) — integrate licensing page, pricing page, blog; replace static HTML stránky
 
+### Enterprise Hardening
+
+- [ ] **External secret management** — HashiCorp Vault / AWS Secrets Manager / Azure Key Vault integration for centralized secret storage, audit trails, and automatic rotation
+- [ ] **Mutual TLS (mTLS)** — service-to-service authentication for zero-trust deployments
+- [ ] **SOC 2 Type II audit** — formalize controls from `docs/soc2-controls.md`
+- [ ] **SAML SSO** — in addition to existing OIDC, for legacy enterprise IdPs
+
 ### Phase 7 — Memory Architecture
 
 - [ ] Knowledge Graph — entity/relationship layer on top of patterns

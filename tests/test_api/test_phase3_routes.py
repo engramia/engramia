@@ -6,13 +6,9 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from engramia import Memory
-from engramia.api.routes import router
-from engramia.exceptions import ValidationError
+import engramia._factory as factory
 
 pytestmark = pytest.mark.integration
 
@@ -25,32 +21,49 @@ EVOLVE_RESPONSE = json.dumps(
 
 
 @pytest.fixture
-def mock_llm_evolve():
-    llm = MagicMock()
-    llm.call.return_value = EVOLVE_RESPONSE
-    return llm
+def api_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("ENGRAMIA_ALLOW_NO_AUTH", "true")
+    monkeypatch.setenv("ENGRAMIA_AUTH_MODE", "dev")
+    monkeypatch.setenv("ENGRAMIA_STORAGE", "json")
+    monkeypatch.setenv("ENGRAMIA_DATA_PATH", str(tmp_path))
+    monkeypatch.setenv("ENGRAMIA_LLM_PROVIDER", "none")
+    monkeypatch.setenv("ENGRAMIA_SKIP_AUTO_APP", "1")
 
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed.return_value = [0.1] * 1536
+    _mock_llm = MagicMock()
+    _mock_llm.call.return_value = EVOLVE_RESPONSE
 
-@pytest.fixture
-def api_client(fake_embeddings, storage, mock_llm_evolve):
-    app = FastAPI()
-    mem = Memory(embeddings=fake_embeddings, storage=storage, llm=mock_llm_evolve)
-    app.state.memory = mem
+    monkeypatch.setattr(factory, "make_embeddings", lambda: mock_embeddings)
+    monkeypatch.setattr(factory, "make_llm", lambda: _mock_llm)
 
-    @app.exception_handler(ValidationError)
-    async def _validation_error(request: Request, exc: ValidationError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+    from engramia.api.app import create_app
 
-    app.include_router(router, prefix="/v1")
+    app = create_app()
     return TestClient(app)
 
 
 @pytest.fixture
-def api_client_no_llm(fake_embeddings, storage):
-    app = FastAPI()
-    mem = Memory(embeddings=fake_embeddings, storage=storage, llm=None)
-    app.state.memory = mem
-    app.include_router(router, prefix="/v1")
+def api_client_no_llm(tmp_path, monkeypatch):
+    monkeypatch.setenv("ENGRAMIA_ALLOW_NO_AUTH", "true")
+    monkeypatch.setenv("ENGRAMIA_AUTH_MODE", "dev")
+    monkeypatch.setenv("ENGRAMIA_STORAGE", "json")
+    monkeypatch.setenv("ENGRAMIA_DATA_PATH", str(tmp_path))
+    monkeypatch.setenv("ENGRAMIA_LLM_PROVIDER", "none")
+    monkeypatch.setenv("ENGRAMIA_SKIP_AUTO_APP", "1")
+
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed.return_value = [0.1] * 1536
+
+    monkeypatch.setattr(factory, "make_embeddings", lambda: mock_embeddings)
+    monkeypatch.setattr(factory, "make_llm", lambda: None)
+
+    from engramia.api import app as app_module
+
+    monkeypatch.setattr(app_module, "make_llm", lambda: None)
+    monkeypatch.setattr(app_module, "make_embeddings", lambda: mock_embeddings)
+
+    app = app_module.create_app()
     return TestClient(app)
 
 

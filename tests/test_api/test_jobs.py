@@ -17,14 +17,10 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+import engramia._factory as factory
 from engramia import Memory
-from engramia.api.jobs import router as jobs_router
-from engramia.api.routes import router
-from engramia.exceptions import ValidationError
 from engramia.jobs import JobService, JobStatus, JobWorker
 
 pytestmark = pytest.mark.integration
@@ -67,25 +63,26 @@ def job_service(memory):
 
 
 @pytest.fixture
-def api_client(fake_embeddings, storage, mock_llm):
-    """TestClient with job service wired up."""
-    app = FastAPI()
-    mem = Memory(embeddings=fake_embeddings, storage=storage, llm=mock_llm)
-    app.state.memory = mem
+def api_client(tmp_path, monkeypatch):
+    """TestClient with job service wired up via create_app()."""
+    monkeypatch.setenv("ENGRAMIA_ALLOW_NO_AUTH", "true")
+    monkeypatch.setenv("ENGRAMIA_AUTH_MODE", "dev")
+    monkeypatch.setenv("ENGRAMIA_STORAGE", "json")
+    monkeypatch.setenv("ENGRAMIA_DATA_PATH", str(tmp_path))
+    monkeypatch.setenv("ENGRAMIA_LLM_PROVIDER", "none")
+    monkeypatch.setenv("ENGRAMIA_SKIP_AUTO_APP", "1")
 
-    service = JobService(engine=None, memory=mem)
-    app.state.job_service = service
+    mock_embeddings = MagicMock()
+    mock_embeddings.embed.return_value = [0.1] * 1536
+    _mock_llm = MagicMock()
+    _mock_llm.call.return_value = EVAL_RESPONSE
 
-    @app.exception_handler(ValueError)
-    async def _value_error(request: Request, exc: ValueError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+    monkeypatch.setattr(factory, "make_embeddings", lambda: mock_embeddings)
+    monkeypatch.setattr(factory, "make_llm", lambda: _mock_llm)
 
-    @app.exception_handler(ValidationError)
-    async def _validation_error(request: Request, exc: ValidationError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+    from engramia.api.app import create_app
 
-    app.include_router(router, prefix="/v1")
-    app.include_router(jobs_router, prefix="/v1")
+    app = create_app()
     return TestClient(app)
 
 

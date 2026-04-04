@@ -25,7 +25,7 @@ from engramia import Memory
 from engramia.api.audit import AuditEvent, log_event
 from engramia.api.auth import require_auth
 from engramia.api.deps import get_auth_context, get_memory
-from engramia.api.permissions import require_permission
+from engramia.api.permissions import PERMISSIONS, require_permission
 from engramia.api.schemas import (
     AgingResponse,
     AnalyzeFailuresRequest,
@@ -418,11 +418,27 @@ def get_metrics(memory: Memory = Depends(get_memory)) -> MetricsResponse:
 # ---------------------------------------------------------------------------
 
 
+def _check_delete_permission(request: Request) -> None:
+    """Allow patterns:delete (admin+) or patterns:delete_own (editor, own patterns)."""
+    ctx = getattr(request.state, "auth_context", None)
+    if ctx is None:
+        return  # env-var or dev mode — no RBAC
+    role_perms = PERMISSIONS.get(ctx.role, frozenset())
+    if "*" in role_perms or "patterns:delete" in role_perms:
+        return
+    if "patterns:delete_own" in role_perms:
+        return  # ownership check done in route handler
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Role '{ctx.role}' does not have permission 'patterns:delete'.",
+    )
+
+
 @router.delete(
     "/patterns/{pattern_key:path}",
     response_model=DeletePatternResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[require_permission("patterns:delete")],
+    dependencies=[Depends(_check_delete_permission)],
 )
 def delete_pattern(
     pattern_key: str,
@@ -430,7 +446,27 @@ def delete_pattern(
     memory: Memory = Depends(get_memory),
     auth_ctx: AuthContext | None = Depends(get_auth_context),
 ) -> DeletePatternResponse:
-    """Permanently delete a stored pattern by its key."""
+    """Permanently delete a stored pattern by its key.
+
+    Admin+ can delete any pattern. Editors can delete only patterns they created
+    (matched by ``_author_key_id`` stored in pattern data).
+    """
+    # Ownership check for editors with patterns:delete_own
+    if auth_ctx is not None:
+        role_perms = PERMISSIONS.get(auth_ctx.role, frozenset())
+        has_full_delete = "*" in role_perms or "patterns:delete" in role_perms
+        if not has_full_delete and "patterns:delete_own" in role_perms:
+            # Ensure scope is set for the sync handler thread (contextvar may
+            # not propagate from the async auth dependency).
+            from engramia._context import set_scope
+            set_scope(auth_ctx.scope)
+            data = memory.storage.load(pattern_key)
+            if data is not None and data.get("_author_key_id") != auth_ctx.key_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Editors can only delete patterns they created.",
+                )
+
     try:
         deleted = memory.delete_pattern(pattern_key)
     except Exception as exc:

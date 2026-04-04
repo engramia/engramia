@@ -171,7 +171,11 @@ class Memory:
         self._validate_task(task)
         self._validate_code(code)
         self._validate_eval_score(eval_score)
-        self._require_embeddings("learn")
+        if self._embeddings is None:
+            _log.warning(
+                "learn() called without an embedding provider — pattern will be stored "
+                "but not searchable via semantic recall. Only keyword fallback will work."
+            )
         return self._learning.learn(
             task=task,
             code=code,
@@ -208,7 +212,6 @@ class Memory:
         """
         self._validate_task(task)
         self._validate_limit(limit)
-        self._require_embeddings("recall")
         return self._recall_svc.recall(
             task=task,
             limit=limit,

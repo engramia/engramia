@@ -108,7 +108,7 @@ class TestKeywordFallback:
         broken_mem = Memory(embeddings=FailingEmbeddings(), storage=working_storage)
         results = broken_mem.recall("parse csv file", limit=5)
 
-        assert results[0].pattern.code == "high_overlap()", (
+        assert results[0].pattern.design["code"] == "high_overlap()", (
             "Pattern with more keyword overlap should rank first regardless of eval_score"
         )
 
