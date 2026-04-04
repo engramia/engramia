@@ -49,12 +49,21 @@ def make_embeddings():
 
 
 def make_llm():
-    """Create LLM provider from ENGRAMIA_LLM_PROVIDER / ENGRAMIA_LLM_MODEL env vars."""
+    """Create LLM provider from ENGRAMIA_LLM_PROVIDER / ENGRAMIA_LLM_MODEL env vars.
+
+    Timeout is configurable via ENGRAMIA_LLM_TIMEOUT (seconds, default 30.0).
+    """
     provider = os.environ.get("ENGRAMIA_LLM_PROVIDER", "openai").lower()
     model = os.environ.get("ENGRAMIA_LLM_MODEL", "gpt-4.1")
+    timeout = float(os.environ.get("ENGRAMIA_LLM_TIMEOUT", "30.0"))
     if provider == "openai":
         from engramia.providers.openai import OpenAIProvider
 
-        return OpenAIProvider(model=model)
-    _log.warning("Unknown ENGRAMIA_LLM_PROVIDER %r — LLM features will be unavailable", provider)
+        return OpenAIProvider(model=model, timeout=timeout)
+    if provider == "anthropic":
+        from engramia.providers.anthropic import AnthropicProvider
+
+        return AnthropicProvider(model=model, timeout=timeout)
+    if provider != "none":
+        _log.warning("Unknown ENGRAMIA_LLM_PROVIDER %r — LLM features will be unavailable", provider)
     return None

@@ -66,6 +66,7 @@ class TestOidcAuthUnit:
 
         with (
             patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope") as mock_set_scope,
         ):
@@ -93,6 +94,9 @@ class TestOidcAuthUnit:
                     "ENGRAMIA_OIDC_PROJECT_CLAIM": "proj",
                 },
             ),
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "org"),
+            patch.object(oidc_module, "_PROJECT_CLAIM", "proj"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),
         ):
@@ -109,6 +113,7 @@ class TestOidcAuthUnit:
 
         with (
             patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),
         ):
@@ -124,6 +129,7 @@ class TestOidcAuthUnit:
 
         with (
             patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),
         ):
@@ -144,6 +150,8 @@ class TestOidcAuthUnit:
                     "ENGRAMIA_OIDC_DEFAULT_ROLE": "admin",
                 },
             ),
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_DEFAULT_ROLE", "admin"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),
         ):

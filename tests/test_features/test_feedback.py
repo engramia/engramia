@@ -105,7 +105,7 @@ def test_feedback_decay_reduces_score(client: TestClient) -> None:
             p["last_decayed"] = datetime.datetime.fromtimestamp(
                 old_ts, tz=datetime.UTC
             ).strftime("%Y-%m-%dT%H:%M:%S")
-    store._storage.save("feedback/_list", raw_entries)
+    store._storage.save(store._key(), raw_entries)
 
     client.run_feedback_decay()
 

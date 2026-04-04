@@ -49,6 +49,7 @@ _EDITOR_PERMS: frozenset[str] = _READER_PERMS | frozenset(
         "aging",
         "feedback:decay",
         "jobs:cancel",
+        "patterns:delete_own",
         # Phase 5.7: ROI Analytics
         "analytics:rollup",
     }

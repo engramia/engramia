@@ -131,8 +131,17 @@ class JSONStorage(StorageBackend):
         p = root / _EMBEDDINGS_FILE
         if not p.exists():
             return {}
-        with open(p, encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(p, encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            _log.warning(
+                "Corrupted embeddings file %s — starting with empty index. "
+                "Patterns will still load but semantic search will be degraded "
+                "until 'engramia reindex' is run.",
+                p,
+            )
+            return {}
 
     def _atomic_write(self, path: Path, data: dict | list) -> None:  # type: ignore[type-arg]
         """Write *data* to *path* atomically using a tmp → bak → replace sequence."""

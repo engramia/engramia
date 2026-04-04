@@ -343,6 +343,95 @@ def reindex(
 
 
 # ---------------------------------------------------------------------------
+# migrate json-to-postgres
+# ---------------------------------------------------------------------------
+
+
+@app.command("migrate")
+def migrate(
+    path: str = typer.Option("./engramia_data", "--path", "-p", help="Source JSON storage directory."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview migration without writing to PostgreSQL."),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing patterns in PostgreSQL."),
+) -> None:
+    """Migrate patterns from JSON storage to PostgreSQL.
+
+    Reads all patterns (and their embeddings) from the local JSON storage
+    directory and writes them into the PostgreSQL database configured by
+    ENGRAMIA_DATABASE_URL. Existing patterns are skipped unless --overwrite
+    is set.
+
+    \b
+    Requires:
+      - ENGRAMIA_DATABASE_URL to be set
+      - Alembic migrations applied (alembic upgrade head)
+      - pip install engramia[postgres]
+    """
+    from engramia._util import PATTERNS_PREFIX
+    from engramia.providers.json_storage import JSONStorage
+
+    db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
+    if not db_url:
+        console.print("[red]ENGRAMIA_DATABASE_URL is not set.[/red]")
+        raise typer.Exit(1)
+
+    try:
+        from engramia.providers.postgres import PostgresStorage
+    except ImportError:
+        console.print("[red]PostgreSQL support not installed.[/red] Install with: pip install engramia[postgres]")
+        raise typer.Exit(1) from None
+
+    src = JSONStorage(path=path)
+    pattern_keys = src.list_keys(prefix=PATTERNS_PREFIX)
+
+    if not pattern_keys:
+        console.print("[yellow]No patterns found in JSON storage — nothing to migrate.[/yellow]")
+        return
+
+    console.print(f"Found [bold]{len(pattern_keys)}[/bold] pattern(s) in JSON storage at [cyan]{path}[/cyan]")
+
+    if dry_run:
+        console.print("[yellow]Dry-run mode — no data will be written to PostgreSQL.[/yellow]")
+        for key in pattern_keys:
+            data = src.load(key)
+            task = data.get("task", "?") if data else "?"
+            console.print(f"  [dim]{key}[/dim] — {task[:60]}")
+        return
+
+    dst = PostgresStorage()
+    migrated = 0
+    skipped = 0
+    failed = 0
+
+    for key in pattern_keys:
+        data = src.load(key)
+        if data is None:
+            continue
+
+        existing = dst.load(key)
+        if existing is not None and not overwrite:
+            skipped += 1
+            continue
+
+        try:
+            dst.save(key, data)
+
+            # Migrate embedding if available
+            src_embeddings = src._load_embeddings_for_root(src._effective_root())
+            if key in src_embeddings:
+                dst.save_embedding(key, src_embeddings[key])
+
+            migrated += 1
+        except Exception as exc:
+            console.print(f"[red]Failed[/red] {key}: {exc}")
+            failed += 1
+
+    console.print(
+        f"[green]✓[/green] Migration complete — "
+        f"{migrated} migrated, {skipped} skipped, {failed} failed."
+    )
+
+
+# ---------------------------------------------------------------------------
 # keys bootstrap
 # ---------------------------------------------------------------------------
 

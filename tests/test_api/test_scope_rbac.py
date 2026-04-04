@@ -288,8 +288,11 @@ class TestPermissions:
     def test_editor_can_learn(self):
         assert "learn" in PERMISSIONS["editor"]
 
-    def test_editor_cannot_delete_patterns(self):
+    def test_editor_cannot_delete_any_pattern(self):
         assert "patterns:delete" not in PERMISSIONS["editor"]
+
+    def test_editor_has_delete_own_permission(self):
+        assert "patterns:delete_own" in PERMISSIONS["editor"]
 
     def test_admin_can_delete_and_manage_keys(self):
         assert "patterns:delete" in PERMISSIONS["admin"]
@@ -348,6 +351,68 @@ class TestPermissions:
         client = TestClient(app)
         resp = client.delete("/v1/patterns/patterns/some-key")
         assert resp.status_code == 403
+
+    def test_editor_can_delete_own_pattern(self, tmp_path):
+        """Editor can delete a pattern they authored."""
+        from engramia.api.auth import require_auth
+
+        storage = JSONStorage(path=tmp_path)
+        app = _make_auth_app(role="editor")
+        mem = Memory(embeddings=FakeEmbeddings(), storage=storage)
+        app.state.memory = mem
+
+        # Override auth with key_id matching the author
+        app.dependency_overrides[require_auth] = make_auth_dep(
+            role="editor", key_id="editor-key-1",
+            tenant_id="acme", project_id="prod",
+        )
+
+        client = TestClient(app)
+        # Learn a pattern (will be authored by editor-key-1 via learn route)
+        resp = client.post("/v1/learn", json={
+            "task": "Editor's own pattern", "code": "pass", "eval_score": 7.0,
+        })
+        assert resp.status_code == 200
+
+        resp = client.post("/v1/recall", json={"task": "Editor's own pattern", "limit": 1})
+        key = resp.json()["matches"][0]["pattern_key"]
+
+        # Delete own pattern — should succeed
+        resp = client.delete(f"/v1/patterns/{key}")
+        assert resp.status_code == 200
+        assert resp.json()["deleted"] is True
+
+    def test_editor_cannot_delete_others_pattern(self, tmp_path):
+        """Editor cannot delete a pattern created by a different key."""
+        from engramia.api.auth import require_auth
+
+        storage = JSONStorage(path=tmp_path)
+        app = _make_auth_app(role="editor")
+        mem = Memory(embeddings=FakeEmbeddings(), storage=storage)
+        app.state.memory = mem
+
+        # Learn as admin-key-1
+        app.dependency_overrides[require_auth] = make_auth_dep(
+            role="admin", key_id="admin-key-1",
+            tenant_id="acme", project_id="prod",
+        )
+        client = TestClient(app)
+        resp = client.post("/v1/learn", json={
+            "task": "Admin's pattern", "code": "pass", "eval_score": 8.0,
+        })
+        assert resp.status_code == 200
+        resp = client.post("/v1/recall", json={"task": "Admin's pattern", "limit": 1})
+        key = resp.json()["matches"][0]["pattern_key"]
+
+        # Switch to editor with different key_id
+        app.dependency_overrides[require_auth] = make_auth_dep(
+            role="editor", key_id="editor-key-2",
+            tenant_id="acme", project_id="prod",
+        )
+        client = TestClient(app)
+        resp = client.delete(f"/v1/patterns/{key}")
+        assert resp.status_code == 403
+        assert "editors can only delete" in resp.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------

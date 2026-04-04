@@ -124,7 +124,7 @@ class TestMakeLLM:
 
             result = make_llm()
 
-        mock_module.OpenAIProvider.assert_called_once_with(model="gpt-4.1")
+        mock_module.OpenAIProvider.assert_called_once_with(model="gpt-4.1", timeout=30.0)
         assert result is mock_instance
 
     def test_openai_custom_model(self, monkeypatch):
@@ -139,7 +139,7 @@ class TestMakeLLM:
 
             make_llm()
 
-        mock_module.OpenAIProvider.assert_called_once_with(model="gpt-4o")
+        mock_module.OpenAIProvider.assert_called_once_with(model="gpt-4o", timeout=30.0)
 
     def test_unknown_provider_returns_none(self, monkeypatch):
         """Unrecognised ENGRAMIA_LLM_PROVIDER → None (with a warning logged)."""

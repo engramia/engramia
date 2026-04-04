@@ -1,0 +1,176 @@
+# Engramia Kubernetes Reference Deployment
+# Requires: PostgreSQL with pgvector extension
+# Usage: kubectl apply -f engramia.yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: engramia
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: engramia-config
+  namespace: engramia
+data:
+  ENGRAMIA_STORAGE: "postgres"
+  ENGRAMIA_AUTH_MODE: "db"
+  ENGRAMIA_LLM_PROVIDER: "openai"
+  ENGRAMIA_LLM_MODEL: "gpt-4.1"
+  ENGRAMIA_LLM_TIMEOUT: "30.0"
+  ENGRAMIA_EMBEDDING_MODEL: "text-embedding-3-small"
+  ENGRAMIA_RATE_LIMIT_DEFAULT: "60"
+  ENGRAMIA_RATE_LIMIT_EXPENSIVE: "10"
+  ENGRAMIA_MAX_BODY_SIZE: "1048576"
+  ENGRAMIA_REDACTION: "true"
+  ENGRAMIA_METRICS: "true"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: engramia-secrets
+  namespace: engramia
+type: Opaque
+stringData:
+  # Replace with actual values before applying
+  ENGRAMIA_DATABASE_URL: "postgresql://engramia:changeme@postgres:5432/engramia"
+  OPENAI_API_KEY: "sk-..."
+  ENGRAMIA_BOOTSTRAP_TOKEN: "changeme-bootstrap-token"
+  ENGRAMIA_METRICS_TOKEN: "changeme-metrics-token"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engramia-api
+  namespace: engramia
+  labels:
+    app: engramia
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: engramia
+      component: api
+  template:
+    metadata:
+      labels:
+        app: engramia
+        component: api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+        - name: engramia
+          image: ghcr.io/engramia/engramia:v0.6.5
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: engramia-config
+            - secretRef:
+                name: engramia-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /v1/health/deep
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engramia-api
+  namespace: engramia
+spec:
+  selector:
+    app: engramia
+    component: api
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+---
+# PostgreSQL StatefulSet (for reference — use a managed DB in production)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: engramia
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engramia
+      component: postgres
+  template:
+    metadata:
+      labels:
+        app: engramia
+        component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: pgvector/pgvector:pg16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: engramia
+            - name: POSTGRES_USER
+              value: engramia
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: engramia-secrets
+                  key: ENGRAMIA_DATABASE_URL
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: engramia
+spec:
+  selector:
+    app: engramia
+    component: postgres
+  ports:
+    - port: 5432
+  clusterIP: None  # Headless for StatefulSet

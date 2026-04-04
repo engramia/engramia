@@ -252,3 +252,36 @@ docker compose exec engramia-api alembic history
 !!! warning
     Always take a `pg_dump` before running `alembic downgrade`. Downgrade scripts
     may drop columns or tables that cannot be recovered without a backup.
+
+---
+
+## Secret management
+
+### Current approach
+
+Secrets are passed via environment variables loaded from `.env` files by Docker Compose:
+
+| Secret | Variable | Notes |
+|--------|----------|-------|
+| Database password | `ENGRAMIA_DATABASE_URL` | Full connection string |
+| OpenAI API key | `OPENAI_API_KEY` | Required for LLM + embeddings |
+| Anthropic API key | `ANTHROPIC_API_KEY` | If using Anthropic provider |
+| Bootstrap token | `ENGRAMIA_BOOTSTRAP_TOKEN` | One-time, can be unset after use |
+| Metrics token | `ENGRAMIA_METRICS_TOKEN` | Protects `/metrics` endpoint |
+| Stripe keys | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Billing (Phase 6) |
+
+**Best practices for the current setup:**
+
+1. Never commit `.env` to git (`.gitignore` already excludes it)
+2. Use separate `.env` files per environment (dev, staging, prod)
+3. Restrict file permissions: `chmod 600 .env`
+4. Unset `ENGRAMIA_BOOTSTRAP_TOKEN` after initial key creation
+5. Rotate API keys periodically via `POST /v1/keys/{id}/rotate`
+
+### Production (Hetzner VM)
+
+Secrets are stored in `/opt/engramia/.env` on the production VM, accessible only to root. Docker Compose reads this file at container startup.
+
+### Future: External secret managers (roadmap)
+
+For enterprise deployments requiring centralized secret management, audit trails, and automatic rotation, integration with external providers (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault) is planned. See the roadmap for timeline.

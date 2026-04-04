@@ -91,13 +91,13 @@ class TestRecallIsolation:
 
         with as_tenant("alpha"):
             results = mem.recall("parse csv file", limit=10)
-        assert all("alpha" in m.pattern.code for m in results), (
+        assert all("alpha" in m.pattern.design["code"] for m in results), (
             "Alpha should only recall its own code"
         )
 
         with as_tenant("beta"):
             results = mem.recall("parse csv file", limit=10)
-        assert all("beta" in m.pattern.code for m in results), (
+        assert all("beta" in m.pattern.design["code"] for m in results), (
             "Beta should only recall its own code"
         )
 
@@ -170,7 +170,7 @@ class TestExportImportIsolation:
             records = mem.export()
 
         assert len(records) == 1
-        assert "alpha_export" in records[0]["data"]["code"], (
+        assert "alpha_export" in records[0]["data"]["design"]["code"], (
             "Export must only contain Tenant A's patterns"
         )
 
@@ -190,7 +190,7 @@ class TestExportImportIsolation:
         with as_tenant("alpha"):
             results = mem.recall("alpha import test", limit=5)
         assert len(results) == 1
-        assert "alpha_import" in results[0].pattern.code
+        assert "alpha_import" in results[0].pattern.design["code"]
 
     def test_import_key_path_traversal_rejected(self, make_mem):
         """Malicious import records with path-traversal keys must be silently skipped."""

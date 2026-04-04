@@ -107,9 +107,13 @@ class LearningService:
         pattern = Pattern(task=task, design=design, success_score=eval_score)
         key = _pattern_key(task)
 
-        self._storage.save(key, pattern.model_dump())
-        embedding = self._embeddings.embed(task)
-        self._storage.save_embedding(key, embedding)
+        data = pattern.model_dump()
+        if author:
+            data["_author_key_id"] = author
+        self._storage.save(key, data)
+        if self._embeddings is not None:
+            embedding = self._embeddings.embed(task)
+            self._storage.save_embedding(key, embedding)
 
         self._storage.save_pattern_meta(
             key,
