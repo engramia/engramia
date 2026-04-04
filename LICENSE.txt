@@ -5,7 +5,7 @@ Parameters
 
 Licensor: Marek Čermák
 
-Licensed Work: Engramia, version 0.5.0 and later. Licenced work is (c) 2026 Marek Čermák
+Licensed Work: Engramia, version 0.6.4 and later. Licenced work is (c) 2026 Marek Čermák
 
 Additional Use Grant: You may make production use of the Licensed Work, provided
                       Your use does not include offering the Licensed Work to third

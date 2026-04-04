@@ -29,3 +29,12 @@ def get_auth_context(request: Request) -> AuthContext | None:
     Route handlers may use this to retrieve the RBAC role or quota limits.
     """
     return getattr(request.state, "auth_context", None)
+
+
+def get_billing_service(request: Request):
+    """Return the BillingService instance from app state, or None.
+
+    None when billing is not configured (dev mode, JSON storage, or Stripe
+    not set up). Callers must treat None as a no-op / unconstrained mode.
+    """
+    return getattr(request.app.state, "billing_service", None)

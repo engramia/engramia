@@ -26,11 +26,26 @@ def make_storage():
 
 
 def make_embeddings():
-    """Create embedding provider from ENGRAMIA_EMBEDDING_MODEL env var."""
-    model = os.environ.get("ENGRAMIA_EMBEDDING_MODEL", "text-embedding-3-small")
-    from engramia.providers.openai import OpenAIEmbeddings
+    """Create embedding provider from ENGRAMIA_EMBEDDING_MODEL env var.
 
-    return OpenAIEmbeddings(model=model)
+    Returns None when ENGRAMIA_EMBEDDING_MODEL is set to "none" or when the
+    required provider package (openai) is not installed.  The API will start
+    without semantic-search features in either case.
+    """
+    model = os.environ.get("ENGRAMIA_EMBEDDING_MODEL", "text-embedding-3-small")
+    if model.lower() == "none":
+        _log.info("ENGRAMIA_EMBEDDING_MODEL=none — semantic search disabled")
+        return None
+    try:
+        from engramia.providers.openai import OpenAIEmbeddings
+
+        return OpenAIEmbeddings(model=model)
+    except ImportError:
+        _log.warning(
+            "openai package not installed — semantic search disabled. "
+            "Install with: pip install 'engramia[openai]'"
+        )
+        return None
 
 
 def make_llm():
