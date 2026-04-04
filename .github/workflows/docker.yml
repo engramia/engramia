@@ -42,6 +42,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
+            APP_VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -76,3 +80,15 @@ jobs:
             IMAGE_TAG=$IMAGE_TAG docker compose -f docker-compose.prod.yml up -d engramia-api caddy
             IMAGE_TAG=$IMAGE_TAG docker compose -f docker-compose.prod.yml exec -T engramia-api alembic upgrade head
             docker image prune -f
+
+      - name: Post-deploy /version smoke test
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            EXPECTED=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+            ACTUAL=$(curl -sf https://api.engramia.dev/v1/version | python3 -c "import sys,json; print(json.load(sys.stdin)['app_version'])")
+            echo "expected=$EXPECTED  actual=$ACTUAL"
+            [ "$EXPECTED" = "$ACTUAL" ] || (echo "POST-DEPLOY VERSION MISMATCH" && exit 1)

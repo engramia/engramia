@@ -61,6 +61,7 @@ from engramia.api.schemas import (
 )
 from engramia.exceptions import ProviderError
 from engramia.types import AuthContext
+from engramia.versioning import API_VERSION, APP_VERSION, BUILD_TIME, GIT_COMMIT
 
 _STARTUP_TIME = time.monotonic()
 
@@ -106,22 +107,32 @@ def _try_async(request: Request, operation: str, params: dict) -> JSONResponse |
     )
 
 router = APIRouter(dependencies=[Depends(require_auth)])
+meta_router = _meta_router  # re-export for app.py
 
 
 # ---------------------------------------------------------------------------
-# Internal quota helper
+# Internal quota helpers
 # ---------------------------------------------------------------------------
 
 
-def _check_quota(memory: Memory, auth_ctx: AuthContext | None) -> None:
+def _check_quota(memory: Memory, auth_ctx: AuthContext | None, request: Request | None = None) -> None:
     """Raise HTTP 429 if the caller has exceeded their pattern quota.
 
-    Only enforced in DB auth mode where an AuthContext with a max_patterns
-    limit is present. No-op in env-var and dev auth modes.
+    Delegates to BillingService when available (DB auth + billing configured).
+    Falls back to the legacy max_patterns field on AuthContext for backward
+    compatibility with deployments that have not run migration 008.
     """
+    current = memory._storage.count_patterns("patterns/")
+
+    # Billing-aware path
+    billing_svc = getattr(request.app.state, "billing_service", None) if request else None
+    if billing_svc is not None and auth_ctx is not None:
+        billing_svc.check_patterns(auth_ctx.tenant_id, current)
+        return
+
+    # Legacy fallback: max_patterns on AuthContext
     if auth_ctx is None or auth_ctx.max_patterns is None:
         return
-    current = memory._storage.count_patterns("patterns/")
     if current >= auth_ctx.max_patterns:
         log_event(
             AuditEvent.QUOTA_EXCEEDED,
@@ -154,11 +165,12 @@ def _check_quota(memory: Memory, auth_ctx: AuthContext | None) -> None:
 )
 def learn(
     body: LearnRequest,
+    request: Request,
     memory: Memory = Depends(get_memory),
     auth_ctx: AuthContext | None = Depends(get_auth_context),
 ) -> LearnResponse:
     """Record a successful agent run and store it as a reusable pattern."""
-    _check_quota(memory, auth_ctx)
+    _check_quota(memory, auth_ctx, request)
     result = memory.learn(
         task=body.task,
         code=body.code,
@@ -293,11 +305,23 @@ def compose(body: ComposeRequest, request: Request, memory: Memory = Depends(get
     status_code=status.HTTP_200_OK,
     dependencies=[require_permission("evaluate")],
 )
-def evaluate(body: EvaluateRequest, request: Request, memory: Memory = Depends(get_memory)):
+def evaluate(
+    body: EvaluateRequest,
+    request: Request,
+    memory: Memory = Depends(get_memory),
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+):
     """Run multi-evaluator scoring on agent code."""
+    # Eval-run quota enforcement (billing-aware; no-op in dev/JSON mode)
+    billing_svc = getattr(request.app.state, "billing_service", None)
+    tenant_id = auth_ctx.tenant_id if auth_ctx else "default"
+    if billing_svc is not None:
+        billing_svc.check_eval_runs(tenant_id)
+
     async_resp = _try_async(request, "evaluate", body.model_dump())
     if async_resp is not None:
         return async_resp
+
     try:
         result = memory.evaluate(
             task=body.task,
@@ -310,6 +334,13 @@ def evaluate(body: EvaluateRequest, request: Request, memory: Memory = Depends(g
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="LLM provider not configured. evaluate() requires an LLM.",
         ) from None
+
+    # Increment eval run counter after successful evaluation (fire-and-log)
+    if billing_svc is not None:
+        try:
+            billing_svc.increment_eval_runs(tenant_id)
+        except Exception:
+            _log.warning("Failed to increment eval_runs counter for tenant=%s", tenant_id, exc_info=True)
 
     scores_out = [
         EvalScoreOut(
@@ -459,6 +490,29 @@ def run_feedback_decay(request: Request, memory: Memory = Depends(get_memory)):
         return async_resp
     pruned = memory.run_feedback_decay()
     return FeedbackDecayResponse(pruned=pruned)
+
+
+# ---------------------------------------------------------------------------
+# GET /version  (no auth — public meta endpoint)
+# ---------------------------------------------------------------------------
+
+# Separate router so /version is reachable without authentication.
+_meta_router = APIRouter()
+
+
+@_meta_router.get("/version", tags=["meta"], include_in_schema=True)
+def get_version() -> dict:
+    """Return runtime build metadata.
+
+    No authentication required. Intended for post-deploy smoke tests,
+    support tooling, and ops dashboards.
+    """
+    return {
+        "app_version": APP_VERSION,
+        "api_version": API_VERSION,
+        "git_commit": GIT_COMMIT,
+        "build_time": BUILD_TIME,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -666,7 +720,7 @@ def import_patterns(
     )
     if async_resp is not None:
         return async_resp
-    _check_quota(memory, auth_ctx)
+    _check_quota(memory, auth_ctx, request)
     raw_records = [r.model_dump() for r in body.records]
     imported = memory.import_data(raw_records, overwrite=body.overwrite)
     ip = request.client.host if request.client else "unknown"
@@ -691,7 +745,7 @@ def import_patterns(
     "/export",
     response_model=ExportResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[require_permission("import")],
+    dependencies=[require_permission("export")],
 )
 def export_patterns(
     request: Request,

@@ -47,6 +47,39 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
 
+  version-consistency:
+    name: Version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # required for hatch-vcs to read tags
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install with hatch-vcs
+        run: pip install hatch-vcs ".[dev,api]"
+
+      - name: hatch-vcs smoke (hatchling can resolve version)
+        run: python -m hatchling version
+
+      - name: No hardcoded version in __init__.py
+        run: "! grep -E '^__version__ = \"[0-9]' engramia/__init__.py"
+
+      - name: pyproject.toml uses dynamic version
+        run: grep 'dynamic.*version' pyproject.toml
+
+      - name: Build/runtime version parity (tagged commits only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          RUNTIME=$(python -c "import engramia; print(engramia.__version__)")
+          echo "tag=$TAG  runtime=$RUNTIME"
+          [ "$TAG" = "$RUNTIME" ] || (echo "VERSION DRIFT: tag=$TAG runtime=$RUNTIME" && exit 1)
+
   security:
     name: Security Scan
     runs-on: ubuntu-latest

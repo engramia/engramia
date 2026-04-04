@@ -7,18 +7,36 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
+# Build-time version — injected by CI so hatch-vcs can embed the correct
+# version into the wheel without needing a .git directory in the build context.
+ARG APP_VERSION=unknown
+
 # Install build dependencies
 RUN pip install --upgrade pip
 
 COPY pyproject.toml README.md LICENSE.txt ./
 COPY engramia/ ./engramia/
-# Install with all runtime extras (api + openai + postgres)
-RUN pip install --no-cache-dir ".[api,openai,postgres]"
+# Install with all runtime extras (api + openai + postgres).
+# HATCH_VCS_PRETEND_VERSION tells hatch-vcs to use APP_VERSION instead of
+# trying to derive the version from git tags (which aren't available here).
+RUN HATCH_VCS_PRETEND_VERSION=${APP_VERSION} pip install --no-cache-dir ".[api,openai,postgres]"
 
 # Stage 2: runtime
 FROM python:3.12-slim AS runtime
 
 WORKDIR /app
+
+# Build-time metadata — injected by CI (docker build --build-arg ...)
+ARG GIT_COMMIT=unknown
+ARG BUILD_TIME=unknown
+ARG APP_VERSION=unknown
+
+# OCI image labels (standard annotation keys)
+LABEL org.opencontainers.image.version="${APP_VERSION}"
+LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
+LABEL org.opencontainers.image.created="${BUILD_TIME}"
+LABEL org.opencontainers.image.title="Engramia"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
 
 # Create a non-root user — never run services as root
 RUN addgroup --gid 1001 --system engramia \
@@ -40,6 +58,10 @@ ENV ENGRAMIA_STORAGE=json
 ENV ENGRAMIA_DATA_PATH=/data/engramia_data
 ENV ENGRAMIA_HOST=0.0.0.0
 ENV ENGRAMIA_PORT=8000
+
+# Runtime version metadata — read by engramia/versioning.py
+ENV GIT_COMMIT=${GIT_COMMIT}
+ENV BUILD_TIME=${BUILD_TIME}
 
 # Persistent storage volume for JSON backend
 VOLUME ["/data"]

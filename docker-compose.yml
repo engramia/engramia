@@ -20,7 +20,8 @@ services:
       # Embedding model
       ENGRAMIA_EMBEDDING_MODEL: ${ENGRAMIA_EMBEDDING_MODEL:-text-embedding-3-small}
 
-      # API authentication (comma-separated keys; empty = dev mode, no auth)
+      # API authentication (comma-separated keys).
+      # Empty keys alone return 503 — set ENGRAMIA_ALLOW_NO_AUTH=true for local dev only.
       ENGRAMIA_API_KEYS: ${ENGRAMIA_API_KEYS:-}
 
       # Security hardening (see docs for production values)

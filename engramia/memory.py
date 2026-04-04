@@ -79,7 +79,7 @@ class Memory:
 
     def __init__(
         self,
-        embeddings: EmbeddingProvider,
+        embeddings: EmbeddingProvider | None,
         storage: StorageBackend,
         llm: LLMProvider | None = None,
         redaction: RedactionPipeline | None = None,
@@ -171,6 +171,7 @@ class Memory:
         self._validate_task(task)
         self._validate_code(code)
         self._validate_eval_score(eval_score)
+        self._require_embeddings("learn")
         return self._learning.learn(
             task=task,
             code=code,
@@ -207,6 +208,7 @@ class Memory:
         """
         self._validate_task(task)
         self._validate_limit(limit)
+        self._require_embeddings("recall")
         return self._recall_svc.recall(
             task=task,
             limit=limit,
@@ -575,6 +577,14 @@ class Memory:
                 )
         except Exception as exc:
             _log.debug("_check_embedding_config skipped: %s", exc)
+
+    def _require_embeddings(self, method: str) -> None:
+        if self._embeddings is None:
+            raise ProviderError(
+                f"Memory.{method}() requires an embedding provider. "
+                "Install 'engramia[openai]' and set ENGRAMIA_EMBEDDING_MODEL, "
+                "or pass embeddings=... to Memory()."
+            )
 
     def _require_llm(self, method: str) -> None:
         if self._llm is None:
