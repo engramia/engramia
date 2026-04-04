@@ -21,6 +21,8 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+
+pytestmark = pytest.mark.security
 from fastapi.testclient import TestClient
 
 from engramia import Memory

@@ -94,10 +94,14 @@ packages = ["engramia"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "--cov=engramia --cov-fail-under=77"
+addopts = "--cov=engramia --cov-fail-under=80"
 markers = [
     "postgres: integration tests requiring Docker + PostgreSQL+pgvector container",
     "local_embeddings: tests requiring sentence-transformers (pip install engramia[local])",
+    "integration: tests using create_app() with full middleware stack",
+    "security: security regression tests (RBAC, tenant isolation, auth bypass)",
+    "contract: interface and schema compliance tests",
+    "e2e: end-to-end multi-step business flow tests",
 ]
 
 [tool.coverage.run]

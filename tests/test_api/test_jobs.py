@@ -26,6 +26,8 @@ from engramia.api.jobs import router as jobs_router
 from engramia.api.routes import router
 from engramia.exceptions import ValidationError
 from engramia.jobs import JobService, JobStatus, JobWorker
+
+pytestmark = pytest.mark.integration
 from engramia.jobs.dispatch import dispatch_job
 from engramia.jobs.models import JobOperation
 from engramia.types import Scope
