@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.6] — 2026-04-05
+
+### Added — Cloud Auth, Backup/DR, Status Page, GDPR & GTM (Phase 6.0)
+
+- **DB migrace `013_cloud_users`** — `cloud_users` tabulka s UUID PK, bcrypt password hash, OAuth `provider_id`, tenant FK, `email_verified` flag; kompatibilní s existující API key auth bez kolize.
+- **`engramia/api/cloud_auth.py`** — cloud auth REST API: `POST /auth/register` (email + bcrypt hash, welcome audit event), `POST /auth/login` (JWT access token + RT cookie), `GET /auth/me`, `POST /auth/oauth` (Google + GitHub), `POST /auth/refresh`, `POST /auth/logout`.
+- **Dashboard Auth.js v5** — Credentials + Google + GitHub OAuth providers; JWT session strategy; `NEXTAUTH_SECRET` rotovatelné bez výpadku; refresh token rotace.
+- **Dashboard Register page** — registrační formulář (email/password + OAuth SSO); validace na klientu i serveru.
+- **Dashboard Login page (redesign)** — přepracováno z API-key-only na email/password + OAuth buttons; zpětně kompatibilní API key flow zachován.
+- **Setup wizard** (3 kroky) — Welcome → výběr plánu (Sandbox/Pro/Team s feature srovnáním) → API klíč + quick-start snippet. Viditelný jen po první registraci.
+- **Dashboard Dockerfile** — multi-stage build (Node 20 alpine): `deps → builder → runner`; non-root uživatel; production-only deps v runtime image.
+- **`nginx/status.engramia.dev.conf`** — nginx reverse proxy pro Uptime Kuma na `status.engramia.dev` s TLS.
+- **`scripts/setup-status-page.sh`** — automatizace certbot + nginx pro veřejnou status stránku.
+- **`docs/ROPA.md`** — Records of Processing Activities (GDPR Art. 30): 6 aktivit zpracování (API usage, auth & access, billing, email notifications, analytics, security logging), sub-processor tabulka s transferovými mechanismy.
+- **`docs/admin-guide.md`** — GitHub/Google OAuth setup, `NEXTAUTH_SECRET` generování, Stripe payment links, DB migrace postup, cloud_users správa.
+
+### Changed
+
+- **`website/layout.tsx`** — OG tagy (`og:title`, `og:description`, `og:image`, `og:url`) + Twitter Card metadata; "Sign up free" odkaz → `app.engramia.dev/register`.
+- **`website/robots.txt`** — nový statický `robots.txt`.
+- **`website/sitemap.ts`** — dynamický sitemap generátor (Next.js 15 Metadata API).
+- **`website/layout.tsx` (header + footer)** — přidán support link `support@engramia.dev`.
+- **`docker-compose.prod.yml` — dashboard service** — Next.js dashboard kontejner s health check, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`; napojený na API service.
+- **`docs/legal/PRIVACY_POLICY.md`** — sekce *Encryption*: upřesněno Hetzner CX bez HW šifrování, TLS in-transit; sekce *International Data Transfers*: SCCs pro OpenAI, Anthropic, Stripe (EU-US DPF + SCCs).
+
+### Security
+
+- **Backup/DR skripty** (`scripts/backup.sh`, `scripts/restore.sh`, `scripts/install-backup-cron.sh`) — automatizované `pg_dump` zálohy na Hetzner Object Storage, cron instalace, ověřený restore postup; commit `598bbdd`. *(Remediace F7 — automatizace záloh)*
+- **CI security scanning** (`.github/workflows/security.yml`) — `pip-audit` (dependency audit), `bandit` (Python SAST), `Trivy` (container image scanning); spouštěno na každém PR i push. *(Remediace F8 — SAST v CI)*
+- **Docker hardening** (`docker-compose.prod.yml`) — `security_opt: no-new-privileges:true`, `read_only: true` filesystem s `tmpfs` pro `/tmp` a `/run`, CPU + memory `deploy.resources.limits` pro API, DB a dashboard kontejnery. *(Remediace F14 — Docker resource limits)*
+- **Swagger/OpenAPI docs zakázány v produkci** — `/docs` a `/redoc` dostupné pouze při `ENGRAMIA_ENV=dev`; v prod vrací 404. *(Snížení attack surface)*
+
+---
+
 ## [0.6.5] — 2026-04-04
 
 ### Fixed — Security Audit P0–P2 (2026-04-04 audit)
