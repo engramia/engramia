@@ -17,6 +17,16 @@ services:
     restart: unless-stopped
     depends_on:
       - engramia-api
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
 
   dashboard:
     image: engramia/dashboard:latest
@@ -33,6 +43,16 @@ services:
       - NEXT_PUBLIC_STRIPE_TEAM_URL=${STRIPE_TEAM_URL:-}
     networks:
       - engramia-net
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
 
   engramia-api:
     image: ghcr.io/engramia/engramia:${IMAGE_TAG:?IMAGE_TAG must be set}
@@ -52,6 +72,20 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=64m
+      - /app/tmp:mode=1777,size=32m
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
   pgvector:
     image: pgvector/pgvector:0.7.4-pg16
@@ -69,6 +103,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
 
 volumes:
   engramia_data:
