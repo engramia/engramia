@@ -6,6 +6,8 @@ const nav = [
   { href: "/licensing", label: "Licensing" },
   { href: "/blog", label: "Blog" },
   { href: "/legal", label: "Legal" },
+  { href: "https://docs.engramia.dev", label: "Docs" },
+  { href: "mailto:support@engramia.dev", label: "Support" },
 ];
 
 export function SiteHeader() {
