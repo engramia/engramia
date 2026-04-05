@@ -18,6 +18,7 @@ Complete guide to using Engramia — reusable execution memory and evaluation in
 8. [Limits and Rate Limiting](#8-limits-and-rate-limiting)
 9. [Troubleshooting](#9-troubleshooting)
 10. [Integrations and SDK](#10-integrations-and-sdk)
+11. [Monitoring](#11-monitoring)
 
 ---
 
@@ -1360,6 +1361,361 @@ for m in resp.json()["matches"]:
 resp = requests.get(f"{BASE_URL}/v1/health/deep", headers=HEADERS)
 print(resp.json()["status"])
 ```
+
+---
+
+## 11. Monitoring
+
+Engramia ships with a complete monitoring stack based on Prometheus, Grafana, Loki, and Uptime Kuma. All services are defined in `docker-compose.monitoring.yml` and managed via `scripts/monitoring.sh`.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│  engramia-net (shared with prod stack)          │
+│    engramia-api:8000/metrics ← Prometheus       │
+│    uptime-kuma (health checks)                  │
+└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  monitoring (internal bridge network)           │
+│    Prometheus → Alertmanager → email            │
+│    Promtail → Loki                              │
+│    Grafana (queries Prometheus + Loki)           │
+└─────────────────────────────────────────────────┘
+```
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| **Grafana** | `localhost:3000` | Dashboards and visualization |
+| **Prometheus** | `localhost:9090` | Metrics collection and alerting rules |
+| **Alertmanager** | `localhost:9093` | Alert routing and email notifications |
+| **Loki** | `localhost:3100` | Log aggregation |
+| **Promtail** | — (internal) | Collects Docker container logs and pushes to Loki |
+| **Uptime Kuma** | `localhost:3001` | Uptime monitoring with status pages |
+
+All ports are bound to `127.0.0.1` only (not publicly accessible). Use SSH tunnel or a reverse proxy for remote access.
+
+### 11.1 Starting the Monitoring Stack
+
+**Prerequisites:** The production stack (`docker-compose.prod.yml`) must be running first, because the monitoring services connect to the shared `engramia-net` Docker network.
+
+**Using the management script:**
+
+```bash
+# Start monitoring only (prod stack must already be running)
+bash scripts/monitoring.sh start
+
+# Start everything (prod + monitoring together)
+bash scripts/monitoring.sh start-all
+
+# Check status
+bash scripts/monitoring.sh status
+
+# View logs
+bash scripts/monitoring.sh logs
+
+# Restart monitoring
+bash scripts/monitoring.sh restart
+
+# Stop monitoring only (prod keeps running)
+bash scripts/monitoring.sh stop
+
+# Stop everything
+bash scripts/monitoring.sh stop-all
+```
+
+**Or directly with Docker Compose:**
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml up -d
+```
+
+After starting, the script prints the access URLs:
+
+```
+Grafana:      http://localhost:3000
+Prometheus:   http://localhost:9090
+Alertmanager: http://localhost:9093
+Uptime Kuma:  http://localhost:3001
+```
+
+### 11.2 Grafana
+
+#### Accessing Grafana
+
+Open `http://localhost:3000` in your browser.
+
+**Default credentials:**
+
+| Field | Value |
+|-------|-------|
+| Username | `admin` |
+| Password | value of `GRAFANA_ADMIN_PASSWORD` env var (default: `changeme`) |
+
+Change the password immediately after first login.
+
+#### Pre-provisioned Dashboard
+
+Grafana comes with the **Engramia Overview** dashboard pre-loaded (folder: "Engramia"). It includes:
+
+**Overview panels:**
+- API Status (UP/DOWN)
+- Pattern Count
+- Average Eval Score (0-10, color-coded: red < 3, orange 3-5, green > 6)
+- Success Rate (color-coded: red < 30%, orange 30-50%, green > 60%)
+- Reuse Rate
+- Total Runs
+
+**HTTP Traffic panels:**
+- Request Rate (total, 2xx, 4xx, 5xx breakdown)
+- Error Rate (5xx / total percentage)
+
+**Latency panels:**
+- HTTP Request Latency (p50 / p90 / p99)
+- LLM Call Latency (p50 / p90 / p99)
+
+**Engramia Core panels:**
+- Pattern Count over time
+- Eval Score trend
+- Recall Hits vs Misses (stacked)
+
+**Infrastructure panels:**
+- Storage Operation Latency (p90, per operation)
+- Embedding Latency (p90, per provider)
+- Async Jobs (submitted vs completed, by operation)
+- Request Rate by Endpoint
+
+The dashboard auto-refreshes every 30 seconds and shows the last 6 hours by default.
+
+#### Data Sources
+
+Two data sources are pre-configured (read-only):
+
+| Name | Type | URL | UID |
+|------|------|-----|-----|
+| Prometheus | prometheus | `http://prometheus:9090` | `engramia-prometheus` |
+| Loki | loki | `http://loki:3100` | `engramia-loki` |
+
+#### Environment Variables for Grafana
+
+Set these in your `.env` file:
+
+```env
+GRAFANA_ADMIN_PASSWORD=your-secure-password
+GRAFANA_ROOT_URL=http://localhost:3000    # or your public URL
+```
+
+### 11.3 Email Alerts (SMTP Configuration)
+
+Alert emails are sent by **Alertmanager** (for Prometheus alert rules) and optionally by **Grafana** (for dashboard-based alerts). Both need SMTP configuration.
+
+#### Grafana SMTP
+
+Set these environment variables in `.env`:
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=monitoring@engramia.dev
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM=monitoring@engramia.dev
+```
+
+Grafana reads these at startup via its `GF_SMTP_*` environment variables (mapped in `docker-compose.monitoring.yml`).
+
+#### Alertmanager SMTP
+
+Edit `monitoring/alertmanager.yml` and replace the placeholder values:
+
+```yaml
+global:
+  smtp_smarthost: "smtp.example.com:587"       # ← your SMTP server
+  smtp_from: "monitoring@engramia.dev"          # ← your sender address
+  smtp_auth_username: "monitoring@engramia.dev" # ← your SMTP user
+  smtp_auth_password: "smtp-password-here"      # ← your SMTP password
+  smtp_require_tls: true
+
+receivers:
+  - name: "email-default"
+    email_configs:
+      - to: "ops@engramia.dev"                  # ← your ops email
+        send_resolved: true
+
+  - name: "email-critical"
+    email_configs:
+      - to: "ops@engramia.dev"                  # ← your ops email
+        send_resolved: true
+```
+
+#### Free SMTP Providers
+
+| Provider | Free Tier | SMTP Host |
+|----------|-----------|-----------|
+| Gmail | 500/day | `smtp.gmail.com:587` |
+| Brevo | 300/day | `smtp-relay.brevo.com:587` |
+| Mailgun | 100/day (sandbox) | requires domain verification |
+| Resend | 100/day | `smtp.resend.com:465` |
+
+#### Pre-configured Alert Rules
+
+Prometheus evaluates these rules every 30 seconds. Alertmanager routes them to email:
+
+**Critical alerts** (resent every 1 hour until resolved):
+
+| Alert | Condition | Fires After |
+|-------|-----------|-------------|
+| EngramiaDown | API unreachable (`up == 0`) | 2 min |
+| HighErrorRate | 5xx error rate > 10% | 5 min |
+| ZeroPatterns | Pattern storage is empty | 5 min |
+
+**Warning alerts** (resent every 4 hours):
+
+| Alert | Condition | Fires After |
+|-------|-----------|-------------|
+| HighRequestLatency | p95 HTTP latency > 5s | 5 min |
+| HighLLMLatency | p95 LLM call latency > 30s | 5 min |
+| LowSuccessRate | Success rate < 50% | 10 min |
+| LowEvalScore | Average eval score < 3/10 | 30 min |
+| HighRecallMissRate | Recall miss rate > 80% | 1 hour |
+
+Alert routing: critical alerts suppress matching warnings automatically (inhibit rules).
+
+### 11.4 Logs with Loki
+
+Loki aggregates container logs collected by Promtail. Logs are retained for **30 days**.
+
+#### Which Containers Are Collected
+
+Promtail is configured to collect logs only from these containers:
+- `engramia-api` — application logs (JSON-parsed when `ENGRAMIA_JSON_LOGS=true`)
+- `caddy` — reverse proxy access logs
+- `pgvector` — PostgreSQL logs
+
+#### Viewing Logs in Grafana
+
+1. Open Grafana (`http://localhost:3000`).
+2. Go to **Explore** (compass icon in the left sidebar).
+3. Select **Loki** as the data source (top dropdown).
+4. Use LogQL queries:
+
+```logql
+# All Engramia API logs
+{container="engramia-api"}
+
+# Only errors
+{container="engramia-api"} |= "ERROR"
+
+# Filter by log level (when JSON logs enabled)
+{container="engramia-api"} | json | level="ERROR"
+
+# Filter by tenant
+{container="engramia-api"} | json | tenant_id="your-tenant"
+
+# PostgreSQL logs
+{container="pgvector"}
+
+# Caddy access logs
+{container="caddy"}
+
+# Rate of error logs over time
+rate({container="engramia-api"} |= "ERROR" [5m])
+```
+
+#### JSON Log Fields
+
+When `ENGRAMIA_JSON_LOGS=true` is set, Promtail parses these fields from Engramia logs:
+
+| Field | Label | Description |
+|-------|-------|-------------|
+| `level` | Yes | Log level (INFO, WARNING, ERROR) |
+| `tenant_id` | Yes | Tenant ID for multi-tenant filtering |
+| `request_id` | No | Request correlation ID |
+| `project_id` | No | Project ID |
+| `trace_id` | No | OpenTelemetry trace ID |
+| `message` | No | Log message body |
+
+Fields marked "Yes" under Label are indexed and can be used in `{label="value"}` selectors. Other fields are extracted with `| json` and filtered with `| field="value"`.
+
+### 11.5 Uptime Kuma
+
+Uptime Kuma provides external uptime monitoring with a status page and notifications.
+
+#### Accessing Uptime Kuma
+
+Open `http://localhost:3001` in your browser. On first launch, you will create an admin account through the setup wizard.
+
+#### Recommended Monitors
+
+After setup, add these HTTP monitors:
+
+| Name | URL | Interval | Method |
+|------|-----|----------|--------|
+| Engramia Health | `http://engramia-api:8000/v1/health` | 60s | GET |
+| Engramia Deep Health | `https://api.engramia.dev/v1/health/deep` | 300s | GET |
+| Prometheus | `http://prometheus:9090/-/healthy` | 60s | GET |
+| Grafana | `http://grafana:3000/api/health` | 60s | GET |
+
+Use internal Docker hostnames (e.g. `engramia-api`, `prometheus`) for monitors within the Docker network. Use the public URL for external checks.
+
+#### Notifications
+
+Uptime Kuma supports 90+ notification providers. Configure via the web UI:
+- **Settings** > **Notifications** > **Setup Notification**
+- Common choices: Email (SMTP), Slack webhook, Telegram bot, Discord webhook, PagerDuty
+
+#### Status Page
+
+Create a public status page at **Status Pages** > **+ New Status Page**. Add your monitors to display uptime for your users.
+
+### 11.6 Prometheus Metrics Exposed by Engramia
+
+The Engramia API exposes a Prometheus-compatible `/metrics` endpoint (opt-in via `ENGRAMIA_METRICS=true`).
+
+**Enable metrics in `.env`:**
+
+```env
+ENGRAMIA_METRICS=true
+ENGRAMIA_METRICS_TOKEN=your-metrics-bearer-token   # protects the endpoint
+```
+
+**Available metrics:**
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `engramia_pattern_count` | Gauge | Total stored patterns |
+| `engramia_avg_eval_score` | Gauge | Rolling average eval score (0-10) |
+| `engramia_total_runs` | Gauge | Total learn() calls |
+| `engramia_success_rate` | Gauge | Fraction of successful runs (0-1) |
+| `engramia_reuse_rate` | Gauge | Fraction of recall() with matches |
+| `engramia_requests_total` | Counter | HTTP requests (labels: method, path, status_code) |
+| `engramia_request_duration_seconds` | Histogram | HTTP request latency (labels: method, path, status_code) |
+| `engramia_llm_call_duration_seconds` | Histogram | LLM call latency (labels: provider, model) |
+| `engramia_embedding_duration_seconds` | Histogram | Embedding latency (labels: provider) |
+| `engramia_storage_op_duration_seconds` | Histogram | Storage op latency (labels: backend, operation) |
+| `engramia_recall_hits_total` | Counter | Recall operations with results |
+| `engramia_recall_misses_total` | Counter | Recall operations without results |
+| `engramia_jobs_submitted_total` | Counter | Async jobs submitted (labels: operation) |
+| `engramia_jobs_completed_total` | Counter | Async jobs finished (labels: operation, status) |
+
+If you set `ENGRAMIA_METRICS_TOKEN`, Prometheus must be configured with a bearer token to scrape. In `monitoring/prometheus.yml`, uncomment the authorization section:
+
+```yaml
+scrape_configs:
+  - job_name: engramia-api
+    authorization:
+      credentials: "prom-scrape-secret-changeme"  # must match ENGRAMIA_METRICS_TOKEN
+    static_configs:
+      - targets: ["engramia-api:8000"]
+```
+
+### 11.7 Data Retention
+
+| Component | Retention | Configurable In |
+|-----------|-----------|-----------------|
+| Prometheus | 90 days / 1 GB (whichever is reached first) | `docker-compose.monitoring.yml` (`--storage.tsdb.retention.*` flags) |
+| Loki | 30 days | `monitoring/loki.yml` (`retention_period`) |
+| Uptime Kuma | Unlimited (within disk) | Uptime Kuma web UI |
+| Grafana | N/A (dashboards, not data) | — |
 
 ---
 
