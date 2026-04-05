@@ -26,6 +26,7 @@ export function SiteFooter() {
             <Link href="/legal">Legal hub</Link>
             <a href="mailto:legal@engramia.dev">legal@engramia.dev</a>
             <a href="mailto:sales@engramia.dev">sales@engramia.dev</a>
+            <a href="mailto:support@engramia.dev">support@engramia.dev</a>
             <a href="https://github.com/engramia/engramia/blob/main/LICENSE.txt">License</a>
           </div>
         </div>
