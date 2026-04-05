@@ -62,7 +62,15 @@ class StripeClient:
         cancel_url: str,
         metadata: dict[str, str] | None = None,
     ) -> str:
-        """Create a Stripe Checkout Session and return the session URL."""
+        """Create a Stripe Checkout Session and return the session URL.
+
+        ``automatic_tax`` is enabled so Stripe Tax calculates the correct VAT /
+        sales tax for each jurisdiction automatically.  Requires Stripe Tax to
+        be activated in the Stripe Dashboard (Settings → Tax).
+
+        ``tax_id_collection`` lets B2B customers enter their VAT ID; Stripe
+        then applies the EU reverse-charge rule and prints the ID on invoices.
+        """
         stripe = self._sdk()
         params: dict[str, Any] = {
             "mode": "subscription",
@@ -70,11 +78,27 @@ class StripeClient:
             "success_url": success_url,
             "cancel_url": cancel_url,
             "metadata": metadata or {},
+            "automatic_tax": {"enabled": True},
+            "tax_id_collection": {"enabled": True},
         }
         if customer_id:
             params["customer"] = customer_id
         session = stripe.checkout.Session.create(**params)
         return session.url
+
+    def create_customer(self, tenant_id: str, email: str | None = None) -> str:
+        """Create a Stripe Customer and return the customer ID.
+
+        Called during tenant provisioning so the stripe_customer_id → tenant_id
+        mapping exists in DB before the first Checkout session.
+        """
+        stripe = self._sdk()
+        params: dict[str, Any] = {"metadata": {"tenant_id": tenant_id}}
+        if email:
+            params["email"] = email
+        customer = stripe.Customer.create(**params)
+        _log.info("Created Stripe customer %s for tenant=%s", customer.id, tenant_id)
+        return customer.id
 
     def create_customer_portal_session(self, customer_id: str, return_url: str) -> str:
         """Create a Stripe Customer Portal session and return the URL."""
