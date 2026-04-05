@@ -37,6 +37,8 @@ Complete reference for all Engramia environment variables, grouped by category.
 | `ENGRAMIA_API_KEYS` | — | Comma-separated static API keys for `env` auth mode, e.g. `key1,key2`. |
 | `ENGRAMIA_ALLOW_NO_AUTH` | — | Set to `true` to explicitly allow unauthenticated access in `dev` mode. **Never use in production.** |
 | `ENGRAMIA_ENVIRONMENT` | — | Deployment environment label (`local`, `development`, `staging`, `production`). Used to block `ENGRAMIA_AUTH_MODE=dev` in non-local environments. |
+| `ENGRAMIA_ENV_AUTH_ROLE` | `owner` | Role assigned to requests authenticated via `env` auth mode (`ENGRAMIA_API_KEYS`). Valid values: `owner` \| `admin` \| `editor` \| `reader`. Defaults to `owner` for backward compatibility with single-key deployments. Set to `reader` or `editor` to limit the scope of static keys in production. |
+| `ENGRAMIA_BOOTSTRAP_TOKEN` | — | Secret token required to call `POST /v1/keys/bootstrap` (the first-ever owner key creation). Must be set before deploying to production. Without it the bootstrap endpoint is disabled. Minimum 32 characters recommended. |
 
 **Auth mode behaviour:**
 
@@ -95,6 +97,7 @@ Activated when `ENGRAMIA_AUTH_MODE=oidc`. Requires `pip install "engramia[oidc]"
 | `ENGRAMIA_JSON_LOGS` | `false` | Set to `true` for structured JSON log output (recommended in production). |
 | `ENGRAMIA_TELEMETRY` | `false` | Set to `true` to enable OpenTelemetry tracing. |
 | `ENGRAMIA_METRICS` | `false` | Set to `true` to mount the Prometheus `/metrics` endpoint. |
+| `ENGRAMIA_METRICS_TOKEN` | — | Bearer token required to access `/metrics`. When set, requests without a matching `Authorization: Bearer <token>` header receive `401`. Required when `ENGRAMIA_METRICS=true` in production — without it the metrics endpoint is publicly accessible. |
 | `ENGRAMIA_OTEL_SERVICE_NAME` | `engramia-api` | OTEL service name. |
 | `ENGRAMIA_OTEL_ENDPOINT` | `http://localhost:4317` | OTEL collector gRPC endpoint. |
 
