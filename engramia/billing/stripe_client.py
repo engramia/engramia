@@ -37,7 +37,7 @@ class StripeClient:
         if self._stripe is not None:
             return self._stripe
         try:
-            import stripe as _stripe_lib  # noqa: PLC0415
+            import stripe as _stripe_lib
         except ImportError as exc:
             raise RuntimeError(
                 "stripe SDK not installed. Run: pip install 'engramia[billing]'"

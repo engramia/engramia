@@ -1,17 +1,20 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Marek Čermák
-"""Stripe webhook receiver — POST /v1/billing/webhook.
+"""Billing router — Stripe webhook + tenant-facing billing endpoints.
 
-This router intentionally does NOT use ``require_auth``. Stripe calls
-the webhook endpoint directly using a shared signing secret
-(``STRIPE_WEBHOOK_SECRET``). Authenticity is verified by
-``StripeClient.construct_webhook_event`` which validates the
-``Stripe-Signature`` header using HMAC-SHA256.
+The ``/webhook`` endpoint does NOT use ``require_auth`` — Stripe calls it
+directly using a shared signing secret (``STRIPE_WEBHOOK_SECRET``).
+Authenticity is verified via ``Stripe-Signature`` HMAC-SHA256.
+
+All other endpoints (``/status``, ``/checkout``, ``/portal``, ``/overage``)
+require authentication via ``require_auth``.
 """
 
 import logging
 
-from fastapi import APIRouter, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+
+from engramia.api.auth import require_auth
 
 _log = logging.getLogger(__name__)
 
@@ -56,12 +59,12 @@ async def stripe_webhook(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid webhook signature.",
         ) from exc
-    except Exception:
+    except Exception as exc:
         _log.error("stripe_webhook: unhandled error processing event", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal error processing webhook.",
-        )
+        ) from exc
 
     _log.info("stripe_webhook: processed event_type=%s", event_type)
     return Response(
@@ -73,6 +76,7 @@ async def stripe_webhook(
 @router.get(
     "/status",
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_auth)],
 )
 def billing_status(request: Request):
     """Return current plan, usage counters and limits for the authenticated tenant.
@@ -82,8 +86,7 @@ def billing_status(request: Request):
     from engramia.billing.models import BillingStatus
 
     billing_svc = getattr(request.app.state, "billing_service", None)
-    auth_ctx = getattr(request.state, "auth_context", None)
-    tenant_id = auth_ctx.tenant_id if auth_ctx else "default"
+    tenant_id = request.state.auth_context.tenant_id
 
     if billing_svc is None:
         return BillingStatus(
@@ -109,6 +112,7 @@ def billing_status(request: Request):
 @router.post(
     "/checkout",
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_auth)],
 )
 def create_checkout(request: Request):
     """Create a Stripe Checkout Session and return the redirect URL.
@@ -116,8 +120,6 @@ def create_checkout(request: Request):
     Expects JSON body: ``{"price_id": "price_...", "success_url": "...", "cancel_url": "..."}``.
     """
     import json
-
-    from fastapi import Request as _Request
 
     billing_svc = getattr(request.app.state, "billing_service", None)
     if billing_svc is None:
@@ -130,11 +132,10 @@ def create_checkout(request: Request):
     body_bytes = getattr(request, "_body", b"{}")
     try:
         body = json.loads(body_bytes)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body.")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON body.") from exc
 
-    auth_ctx = getattr(request.state, "auth_context", None)
-    tenant_id = auth_ctx.tenant_id if auth_ctx else "default"
+    tenant_id = request.state.auth_context.tenant_id
 
     price_id: str = body.get("price_id", "")
     success_url: str = body.get("success_url", "")
@@ -154,6 +155,7 @@ def create_checkout(request: Request):
 @router.get(
     "/portal",
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_auth)],
 )
 def customer_portal(request: Request, return_url: str = ""):
     """Return a Stripe Customer Portal URL for the authenticated tenant."""
@@ -161,8 +163,7 @@ def customer_portal(request: Request, return_url: str = ""):
     if billing_svc is None:
         raise HTTPException(status_code=503, detail="Billing not configured.")
 
-    auth_ctx = getattr(request.state, "auth_context", None)
-    tenant_id = auth_ctx.tenant_id if auth_ctx else "default"
+    tenant_id = request.state.auth_context.tenant_id
 
     if not return_url:
         return_url = str(request.base_url)
@@ -178,6 +179,7 @@ def customer_portal(request: Request, return_url: str = ""):
 @router.patch(
     "/overage",
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_auth)],
 )
 async def set_overage(request: Request):
     """Enable or disable eval_runs overage and optionally set a budget cap.
@@ -191,14 +193,13 @@ async def set_overage(request: Request):
     if billing_svc is None:
         raise HTTPException(status_code=503, detail="Billing not configured.")
 
-    auth_ctx = getattr(request.state, "auth_context", None)
-    tenant_id = auth_ctx.tenant_id if auth_ctx else "default"
+    tenant_id = request.state.auth_context.tenant_id
 
     payload = await request.body()
     try:
         body = json.loads(payload)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body.")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON body.") from exc
 
     enabled: bool = bool(body.get("enabled", False))
     budget_cap_cents: int | None = body.get("budget_cap_cents")

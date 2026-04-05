@@ -30,10 +30,8 @@ def build_metrics_app(memory):
     """
     try:
         from prometheus_client import (
-            CONTENT_TYPE_LATEST,
             CollectorRegistry,
             Gauge,
-            generate_latest,
             make_asgi_app,
         )
     except ImportError:
@@ -75,7 +73,7 @@ def build_metrics_app(memory):
             avg_eval_score.set(m.avg_eval_score if m.avg_eval_score is not None else 0.0)
             total_runs.set(m.runs)
             success_rate.set(m.success_rate)
-            reuse_rate.set(m.reuse_rate)
+            reuse_rate.set(m.pipeline_reuse / m.runs if m.runs > 0 else 0.0)
         except Exception as exc:
             _log.warning("Failed to collect Prometheus metrics: %s", exc)
 

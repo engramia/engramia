@@ -223,7 +223,7 @@ class StorageBackend(ABC):
         Returns:
             Number of keys deleted.
         """
-        from engramia._context import get_scope, reset_scope, set_scope
+        from engramia._context import reset_scope, set_scope
         from engramia.types import Scope
 
         token = set_scope(Scope(tenant_id=tenant_id, project_id=project_id))

@@ -159,7 +159,7 @@ class MultiEvaluator:
                 raw_text = self._llm.call(prompt=prompt, system=_EVAL_SYSTEM, role="eval")
                 raw = extract_json_from_llm(raw_text)
                 return _parse_score(raw)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 # Intentionally broad: provider-agnostic retry logic.
                 # Any exception from a specific LLM SDK (openai, anthropic, …)
                 # should make this single attempt return None, not abort the

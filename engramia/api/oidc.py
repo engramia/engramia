@@ -71,7 +71,7 @@ def _fetch_jwks_raw() -> dict:
     url = _jwks_url()
     req = urllib.request.Request(url, headers={"User-Agent": "engramia-oidc/1.0"})
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=5) as resp:
             import json
 
             data = json.loads(resp.read().decode())
@@ -82,7 +82,7 @@ def _fetch_jwks_raw() -> dict:
 
 def _refresh_jwks() -> None:
     """Refresh the in-memory JWKS cache (no-op if still fresh)."""
-    global _jwks_fetched_at  # noqa: PLW0603
+    global _jwks_fetched_at
 
     now = time.monotonic()
     with _jwks_lock:

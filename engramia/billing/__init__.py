@@ -14,4 +14,4 @@ Public surface:
 from engramia.billing.models import PLAN_LIMITS
 from engramia.billing.service import BillingService
 
-__all__ = ["BillingService", "PLAN_LIMITS"]
+__all__ = ["PLAN_LIMITS", "BillingService"]

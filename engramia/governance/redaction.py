@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 _log = logging.getLogger(__name__)
@@ -186,12 +186,12 @@ class RedactionPipeline:
         self._hooks = hooks
 
     @classmethod
-    def default(cls) -> "RedactionPipeline":
+    def default(cls) -> RedactionPipeline:
         """Return a pipeline with all built-in hooks enabled."""
         return cls(hooks=[RegexRedactor(), SecretPatternRedactor()])
 
     @classmethod
-    def empty(cls) -> "RedactionPipeline":
+    def empty(cls) -> RedactionPipeline:
         """Return a no-op pipeline (redaction disabled)."""
         return cls(hooks=[])
 
