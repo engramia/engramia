@@ -20,11 +20,13 @@ import json
 import logging
 import os
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
 
 from engramia.providers.base import StorageBackend
+from engramia.telemetry import metrics as _metrics
 
 _log = logging.getLogger(__name__)
 _EMBEDDINGS_FILE = "_embeddings.json"
@@ -167,15 +169,20 @@ class JSONStorage(StorageBackend):
         path = self._key_to_path(key)
         if not path.exists():
             return None
+        t0 = time.perf_counter()
         try:
             with open(path, encoding="utf-8") as f:
-                return json.load(f)
+                result = json.load(f)
+            _metrics.observe_storage("json", "load", time.perf_counter() - t0)
+            return result
         except json.JSONDecodeError:
             _log.warning("JSONStorage.load: corrupted file at %s — returning None", path)
             return None
 
     def save(self, key: str, data: dict | list) -> None:  # type: ignore[override]
+        t0 = time.perf_counter()
         self._atomic_write(self._key_to_path(key), data)
+        _metrics.observe_storage("json", "save", time.perf_counter() - t0)
 
     def list_keys(self, prefix: str = "") -> list[str]:
         root = self._effective_root()

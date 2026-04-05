@@ -11,6 +11,7 @@ from engramia.core.eval_store import EvalStore
 from engramia.core.metrics import MetricsStore
 from engramia.governance.redaction import RedactionPipeline
 from engramia.providers.base import EmbeddingProvider, StorageBackend
+from engramia.telemetry import metrics as _metrics
 from engramia.types import LearnResult, Pattern
 
 _log = logging.getLogger(__name__)
@@ -133,4 +134,5 @@ class LearningService:
         self._roi_collector.record_learn(pattern_key=key, eval_score=eval_score)
 
         pattern_count = len(self._storage.list_keys(prefix=PATTERNS_PREFIX))
+        _metrics.set_pattern_count(pattern_count)
         return LearnResult(stored=True, pattern_count=pattern_count)

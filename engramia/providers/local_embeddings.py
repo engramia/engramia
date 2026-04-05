@@ -16,8 +16,10 @@ Note: Embedding dimensions differ from OpenAI (384 vs 1536).
 """
 
 import logging
+import time
 
 from engramia.providers.base import EmbeddingProvider
+from engramia.telemetry import metrics as _metrics
 
 _log = logging.getLogger(__name__)
 
@@ -43,7 +45,9 @@ class LocalEmbeddings(EmbeddingProvider):
         _log.info("Loaded local embedding model: %s", model)
 
     def embed(self, text: str) -> list[float]:
+        t0 = time.perf_counter()
         vector = self._model.encode(text, convert_to_numpy=True)
+        _metrics.observe_embedding("local", time.perf_counter() - t0)
         return vector.tolist()
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
@@ -54,5 +58,7 @@ class LocalEmbeddings(EmbeddingProvider):
         """
         if not texts:
             return []
+        t0 = time.perf_counter()
         vectors = self._model.encode(texts, convert_to_numpy=True)
+        _metrics.observe_embedding("local", time.perf_counter() - t0)
         return [v.tolist() for v in vectors]
