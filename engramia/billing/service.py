@@ -104,7 +104,7 @@ class BillingService:
                     ),
                     {"tid": tenant_id},
                 ).fetchone()
-        except Exception:
+        except Exception as exc:
             _log.warning("BillingService.get_subscription DB error for tenant=%s", tenant_id, exc_info=True)
             return BillingSubscription.sandbox_default(tenant_id)
 
@@ -136,7 +136,7 @@ class BillingService:
                     ),
                     {"tid": tenant_id, "metric": metric},
                 ).fetchone()
-        except Exception:
+        except Exception as exc:
             _log.warning("BillingService.get_overage_settings DB error", exc_info=True)
             return None
         if row is None:
@@ -254,7 +254,7 @@ class BillingService:
                         "cap": budget_cap_cents,
                     },
                 )
-        except Exception:
+        except Exception as exc:
             _log.error("BillingService.set_overage DB error for tenant=%s", tenant_id, exc_info=True)
             raise
 
@@ -347,7 +347,7 @@ class BillingService:
                         "period_end": period_end,
                     },
                 )
-        except Exception:
+        except Exception as exc:
             _log.error("_upsert_subscription DB error", exc_info=True)
 
     def _downgrade_to_sandbox(self, customer_id: str) -> None:
@@ -372,7 +372,7 @@ class BillingService:
                         "proj_lim": limits["projects"],
                     },
                 )
-        except Exception:
+        except Exception as exc:
             _log.error("_downgrade_to_sandbox DB error", exc_info=True)
 
     def _set_status_by_customer(self, customer_id: str, status: str) -> None:
@@ -387,7 +387,7 @@ class BillingService:
                     ),
                     {"cid": customer_id, "status": status},
                 )
-        except Exception:
+        except Exception as exc:
             _log.error("_set_status_by_customer DB error", exc_info=True)
 
     def _report_overage_for_customer(self, customer_id: str) -> None:
@@ -427,7 +427,7 @@ class BillingService:
                 description=description,
                 subscription_id=sub.stripe_subscription_id,
             )
-        except Exception:
+        except Exception as exc:
             _log.error("_report_overage_for_customer Stripe error", exc_info=True)
 
     def _tenant_id_by_customer(self, customer_id: str) -> str | None:
@@ -444,7 +444,7 @@ class BillingService:
                     {"cid": customer_id},
                 ).fetchone()
             return row[0] if row else None
-        except Exception:
+        except Exception as exc:
             _log.warning("_tenant_id_by_customer DB error", exc_info=True)
             return None
 
@@ -462,6 +462,6 @@ class BillingService:
                     {"tid": tenant_id},
                 ).fetchone()
             return row[0] if row else 0
-        except Exception:
+        except Exception as exc:
             _log.warning("_count_projects DB error for tenant=%s", tenant_id, exc_info=True)
             return 0
