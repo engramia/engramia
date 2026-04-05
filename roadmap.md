@@ -157,6 +157,7 @@ Vyžadováno před prvním releasem přes nový VCS-based versioning pipeline.
 
 - [ ] Anthropic API key on VM (for Anthropic provider in production)
 - [ ] Final README review
+- [ ] Legal review — ověřit vlastnictví IP a soulad s pracovní smlouvou před veřejným launchem (konzultace s pracovním právníkem)
 - [ ] Switch repo to public
 - [ ] PyPI environment protection → release trigger in `publish.yml`
 - [ ] PyPI release (`pip install engramia`)
