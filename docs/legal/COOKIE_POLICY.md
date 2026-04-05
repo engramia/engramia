@@ -35,7 +35,7 @@ These cookies help us understand how visitors interact with the Website. They ar
 
 | Cookie | Purpose | Duration | Type |
 |--------|---------|----------|------|
-| Analytics provider cookies (TBD) | Page views, navigation patterns, performance metrics | Up to 12 months | Third-party or first-party (depends on provider) |
+| None (no analytics cookies used) | — | — | — |
 
 We will update this table with specific cookie names once an analytics provider is selected. We prioritize privacy-respecting analytics solutions (e.g., Plausible, Fathom, Umami) that do not track users across websites.
 
@@ -77,5 +77,5 @@ We may update this Cookie Policy when we add or remove cookies, or when required
 For questions about this Cookie Policy:
 
 **Marek Čermák**
-Email: [to be added]
+Email: legal@engramia.dev
 Czech Republic
