@@ -114,7 +114,7 @@ The Processor maintains a current list of Sub-processors at **https://engramia.d
 | Sub-processor | Purpose | Location |
 |---------------|---------|----------|
 | Hetzner Online GmbH | Infrastructure hosting | EU (DE) |
-| [Payment processor — to be selected before Cloud tier launch] | Billing and payments | TBD |
+| Stripe | Billing and payments | US |
 | OpenAI (if configured by Controller) | AI model inference | US |
 | Anthropic (if configured by Controller) | AI model inference | US |
 
