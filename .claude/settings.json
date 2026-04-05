@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest*)",
+      "Bash(python -m*)",
+      "Bash(python3 -m*)",
+      "Bash(pip install*)",
+      "Bash(ruff*)",
+      "Bash(alembic*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git status*)",
+      "Bash(git -C*)",
+      "Bash(npm install*)",
+      "Bash(npm run*)",
+      "Bash(npx*)",
+      "Bash(ls*)",
+      "Bash(find*)",
+      "Bash(grep*)",
+      "Bash(cat*)",
+      "Bash(head*)",
+      "Bash(tail*)",
+      "Bash(wc*)",
+      "Bash(mkdir -p*)",
+      "Bash(chmod*)"
+    ]
+  }
+}
