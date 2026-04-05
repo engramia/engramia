@@ -167,8 +167,12 @@ class JSONStorage(StorageBackend):
         path = self._key_to_path(key)
         if not path.exists():
             return None
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            _log.warning("JSONStorage.load: corrupted file at %s — returning None", path)
+            return None
 
     def save(self, key: str, data: dict | list) -> None:  # type: ignore[override]
         self._atomic_write(self._key_to_path(key), data)
