@@ -267,9 +267,16 @@ class BillingService:
 
         Returns the event type string on success.
         Raises ``ValueError`` on invalid signature.
+        Skips duplicate events (Stripe delivers at-least-once).
         """
         event = self._stripe.construct_webhook_event(payload, sig_header)
+        event_id: str = event["id"]
         event_type: str = event["type"]
+
+        if self._is_event_processed(event_id):
+            _log.info("stripe_webhook: duplicate event skipped event_id=%s type=%s", event_id, event_type)
+            return event_type
+
         data = event["data"]["object"]
 
         if event_type in ("customer.subscription.created", "customer.subscription.updated"):
@@ -288,6 +295,7 @@ class BillingService:
         else:
             _log.debug("Unhandled Stripe event: %s", event_type)
 
+        self._mark_event_processed(event_id, event_type)
         return event_type
 
     # ------------------------------------------------------------------
@@ -465,3 +473,45 @@ class BillingService:
         except Exception as exc:
             _log.warning("_count_projects DB error for tenant=%s", tenant_id, exc_info=True)
             return 0
+
+    # ------------------------------------------------------------------
+    # Webhook idempotency
+    # ------------------------------------------------------------------
+
+    def _is_event_processed(self, stripe_event_id: str) -> bool:
+        """Return True if this Stripe event ID was already processed."""
+        if self._engine is None:
+            return False
+        try:
+            with self._engine.connect() as conn:
+                row = conn.execute(
+                    text(
+                        "SELECT 1 FROM processed_webhook_events "
+                        "WHERE stripe_event_id = :eid"
+                    ),
+                    {"eid": stripe_event_id},
+                ).fetchone()
+            return row is not None
+        except Exception:
+            # On DB error, allow processing to proceed (better to process twice
+            # than to silently drop a billing event).
+            _log.warning("_is_event_processed DB error for event_id=%s", stripe_event_id, exc_info=True)
+            return False
+
+    def _mark_event_processed(self, stripe_event_id: str, event_type: str) -> None:
+        """Record a Stripe event ID as successfully processed."""
+        if self._engine is None:
+            return
+        try:
+            with self._engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO processed_webhook_events "
+                        "(stripe_event_id, event_type) "
+                        "VALUES (:eid, :etype) "
+                        "ON CONFLICT (stripe_event_id) DO NOTHING"
+                    ),
+                    {"eid": stripe_event_id, "etype": event_type},
+                )
+        except Exception:
+            _log.warning("_mark_event_processed DB error for event_id=%s", stripe_event_id, exc_info=True)
