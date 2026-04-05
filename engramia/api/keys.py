@@ -289,6 +289,13 @@ def bootstrap(body: BootstrapRequest, request: Request) -> KeyCreateResponse:
         created_at=str(row[0]) if row else "",
     )
     log_event(AuditEvent.KEY_CREATED, key_id=result.id, role="owner", source="bootstrap")
+
+    # Provision a Stripe Customer for the default tenant so the
+    # stripe_customer_id → tenant_id mapping exists before first Checkout.
+    billing_svc = getattr(request.app.state, "billing_service", None)
+    if billing_svc is not None:
+        billing_svc.create_stripe_customer(tenant_id="default")
+
     _log.info("Bootstrap complete — owner key created: %s", result.key_prefix)
     return result
 
