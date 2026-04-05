@@ -100,5 +100,7 @@ Python 3.12+, FastAPI, Typer + Rich, SQLAlchemy 2.x + pgvector, Alembic, OpenAI/
 - Allowed to run bash commands without confirmation
 - Allowed to edit and create files without confirmation
 - Allowed to run tests and linters without confirmation
+- Allowed to run grep, find, ls and all read-only shell commands without confirmation
+- Allowed to run ruff, pytest, coverage and other linting/testing tools without confirmation
 - All file deletion operations require user confirmation
 - All read operations are permitted without confirmation
