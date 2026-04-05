@@ -1,9 +1,12 @@
 # docker-compose.monitoring.yml
-# Deploy: docker compose -f docker-compose.monitoring.yml up -d
+# Deploy alongside prod:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml up -d
+# Or standalone (after prod is up):
+#   COMPOSE_PROJECT_NAME=agent-brain docker compose -f docker-compose.monitoring.yml up -d
 
 networks:
   engramia-net:
-    external: true        # Shared with docker-compose.prod.yml
+    external: true        # Created by docker-compose.prod.yml
   monitoring:
     driver: bridge
 

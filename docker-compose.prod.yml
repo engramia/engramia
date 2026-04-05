@@ -1,3 +1,7 @@
+networks:
+  engramia-net:
+    driver: bridge
+
 services:
   caddy:
     image: caddy:2.9.1-alpine
@@ -8,6 +12,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      - engramia-net
     restart: unless-stopped
     depends_on:
       - engramia-api
@@ -19,6 +25,8 @@ services:
     env_file: .env
     volumes:
       - engramia_data:/data
+    networks:
+      - engramia-net
     restart: unless-stopped
     depends_on:
       pgvector:
@@ -37,6 +45,8 @@ services:
       POSTGRES_DB: engramia
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - engramia-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U engramia"]
