@@ -128,13 +128,47 @@ class LimitEnforcer:
 # ---------------------------------------------------------------------------
 
 
-def _check_subscription_active(subscription: BillingSubscription) -> None:
-    """Raise HTTP 402 or 403 if the subscription is not in an active state.
+_GRACE_PERIOD_DAYS = 7
+_REMINDER_THRESHOLD_DAYS = 5
 
-    past_due  → 402 Payment Required  (payment failed, Stripe is retrying)
-    canceled  → 403 Forbidden         (subscription has been terminated)
+
+def _check_subscription_active(subscription: BillingSubscription) -> None:
+    """Raise HTTP 402 or 403 if the subscription is not in a usable state.
+
+    past_due with grace period active  → allow (log warning when ≥ day 5)
+    past_due after 7-day grace period  → HTTP 402 Payment Required
+    canceled                           → HTTP 403 Forbidden
     """
     if subscription.status == "past_due":
+        if subscription.past_due_since is not None:
+            try:
+                since = datetime.datetime.fromisoformat(subscription.past_due_since)
+                if since.tzinfo is None:
+                    since = since.replace(tzinfo=datetime.UTC)
+                delta = datetime.datetime.now(datetime.UTC) - since
+                if delta.days < _GRACE_PERIOD_DAYS:
+                    days_remaining = _GRACE_PERIOD_DAYS - delta.days
+                    if delta.days >= _REMINDER_THRESHOLD_DAYS:
+                        # Structured event for day-5+ reminder — hook email here.
+                        _log.warning(
+                            "DUNNING_EVENT dunning_event=access_expiring_soon "
+                            "tenant=%s days_remaining=%d",
+                            subscription.tenant_id,
+                            days_remaining,
+                            extra={
+                                "dunning_event": "access_expiring_soon",
+                                "tenant_id": subscription.tenant_id,
+                                "days_remaining": days_remaining,
+                            },
+                        )
+                    return  # within grace period — allow the request
+            except (ValueError, TypeError):
+                # Malformed timestamp: fall through to block access.
+                _log.error(
+                    "past_due_since parse error for tenant=%s value=%r",
+                    subscription.tenant_id,
+                    subscription.past_due_since,
+                )
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={

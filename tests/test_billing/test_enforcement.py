@@ -16,6 +16,8 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
+import datetime
+
 from engramia.billing.enforcement import LimitEnforcer, _next_period_start
 from engramia.billing.models import BillingSubscription, OverageSettings
 
@@ -25,11 +27,13 @@ from engramia.billing.models import BillingSubscription, OverageSettings
 # ---------------------------------------------------------------------------
 
 
-def _sub(eval_runs_limit, patterns_limit=5_000):
+def _sub(eval_runs_limit, patterns_limit=5_000, status="active", past_due_since=None):
     return BillingSubscription(
         tenant_id="t1",
         eval_runs_limit=eval_runs_limit,
         patterns_limit=patterns_limit,
+        status=status,
+        past_due_since=past_due_since,
     )
 
 
@@ -233,3 +237,98 @@ class TestNextPeriodStart:
             mp.setattr(datetime, "datetime", _FakeDatetime)
             result = _next_period_start()
         assert result == "2027-01-01"
+
+
+# ---------------------------------------------------------------------------
+# Subscription status guard (_check_subscription_active)
+# ---------------------------------------------------------------------------
+
+
+class TestSubscriptionStatusGuard:
+    """Tests for P0-2 status check and P1 7-day grace period."""
+
+    _enf = LimitEnforcer(MagicMock())
+
+    # -- past_due without grace period (no past_due_since) --
+
+    def test_past_due_no_timestamp_raises_402(self):
+        sub = _sub(eval_runs_limit=500, status="past_due", past_due_since=None)
+        with pytest.raises(HTTPException) as exc_info:
+            self._enf.check_eval_runs("t1", sub, None)
+        assert exc_info.value.status_code == 402
+        assert exc_info.value.detail["error"] == "payment_required"
+
+    # -- canceled --
+
+    def test_canceled_raises_403(self):
+        sub = _sub(eval_runs_limit=500, status="canceled")
+        with pytest.raises(HTTPException) as exc_info:
+            self._enf.check_eval_runs("t1", sub, None)
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail["error"] == "subscription_canceled"
+
+    def test_canceled_also_blocks_pattern_check(self):
+        sub = _sub(eval_runs_limit=None, patterns_limit=5_000, status="canceled")
+        with pytest.raises(HTTPException) as exc_info:
+            self._enf.check_patterns(100, sub)
+        assert exc_info.value.status_code == 403
+
+    # -- grace period active (within 7 days) --
+
+    def test_past_due_within_grace_period_allows_access(self):
+        # past_due_since = 3 days ago → within 7-day window
+        since = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=3)).isoformat()
+        sub = _sub(eval_runs_limit=500, status="past_due", past_due_since=since)
+        meter = MagicMock()
+        meter.get_count.return_value = 100  # within quota
+        LimitEnforcer(meter).check_eval_runs("t1", sub, None)  # must not raise
+
+    def test_past_due_within_grace_period_still_enforces_quota(self):
+        # Even within grace period, quota limits still apply
+        since = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=3)).isoformat()
+        sub = _sub(eval_runs_limit=500, status="past_due", past_due_since=since)
+        with pytest.raises(HTTPException) as exc_info:
+            _enforcer(600).check_eval_runs("t1", sub, None)
+        # Quota error (429), not payment error (402)
+        assert exc_info.value.status_code == 429
+
+    def test_past_due_day_zero_allows_access(self):
+        since = datetime.datetime.now(datetime.UTC).isoformat()
+        sub = _sub(eval_runs_limit=None, status="past_due", past_due_since=since)
+        LimitEnforcer(MagicMock()).check_eval_runs("t1", sub, None)  # must not raise
+
+    def test_past_due_day_6_allows_access(self):
+        since = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=6)).isoformat()
+        sub = _sub(eval_runs_limit=None, status="past_due", past_due_since=since)
+        LimitEnforcer(MagicMock()).check_eval_runs("t1", sub, None)  # must not raise
+
+    # -- grace period expired (7+ days) --
+
+    def test_past_due_after_7_days_raises_402(self):
+        since = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=7)).isoformat()
+        sub = _sub(eval_runs_limit=None, status="past_due", past_due_since=since)
+        with pytest.raises(HTTPException) as exc_info:
+            LimitEnforcer(MagicMock()).check_eval_runs("t1", sub, None)
+        assert exc_info.value.status_code == 402
+
+    def test_past_due_after_30_days_raises_402(self):
+        since = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=30)).isoformat()
+        sub = _sub(eval_runs_limit=None, status="past_due", past_due_since=since)
+        with pytest.raises(HTTPException) as exc_info:
+            LimitEnforcer(MagicMock()).check_eval_runs("t1", sub, None)
+        assert exc_info.value.status_code == 402
+
+    # -- malformed timestamp fallback --
+
+    def test_past_due_malformed_timestamp_raises_402(self):
+        # If timestamp is corrupted, block access (safe default)
+        sub = _sub(eval_runs_limit=None, status="past_due", past_due_since="not-a-date")
+        with pytest.raises(HTTPException) as exc_info:
+            LimitEnforcer(MagicMock()).check_eval_runs("t1", sub, None)
+        assert exc_info.value.status_code == 402
+
+    # -- active subscription is unaffected --
+
+    def test_active_subscription_passes_status_check(self):
+        sub = _sub(eval_runs_limit=None, status="active")
+        LimitEnforcer(MagicMock()).check_eval_runs("t1", sub, None)  # must not raise

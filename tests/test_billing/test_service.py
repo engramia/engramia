@@ -60,9 +60,10 @@ def _sub_row(
     patterns_limit=50000,
     projects_limit=3,
     period_end="2026-05-01",
+    past_due_since=None,
 ):
     """Return a tuple matching the SELECT column order in get_subscription()."""
-    return (customer_id, sub_id, plan_tier, interval, status, eval_runs_limit, patterns_limit, projects_limit, period_end)
+    return (customer_id, sub_id, plan_tier, interval, status, eval_runs_limit, patterns_limit, projects_limit, period_end, past_due_since)
 
 
 def _overage_row(enabled=True, price=1, unit=100, cap=10000):
@@ -532,3 +533,48 @@ class TestCreateStripeCustomer:
         result = svc.create_stripe_customer("t1")
         # Should still return the customer ID even if DB write failed
         assert result == "cus_ok"
+
+
+# ---------------------------------------------------------------------------
+# Dunning: _set_status_by_customer grace-period tracking
+# ---------------------------------------------------------------------------
+
+
+class TestDunningStatusTracking:
+    def test_past_due_sets_past_due_since_when_null(self):
+        engine, conn = _engine_begin()
+        svc = _billing_service(engine=engine)
+        svc._set_status_by_customer("cus_x", "past_due")
+        conn.execute.assert_called_once()
+        sql = conn.execute.call_args[0][0].text
+        # past_due_since must only be set if it is currently NULL
+        assert "past_due_since" in sql
+        assert "CASE WHEN past_due_since IS NULL" in sql
+        params = conn.execute.call_args[0][1]
+        assert params["status"] == "past_due"
+        assert "now" in params  # timestamp was passed
+
+    def test_active_clears_past_due_since(self):
+        engine, conn = _engine_begin()
+        svc = _billing_service(engine=engine)
+        svc._set_status_by_customer("cus_x", "active")
+        conn.execute.assert_called_once()
+        sql = conn.execute.call_args[0][0].text
+        assert "past_due_since = NULL" in sql
+        params = conn.execute.call_args[0][1]
+        assert params["status"] == "active"
+
+    def test_other_status_does_not_touch_past_due_since(self):
+        engine, conn = _engine_begin()
+        svc = _billing_service(engine=engine)
+        svc._set_status_by_customer("cus_x", "trialing")
+        sql = conn.execute.call_args[0][0].text
+        assert "past_due_since" not in sql
+
+    def test_get_subscription_reads_past_due_since(self):
+        past_due_ts = "2026-03-29T00:00:00+00:00"
+        engine, _ = _engine_with_row(_sub_row(status="past_due", past_due_since=past_due_ts))
+        svc = _billing_service(engine=engine)
+        sub = svc.get_subscription("t1")
+        assert sub.status == "past_due"
+        assert sub.past_due_since == past_due_ts

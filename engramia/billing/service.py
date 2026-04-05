@@ -99,7 +99,7 @@ class BillingService:
                     text(
                         "SELECT stripe_customer_id, stripe_subscription_id, plan_tier, "
                         "billing_interval, status, eval_runs_limit, patterns_limit, "
-                        "projects_limit, current_period_end "
+                        "projects_limit, current_period_end, past_due_since "
                         "FROM billing_subscriptions WHERE tenant_id = :tid"
                     ),
                     {"tid": tenant_id},
@@ -121,6 +121,7 @@ class BillingService:
             patterns_limit=row[6],
             projects_limit=row[7],
             current_period_end=row[8],
+            past_due_since=row[9],
         )
 
     def get_overage_settings(self, tenant_id: str, metric: str) -> OverageSettings | None:
@@ -338,7 +339,23 @@ class BillingService:
         elif event_type == "customer.subscription.deleted":
             self._downgrade_to_sandbox(data["customer"])
         elif event_type == "invoice.payment_failed":
-            self._set_status_by_customer(data["customer"], "past_due")
+            customer_id = data["customer"]
+            self._set_status_by_customer(customer_id, "past_due")
+            # Structured dunning event — hook an email provider here or call
+            # from a daily job to send day-0 / day-5 notifications.
+            attempt = data.get("attempt_count", 1)
+            _log.warning(
+                "DUNNING_EVENT dunning_event=payment_failed customer=%s attempt=%d "
+                "grace_period_days=7 action=notify_customer_payment_failed",
+                customer_id,
+                attempt,
+                extra={
+                    "dunning_event": "payment_failed",
+                    "customer_id": customer_id,
+                    "attempt_count": attempt,
+                    "grace_period_days": 7,
+                },
+            )
         elif event_type == "invoice.paid":
             self._set_status_by_customer(data["customer"], "active")
         elif event_type == "invoice.created":
@@ -448,13 +465,41 @@ class BillingService:
             return
         try:
             with self._engine.begin() as conn:
-                conn.execute(
-                    text(
-                        "UPDATE billing_subscriptions SET status = :status, updated_at = NOW() "
-                        "WHERE stripe_customer_id = :cid"
-                    ),
-                    {"cid": customer_id, "status": status},
-                )
+                if status == "past_due":
+                    # Record the first payment failure timestamp.
+                    # CASE preserves the existing timestamp on subsequent
+                    # invoice.payment_failed events (Stripe Smart Retries) so
+                    # the 7-day grace period clock does not reset on each retry.
+                    now_iso = datetime.datetime.now(datetime.UTC).isoformat()
+                    conn.execute(
+                        text(
+                            "UPDATE billing_subscriptions "
+                            "SET status = :status, "
+                            "past_due_since = CASE WHEN past_due_since IS NULL "
+                            "                      THEN :now ELSE past_due_since END, "
+                            "updated_at = NOW() "
+                            "WHERE stripe_customer_id = :cid"
+                        ),
+                        {"cid": customer_id, "status": status, "now": now_iso},
+                    )
+                elif status == "active":
+                    # Payment succeeded — clear the dunning clock.
+                    conn.execute(
+                        text(
+                            "UPDATE billing_subscriptions "
+                            "SET status = :status, past_due_since = NULL, updated_at = NOW() "
+                            "WHERE stripe_customer_id = :cid"
+                        ),
+                        {"cid": customer_id, "status": status},
+                    )
+                else:
+                    conn.execute(
+                        text(
+                            "UPDATE billing_subscriptions SET status = :status, updated_at = NOW() "
+                            "WHERE stripe_customer_id = :cid"
+                        ),
+                        {"cid": customer_id, "status": status},
+                    )
         except Exception as exc:
             _log.error("_set_status_by_customer DB error", exc_info=True)
 
