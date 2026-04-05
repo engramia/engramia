@@ -1,3 +1,7 @@
 api.engramia.dev {
     reverse_proxy engramia-api:8000
 }
+
+app.engramia.dev {
+    reverse_proxy dashboard:3000
+}

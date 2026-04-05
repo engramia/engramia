@@ -1,6 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SessionProvider } from "next-auth/react";
 import { useState, type ReactNode } from "react";
 import { AuthProvider } from "@/lib/auth";
 import "@/styles/globals.css";
@@ -22,9 +23,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="icon" href="/dashboard/favicon.svg" />
       </head>
       <body>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>{children}</AuthProvider>
-        </QueryClientProvider>
+        <SessionProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>{children}</AuthProvider>
+          </QueryClientProvider>
+        </SessionProvider>
       </body>
     </html>
   );
