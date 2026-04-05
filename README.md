@@ -6,7 +6,7 @@ Reusable execution memory and evaluation infrastructure for AI agent frameworks.
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![License: BSL 1.1](https://img.shields.io/badge/license-BSL%201.1-orange)](LICENSE.txt)
 
-> **Status:** v0.6.0 — phases 0–5.8 complete — 726 tests / 80.29% coverage.
+> **Status:** v0.6.5 — phases 0–5.8 complete — 726 tests / 80.29% coverage.
 > Core library · REST API · multi-tenancy · RBAC · async jobs · observability · data governance · ROI analytics · admin dashboard · service layer.
 > See [roadmap.md](roadmap.md) for what's next.
 
