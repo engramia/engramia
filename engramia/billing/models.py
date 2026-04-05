@@ -62,6 +62,7 @@ class BillingSubscription(BaseModel):
     patterns_limit: int | None = 5_000
     projects_limit: int | None = 1
     current_period_end: str | None = None
+    past_due_since: str | None = None
 
     @classmethod
     def sandbox_default(cls, tenant_id: str) -> "BillingSubscription":
