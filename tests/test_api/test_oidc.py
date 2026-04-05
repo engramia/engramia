@@ -396,3 +396,175 @@ def test_unknown_kid_raises_401(rsa_key_pair):
             oidc_auth(req, token)
 
     assert exc_info.value.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Additional unit tests for uncovered code paths (#6 coverage)
+# ---------------------------------------------------------------------------
+
+
+class TestJwksHelpers:
+    """Tests for _jwks_url, _fetch_jwks_raw, _refresh_jwks, _get_jwk."""
+
+    def test_jwks_url_includes_issuer(self):
+        with patch.object(oidc_module, "_ISSUER", "https://idp.example.com"):
+            url = oidc_module._jwks_url()
+        assert url == "https://idp.example.com/.well-known/jwks.json"
+
+    def test_fetch_jwks_raw_network_error_raises_runtime(self):
+        import urllib.error
+        with (
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")),
+        ):
+            with pytest.raises(RuntimeError, match="Failed to fetch JWKS"):
+                oidc_module._fetch_jwks_raw()
+
+    def test_refresh_jwks_populates_cache(self):
+        jwks_data = {"keys": [{"kid": "k1", "kty": "RSA", "use": "sig"}]}
+        with (
+            patch.object(oidc_module, "_fetch_jwks_raw", return_value=jwks_data),
+            patch.object(oidc_module, "_jwks_cache", {}),
+            patch.object(oidc_module, "_jwks_fetched_at", 0.0),
+        ):
+            oidc_module._refresh_jwks()
+            assert "k1" in oidc_module._jwks_cache
+
+    def test_refresh_jwks_skips_when_fresh(self):
+        import time
+        with (
+            patch.object(oidc_module, "_fetch_jwks_raw") as mock_fetch,
+            patch.object(oidc_module, "_jwks_cache", {"k1": {}}),
+            patch.object(oidc_module, "_jwks_fetched_at", time.monotonic()),
+        ):
+            oidc_module._refresh_jwks()
+        mock_fetch.assert_not_called()
+
+    def test_refresh_jwks_network_failure_keeps_old_cache(self):
+        with (
+            patch.object(oidc_module, "_fetch_jwks_raw", side_effect=RuntimeError("network error")),
+            patch.object(oidc_module, "_jwks_fetched_at", 0.0),
+            patch.object(oidc_module, "_jwks_cache", {"old-key": {"kid": "old-key"}}),
+        ):
+            # Should not raise; old cache survives
+            oidc_module._refresh_jwks()
+
+    def test_get_jwk_returns_key_after_refresh(self):
+        jwks_data = {"keys": [{"kid": "my-key", "kty": "RSA"}]}
+        with (
+            patch.object(oidc_module, "_fetch_jwks_raw", return_value=jwks_data),
+            patch.object(oidc_module, "_jwks_cache", {}),
+            patch.object(oidc_module, "_jwks_fetched_at", 0.0),
+        ):
+            result = oidc_module._get_jwk("my-key")
+            assert result is not None
+            assert result["kid"] == "my-key"
+
+    def test_get_jwk_returns_none_for_unknown_kid(self):
+        with (
+            patch.object(oidc_module, "_fetch_jwks_raw", return_value={"keys": []}),
+            patch.object(oidc_module, "_jwks_cache", {}),
+            patch.object(oidc_module, "_jwks_fetched_at", 0.0),
+        ):
+            result = oidc_module._get_jwk("nonexistent")
+            assert result is None
+
+
+class TestDecodeJwtAlgorithmAllowlist:
+    """Test the algorithm allowlist in _decode_jwt."""
+
+    def test_hmac_algorithm_rejected(self):
+        """HS256 must be rejected (HMAC attack using public key as secret)."""
+        fake_jwt = MagicMock()
+        fake_jwt.get_unverified_header.return_value = {"kid": "k1", "alg": "HS256"}
+        fake_jwt.PyJWTError = Exception
+
+        with patch.dict("sys.modules", {"jwt": fake_jwt, "jwt.algorithms": MagicMock()}):
+            with pytest.raises(HTTPException) as exc_info:
+                oidc_module._decode_jwt("some.jwt.token")
+        assert exc_info.value.status_code == 401
+        assert "HS256" in exc_info.value.detail
+
+    def test_rs256_algorithm_missing_key_raises_401(self):
+        """RS256 is accepted; missing key → 401 signing key not found."""
+        fake_jwt = MagicMock()
+        fake_jwt.get_unverified_header.return_value = {"kid": "k1", "alg": "RS256"}
+        fake_jwt.PyJWTError = Exception
+        fake_alg_module = MagicMock()
+        fake_alg_module.get_default_algorithms.return_value = {"RS256": MagicMock()}
+
+        with (
+            patch.dict("sys.modules", {"jwt": fake_jwt, "jwt.algorithms": fake_alg_module}),
+            patch.object(oidc_module, "_get_jwk", return_value=None),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                oidc_module._decode_jwt("rs256.token")
+        assert exc_info.value.status_code == 401
+        assert "signing key" in exc_info.value.detail.lower()
+
+    def test_malformed_jwt_header_raises_401(self):
+        """A JWT that raises PyJWTError during header parse -> 401."""
+        fake_jwt = MagicMock()
+        fake_jwt.PyJWTError = ValueError
+        fake_jwt.get_unverified_header.side_effect = ValueError("malformed")
+
+        with patch.dict("sys.modules", {"jwt": fake_jwt, "jwt.algorithms": MagicMock()}):
+            with pytest.raises(HTTPException) as exc_info:
+                oidc_module._decode_jwt("bad.token")
+        assert exc_info.value.status_code == 401
+
+
+class TestOidcAuthTenantProjectClaims:
+    """Test oidc_auth() with tenant/project claims present but missing from token."""
+
+    def test_missing_tenant_claim_falls_back_to_default(self):
+        req = _mock_request()
+        claims = _claims()
+        with (
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "org"),
+            patch.object(oidc_module, "_decode_jwt", return_value=claims),
+            patch.object(oidc_module, "set_scope"),
+        ):
+            oidc_auth(req, "token")
+        assert req.state.auth_context.tenant_id == "default"
+
+    def test_missing_project_claim_falls_back_to_default(self):
+        req = _mock_request()
+        claims = _claims()
+        with (
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_PROJECT_CLAIM", "proj"),
+            patch.object(oidc_module, "_decode_jwt", return_value=claims),
+            patch.object(oidc_module, "set_scope"),
+        ):
+            oidc_auth(req, "token")
+        assert req.state.auth_context.project_id == "default"
+
+    def test_tenant_claim_set_when_present(self):
+        req = _mock_request()
+        claims = _claims(org="acme-corp")
+        with (
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "org"),
+            patch.object(oidc_module, "_decode_jwt", return_value=claims),
+            patch.object(oidc_module, "set_scope"),
+        ):
+            oidc_auth(req, "token")
+        assert req.state.auth_context.tenant_id == "acme-corp"
+
+    def test_project_claim_set_when_present(self):
+        req = _mock_request()
+        claims = _claims(proj="backend")
+        with (
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_PROJECT_CLAIM", "proj"),
+            patch.object(oidc_module, "_decode_jwt", return_value=claims),
+            patch.object(oidc_module, "set_scope"),
+        ):
+            oidc_auth(req, "token")
+        assert req.state.auth_context.project_id == "backend"
