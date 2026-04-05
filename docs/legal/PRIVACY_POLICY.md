@@ -2,7 +2,7 @@
 
 **Engramia — Reusable Execution Memory for AI Agents**
 
-Last updated: 2026-03-23
+Last updated: 2026-04-05
 
 ---
 
@@ -161,6 +161,14 @@ We implement appropriate technical and organizational measures to protect your d
 
 For a detailed description of our security measures, see our [Security Policy](../../SECURITY.md).
 
+### Encryption
+
+**In transit:** All data transmitted between your systems and Engramia is encrypted using TLS 1.2 or TLS 1.3.
+
+**At rest:** Database contents (patterns, evaluation scores, metadata) are stored on Hetzner VPS infrastructure in Germany. Hetzner CX-series servers do not provide hardware-level disk encryption by default. Data is protected at the application layer through: hashed API keys (SHA-256), non-root container execution, network segmentation (internal Docker bridge), and restricted database access (no public exposure).
+
+We recommend enterprise customers with strict at-rest encryption requirements to consider the self-hosted deployment option, where you control the infrastructure and can apply LUKS disk encryption or encrypted block storage.
+
 No system is 100% secure. While we strive to protect your data, we cannot guarantee absolute security.
 
 ## 8. Cookies
@@ -210,6 +218,15 @@ If you are located in the EU/EEA:
 - Your data is primarily processed within the EU/EEA.
 - When you use AI model providers (OpenAI, Anthropic), your data may be transferred to the United States. These transfers are governed by the providers' own data transfer mechanisms (e.g., EU-US Data Privacy Framework, Standard Contractual Clauses).
 - We do not independently transfer your personal data outside the EU/EEA except through third-party AI model providers as described above.
+
+### International Data Transfers
+
+Engramia infrastructure is hosted exclusively in Germany (Hetzner, Frankfurt region). However, to provide AI inference capabilities, prompts and content submitted for evaluation may be transmitted to:
+
+- **OpenAI, Inc.** (United States) — for LLM inference. Transfer governed by Standard Contractual Clauses (SCCs) under GDPR Art. 46(2)(c). OpenAI's DPA available at: https://openai.com/policies/data-processing-addendum
+- **Anthropic, PBC** (United States) — for alternative LLM inference. Transfer governed by Standard Contractual Clauses. Anthropic's privacy policy at: https://www.anthropic.com/privacy
+
+Engramia does not transfer data to any other third countries. Where SCCs are used, a Transfer Impact Assessment has been considered in light of the nature of the data (pseudonymized execution patterns, not directly identifying natural persons in typical use).
 
 ## 11. Children's Privacy
 
