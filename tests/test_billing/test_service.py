@@ -298,9 +298,9 @@ class TestSetOverage:
 
 
 class TestHandleWebhookEvent:
-    def _make_svc(self, event_type, data=None):
+    def _make_svc(self, event_type, data=None, event_id="evt_test_001"):
         stripe = MagicMock()
-        event = {"type": event_type, "data": {"object": data or {}}}
+        event = {"id": event_id, "type": event_type, "data": {"object": data or {}}}
         stripe.construct_webhook_event.return_value = event
         svc = _billing_service(engine=None, stripe_client=stripe)
         return svc, stripe
@@ -455,3 +455,80 @@ class TestInternalHelpers:
         args = conn.execute.call_args[0][1]
         assert args["status"] == "past_due"
         assert args["cid"] == "cus_x"
+
+    def test_upsert_subscription_falls_back_to_metadata_tenant_id(self):
+        """When customer lookup returns None, tenant_id is read from sub metadata."""
+        engine, conn = _engine_begin()
+        svc = _billing_service(engine=engine)
+        sub_data = {
+            "customer": "cus_new",
+            "id": "sub_new",
+            "status": "active",
+            "items": {"data": [{"plan": {"interval": "month"}}]},
+            "current_period_end": 1900000000,
+            "metadata": {"plan_tier": "pro", "tenant_id": "tenant-from-metadata"},
+        }
+        with patch.object(svc, "_tenant_id_by_customer", return_value=None):
+            svc._upsert_subscription(sub_data)
+        # DB write must have been attempted with the metadata tenant_id
+        conn.execute.assert_called_once()
+        params = conn.execute.call_args[0][1]
+        assert params["tid"] == "tenant-from-metadata"
+
+    def test_upsert_subscription_logs_warning_when_no_tenant_anywhere(self):
+        """When both customer lookup and metadata return nothing, event is skipped."""
+        svc = _billing_service(engine=None)
+        sub_data = {
+            "customer": "cus_orphan",
+            "id": "sub_orphan",
+            "status": "active",
+            "items": {"data": [{"plan": {"interval": "month"}}]},
+            "current_period_end": 1900000000,
+            "metadata": {},  # no tenant_id in metadata
+        }
+        with patch.object(svc, "_tenant_id_by_customer", return_value=None):
+            svc._upsert_subscription(sub_data)  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# create_stripe_customer()
+# ---------------------------------------------------------------------------
+
+
+class TestCreateStripeCustomer:
+    def test_no_stripe_configured_returns_none(self):
+        stripe = MagicMock()
+        stripe.create_customer.side_effect = RuntimeError("Stripe not configured")
+        svc = _billing_service(engine=None, stripe_client=stripe)
+        result = svc.create_stripe_customer("t1")
+        assert result is None
+
+    def test_no_engine_returns_customer_id_without_db_write(self):
+        stripe = MagicMock()
+        stripe.create_customer.return_value = "cus_new_123"
+        svc = _billing_service(engine=None, stripe_client=stripe)
+        result = svc.create_stripe_customer("t1", email="owner@example.com")
+        assert result == "cus_new_123"
+        stripe.create_customer.assert_called_once_with(tenant_id="t1", email="owner@example.com")
+
+    def test_with_engine_persists_customer_id(self):
+        stripe = MagicMock()
+        stripe.create_customer.return_value = "cus_persisted"
+        engine, conn = _engine_begin()
+        svc = _billing_service(engine=engine, stripe_client=stripe)
+        result = svc.create_stripe_customer("tenant-abc")
+        assert result == "cus_persisted"
+        conn.execute.assert_called_once()
+        params = conn.execute.call_args[0][1]
+        assert params["tid"] == "tenant-abc"
+        assert params["cid"] == "cus_persisted"
+
+    def test_db_error_does_not_propagate(self):
+        stripe = MagicMock()
+        stripe.create_customer.return_value = "cus_ok"
+        engine = MagicMock()
+        engine.begin.side_effect = RuntimeError("DB down")
+        svc = _billing_service(engine=engine, stripe_client=stripe)
+        result = svc.create_stripe_customer("t1")
+        # Should still return the customer ID even if DB write failed
+        assert result == "cus_ok"

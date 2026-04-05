@@ -214,6 +214,60 @@ class BillingService:
         return self._stripe.create_customer_portal_session(sub.stripe_customer_id, return_url)
 
     # ------------------------------------------------------------------
+    # Tenant provisioning
+    # ------------------------------------------------------------------
+
+    def create_stripe_customer(self, tenant_id: str, email: str | None = None) -> str | None:
+        """Create a Stripe Customer for a new tenant and persist the customer ID.
+
+        Call this during tenant provisioning (bootstrap / signup) so the
+        stripe_customer_id → tenant_id mapping is in the DB before the first
+        Checkout session.  Without this, ``_upsert_subscription`` falls back to
+        reading tenant_id from Checkout metadata, which fails if the subscription
+        was created outside a Checkout flow.
+
+        Returns the Stripe customer ID, or None when Stripe is not configured
+        (STRIPE_SECRET_KEY not set / SDK not installed — dev/test mode).
+        """
+        try:
+            customer_id = self._stripe.create_customer(tenant_id=tenant_id, email=email)
+        except RuntimeError:
+            _log.debug(
+                "create_stripe_customer: Stripe not configured — skipping for tenant=%s",
+                tenant_id,
+            )
+            return None
+        if self._engine is None:
+            return customer_id
+        try:
+            limits = PLAN_LIMITS["sandbox"]
+            with self._engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO billing_subscriptions "
+                        "(id, tenant_id, stripe_customer_id, plan_tier, billing_interval, status, "
+                        "eval_runs_limit, patterns_limit, projects_limit) "
+                        "VALUES (gen_random_uuid()::text, :tid, :cid, 'sandbox', 'month', 'active', "
+                        ":eval_lim, :pat_lim, :proj_lim) "
+                        "ON CONFLICT (tenant_id) DO UPDATE SET stripe_customer_id = :cid"
+                    ),
+                    {
+                        "tid": tenant_id,
+                        "cid": customer_id,
+                        "eval_lim": limits["eval_runs"],
+                        "pat_lim": limits["patterns"],
+                        "proj_lim": limits["projects"],
+                    },
+                )
+        except Exception:
+            _log.error(
+                "create_stripe_customer: DB error persisting customer ID for tenant=%s",
+                tenant_id,
+                exc_info=True,
+            )
+        return customer_id
+
+    # ------------------------------------------------------------------
     # Overage settings update (PATCH /v1/billing/overage)
     # ------------------------------------------------------------------
 
@@ -319,6 +373,12 @@ class BillingService:
         limits = PLAN_LIMITS.get(plan_tier, PLAN_LIMITS["sandbox"])
 
         tenant_id = self._tenant_id_by_customer(customer_id)
+        if not tenant_id:
+            # Fallback: read tenant_id from subscription metadata written at
+            # Checkout. Handles the first-ever subscribe when no
+            # billing_subscriptions row exists yet (customer created by Stripe
+            # on-the-fly, before create_stripe_customer() was called).
+            tenant_id = sub_data.get("metadata", {}).get("tenant_id")
         if not tenant_id:
             _log.warning("_upsert_subscription: no tenant for customer=%s", customer_id)
             return
