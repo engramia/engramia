@@ -1,0 +1,80 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Monday at 08:00 UTC even without new commits
+    - cron: "0 8 * * 1"
+
+jobs:
+  pip-audit:
+    name: pip-audit (Python dependency CVEs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Run pip-audit
+        run: |
+          pip-audit --requirement <(pip install -e ".[all]" --dry-run 2>/dev/null | grep "^Would install" | awk '{print $3}' || true)
+          # Also audit requirements directly from pyproject.toml
+          pip install -e ".[all]" --quiet
+          pip-audit
+
+  bandit:
+    name: bandit (Python static security analysis)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install bandit
+        run: pip install bandit[toml]
+      - name: Run bandit
+        run: |
+          bandit -r engramia/ \
+            --severity-level medium \
+            --confidence-level medium \
+            --exclude engramia/db/migrations \
+            -f json -o bandit-report.json || true
+          bandit -r engramia/ \
+            --severity-level medium \
+            --confidence-level medium \
+            --exclude engramia/db/migrations
+      - name: Upload bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  trivy:
+    name: Trivy (Docker image CVE scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image for scanning
+        run: |
+          docker build -t engramia-scan:${{ github.sha }} .
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: engramia-scan:${{ github.sha }}
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Upload Trivy SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-results.sarif"
+        continue-on-error: true  # Don't fail if SARIF upload fails (e.g. private repo without Advanced Security)

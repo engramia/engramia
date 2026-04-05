@@ -1,0 +1,5 @@
+[bandit]
+exclude_dirs = tests,engramia/db/migrations
+skips = B101,B601
+# B101: assert_used — we use asserts in tests intentionally
+# B601: paramiko_calls — not used
