@@ -1,0 +1,95 @@
+groups:
+  - name: engramia
+    rules:
+      # --- Availability ---
+      - alert: EngramiaDown
+        expr: up{job="engramia-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Engramia API is down"
+          description: "Prometheus cannot scrape engramia-api for over 2 minutes."
+
+      # --- Latency ---
+      - alert: HighRequestLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(engramia_request_duration_seconds_bucket[5m])
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 request latency > 5s"
+          description: "95th percentile latency is {{ $value }}s over the last 5m."
+
+      - alert: HighLLMLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(engramia_llm_call_duration_seconds_bucket[5m])
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 LLM call latency > 30s"
+          description: "LLM provider {{ $labels.provider }} p95 = {{ $value }}s."
+
+      # --- Error Rate ---
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(engramia_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(engramia_requests_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate > 10%"
+          description: "{{ $value | humanizePercentage }} of requests returning 5xx."
+
+      # --- Memory/Eval Health ---
+      - alert: LowSuccessRate
+        expr: engramia_success_rate < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pattern success rate dropped below 50%"
+          description: "Current success rate: {{ $value }}."
+
+      - alert: LowEvalScore
+        expr: engramia_avg_eval_score < 3
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Average eval score below 3/10"
+          description: "Rolling eval score: {{ $value }}/10."
+
+      - alert: ZeroPatterns
+        expr: engramia_pattern_count == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No patterns stored"
+          description: "Pattern count is 0 — storage may be empty or disconnected."
+
+      # --- Recall Quality ---
+      - alert: HighRecallMissRate
+        expr: |
+          (
+            rate(engramia_recall_misses_total[1h])
+            /
+            (rate(engramia_recall_hits_total[1h]) + rate(engramia_recall_misses_total[1h]))
+          ) > 0.8
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Recall miss rate > 80%"
+          description: "Most recall queries return no matches — embedding index may be degraded."
