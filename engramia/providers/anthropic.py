@@ -10,6 +10,7 @@ package installed — the ImportError is raised at instantiation.
 """
 
 import logging
+import random
 import time
 
 from engramia.providers._concurrency import llm_semaphore
@@ -102,6 +103,6 @@ class AnthropicProvider(LLMProvider):
                             self._max_retries,
                             exc,
                         )
-                        time.sleep(2**attempt)
+                        time.sleep(2**attempt + random.uniform(0, 1))
 
         raise last_exc or RuntimeError(f"All {self._max_retries} retries exhausted with no exception recorded")

@@ -10,6 +10,7 @@ Both providers use lazy imports so the module can be imported without the
 """
 
 import logging
+import random
 import time
 
 from engramia.providers._concurrency import llm_semaphore
@@ -82,7 +83,7 @@ class OpenAIProvider(LLMProvider):
                     last_exc = exc
                     if attempt < self._max_retries - 1:
                         _log.warning("OpenAI call failed (attempt %d/%d): %s", attempt + 1, self._max_retries, exc)
-                        time.sleep(2**attempt)
+                        time.sleep(2**attempt + random.uniform(0, 1))
 
         raise last_exc or RuntimeError(f"All {self._max_retries} retries exhausted with no exception recorded")
 
