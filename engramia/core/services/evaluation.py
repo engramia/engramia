@@ -9,6 +9,7 @@ from engramia.core.eval_feedback import EvalFeedbackStore
 from engramia.core.eval_store import EvalStore
 from engramia.eval.evaluator import MultiEvaluator
 from engramia.providers.base import LLMProvider
+from engramia.telemetry import tracing as _tracing
 from engramia.types import EvalResult
 
 _log = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class EvaluationService:
         self._eval_store = eval_store
         self._feedback_store = feedback_store
 
+    @_tracing.traced("memory.evaluate")
     def evaluate(
         self,
         task: str,

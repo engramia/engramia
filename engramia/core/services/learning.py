@@ -12,6 +12,7 @@ from engramia.core.metrics import MetricsStore
 from engramia.governance.redaction import RedactionPipeline
 from engramia.providers.base import EmbeddingProvider, StorageBackend
 from engramia.telemetry import metrics as _metrics
+from engramia.telemetry import tracing as _tracing
 from engramia.types import LearnResult, Pattern
 
 _log = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ class LearningService:
         self._roi_collector = roi_collector
         self._redaction = redaction
 
+    @_tracing.traced("memory.learn")
     def learn(
         self,
         task: str,
