@@ -197,6 +197,11 @@ def create_app() -> FastAPI:
     from engramia.telemetry import setup_telemetry
     setup_telemetry()
 
+    # Swagger UI and OpenAPI schema are only exposed in dev/local environments.
+    # In production (default when ENGRAMIA_ENV is unset), these endpoints return 404
+    # to reduce attack surface and avoid leaking API schema to the public internet.
+    _is_dev = os.getenv("ENGRAMIA_ENV", "prod").lower() in ("dev", "development", "local")
+
     app = FastAPI(
         title="Engramia API",
         description=(
@@ -204,8 +209,9 @@ def create_app() -> FastAPI:
             "Provides learn, recall, evaluate, compose, and feedback endpoints."
         ),
         version=__version__,
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs" if _is_dev else None,
+        redoc_url="/redoc" if _is_dev else None,
+        openapi_url="/openapi.json" if _is_dev else None,
     )
 
     # ------------------------------------------------------------------
