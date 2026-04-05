@@ -114,7 +114,7 @@ def billing_status(request: Request):
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_auth)],
 )
-def create_checkout(request: Request):
+async def create_checkout(request: Request):
     """Create a Stripe Checkout Session and return the redirect URL.
 
     Expects JSON body: ``{"price_id": "price_...", "success_url": "...", "cancel_url": "..."}``.
@@ -128,8 +128,7 @@ def create_checkout(request: Request):
             detail="Billing not configured.",
         )
 
-    # Body is parsed inline to keep the router import-free from schemas module
-    body_bytes = getattr(request, "_body", b"{}")
+    body_bytes = await request.body()
     try:
         body = json.loads(body_bytes)
     except Exception as exc:
