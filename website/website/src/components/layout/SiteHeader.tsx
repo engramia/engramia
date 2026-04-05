@@ -26,7 +26,8 @@ export function SiteHeader() {
         <div className="hidden items-center gap-3 md:flex">
           <Button href="https://github.com/engramia/engramia" variant="ghost">GitHub</Button>
           <Button href="https://api.engramia.dev/docs" variant="secondary">API Docs</Button>
-          <Button href="https://api.engramia.dev/v1/billing/checkout?plan=pro">Get Pro</Button>
+          <Button href="https://app.engramia.dev/login" variant="ghost">Sign in</Button>
+          <Button href="https://app.engramia.dev/register">Sign up free</Button>
         </div>
       </div>
     </header>

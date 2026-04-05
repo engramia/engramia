@@ -1,28 +1,39 @@
 "use client"
-import { signIn } from "next-auth/react"
 import { useState } from "react"
+import { signIn } from "next-auth/react"
 import Link from "next/link"
 
-export default function LoginPage() {
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.engramia.dev"
+
+export default function RegisterPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirm, setConfirm] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError("")
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    })
-    if (result?.error) {
-      setError("Invalid email or password")
+    if (password.length < 8) { setError("Password must be at least 8 characters"); return }
+    if (password !== confirm) { setError("Passwords do not match"); return }
+    setLoading(true)
+    try {
+      const res = await fetch(`${BACKEND_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.detail ?? "Registration failed"); setLoading(false); return }
+      // Auto sign-in after registration
+      await signIn("credentials", { email, password, redirect: false })
+      // Store API key for setup wizard
+      sessionStorage.setItem("engramia_new_api_key", data.api_key ?? "")
+      window.location.href = "/setup"
+    } catch {
+      setError("Network error — please try again")
       setLoading(false)
-    } else {
-      window.location.href = "/overview"
     }
   }
 
@@ -33,13 +44,13 @@ export default function LoginPage() {
           <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white mb-3">
             E
           </div>
-          <h1 className="text-2xl font-bold text-white">Welcome back</h1>
-          <p className="text-gray-400 mt-1">Sign in to your Engramia account</p>
+          <h1 className="text-2xl font-bold text-white">Create your account</h1>
+          <p className="text-gray-400 mt-1">Start for free, no credit card required</p>
         </div>
 
         {/* GitHub */}
         <button
-          onClick={() => signIn("github", { callbackUrl: "/overview" })}
+          onClick={() => signIn("github", { callbackUrl: "/setup" })}
           className="w-full flex items-center justify-center gap-3 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition mb-3 border border-gray-700"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -50,7 +61,7 @@ export default function LoginPage() {
 
         {/* Google */}
         <button
-          onClick={() => signIn("google", { callbackUrl: "/overview" })}
+          onClick={() => signIn("google", { callbackUrl: "/setup" })}
           className="w-full flex items-center justify-center gap-3 px-4 py-2.5 bg-white text-gray-900 rounded-lg font-medium hover:bg-gray-50 transition mb-4"
         >
           <svg width="18" height="18" viewBox="0 0 18 18">
@@ -63,53 +74,44 @@ export default function LoginPage() {
         </button>
 
         <div className="relative my-4">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-700" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-gray-900 px-2 text-gray-500">or</span>
-          </div>
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-700" /></div>
+          <div className="relative flex justify-center text-sm"><span className="bg-gray-900 px-2 text-gray-500">or</span></div>
         </div>
 
-        {/* Email/Password form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
               className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
-              placeholder="you@company.com"
-            />
+              placeholder="you@company.com" />
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
               className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
-              placeholder="••••••••"
-            />
+              placeholder="Min. 8 characters" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Confirm Password</label>
+            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required
+              className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              placeholder="••••••••" />
           </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-medium transition"
-          >
-            {loading ? "Signing in…" : "Sign in"}
+          <button type="submit" disabled={loading}
+            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-medium transition">
+            {loading ? "Creating account…" : "Create account"}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
-          Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-indigo-400 hover:text-indigo-300">
-            Sign up free
-          </Link>
+        <p className="mt-4 text-center text-xs text-gray-600">
+          By signing up you agree to our{" "}
+          <a href="https://engramia.dev/legal/terms" className="underline">Terms</a> and{" "}
+          <a href="https://engramia.dev/legal/privacy" className="underline">Privacy Policy</a>.
+        </p>
+        <p className="mt-3 text-center text-sm text-gray-500">
+          Already have an account?{" "}
+          <Link href="/login" className="text-indigo-400 hover:text-indigo-300">Sign in</Link>
         </p>
       </div>
     </div>

@@ -18,6 +18,22 @@ services:
     depends_on:
       - engramia-api
 
+  dashboard:
+    image: engramia/dashboard:latest
+    restart: unless-stopped
+    environment:
+      - NEXTAUTH_URL=${DASHBOARD_URL:-https://app.engramia.dev}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXT_PUBLIC_API_URL=${API_URL:-https://api.engramia.dev}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - NEXT_PUBLIC_STRIPE_PRO_URL=${STRIPE_PRO_URL:-}
+      - NEXT_PUBLIC_STRIPE_TEAM_URL=${STRIPE_TEAM_URL:-}
+    networks:
+      - engramia-net
+
   engramia-api:
     image: ghcr.io/engramia/engramia:${IMAGE_TAG:?IMAGE_TAG must be set}
     ports:
