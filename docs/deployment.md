@@ -338,3 +338,64 @@ Secrets are stored in `/opt/engramia/.env` on the production VM, accessible only
 ### Future: External secret managers (roadmap)
 
 For enterprise deployments requiring centralized secret management, audit trails, and automatic rotation, integration with external providers (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault) is planned. See the roadmap for timeline.
+
+---
+
+## Stripe Billing configuration
+
+### Stripe Tax (EU VAT / US Sales Tax)
+
+Engramia's checkout sessions pass `automatic_tax: {enabled: true}` and
+`tax_id_collection: {enabled: true}` to Stripe.  These flags are **inert**
+until Stripe Tax is activated — no error is thrown, but no tax is calculated
+either, which is a compliance risk for EU and US customers.
+
+**Activation (one-time, per Stripe account):**
+
+1. Stripe Dashboard → **Settings** → **Tax** → click **Activate Stripe Tax**.
+2. Set your **origin address** (the address from which you sell — used for
+   tax nexus determination).
+3. Add your **registered tax IDs** (e.g. CZ VAT ID `CZ12345678`) under
+   Tax → Tax registrations → Add registration.
+4. For EU OSS: register for the One Stop Shop scheme via the Czech Tax
+   Administration portal (`moje.daneOnline.cz`) — this lets you file a
+   single quarterly EU return instead of registering in each member state.
+
+After activation Stripe automatically:
+- Calculates the correct VAT/GST rate per customer country.
+- Applies EU B2B reverse-charge when the customer provides a valid VAT ID.
+- Prints the tax breakdown on invoices.
+- Provides per-jurisdiction tax reports exportable from the Dashboard.
+
+**Cost:** 0.5% of each taxable transaction (maximum $2 per transaction).
+Reverse-charge B2B transactions are not taxed, so the fee does not apply.
+
+---
+
+### Stripe Smart Retries (dunning)
+
+Engramia grants a **7-day grace period** after a failed payment before
+blocking access (HTTP 402).  Stripe's Smart Retries should be configured to
+retry within that window so that transient card failures resolve automatically.
+
+**Configuration (Stripe Dashboard → Settings → Billing → Subscriptions →
+Manage failed payments):**
+
+| Setting | Recommended value |
+|---------|-------------------|
+| Retry logic | Smart Retries |
+| Retry schedule | Day 3 · Day 5 · Day 7 · Day 14 |
+| After final attempt | **Cancel the subscription** |
+| Send emails to customers | ✅ Failed payment · ✅ Expiring card |
+
+**Why this schedule:** the application grace period is 7 days.  Retrying on
+days 3, 5, and 7 maximises recovery before the customer loses access.  A final
+retry on day 14 catches customers who updated their card late.  Cancelling
+after all retries fires `customer.subscription.deleted`, which Engramia
+handles by downgrading the tenant to the sandbox tier.
+
+**Dunning notification events** are emitted as structured log entries at the
+`WARNING` level with the key `dunning_event`.  Hook an email provider (e.g.
+Resend, SendGrid) to the application log pipeline or implement an email
+service and call `BillingService.check_dunning_reminders()` from a daily
+scheduled job to send day-5 access-expiry reminders.
