@@ -1,5 +1,13 @@
 # Deployment
 
+> **Quick reference:** This is the single consolidated deployment guide for Engramia.
+> It covers Docker Compose (dev + production), Kubernetes, database migrations,
+> backup/restore, and rollback procedures.
+>
+> Related docs: [Environment Variables](environment-variables.md) · [Production Hardening](production-hardening.md) · [Backup & Restore](backup-restore.md)
+
+---
+
 ## Docker
 
 ### JSON storage (development)
@@ -29,6 +37,51 @@ docker compose exec engramia-api alembic upgrade head
 - Multi-stage build (builder + runtime)
 - Non-root user (`engramia:1001`)
 - Default port: 8000
+
+---
+
+## Kubernetes
+
+A reference manifest is provided at `deploy/k8s/engramia.yaml`. It creates a `engramia` namespace, ConfigMap, Secret, Deployment, Service, and HPA.
+
+### Quick start
+
+```bash
+# 1. Edit secrets in deploy/k8s/engramia.yaml (ENGRAMIA_DATABASE_URL, OPENAI_API_KEY, etc.)
+kubectl apply -f deploy/k8s/engramia.yaml
+
+# 2. Apply database migrations
+kubectl -n engramia exec deploy/engramia-api -- alembic upgrade head
+
+# 3. Verify health
+kubectl -n engramia port-forward svc/engramia-api 8000:8000
+curl http://localhost:8000/v1/health/deep
+```
+
+### Running migrations in K8s
+
+```bash
+# Run as a one-off Job (recommended for production)
+kubectl -n engramia exec deploy/engramia-api -- alembic upgrade head
+
+# Check current revision
+kubectl -n engramia exec deploy/engramia-api -- alembic current
+```
+
+### Zero-downtime update
+
+```bash
+# 1. Update the image tag in the Deployment
+kubectl -n engramia set image deployment/engramia-api engramia-api=ghcr.io/engramia/engramia:0.6.6
+
+# 2. Watch the rollout
+kubectl -n engramia rollout status deployment/engramia-api
+
+# 3. Rollback if needed (see Rollback section below)
+kubectl -n engramia rollout undo deployment/engramia-api
+```
+
+---
 
 ## PostgreSQL + pgvector
 
