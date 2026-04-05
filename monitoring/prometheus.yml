@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 30s       # Low traffic — no need for 15s default
+  evaluation_interval: 30s
+  scrape_timeout: 10s
+
+rule_files:
+  - alerts.rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: "engramia-api"
+    metrics_path: /metrics
+    scrape_interval: 30s
+    # If ENGRAMIA_METRICS_TOKEN is set, uncomment:
+    # authorization:
+    #   type: Bearer
+    #   credentials: "prom-scrape-secret-changeme"
+    static_configs:
+      - targets: ["engramia-api:8000"]
+        labels:
+          instance: "engramia-prod"
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
