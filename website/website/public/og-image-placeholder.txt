@@ -1,0 +1,4 @@
+TODO: Create og-image.png (1200x630px)
+Content: Engramia logo + tagline "AI Agent Memory & Evaluation"
+Tools: Figma, Canva, or any image editor
+Place as: public/og-image.png
