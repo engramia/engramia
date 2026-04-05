@@ -11,6 +11,7 @@ from engramia.core.success_patterns import SuccessPatternStore
 from engramia.exceptions import ProviderError
 from engramia.providers.base import EmbeddingProvider, StorageBackend
 from engramia.reuse.matcher import PatternMatcher
+from engramia.telemetry import tracing as _tracing
 from engramia.telemetry.metrics import inc_recall_hit, inc_recall_miss
 from engramia.types import JACCARD_DEDUP_THRESHOLD, Match, Pattern
 
@@ -98,6 +99,7 @@ class RecallService:
             for s, k, p in scored[:limit]
         ]
 
+    @_tracing.traced("memory.recall")
     def recall(
         self,
         task: str,
