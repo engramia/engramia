@@ -46,6 +46,7 @@ class LimitEnforcer:
             subscription: Current plan subscription for limit values.
             overage: Overage settings for eval_runs, or None.
         """
+        _check_subscription_active(subscription)
         limit = subscription.eval_runs_limit
         if limit is None:
             return  # unlimited (enterprise)
@@ -103,6 +104,7 @@ class LimitEnforcer:
             current_count: Current number of stored patterns.
             subscription: Current plan subscription for limit values.
         """
+        _check_subscription_active(subscription)
         limit = subscription.patterns_limit
         if limit is None:
             return  # unlimited
@@ -124,6 +126,32 @@ class LimitEnforcer:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _check_subscription_active(subscription: BillingSubscription) -> None:
+    """Raise HTTP 402 or 403 if the subscription is not in an active state.
+
+    past_due  → 402 Payment Required  (payment failed, Stripe is retrying)
+    canceled  → 403 Forbidden         (subscription has been terminated)
+    """
+    if subscription.status == "past_due":
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "payment_required",
+                "message": "Your subscription payment is past due. "
+                           "Update your payment method to continue.",
+            },
+        )
+    if subscription.status == "canceled":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "subscription_canceled",
+                "message": "Your subscription has been canceled. "
+                           "Subscribe again to continue using Engramia.",
+            },
+        )
 
 
 def _next_period_start() -> str:
