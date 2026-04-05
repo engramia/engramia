@@ -158,6 +158,11 @@ Vyžadováno před prvním releasem přes nový VCS-based versioning pipeline.
 - [ ] Anthropic API key on VM (for Anthropic provider in production)
 - [ ] Final README review
 - [ ] Legal review — ověřit vlastnictví IP a soulad s pracovní smlouvou před veřejným launchem (konzultace s pracovním právníkem)
+- [ ] IP ownership — konzultace s pracovním právníkem před zveřejněním zdrojového kódu **(blocking)**
+- [ ] Živnostenské oprávnění — ověřit platnost pro SaaS fakturaci **(blocking)**
+- [ ] GitHub branch protection — nastavit required reviews, required CI pass, no force push to main **(important)**
+- [ ] Backup/DR — implementovat automatizovaný pg_dump + disaster recovery plán **(blocking)**
+- [ ] Cloud onboarding — Varianta A (manuální admin) pro public launch; rozhodnutí o finálním self-serve řešení odložit na post-launch milestone **(important)**
 - [ ] Switch repo to public
 - [ ] PyPI environment protection → release trigger in `publish.yml`
 - [ ] PyPI release (`pip install engramia`)
