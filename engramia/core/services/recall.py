@@ -11,6 +11,7 @@ from engramia.core.success_patterns import SuccessPatternStore
 from engramia.exceptions import ProviderError
 from engramia.providers.base import EmbeddingProvider, StorageBackend
 from engramia.reuse.matcher import PatternMatcher
+from engramia.telemetry.metrics import inc_recall_hit, inc_recall_miss
 from engramia.types import JACCARD_DEDUP_THRESHOLD, Match, Pattern
 
 _log = logging.getLogger(__name__)
@@ -161,12 +162,14 @@ class RecallService:
 
         if result:
             best = result[0]
+            inc_recall_hit()
             self._roi_collector.record_recall(
                 best_similarity=best.similarity,
                 best_reuse_tier=best.reuse_tier,
                 best_pattern_key=best.pattern_key,
             )
         else:
+            inc_recall_miss()
             self._roi_collector.record_recall(
                 best_similarity=None,
                 best_reuse_tier=None,

@@ -17,10 +17,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
-
-from engramia._context import reset_scope, set_scope
-from engramia.types import Scope
+from dataclasses import dataclass
 
 _log = logging.getLogger(__name__)
 

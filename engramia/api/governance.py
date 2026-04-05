@@ -15,7 +15,7 @@ Permissions required:
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 
 from engramia.api.audit import AuditEvent, log_event
 from engramia.api.auth import require_auth
@@ -56,8 +56,8 @@ def get_retention(
     auth_ctx: AuthContext | None = Depends(get_auth_context),
 ) -> RetentionPolicyResponse:
     """Return the effective retention policy for the current scope."""
-    from engramia.governance.retention import RetentionManager
     from engramia._context import get_scope
+    from engramia.governance.retention import RetentionManager
 
     scope = get_scope()
     engine = _get_engine(request)
@@ -116,8 +116,8 @@ def set_retention(
     auth_ctx: AuthContext | None = Depends(get_auth_context),
 ) -> RetentionPolicyResponse:
     """Set the retention policy for the current project."""
-    from engramia.governance.retention import RetentionManager
     from engramia._context import get_scope
+    from engramia.governance.retention import RetentionManager
 
     scope = get_scope()
     engine = _get_engine(request)
@@ -297,8 +297,8 @@ def delete_project(
     - admin: may only delete their own project (project_id must match scope).
     - owner: may delete any project within their tenant.
     """
-    from engramia.governance.deletion import ScopedDeletion
     from engramia._context import get_scope
+    from engramia.governance.deletion import ScopedDeletion
 
     scope = get_scope()
 
@@ -364,7 +364,6 @@ def delete_tenant(
     Wipes all projects, patterns, embeddings, jobs. Irreversible.
     """
     from engramia.governance.deletion import ScopedDeletion
-    from engramia._context import get_scope
 
     # Extra check: caller must be owner of this specific tenant
     if auth_ctx is not None and auth_ctx.tenant_id != tenant_id:
@@ -373,7 +372,6 @@ def delete_tenant(
             detail="You can only delete your own tenant.",
         )
 
-    scope = get_scope()
     engine = _get_engine(request)
     deletion = ScopedDeletion(engine=engine)
 

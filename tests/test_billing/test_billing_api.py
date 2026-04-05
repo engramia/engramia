@@ -23,8 +23,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from engramia.api.auth import require_auth
 from engramia.billing.models import BillingStatus
 from engramia.billing.webhooks import router as billing_router
+from tests.factories import make_auth_dep
 
 pytestmark = pytest.mark.integration
 
@@ -38,6 +40,7 @@ def _make_app(billing_service=None, pattern_count: int = 0) -> FastAPI:
     """Minimal FastAPI app with billing router and faked app state."""
     app = FastAPI()
     app.include_router(billing_router, prefix="/v1")
+    app.dependency_overrides[require_auth] = make_auth_dep()
 
     mock_storage = MagicMock()
     mock_storage.count_patterns.return_value = pattern_count
@@ -247,7 +250,7 @@ class TestBillingStatus:
         assert svc.get_status.call_args[0][1] == 42
 
     def test_tenant_id_from_auth_context_used(self):
-        """When auth_context is absent, tenant_id defaults to 'default'."""
+        """Authenticated request uses tenant_id from auth context."""
         svc = MagicMock()
         svc.get_status.return_value = _pro_status()
         client = TestClient(_make_app(billing_service=svc))

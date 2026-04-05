@@ -24,7 +24,9 @@
       "Bash(wc*)",
       "Bash(cd*)",
       "Bash(dir*)",
-      "Bash(grep*)"
+      "Bash(grep*)",
+      "Bash(git diff:*)",
+      "Bash(git push:*)"
     ]
   }
 }

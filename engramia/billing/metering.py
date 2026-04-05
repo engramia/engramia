@@ -12,8 +12,6 @@ import logging
 
 from sqlalchemy import text
 
-from engramia.billing.models import METRIC_EVAL_RUNS
-
 _log = logging.getLogger(__name__)
 
 

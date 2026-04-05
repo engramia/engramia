@@ -11,7 +11,6 @@ appropriate service.
 import hashlib
 import logging
 import time
-from typing import Any
 
 from engramia._util import PATTERNS_PREFIX
 from engramia.analytics.collector import ROICollector
@@ -47,7 +46,6 @@ _EXPORT_VERSION = 1
 _EMBED_META_KEY = "metadata/embedding_config"
 
 # Re-exported for backward compatibility (used by tests and external tooling)
-from engramia.core.services.evaluation import _MAX_NUM_EVALS  # noqa: E402
 
 _log = logging.getLogger(__name__)
 

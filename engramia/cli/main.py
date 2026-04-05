@@ -291,7 +291,6 @@ def reindex(
     all stored pattern embeddings are consistent with the current configuration.
     """
     from engramia.memory import _EMBED_META_KEY
-    from engramia.providers.json_storage import JSONStorage
 
     embeddings = _make_embeddings()
     storage = _make_storage(path)

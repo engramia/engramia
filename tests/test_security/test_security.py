@@ -225,7 +225,7 @@ class TestDeletePatternPrefix:
 class TestNumEvalsCap:
     def test_num_evals_capped_in_evaluate(self):
         """mem.evaluate() should cap num_evals at _MAX_NUM_EVALS silently."""
-        from engramia.memory import _MAX_NUM_EVALS
+        from engramia.core.services.evaluation import _MAX_NUM_EVALS
 
         assert _MAX_NUM_EVALS <= 20, "Sanity: cap must be reasonable"
 

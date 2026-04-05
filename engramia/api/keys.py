@@ -321,7 +321,6 @@ def create_key(body: KeyCreateRequest, request: Request) -> KeyCreateResponse:
 
     # Enforce role hierarchy: callers cannot grant roles higher than they are
     # allowed to assign.  Owners may assign any role; admins max out at editor.
-    caller_rank = _ROLE_RANK.get(ctx.role, 0)
     requested_rank = _ROLE_RANK.get(body.role, 0)
     max_assignable = _MAX_ASSIGNABLE.get(ctx.role, "reader")
     max_rank = _ROLE_RANK[max_assignable]

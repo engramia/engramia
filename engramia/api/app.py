@@ -47,11 +47,11 @@ from fastapi.responses import JSONResponse
 from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
 from engramia.api.analytics import router as analytics_router
-from engramia.billing.webhooks import router as billing_router
 from engramia.api.governance import router as governance_router
 from engramia.api.jobs import router as jobs_router
 from engramia.api.keys import router as keys_router
 from engramia.api.routes import meta_router, router
+from engramia.billing.webhooks import router as billing_router
 from engramia.exceptions import ValidationError
 
 _log = logging.getLogger(__name__)
@@ -346,6 +346,7 @@ def create_app() -> FastAPI:
 
             if _metrics_token:
                 import hmac as _hmac
+
                 from starlette.responses import Response as _StarletteResponse
 
                 _expected = _metrics_token.encode()
@@ -402,6 +403,7 @@ def create_app() -> FastAPI:
     # Dashboard static files (Phase 5.3)
     # ------------------------------------------------------------------
     from pathlib import Path
+
     from fastapi.staticfiles import StaticFiles
 
     dashboard_dir = Path(__file__).parent.parent.parent / "dashboard" / "out"

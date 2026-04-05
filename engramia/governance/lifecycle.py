@@ -20,7 +20,6 @@ import time
 from typing import Any
 
 from engramia._context import get_scope
-from engramia._util import PATTERNS_PREFIX
 
 _log = logging.getLogger(__name__)
 
