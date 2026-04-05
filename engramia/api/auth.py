@@ -121,11 +121,15 @@ def _hash_key(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-# Simple in-process TTL cache: avoids a DB round-trip on every request.
+# In-process TTL cache with bounded size: avoids a DB round-trip on every request.
+# LRU eviction (via OrderedDict) prevents DoS via unbounded growth from unique invalid keys.
 # Entries are invalidated immediately on key revocation (see keys.py).
-_key_cache: dict[str, tuple[float, dict | None]] = {}
+import collections
+
+_key_cache: collections.OrderedDict[str, tuple[float, dict | None]] = collections.OrderedDict()
 _cache_lock = threading.Lock()
-_CACHE_TTL = 60.0  # seconds
+_CACHE_TTL = 60.0   # seconds
+_CACHE_MAX = 4096   # max entries before LRU eviction
 
 
 def _db_lookup(engine, key_hash: str) -> dict | None:
@@ -161,18 +165,23 @@ def _db_lookup(engine, key_hash: str) -> dict | None:
 
 
 def _lookup_key_cached(engine, key_hash: str) -> dict | None:
-    """Return the key row from the cache or DB, respecting TTL."""
+    """Return the key row from the cache or DB, respecting TTL and LRU capacity."""
     now = time.monotonic()
     with _cache_lock:
         if key_hash in _key_cache:
             expires_at, row = _key_cache[key_hash]
             if now < expires_at:
+                # Move to end (most recently used)
+                _key_cache.move_to_end(key_hash)
                 return row
             del _key_cache[key_hash]
 
     row = _db_lookup(engine, key_hash)
     with _cache_lock:
         _key_cache[key_hash] = (now + _CACHE_TTL, row)
+        # Evict oldest entry when over capacity
+        while len(_key_cache) > _CACHE_MAX:
+            _key_cache.popitem(last=False)
     return row
 
 
