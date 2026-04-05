@@ -38,7 +38,7 @@ Additional Use Grant: You may make production use of the Licensed Work, provided
                       offering. Marek Čermák considers your organization to include all 
                       of your affiliates under common control.
 
-Change Date: Four years from the date the Licensed Work is published.
+Change Date: 2030-04-05
 
 Change License: Apache 2.0
 
