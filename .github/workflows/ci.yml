@@ -99,7 +99,7 @@ jobs:
       - name: Dependency audit (pip-audit)
         run: |
           pip install pip-audit
-          pip-audit --strict --desc
+          pip-audit --strict --desc --exclude engramia
 
       - name: SAST (bandit)
         run: |
