@@ -1,0 +1,33 @@
+# Normalize line endings to LF in the repository.
+# On checkout, Git converts to native line endings on Windows (CRLF),
+# but on commit, everything is stored as LF — matching the Linux runtime.
+* text=auto eol=lf
+
+# Ensure these are always LF regardless of OS
+*.py text eol=lf
+*.pyi text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+Dockerfile text eol=lf
+Caddyfile text eol=lf
+Makefile text eol=lf
+
+# Binary files — no conversion
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+*.woff binary
