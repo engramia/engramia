@@ -59,6 +59,8 @@ langchain = ["langchain-core>=0.1"]
 crewai = ["crewai>=0.28"]
 openai-agents = ["openai-agents>=0.10"]
 anthropic-agents = ["claude-agent-sdk>=0.1"]
+pydantic-ai = ["pydantic-ai>=1.0"]
+autogen = ["autogen-agentchat>=0.4"]
 mcp = ["mcp>=1.0"]
 oidc = ["PyJWT>=2.8", "cryptography>=42.0"]
 cloud-auth = [
