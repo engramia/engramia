@@ -36,7 +36,10 @@ engramia_data/
 .pytest_cache/
 .coverage
 htmlcov/
-tests/recall_quality/results
+tests/recall_quality/results/
+
+# Benchmark outputs
+benchmarks/results/
 
 # Dashboard build
 dashboard/node_modules/
@@ -63,8 +66,13 @@ Thumbs.db
 CLAUDE.md
 roadmap.md
 CHANGELOG.md
-AUDIT_PROMPT.md
-AUDIT_RESULTS*.md
-AUDIT_RESULTS/
-docs/legal/key-legal-design-decisions.md
 test_run_prompt.md
+
+# Audit outputs (LLM-generated, never version)
+AUDIT_PROMPT.md
+AUDIT_RESULTS*
+docs/*audit*
+docs/*AUDIT*
+
+# Legal internal docs
+docs/legal/key-legal-design-decisions.md

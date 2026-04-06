@@ -28,6 +28,7 @@ import logging
 import os
 import threading
 import time
+from typing import ClassVar
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -44,16 +45,15 @@ class MaintenanceModeMiddleware(BaseHTTPMiddleware):
     load-balancer health checks continue to work.
     """
 
-    _HEALTH_PATHS = {"/v1/health", "/v1/health/deep"}
+    _HEALTH_PATHS: ClassVar[set[str]] = {"/v1/health", "/v1/health/deep"}
 
     async def dispatch(self, request: Request, call_next):
-        if os.environ.get("ENGRAMIA_MAINTENANCE", "").lower() in ("1", "true", "yes"):
-            if request.url.path not in self._HEALTH_PATHS:
-                return JSONResponse(
-                    status_code=503,
-                    content={"detail": "Service is under scheduled maintenance. Please try again later."},
-                    headers={"Retry-After": "3600"},
-                )
+        if os.environ.get("ENGRAMIA_MAINTENANCE", "").lower() in ("1", "true", "yes") and request.url.path not in self._HEALTH_PATHS:
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Service is under scheduled maintenance. Please try again later."},
+                headers={"Retry-After": "3600"},
+            )
         return await call_next(request)
 
 

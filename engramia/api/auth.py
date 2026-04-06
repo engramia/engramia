@@ -124,7 +124,7 @@ def _hash_key(token: str) -> str:
 # In-process TTL cache with bounded size: avoids a DB round-trip on every request.
 # LRU eviction (via OrderedDict) prevents DoS via unbounded growth from unique invalid keys.
 # Entries are invalidated immediately on key revocation (see keys.py).
-import collections
+import collections  # noqa: E402
 
 _key_cache: collections.OrderedDict[str, tuple[float, dict | None]] = collections.OrderedDict()
 _cache_lock = threading.Lock()

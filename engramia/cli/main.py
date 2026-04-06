@@ -703,15 +703,17 @@ def governance_export(
     cls_filter = [c.strip() for c in classification.split(",")] if classification else None
     exporter = DataExporter()
 
-    out = open(output, "w", encoding="utf-8") if output != "-" else sys.stdout
+    import contextlib
+
     count = 0
-    try:
+    with contextlib.ExitStack() as stack:
+        if output != "-":
+            out = stack.enter_context(open(output, "w", encoding="utf-8"))
+        else:
+            out = sys.stdout
         for record in exporter.stream(storage, classification_filter=cls_filter):
             out.write(json.dumps(record, default=str) + "\n")
             count += 1
-    finally:
-        if output != "-":
-            out.close()
 
     if output != "-":
         console.print(f"[green]✓[/green] Exported [bold]{count}[/bold] patterns to [cyan]{output}[/cyan].")

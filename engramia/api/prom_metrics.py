@@ -47,7 +47,7 @@ def build_metrics_app(memory):
     )
     avg_eval_score = Gauge(
         "engramia_avg_eval_score",
-        "Rolling average evaluation score (0–10)",
+        "Rolling average evaluation score (0-10)",
         registry=registry,
     )
     total_runs = Gauge(
@@ -57,7 +57,7 @@ def build_metrics_app(memory):
     )
     success_rate = Gauge(
         "engramia_success_rate",
-        "Fraction of runs recorded as successful (0–1)",
+        "Fraction of runs recorded as successful (0-1)",
         registry=registry,
     )
     reuse_rate = Gauge(

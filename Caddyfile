@@ -5,3 +5,7 @@ api.engramia.dev {
 app.engramia.dev {
     reverse_proxy dashboard:3000
 }
+
+status.engramia.dev {
+    reverse_proxy uptime-kuma:3001
+}

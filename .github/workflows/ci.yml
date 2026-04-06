@@ -101,6 +101,21 @@ jobs:
           pip install pip-audit
           pip-audit --strict --desc
 
+      - name: SAST (bandit)
+        run: |
+          pip install bandit
+          bandit -r engramia/ -c pyproject.toml --severity-level medium --confidence-level medium -f json -o bandit-report.json || true
+          bandit -r engramia/ -c pyproject.toml --severity-level high --confidence-level high
+        continue-on-error: false
+
+      - name: Upload SAST report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          retention-days: 30
+
       - name: Secret scanning (trufflehog)
         uses: trufflesecurity/trufflehog@v3.88.17
         with:

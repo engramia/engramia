@@ -182,7 +182,7 @@ class StorageBackend(ABC):
     # Governance (Phase 5.6) — optional, default no-ops
     # ------------------------------------------------------------------
 
-    def save_pattern_meta(
+    def save_pattern_meta(  # noqa: B027
         self,
         key: str,
         *,
