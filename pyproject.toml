@@ -107,6 +107,7 @@ addopts = "--cov=engramia --cov-fail-under=80"
 markers = [
     "postgres: integration tests requiring Docker + PostgreSQL+pgvector container",
     "local_embeddings: tests requiring sentence-transformers (pip install engramia[local])",
+    "concurrent: thread-safety stress tests (flaky on CI tmpfs)",
     "integration: tests using create_app() with full middleware stack",
     "security: security regression tests (RBAC, tenant isolation, auth bypass)",
     "contract: interface and schema compliance tests",

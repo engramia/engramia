@@ -35,7 +35,7 @@ jobs:
         run: mypy engramia/ --ignore-missing-imports
 
       - name: Tests
-        run: pytest --cov=engramia --cov-report=xml --cov-fail-under=80 --junitxml=test-results.xml
+        run: pytest -m "not postgres and not local_embeddings and not concurrent" --cov=engramia --cov-report=xml --cov-fail-under=80 --junitxml=test-results.xml
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 

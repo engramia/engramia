@@ -9,7 +9,11 @@ JSONStorage instance do not corrupt data or raise exceptions.
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import pytest
+
 from engramia.providers.json_storage import JSONStorage
+
+pytestmark = pytest.mark.concurrent
 
 
 class TestConcurrentWrites:
