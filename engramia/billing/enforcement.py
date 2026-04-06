@@ -151,8 +151,7 @@ def _check_subscription_active(subscription: BillingSubscription) -> None:
                     if delta.days >= _REMINDER_THRESHOLD_DAYS:
                         # Structured event for day-5+ reminder — hook email here.
                         _log.warning(
-                            "DUNNING_EVENT dunning_event=access_expiring_soon "
-                            "tenant=%s days_remaining=%d",
+                            "DUNNING_EVENT dunning_event=access_expiring_soon tenant=%s days_remaining=%d",
                             subscription.tenant_id,
                             days_remaining,
                             extra={
@@ -173,8 +172,7 @@ def _check_subscription_active(subscription: BillingSubscription) -> None:
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
                 "error": "payment_required",
-                "message": "Your subscription payment is past due. "
-                           "Update your payment method to continue.",
+                "message": "Your subscription payment is past due. Update your payment method to continue.",
             },
         )
     if subscription.status == "canceled":
@@ -182,8 +180,7 @@ def _check_subscription_active(subscription: BillingSubscription) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "error": "subscription_canceled",
-                "message": "Your subscription has been canceled. "
-                           "Subscribe again to continue using Engramia.",
+                "message": "Your subscription has been canceled. Subscribe again to continue using Engramia.",
             },
         )
 

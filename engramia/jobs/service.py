@@ -462,10 +462,7 @@ class JobService:
                 )
                 with self._engine.begin() as conn:
                     conn.execute(
-                        text(
-                            "UPDATE jobs SET status = 'pending', "
-                            "scheduled_at = :sched WHERE id = :id"
-                        ),
+                        text("UPDATE jobs SET status = 'pending', scheduled_at = :sched WHERE id = :id"),
                         {"id": job_dict["id"], "sched": scheduled},
                     )
         finally:

@@ -165,9 +165,7 @@ def apply_retention(
 
     Supports async execution via ``Prefer: respond-async`` header.
     """
-    async_resp = _try_async(
-        request, "retention_cleanup", {"dry_run": body.dry_run}
-    )
+    async_resp = _try_async(request, "retention_cleanup", {"dry_run": body.dry_run})
     if async_resp is not None:
         return async_resp
 
@@ -305,13 +303,13 @@ def delete_project(
     # Admins are scoped to their own project — only owners may perform
     # cross-project deletion within the tenant.
     if auth_ctx is not None and auth_ctx.role != "owner" and project_id != scope.project_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"Role '{auth_ctx.role}' may only delete its own project. "
-                    "Cross-project deletion requires the 'owner' role."
-                ),
-            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"Role '{auth_ctx.role}' may only delete its own project. "
+                "Cross-project deletion requires the 'owner' role."
+            ),
+        )
 
     engine = _get_engine(request)
     deletion = ScopedDeletion(engine=engine)

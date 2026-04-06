@@ -18,14 +18,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install pip-audit
-        run: pip install pip-audit
-      - name: Run pip-audit
+      - name: Install pip-audit and project deps
         run: |
-          pip-audit --requirement <(pip install -e ".[all]" --dry-run 2>/dev/null | grep "^Would install" | awk '{print $3}' || true)
-          # Also audit requirements directly from pyproject.toml
+          pip install pip-audit
           pip install -e ".[all]" --quiet
-          pip-audit --exclude engramia
+      - name: Run pip-audit
+        run: pip-audit --exclude engramia
 
   bandit:
     name: bandit (Python static security analysis)
@@ -54,6 +52,7 @@ jobs:
         with:
           name: bandit-report
           path: bandit-report.json
+          if-no-files-found: ignore
 
   trivy:
     name: Trivy (Docker image CVE scan)

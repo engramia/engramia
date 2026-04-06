@@ -122,10 +122,7 @@ class RetentionManager:
 
             with self._engine.begin() as conn:
                 conn.execute(
-                    text(
-                        "UPDATE projects SET retention_days = :days "
-                        "WHERE id = :pid AND tenant_id = :tid"
-                    ),
+                    text("UPDATE projects SET retention_days = :days WHERE id = :pid AND tenant_id = :tid"),
                     {"days": days, "pid": project_id, "tid": tenant_id},
                 )
         except Exception as exc:

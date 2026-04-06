@@ -28,6 +28,7 @@ class _ContextInjectingFormatter(logging.Formatter):
         # Inject request_id
         try:
             from engramia.telemetry.context import get_request_id
+
             record.__dict__.setdefault("request_id", get_request_id() or "")
         except Exception:
             record.__dict__.setdefault("request_id", "")
@@ -90,6 +91,5 @@ def configure_json_logging() -> None:
         logging.getLogger(__name__).info("JSON structured logging enabled.")
     except ImportError:
         logging.getLogger(__name__).warning(
-            "python-json-logger not installed — JSON logging disabled. "
-            "Install with: pip install engramia[telemetry]"
+            "python-json-logger not installed — JSON logging disabled. Install with: pip install engramia[telemetry]"
         )

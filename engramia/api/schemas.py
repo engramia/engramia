@@ -22,7 +22,9 @@ class LearnRequest(BaseModel):
     output: str | None = Field(default=None, max_length=500_000, description="Optional captured stdout.")
     # Phase 5.6: Data Governance provenance
     run_id: str | None = Field(default=None, max_length=200, description="Caller-supplied run correlation ID.")
-    classification: str = Field(default="internal", max_length=50, description="Data sensitivity: public|internal|confidential.")
+    classification: str = Field(
+        default="internal", max_length=50, description="Data sensitivity: public|internal|confidential."
+    )
     source: str = Field(default="api", max_length=50, description="Pattern origin: api|sdk|cli|import.")
 
 
@@ -42,7 +44,9 @@ class RecallRequest(BaseModel):
     offset: int = Field(default=0, ge=0, le=10_000, description="Number of results to skip (for pagination).")
     deduplicate: bool = Field(default=True)
     eval_weighted: bool = Field(default=True)
-    classification: str | None = Field(default=None, max_length=50, description="Filter by classification: public|internal|confidential.")
+    classification: str | None = Field(
+        default=None, max_length=50, description="Filter by classification: public|internal|confidential."
+    )
     source: str | None = Field(default=None, max_length=50, description="Filter by origin: api|sdk|cli|import.")
     min_score: float | None = Field(default=None, ge=0.0, le=10.0, description="Minimum success_score filter.")
 

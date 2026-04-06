@@ -381,9 +381,7 @@ class BillingService:
         sub_id: str = sub_data["id"]
         status: str = sub_data["status"]
         interval: str = sub_data["items"]["data"][0]["plan"]["interval"]
-        period_end: str = datetime.datetime.fromtimestamp(
-            sub_data["current_period_end"], tz=datetime.UTC
-        ).isoformat()
+        period_end: str = datetime.datetime.fromtimestamp(sub_data["current_period_end"], tz=datetime.UTC).isoformat()
 
         # Resolve plan tier from Stripe metadata (set during checkout)
         plan_tier: str = sub_data.get("metadata", {}).get("plan_tier", "pro")
@@ -529,10 +527,7 @@ class BillingService:
         if overage.budget_cap_cents is not None:
             amount = min(amount, overage.budget_cap_cents)
 
-        description = (
-            f"Engramia overage: {excess} eval runs "
-            f"({units} x {overage.unit_size} run blocks)"
-        )
+        description = f"Engramia overage: {excess} eval runs ({units} x {overage.unit_size} run blocks)"
         try:
             self._stripe.create_invoice_item(
                 customer_id=customer_id,
@@ -550,10 +545,7 @@ class BillingService:
         try:
             with self._engine.connect() as conn:
                 row = conn.execute(
-                    text(
-                        "SELECT tenant_id FROM billing_subscriptions "
-                        "WHERE stripe_customer_id = :cid"
-                    ),
+                    text("SELECT tenant_id FROM billing_subscriptions WHERE stripe_customer_id = :cid"),
                     {"cid": customer_id},
                 ).fetchone()
             return row[0] if row else None
@@ -568,10 +560,7 @@ class BillingService:
         try:
             with self._engine.connect() as conn:
                 row = conn.execute(
-                    text(
-                        "SELECT COUNT(*) FROM projects "
-                        "WHERE tenant_id = :tid AND deleted_at IS NULL"
-                    ),
+                    text("SELECT COUNT(*) FROM projects WHERE tenant_id = :tid AND deleted_at IS NULL"),
                     {"tid": tenant_id},
                 ).fetchone()
             return row[0] if row else 0
@@ -590,10 +579,7 @@ class BillingService:
         try:
             with self._engine.connect() as conn:
                 row = conn.execute(
-                    text(
-                        "SELECT 1 FROM processed_webhook_events "
-                        "WHERE stripe_event_id = :eid"
-                    ),
+                    text("SELECT 1 FROM processed_webhook_events WHERE stripe_event_id = :eid"),
                     {"eid": stripe_event_id},
                 ).fetchone()
             return row is not None

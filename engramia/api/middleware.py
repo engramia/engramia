@@ -48,7 +48,10 @@ class MaintenanceModeMiddleware(BaseHTTPMiddleware):
     _HEALTH_PATHS: ClassVar[set[str]] = {"/v1/health", "/v1/health/deep"}
 
     async def dispatch(self, request: Request, call_next):
-        if os.environ.get("ENGRAMIA_MAINTENANCE", "").lower() in ("1", "true", "yes") and request.url.path not in self._HEALTH_PATHS:
+        if (
+            os.environ.get("ENGRAMIA_MAINTENANCE", "").lower() in ("1", "true", "yes")
+            and request.url.path not in self._HEALTH_PATHS
+        ):
             return JSONResponse(
                 status_code=503,
                 content={"detail": "Service is under scheduled maintenance. Please try again later."},
@@ -147,7 +150,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if ip_count > ip_limit:
             _log.warning(
                 "Rate limit exceeded (ip): ip=%s path=%s count=%d limit=%d",
-                ip, path, ip_count, ip_limit,
+                ip,
+                path,
+                ip_count,
+                ip_limit,
             )
             log_event(AuditEvent.RATE_LIMITED, ip=ip, path=path, count=ip_count, limit=ip_limit)
             return JSONResponse(
@@ -159,7 +165,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if key_bucket is not None and key_count > self._key_limit:
             _log.warning(
                 "Rate limit exceeded (key): path=%s count=%d limit=%d",
-                path, key_count, self._key_limit,
+                path,
+                key_count,
+                self._key_limit,
             )
             log_event(AuditEvent.RATE_LIMITED, ip=ip, path=path, count=key_count, limit=self._key_limit)
             return JSONResponse(

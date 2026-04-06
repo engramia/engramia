@@ -39,9 +39,7 @@ class StripeClient:
         try:
             import stripe as _stripe_lib
         except ImportError as exc:
-            raise RuntimeError(
-                "stripe SDK not installed. Run: pip install 'engramia[billing]'"
-            ) from exc
+            raise RuntimeError("stripe SDK not installed. Run: pip install 'engramia[billing]'") from exc
         if not self._secret_key:
             raise RuntimeError(
                 "STRIPE_SECRET_KEY is not set. Configure it via env var or StripeClient(secret_key=...)."
@@ -120,9 +118,7 @@ class StripeClient:
         """
         stripe = self._sdk()
         if not self._webhook_secret:
-            raise RuntimeError(
-                "STRIPE_WEBHOOK_SECRET is not set. Configure it via env var."
-            )
+            raise RuntimeError("STRIPE_WEBHOOK_SECRET is not set. Configure it via env var.")
         try:
             return stripe.Webhook.construct_event(
                 payload=payload,

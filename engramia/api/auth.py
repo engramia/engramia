@@ -128,8 +128,8 @@ import collections  # noqa: E402
 
 _key_cache: collections.OrderedDict[str, tuple[float, dict | None]] = collections.OrderedDict()
 _cache_lock = threading.Lock()
-_CACHE_TTL = 60.0   # seconds
-_CACHE_MAX = 4096   # max entries before LRU eviction
+_CACHE_TTL = 60.0  # seconds
+_CACHE_MAX = 4096  # max entries before LRU eviction
 
 
 def _db_lookup(engine, key_hash: str) -> dict | None:
@@ -279,7 +279,7 @@ async def require_auth(request: Request) -> None:
             detail="Missing or malformed Authorization header. Expected: Bearer <key>",
         )
 
-    token = auth_header[len("Bearer "):]
+    token = auth_header[len("Bearer ") :]
 
     if _AUTH_MODE == "oidc":
         from engramia.api.oidc import oidc_auth

@@ -142,9 +142,7 @@ _SECRET_KEYWORDS = [
 
 # Matches key = "value", key: "value", key = 'value', KEY="value", etc.
 _SECRET_ASSIGNMENT_PATTERN = re.compile(
-    r"(?i)(?:"
-    + "|".join(re.escape(k) for k in _SECRET_KEYWORDS)
-    + r""")[\s]*(?:=|:)[\s]*["']?([^"'\s,;>]{6,})["']?""",
+    r"(?i)(?:" + "|".join(re.escape(k) for k in _SECRET_KEYWORDS) + r""")[\s]*(?:=|:)[\s]*["']?([^"'\s,;>]{6,})["']?""",
 )
 
 

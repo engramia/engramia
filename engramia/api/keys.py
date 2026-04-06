@@ -309,7 +309,7 @@ _ROLE_RANK: dict[str, int] = {"reader": 0, "editor": 1, "admin": 2, "owner": 3}
 # Maximum role that each caller role may assign to a new key.
 _MAX_ASSIGNABLE: dict[str, str] = {
     "owner": "owner",
-    "admin": "editor",   # admin cannot escalate to admin/owner
+    "admin": "editor",  # admin cannot escalate to admin/owner
     "editor": "reader",  # should never reach here — editor lacks keys:create
     "reader": "reader",  # should never reach here — reader lacks keys:create
 }
@@ -432,10 +432,7 @@ def revoke_key(key_id: str, request: Request) -> KeyRevokeResponse:
     # Fetch key to verify it belongs to the caller's project + get its hash
     with engine.connect() as conn:
         row = conn.execute(
-            text(
-                "SELECT key_hash, revoked_at FROM api_keys "
-                "WHERE id = :id AND tenant_id = :tid AND project_id = :pid"
-            ),
+            text("SELECT key_hash, revoked_at FROM api_keys WHERE id = :id AND tenant_id = :tid AND project_id = :pid"),
             {"id": key_id, "tid": ctx.tenant_id, "pid": ctx.project_id},
         ).fetchone()
 
@@ -491,10 +488,7 @@ def rotate_key(key_id: str, request: Request) -> KeyRotateResponse:
 
     with engine.connect() as conn:
         row = conn.execute(
-            text(
-                "SELECT key_hash, revoked_at FROM api_keys "
-                "WHERE id = :id AND tenant_id = :tid AND project_id = :pid"
-            ),
+            text("SELECT key_hash, revoked_at FROM api_keys WHERE id = :id AND tenant_id = :tid AND project_id = :pid"),
             {"id": key_id, "tid": ctx.tenant_id, "pid": ctx.project_id},
         ).fetchone()
 
@@ -509,9 +503,7 @@ def rotate_key(key_id: str, request: Request) -> KeyRotateResponse:
     with engine.begin() as conn:
         conn.execute(
             text(
-                "UPDATE api_keys "
-                "SET key_hash = :new_hash, key_prefix = :new_prefix, last_used_at = NULL "
-                "WHERE id = :id"
+                "UPDATE api_keys SET key_hash = :new_hash, key_prefix = :new_prefix, last_used_at = NULL WHERE id = :id"
             ),
             {"new_hash": new_hash, "new_prefix": display_prefix, "id": key_id},
         )

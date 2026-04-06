@@ -106,10 +106,7 @@ class PostgresStorage(StorageBackend):
         sp = self._scope_params()
         with self._engine.connect() as conn:
             row = conn.execute(
-                self._text(
-                    "SELECT data FROM memory_data "
-                    "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
-                ),
+                self._text("SELECT data FROM memory_data WHERE key = :key AND tenant_id = :tid AND project_id = :pid"),
                 {"key": key, **sp},
             ).fetchone()
         return row[0] if row else None  # psycopg2 deserialises JSONB to dict/list directly
@@ -148,11 +145,7 @@ class PostgresStorage(StorageBackend):
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    self._text(
-                        "SELECT key FROM memory_data "
-                        "WHERE tenant_id = :tid AND project_id = :pid "
-                        "ORDER BY key"
-                    ),
+                    self._text("SELECT key FROM memory_data WHERE tenant_id = :tid AND project_id = :pid ORDER BY key"),
                     sp,
                 ).fetchall()
         return [row[0] for row in rows]
@@ -161,17 +154,11 @@ class PostgresStorage(StorageBackend):
         sp = self._scope_params()
         with self._engine.begin() as conn:
             conn.execute(
-                self._text(
-                    "DELETE FROM memory_data "
-                    "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
-                ),
+                self._text("DELETE FROM memory_data WHERE key = :key AND tenant_id = :tid AND project_id = :pid"),
                 {"key": key, **sp},
             )
             conn.execute(
-                self._text(
-                    "DELETE FROM memory_embeddings "
-                    "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
-                ),
+                self._text("DELETE FROM memory_embeddings WHERE key = :key AND tenant_id = :tid AND project_id = :pid"),
                 {"key": key, **sp},
             )
 
@@ -259,17 +246,11 @@ class PostgresStorage(StorageBackend):
         try:
             with self._engine.begin() as conn:
                 conn.execute(
-                    self._text(
-                        "DELETE FROM memory_embeddings "
-                        "WHERE tenant_id = :tid AND project_id = :pid"
-                    ),
+                    self._text("DELETE FROM memory_embeddings WHERE tenant_id = :tid AND project_id = :pid"),
                     {"tid": tenant_id, "pid": project_id},
                 )
                 r = conn.execute(
-                    self._text(
-                        "DELETE FROM memory_data "
-                        "WHERE tenant_id = :tid AND project_id = :pid"
-                    ),
+                    self._text("DELETE FROM memory_data WHERE tenant_id = :tid AND project_id = :pid"),
                     {"tid": tenant_id, "pid": project_id},
                 )
             return r.rowcount

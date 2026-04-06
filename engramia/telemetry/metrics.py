@@ -22,19 +22,19 @@ _enabled: bool = False
 # Metric objects — populated by init_metrics()
 # ---------------------------------------------------------------------------
 
-REQUEST_DURATION = None   # Histogram: method, path, status_code
-REQUEST_COUNT = None       # Counter:   method, path, status_code
+REQUEST_DURATION = None  # Histogram: method, path, status_code
+REQUEST_COUNT = None  # Counter:   method, path, status_code
 
-LLM_CALL_DURATION = None   # Histogram: provider, model
+LLM_CALL_DURATION = None  # Histogram: provider, model
 EMBEDDING_DURATION = None  # Histogram: provider
-STORAGE_OP_DURATION = None # Histogram: backend, operation
+STORAGE_OP_DURATION = None  # Histogram: backend, operation
 
-PATTERN_COUNT = None       # Gauge:     (unlabelled — global aggregate)
-RECALL_HITS = None         # Counter
-RECALL_MISSES = None       # Counter
+PATTERN_COUNT = None  # Gauge:     (unlabelled — global aggregate)
+RECALL_HITS = None  # Counter
+RECALL_MISSES = None  # Counter
 
-JOB_SUBMITTED = None       # Counter:   operation
-JOB_COMPLETED = None       # Counter:   operation, status
+JOB_SUBMITTED = None  # Counter:   operation
+JOB_COMPLETED = None  # Counter:   operation, status
 
 
 def is_enabled() -> bool:
@@ -61,8 +61,7 @@ def init_metrics() -> None:
         from prometheus_client import Counter, Gauge, Histogram
     except ImportError:
         _log.warning(
-            "prometheus_client not installed — metrics disabled. "
-            "Install with: pip install engramia[telemetry]"
+            "prometheus_client not installed — metrics disabled. Install with: pip install engramia[telemetry]"
         )
         return
 

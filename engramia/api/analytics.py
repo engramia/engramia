@@ -72,9 +72,7 @@ def trigger_rollup(
     try:
         rollups = aggregator.rollup(window=body.window)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     _log.info("ROI rollup triggered: window=%s scopes=%d", body.window, len(rollups))
     return ROIRollupListResponse(
@@ -131,10 +129,7 @@ def get_rollup(
     if rollup is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=(
-                f"No {window!r} rollup found for this scope. "
-                "POST /v1/analytics/rollup to compute one."
-            ),
+            detail=(f"No {window!r} rollup found for this scope. POST /v1/analytics/rollup to compute one."),
         )
     return ROIRollupResponse(**rollup.model_dump())
 

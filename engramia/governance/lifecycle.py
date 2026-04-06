@@ -79,10 +79,7 @@ def compact_audit_log(memory, params: dict[str, Any]) -> dict[str, Any]:
         if dry_run:
             with engine.connect() as conn:
                 row = conn.execute(
-                    text(
-                        "SELECT COUNT(*) FROM audit_log "
-                        "WHERE tenant_id = :tid AND created_at < :cutoff"
-                    ),
+                    text("SELECT COUNT(*) FROM audit_log WHERE tenant_id = :tid AND created_at < :cutoff"),
                     {"tid": scope.tenant_id, "cutoff": cutoff},
                 ).fetchone()
             count = int(row[0]) if row else 0
@@ -90,10 +87,7 @@ def compact_audit_log(memory, params: dict[str, Any]) -> dict[str, Any]:
 
         with engine.begin() as conn:
             r = conn.execute(
-                text(
-                    "DELETE FROM audit_log "
-                    "WHERE tenant_id = :tid AND created_at < :cutoff"
-                ),
+                text("DELETE FROM audit_log WHERE tenant_id = :tid AND created_at < :cutoff"),
                 {"tid": scope.tenant_id, "cutoff": cutoff},
             )
         _log.info("compact_audit_log: deleted %d entries older than %s", r.rowcount, cutoff)

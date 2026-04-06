@@ -49,10 +49,7 @@ if TYPE_CHECKING:
 _log = logging.getLogger(__name__)
 
 _RECALL_HEADER = "## Relevant patterns from previous runs\n"
-_RECALL_ENTRY_TPL = (
-    "\n### {i}. {task} (score {score:.1f}, similarity {sim:.2f})\n"
-    "```python\n{code}\n```\n"
-)
+_RECALL_ENTRY_TPL = "\n### {i}. {task} (score {score:.1f}, similarity {sim:.2f})\n```python\n{code}\n```\n"
 _CODE_SNIPPET_MAX = 2_000  # chars per pattern in the injected context
 
 
@@ -288,12 +285,8 @@ class EngramiaBridge:
 
         def decorator(func: Callable) -> Callable:
             sig = inspect.signature(func)
-            _accepts_context = (
-                "_engramia_context" in sig.parameters
-                or any(
-                    p.kind == inspect.Parameter.VAR_KEYWORD
-                    for p in sig.parameters.values()
-                )
+            _accepts_context = "_engramia_context" in sig.parameters or any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
             )
 
             @functools.wraps(func)

@@ -91,8 +91,7 @@ def _make_db_engine():
     db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
     if not db_url:
         console.print(
-            "[red]ENGRAMIA_DATABASE_URL is not set.[/red]\n"
-            "DB auth commands require a PostgreSQL connection URL."
+            "[red]ENGRAMIA_DATABASE_URL is not set.[/red]\nDB auth commands require a PostgreSQL connection URL."
         )
         raise typer.Exit(1)
 
@@ -424,10 +423,7 @@ def migrate(
             console.print(f"[red]Failed[/red] {key}: {exc}")
             failed += 1
 
-    console.print(
-        f"[green]✓[/green] Migration complete — "
-        f"{migrated} migrated, {skipped} skipped, {failed} failed."
-    )
+    console.print(f"[green]✓[/green] Migration complete — {migrated} migrated, {skipped} skipped, {failed} failed.")
 
 
 # ---------------------------------------------------------------------------
@@ -667,9 +663,7 @@ def governance_retention(
     elif result.purged_count == 0:
         console.print(f"[green]✓[/green] Retention applied — no patterns older than {retention_days} days.")
     else:
-        console.print(
-            f"[green]✓[/green] Retention applied — deleted [bold]{result.purged_count}[/bold] pattern(s)."
-        )
+        console.print(f"[green]✓[/green] Retention applied — deleted [bold]{result.purged_count}[/bold] pattern(s).")
 
 
 # ---------------------------------------------------------------------------
@@ -681,9 +675,7 @@ def governance_retention(
 def governance_export(
     output: str = typer.Option("-", "--output", "-o", help="Output file path. Use '-' for stdout."),
     path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data directory."),
-    classification: str = typer.Option(
-        None, "--classification", "-c", help="Comma-separated classification filter."
-    ),
+    classification: str = typer.Option(None, "--classification", "-c", help="Comma-separated classification filter."),
 ) -> None:
     """Export all patterns to NDJSON (GDPR Art. 20 data portability).
 
@@ -759,8 +751,7 @@ def governance_purge_project(
     """
     if not confirm:
         typer.confirm(
-            f"Permanently delete ALL data for project '{project_id}' in tenant '{tenant_id}'? "
-            "This cannot be undone.",
+            f"Permanently delete ALL data for project '{project_id}' in tenant '{tenant_id}'? This cannot be undone.",
             abort=True,
         )
 
@@ -774,6 +765,7 @@ def governance_purge_project(
     if db_url:
         try:
             from sqlalchemy import create_engine
+
             engine = create_engine(db_url, pool_pre_ping=True)
         except ImportError:
             pass

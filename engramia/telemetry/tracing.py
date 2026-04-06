@@ -63,8 +63,7 @@ def init_tracing(
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
     except ImportError:
         _log.warning(
-            "opentelemetry-sdk not installed — tracing disabled. "
-            "Install with: pip install engramia[telemetry]"
+            "opentelemetry-sdk not installed — tracing disabled. Install with: pip install engramia[telemetry]"
         )
         return
 
