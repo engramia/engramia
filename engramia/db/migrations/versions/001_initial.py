@@ -26,7 +26,7 @@ def upgrade() -> None:
     op.create_table(
         "brain_data",
         sa.Column("key", sa.Text, primary_key=True),
-        sa.Column("data", sa.dialects.postgresql.JSONB(), nullable=False),
+        sa.Column("data", sa.JSON(), nullable=False),
         sa.Column(
             "updated_at",
             sa.Text,

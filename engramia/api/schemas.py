@@ -6,7 +6,7 @@ Separate from internal types (engramia/types.py) to allow the API
 surface to evolve independently from the Engramia data models.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -407,10 +407,9 @@ class ROIRollupResponse(BaseModel):
 
 
 class ROIRollupRequest(BaseModel):
-    window: str = Field(
+    window: Literal["hourly", "daily", "weekly"] = Field(
         default="daily",
         description="Aggregation window: hourly | daily | weekly",
-        max_length=20,
     )
 
 

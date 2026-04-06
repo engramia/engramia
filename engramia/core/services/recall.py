@@ -51,7 +51,7 @@ class RecallService:
     def __init__(
         self,
         storage: StorageBackend,
-        embeddings: EmbeddingProvider,
+        embeddings: EmbeddingProvider | None,
         eval_store: EvalStore,
         pattern_store: SuccessPatternStore,
         roi_collector: ROICollector,

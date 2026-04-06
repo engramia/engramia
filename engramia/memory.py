@@ -130,8 +130,8 @@ class Memory:
         return self._llm
 
     @property
-    def embeddings(self) -> EmbeddingProvider:
-        """The active embedding provider."""
+    def embeddings(self) -> EmbeddingProvider | None:
+        """The active embedding provider, or None if not configured."""
         return self._embeddings
 
     # ------------------------------------------------------------------

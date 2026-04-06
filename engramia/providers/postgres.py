@@ -22,6 +22,7 @@ without any application-level changes to the Memory API.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from engramia.providers.base import StorageBackend
 
@@ -102,7 +103,7 @@ class PostgresStorage(StorageBackend):
     # StorageBackend: key-value store
     # ------------------------------------------------------------------
 
-    def load(self, key: str) -> dict | list | None:
+    def load(self, key: str) -> dict[str, Any] | None:
         sp = self._scope_params()
         with self._engine.connect() as conn:
             row = conn.execute(

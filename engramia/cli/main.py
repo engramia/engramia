@@ -696,8 +696,10 @@ def governance_export(
     exporter = DataExporter()
 
     import contextlib
+    from typing import TextIO
 
     count = 0
+    out: TextIO
     with contextlib.ExitStack() as stack:
         if output != "-":
             out = stack.enter_context(open(output, "w", encoding="utf-8"))

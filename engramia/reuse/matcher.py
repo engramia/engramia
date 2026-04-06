@@ -31,7 +31,7 @@ class PatternMatcher:
     def __init__(
         self,
         storage: StorageBackend,
-        embeddings: EmbeddingProvider,
+        embeddings: EmbeddingProvider | None,
         eval_store: EvalStore,
     ) -> None:
         self._storage = storage
@@ -48,6 +48,8 @@ class PatternMatcher:
         Returns:
             List of Match objects sorted by effective (weighted) score descending.
         """
+        if self._embeddings is None:
+            return []
         embedding = self._embeddings.embed(task)
         raw_results = self._storage.search_similar(
             embedding,

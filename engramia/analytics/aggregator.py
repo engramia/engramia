@@ -12,6 +12,7 @@ import logging
 import statistics
 import time
 from datetime import UTC, datetime
+from typing import Literal
 
 from engramia.analytics.collector import ROICollector
 from engramia.analytics.models import (
@@ -24,6 +25,8 @@ from engramia.analytics.models import (
 from engramia.providers.base import StorageBackend
 
 _log = logging.getLogger(__name__)
+
+_Window = Literal["hourly", "daily", "weekly"]
 
 _ROLLUP_PREFIX = "analytics/rollup"
 
@@ -67,7 +70,7 @@ class ROIAggregator:
         self._storage = storage
         self._collector = collector
 
-    def rollup(self, window: str = "daily") -> list[ROIRollup]:
+    def rollup(self, window: _Window = "daily") -> list[ROIRollup]:
         """Aggregate raw events for the given window into ROIRollup records.
 
         Computes one ROIRollup per (tenant_id, project_id) pair discovered in
@@ -110,8 +113,8 @@ class ROIAggregator:
                 computed_at=computed_at,
                 events=scope_events,
             )
-            key = _rollup_key(window, tenant_id, project_id)
-            self._storage.save(key, rollup.model_dump())
+            storage_key = _rollup_key(window, tenant_id, project_id)
+            self._storage.save(storage_key, rollup.model_dump())
             _log.info(
                 "ROI rollup persisted: window=%s scope=%s/%s roi=%.2f",
                 window,
@@ -158,7 +161,7 @@ class ROIAggregator:
 def _compute_rollup(
     tenant_id: str,
     project_id: str,
-    window: str,
+    window: _Window,
     window_start: str,
     computed_at: str,
     events: list[ROIEvent],

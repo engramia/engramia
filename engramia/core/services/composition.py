@@ -27,7 +27,7 @@ class CompositionService:
         self,
         llm: LLMProvider,
         storage: StorageBackend,
-        embeddings: EmbeddingProvider,
+        embeddings: EmbeddingProvider | None,
         eval_store: EvalStore,
     ) -> None:
         self._llm = llm

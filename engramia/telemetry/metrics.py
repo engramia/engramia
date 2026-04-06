@@ -13,6 +13,7 @@ Configuration:
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 _log = logging.getLogger(__name__)
 
@@ -22,19 +23,19 @@ _enabled: bool = False
 # Metric objects — populated by init_metrics()
 # ---------------------------------------------------------------------------
 
-REQUEST_DURATION = None  # Histogram: method, path, status_code
-REQUEST_COUNT = None  # Counter:   method, path, status_code
+REQUEST_DURATION: Any = None  # Histogram: method, path, status_code
+REQUEST_COUNT: Any = None  # Counter:   method, path, status_code
 
-LLM_CALL_DURATION = None  # Histogram: provider, model
-EMBEDDING_DURATION = None  # Histogram: provider
-STORAGE_OP_DURATION = None  # Histogram: backend, operation
+LLM_CALL_DURATION: Any = None  # Histogram: provider, model
+EMBEDDING_DURATION: Any = None  # Histogram: provider
+STORAGE_OP_DURATION: Any = None  # Histogram: backend, operation
 
-PATTERN_COUNT = None  # Gauge:     (unlabelled — global aggregate)
-RECALL_HITS = None  # Counter
-RECALL_MISSES = None  # Counter
+PATTERN_COUNT: Any = None  # Gauge:     (unlabelled — global aggregate)
+RECALL_HITS: Any = None  # Counter
+RECALL_MISSES: Any = None  # Counter
 
-JOB_SUBMITTED = None  # Counter:   operation
-JOB_COMPLETED = None  # Counter:   operation, status
+JOB_SUBMITTED: Any = None  # Counter:   operation
+JOB_COMPLETED: Any = None  # Counter:   operation, status
 
 
 def is_enabled() -> bool:

@@ -44,7 +44,7 @@ class LearningService:
     def __init__(
         self,
         storage: StorageBackend,
-        embeddings: EmbeddingProvider,
+        embeddings: EmbeddingProvider | None,
         metrics_store: MetricsStore,
         eval_store: EvalStore,
         roi_collector: ROICollector,
