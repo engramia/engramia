@@ -98,7 +98,7 @@ _REGEX_RULES: list[tuple[str, re.Pattern[str], str]] = [
     ),
     (
         "hex_secret",
-        # 32–64 hex chars as standalone token (likely an API key / secret)
+        # 32-64 hex chars as standalone token (likely an API key / secret)
         re.compile(r"(?<![A-Za-z0-9])[0-9a-fA-F]{32,64}(?![A-Za-z0-9])"),
         "[REDACTED_SECRET]",
     ),

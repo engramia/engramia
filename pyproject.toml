@@ -137,6 +137,10 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["engramia"]
 
+[tool.bandit]
+exclude_dirs = ["tests", "engramia/db/migrations"]
+skips = ["B101"]  # assert used in tests and development guards
+
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = false

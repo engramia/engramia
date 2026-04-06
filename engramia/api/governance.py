@@ -304,8 +304,7 @@ def delete_project(
 
     # Admins are scoped to their own project — only owners may perform
     # cross-project deletion within the tenant.
-    if auth_ctx is not None and auth_ctx.role != "owner":
-        if project_id != scope.project_id:
+    if auth_ctx is not None and auth_ctx.role != "owner" and project_id != scope.project_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
