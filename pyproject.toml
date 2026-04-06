@@ -97,6 +97,7 @@ packages = ["engramia"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 addopts = "--cov=engramia --cov-fail-under=80"
 markers = [

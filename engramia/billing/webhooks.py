@@ -146,7 +146,8 @@ async def create_checkout(request: Request):
     try:
         url = billing_svc.create_checkout_url(tenant_id, price_id, success_url, cancel_url)
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        _log.warning("create_checkout_url failed for tenant=%s: %s", tenant_id, exc)
+        raise HTTPException(status_code=503, detail="Checkout session creation failed.") from exc
 
     return {"checkout_url": url}
 
@@ -170,7 +171,8 @@ def customer_portal(request: Request, return_url: str = ""):
     try:
         url = billing_svc.create_portal_url(tenant_id, return_url)
     except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _log.warning("create_portal_url failed for tenant=%s: %s", tenant_id, exc)
+        raise HTTPException(status_code=400, detail="Customer portal session creation failed.") from exc
 
     return {"portal_url": url}
 
@@ -206,6 +208,7 @@ async def set_overage(request: Request):
     try:
         billing_svc.set_overage(tenant_id, enabled, budget_cap_cents)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _log.warning("set_overage rejected for tenant=%s: %s", tenant_id, exc)
+        raise HTTPException(status_code=400, detail="Invalid overage configuration.") from exc
 
     return {"overage_enabled": enabled, "budget_cap_cents": budget_cap_cents}

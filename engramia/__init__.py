@@ -2,7 +2,14 @@
 # Copyright (c) 2026 Marek Čermák
 from importlib.metadata import PackageNotFoundError, version
 
-from engramia.exceptions import EngramiaError, ProviderError, StorageError, ValidationError
+from engramia.exceptions import (
+    AuthorizationError,
+    EngramiaError,
+    ProviderError,
+    QuotaExceededError,
+    StorageError,
+    ValidationError,
+)
 from engramia.memory import Memory
 
 try:
@@ -13,9 +20,11 @@ except PackageNotFoundError:
 __license__ = "BUSL-1.1"
 
 __all__ = [
+    "AuthorizationError",
     "EngramiaError",
     "Memory",
     "ProviderError",
+    "QuotaExceededError",
     "StorageError",
     "ValidationError",
     "__license__",

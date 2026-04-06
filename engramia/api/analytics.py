@@ -72,7 +72,11 @@ def trigger_rollup(
     try:
         rollups = aggregator.rollup(window=body.window)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        _log.warning("ROI rollup request rejected: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid rollup parameters.",
+        ) from exc
 
     _log.info("ROI rollup triggered: window=%s scopes=%d", body.window, len(rollups))
     return ROIRollupListResponse(

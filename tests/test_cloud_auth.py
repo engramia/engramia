@@ -14,7 +14,6 @@ from fastapi.testclient import TestClient
 
 from engramia.api.cloud_auth import router
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -74,8 +73,8 @@ _FAKE_REG = {
 @patch("engramia.api.cloud_auth._create_registration", return_value=_FAKE_REG)
 @patch("engramia.api.cloud_auth._hash_password", return_value="$2b$fake")
 @patch("engramia.api.cloud_auth._make_token", return_value="tok.access")
-@patch("engramia.api.cloud_auth.log_event")
-@patch("engramia.api.cloud_auth.log_db_event")
+@patch("engramia.api.audit.log_event")
+@patch("engramia.api.audit.log_db_event")
 def test_register_success(mock_log_db, mock_log, mock_tok, mock_hash, mock_create, client, mock_engine):
     # No existing user with this email.
     mock_engine._conn.execute.return_value.fetchone.return_value = None
@@ -165,7 +164,7 @@ def test_login_success(mock_tok, mock_verify, client, mock_engine):
 
 
 @patch("engramia.api.cloud_auth._verify_password", return_value=False)
-@patch("engramia.api.cloud_auth.log_event")
+@patch("engramia.api.audit.log_event")
 def test_login_wrong_password(mock_log, mock_verify, client, mock_engine):
     mock_engine._conn.execute.return_value.fetchone.return_value = (
         "user-abc",
@@ -187,7 +186,7 @@ def test_login_wrong_password(mock_log, mock_verify, client, mock_engine):
 # ---------------------------------------------------------------------------
 
 
-@patch("engramia.api.cloud_auth.log_event")
+@patch("engramia.api.audit.log_event")
 def test_login_unknown_email(mock_log, client, mock_engine):
     mock_engine._conn.execute.return_value.fetchone.return_value = None
 
@@ -273,7 +272,7 @@ def test_refresh_with_valid_refresh_token(mock_make, mock_decode, client):
 @patch("engramia.api.cloud_auth._check_register_rate", side_effect=Exception("rate limit hit"))
 def test_register_rate_limit_called(mock_rate, client, mock_engine):
     """Rate limit check is invoked before any DB access."""
-    resp = client.post(
+    client.post(
         "/auth/register",
         json={"email": "ratelimited@example.com", "password": "securepass1"},
     )

@@ -5,8 +5,10 @@
 import pytest
 
 from engramia.exceptions import (
+    AuthorizationError,
     EngramiaError,
     ProviderError,
+    QuotaExceededError,
     StorageError,
     ValidationError,
 )
@@ -37,6 +39,20 @@ class TestExceptionHierarchy:
         exc = ProviderError("missing key")
         assert "missing key" in str(exc)
 
+    def test_quota_exceeded_inherits_from_engramia_error(self):
+        assert issubclass(QuotaExceededError, EngramiaError)
+
+    def test_authorization_inherits_from_engramia_error(self):
+        assert issubclass(AuthorizationError, EngramiaError)
+
+    def test_quota_exceeded_catchable_as_engramia_error(self):
+        with pytest.raises(EngramiaError):
+            raise QuotaExceededError("over limit")
+
+    def test_authorization_error_catchable_as_engramia_error(self):
+        with pytest.raises(EngramiaError):
+            raise AuthorizationError("forbidden")
+
     def test_exceptions_exported_from_package(self):
         import engramia
 
@@ -44,3 +60,11 @@ class TestExceptionHierarchy:
         assert hasattr(engramia, "ProviderError")
         assert hasattr(engramia, "ValidationError")
         assert hasattr(engramia, "StorageError")
+        assert hasattr(engramia, "QuotaExceededError")
+        assert hasattr(engramia, "AuthorizationError")
+
+    def test_new_exceptions_in_all(self):
+        import engramia
+
+        assert "QuotaExceededError" in engramia.__all__
+        assert "AuthorizationError" in engramia.__all__

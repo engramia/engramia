@@ -1,0 +1,52 @@
+# .auditignore – audit-pipeline ignore patterns for agent-brain
+# Patterns here extend the built-in list (node_modules, dist, build, out,
+# venv, __pycache__, lock files, binaries etc. are already excluded).
+
+# Next.js / Nuxt build artefacts
+.next/
+.nuxt/
+.output/
+
+# Static export (Next.js `next export`)
+# out/ already covered by built-in
+
+# Coverage / test artefacts
+coverage/
+.nyc_output/
+coverage.xml
+
+# Caches
+.cache/
+.turbo/
+.parcel-cache/
+
+# Deployment / hosting config caches
+.vercel/
+.netlify/
+
+# Infrastructure
+.terraform/
+.terraform.lock.hcl
+
+# Minified / bundled assets (not useful to audit)
+*.min.js
+*.min.css
+*.bundle.js
+*.chunk.js
+
+# Source maps
+*.map
+*.js.map
+*.css.map
+
+# Generated Next.js type declarations
+next-env.d.ts
+
+# Database migrations (generated schema files)
+migrations/
+
+# Benchmark fixtures / generated output
+benchmarks/snippets/
+
+# Monitoring dashboards / config dumps (infrastructure, not app code)
+monitoring/
