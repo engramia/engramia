@@ -343,4 +343,3 @@ class DSRTracker:
             completed_at=str(row[8]) if row[8] else None,
             notes=str(row[9]) if row[9] else "",
         )
-       
