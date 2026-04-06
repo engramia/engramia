@@ -43,8 +43,8 @@ router = APIRouter(tags=["Cloud Auth"])
 _JWT_SECRET: str | None = None
 _JWT_SECRET_LOCK = threading.Lock()
 
-_ACCESS_TOKEN_EXPIRE_SECONDS = 3600          # 1 hour
-_REFRESH_TOKEN_EXPIRE_SECONDS = 30 * 86400   # 30 days
+_ACCESS_TOKEN_EXPIRE_SECONDS = 3600  # 1 hour
+_REFRESH_TOKEN_EXPIRE_SECONDS = 30 * 86400  # 30 days
 
 
 def _get_jwt_secret() -> str:
@@ -101,7 +101,9 @@ def _decode_token(token: str, *, require_refresh: bool = False) -> dict:
     if require_refresh and token_type != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token required.")
     if not require_refresh and token_type == "refresh":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Access token required; got refresh token.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Access token required; got refresh token."
+        )
 
     return payload
 
@@ -113,12 +115,13 @@ def _bearer_token(request: Request) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or malformed Authorization header. Expected: Bearer <token>",
         )
-    return auth[len("Bearer "):]
+    return auth[len("Bearer ") :]
 
 
 # ---------------------------------------------------------------------------
 # Password helpers (passlib bcrypt — never plain compare)
 # ---------------------------------------------------------------------------
+
 
 def _hash_password(password: str) -> str:
     from passlib.context import CryptContext
@@ -165,6 +168,7 @@ def _check_register_rate(ip: str) -> None:
 # DB helpers
 # ---------------------------------------------------------------------------
 
+
 def _require_engine(request: Request):
     engine = getattr(request.app.state, "auth_engine", None)
     if engine is None:
@@ -177,7 +181,7 @@ def _require_engine(request: Request):
 
 def _generate_api_key() -> tuple[str, str, str]:
     """Return (full_key, display_prefix, sha256_hash). Format: engramia-<32 hex>."""
-    suffix = secrets.token_hex(16)           # 32 hex chars
+    suffix = secrets.token_hex(16)  # 32 hex chars
     full_key = f"engramia-{suffix}"
     display_prefix = f"engramia-{suffix[:8]}..."
     key_hash = hashlib.sha256(full_key.encode()).hexdigest()
@@ -228,10 +232,7 @@ def _create_registration(
 
     with engine.begin() as conn:
         conn.execute(
-            text(
-                "INSERT INTO tenants (id, name, plan_tier, created_at) "
-                "VALUES (:id, :name, 'free', now()::text)"
-            ),
+            text("INSERT INTO tenants (id, name, plan_tier, created_at) VALUES (:id, :name, 'free', now()::text)"),
             {"id": tenant_id, "name": name or email},
         )
         conn.execute(
@@ -288,6 +289,7 @@ def _create_registration(
 # OAuth token verification
 # ---------------------------------------------------------------------------
 
+
 def _verify_google_token(
     id_token: str,
     fallback_email: str | None,
@@ -310,7 +312,9 @@ def _verify_google_token(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Google token.") from None
     except Exception as exc:
         _log.warning("Google token verification failed: %s", exc)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google token verification failed.") from None
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Google token verification failed."
+        ) from None
 
     email = data.get("email") or fallback_email
     provider_id = str(data.get("sub", ""))
@@ -342,7 +346,9 @@ def _verify_apple_token(
         return email, provider_id, fallback_name
     except Exception as exc:
         _log.warning("Apple token decode failed: %s", exc)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Apple token verification failed.") from None
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Apple token verification failed."
+        ) from None
 
 
 # ---------------------------------------------------------------------------
@@ -446,9 +452,7 @@ def register(body: RegisterRequest, request: Request) -> RegisterResponse:
     )
 
     access_token = _make_token(user_id=result["user_id"], tenant_id=result["tenant_id"], email=email)
-    refresh_token = _make_token(
-        user_id=result["user_id"], tenant_id=result["tenant_id"], email=email, is_refresh=True
-    )
+    refresh_token = _make_token(user_id=result["user_id"], tenant_id=result["tenant_id"], email=email, is_refresh=True)
 
     log_event(AuditEvent.KEY_CREATED, key_id=result["user_id"], source="cloud_register", ip=ip)
     log_db_event(
@@ -485,8 +489,7 @@ def login(body: LoginRequest, request: Request) -> LoginResponse:
     with engine.connect() as conn:
         row = conn.execute(
             text(
-                "SELECT id, password_hash, tenant_id "
-                "FROM cloud_users WHERE email = :email AND provider = 'credentials'"
+                "SELECT id, password_hash, tenant_id FROM cloud_users WHERE email = :email AND provider = 'credentials'"
             ),
             {"email": email},
         ).fetchone()
@@ -530,10 +533,7 @@ def me(request: Request) -> MeResponse:
 
     with engine.connect() as conn:
         row = conn.execute(
-            text(
-                "SELECT id, email, tenant_id, name, provider, created_at "
-                "FROM cloud_users WHERE id = :id"
-            ),
+            text("SELECT id, email, tenant_id, name, provider, created_at FROM cloud_users WHERE id = :id"),
             {"id": payload["sub"]},
         ).fetchone()
 
@@ -615,9 +615,7 @@ def oauth_login(body: OAuthRequest, request: Request) -> RegisterResponse:
         email_verified=True,
     )
     access_token = _make_token(user_id=result["user_id"], tenant_id=result["tenant_id"], email=email)
-    refresh_token = _make_token(
-        user_id=result["user_id"], tenant_id=result["tenant_id"], email=email, is_refresh=True
-    )
+    refresh_token = _make_token(user_id=result["user_id"], tenant_id=result["tenant_id"], email=email, is_refresh=True)
 
     log_event(
         AuditEvent.KEY_CREATED,

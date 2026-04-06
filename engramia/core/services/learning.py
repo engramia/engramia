@@ -100,9 +100,7 @@ class LearningService:
 
         redacted = False
         if self._redaction is not None:
-            clean_design, findings = self._redaction.process(
-                design, extra_fields={"task": task}
-            )
+            clean_design, findings = self._redaction.process(design, extra_fields={"task": task})
             if findings:
                 design = {k: v for k, v in clean_design.items() if k != "task"}
                 redacted = True

@@ -113,10 +113,7 @@ class ScopedDeletion:
 
                 # Audit log — scrub detail but retain rows
                 conn.execute(
-                    text(
-                        "UPDATE audit_log SET detail = NULL "
-                        "WHERE tenant_id = :tid AND project_id = :pid"
-                    ),
+                    text("UPDATE audit_log SET detail = NULL WHERE tenant_id = :tid AND project_id = :pid"),
                     {"tid": tenant_id, "pid": project_id},
                 )
 
@@ -185,10 +182,7 @@ class ScopedDeletion:
 
                 with self._engine.begin() as conn:
                     conn.execute(
-                        text(
-                            "UPDATE tenants SET deleted_at = :now "
-                            "WHERE id = :tid AND deleted_at IS NULL"
-                        ),
+                        text("UPDATE tenants SET deleted_at = :now WHERE id = :tid AND deleted_at IS NULL"),
                         {"now": now, "tid": tenant_id},
                     )
             except Exception as exc:

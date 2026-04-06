@@ -195,6 +195,7 @@ def create_app() -> FastAPI:
     # from the very first line of startup output.
     # ------------------------------------------------------------------
     from engramia.telemetry import setup_telemetry
+
     setup_telemetry()
 
     # Swagger UI and OpenAPI schema are only exposed in dev/local environments.
@@ -291,8 +292,7 @@ def create_app() -> FastAPI:
     redaction = RedactionPipeline.default() if _redaction_enabled else None
     if not _redaction_enabled:
         _log.warning(
-            "SECURITY: PII/secrets redaction is disabled (ENGRAMIA_REDACTION=false). "
-            "Do not use this in production."
+            "SECURITY: PII/secrets redaction is disabled (ENGRAMIA_REDACTION=false). Do not use this in production."
         )
 
     app.state.memory = Memory(
@@ -362,10 +362,11 @@ def create_app() -> FastAPI:
                     if scope["type"] == "http":
                         headers = dict(scope.get("headers", []))
                         auth = headers.get(b"authorization", b"").decode()
-                        token = auth[len("Bearer "):] if auth.startswith("Bearer ") else ""
+                        token = auth[len("Bearer ") :] if auth.startswith("Bearer ") else ""
                         if not _hmac.compare_digest(token.encode(), _expected):
                             resp = _StarletteResponse(
-                                "Unauthorized", status_code=401,
+                                "Unauthorized",
+                                status_code=401,
                                 media_type="text/plain",
                             )
                             await resp(scope, receive, send)

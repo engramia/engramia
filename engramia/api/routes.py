@@ -106,6 +106,7 @@ def _try_async(request: Request, operation: str, params: dict) -> JSONResponse |
         headers={"Location": f"/v1/jobs/{result.job_id}"},
     )
 
+
 router = APIRouter(dependencies=[Depends(require_auth)])
 
 
@@ -459,6 +460,7 @@ def delete_pattern(
             # Ensure scope is set for the sync handler thread (contextvar may
             # not propagate from the async auth dependency).
             from engramia._context import set_scope
+
             set_scope(auth_ctx.scope)
             data = memory.storage.load(pattern_key)
             if data is not None and data.get("_author_key_id") != auth_ctx.key_id:
@@ -808,5 +810,6 @@ def export_patterns(
         key_id=auth_ctx.key_id if auth_ctx else None,
     )
     from engramia.api.schemas import ImportRecord
+
     records = [ImportRecord(version=r["version"], key=r["key"], data=r["data"]) for r in raw_records]
     return ExportResponse(records=records, count=len(records))

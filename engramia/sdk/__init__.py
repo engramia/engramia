@@ -4,4 +4,3 @@
 from engramia.sdk.bridge import EngramiaBridge
 
 __all__ = ["EngramiaBridge"]
-

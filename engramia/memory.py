@@ -566,7 +566,9 @@ class Memory:
             existing = self._storage.load(_EMBED_META_KEY)
 
             if existing is None:
-                self._storage.save(_EMBED_META_KEY, {**config, "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+                self._storage.save(
+                    _EMBED_META_KEY, {**config, "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                )
                 _log.info("Embedding config initialised: provider=%s, model=%s", provider_name, model_name)
             elif existing.get("model") != str(model_name):
                 _log.warning(
@@ -616,9 +618,7 @@ class Memory:
     @staticmethod
     def _validate_eval_score(score: float) -> None:
         if not (_MIN_EVAL_SCORE <= score <= _MAX_EVAL_SCORE):
-            raise ValidationError(
-                f"eval_score must be between {_MIN_EVAL_SCORE} and {_MAX_EVAL_SCORE}, got {score}"
-            )
+            raise ValidationError(f"eval_score must be between {_MIN_EVAL_SCORE} and {_MAX_EVAL_SCORE}, got {score}")
 
     @staticmethod
     def _pattern_key(task: str) -> str:

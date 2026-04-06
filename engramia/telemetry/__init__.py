@@ -46,6 +46,7 @@ def _setup_json_logging() -> None:
     if os.environ.get("ENGRAMIA_JSON_LOGS", "false").lower() == "true":
         try:
             from engramia.telemetry.logging import configure_json_logging
+
             configure_json_logging()
         except Exception as exc:
             _log.warning("Failed to configure JSON logging: %s", exc)
@@ -55,6 +56,7 @@ def _setup_tracing() -> None:
     if os.environ.get("ENGRAMIA_TELEMETRY", "false").lower() == "true":
         try:
             from engramia.telemetry.tracing import init_tracing
+
             init_tracing()
         except Exception as exc:
             _log.warning("Failed to initialise OpenTelemetry tracing: %s", exc)
@@ -64,6 +66,7 @@ def _setup_metrics() -> None:
     if os.environ.get("ENGRAMIA_METRICS", "false").lower() == "true":
         try:
             from engramia.telemetry.metrics import init_metrics
+
             init_metrics()
         except Exception as exc:
             _log.warning("Failed to initialise Prometheus metrics: %s", exc)

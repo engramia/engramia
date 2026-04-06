@@ -56,20 +56,18 @@ class MemoryData(Base):
     )
     # Phase 5.6: Data Governance
     classification: Mapped[str] = mapped_column(Text, nullable=False, server_default="internal")
-    source: Mapped[str | None] = mapped_column(Text, nullable=True)         # 'api'|'sdk'|'cli'|'import'
-    run_id: Mapped[str | None] = mapped_column(Text, nullable=True)          # caller correlation ID
-    author: Mapped[str | None] = mapped_column(Text, nullable=True)          # key_id or identifier
+    source: Mapped[str | None] = mapped_column(Text, nullable=True)  # 'api'|'sdk'|'cli'|'import'
+    run_id: Mapped[str | None] = mapped_column(Text, nullable=True)  # caller correlation ID
+    author: Mapped[str | None] = mapped_column(Text, nullable=True)  # key_id or identifier
     redacted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    expires_at: Mapped[str | None] = mapped_column(Text, nullable=True)      # ISO-8601 UTC
+    expires_at: Mapped[str | None] = mapped_column(Text, nullable=True)  # ISO-8601 UTC
 
 
 class MemoryEmbedding(Base):
     """Embedding vectors stored separately for efficient pgvector indexing."""
 
     __tablename__ = "memory_embeddings"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "project_id", "key", name="uq_memory_embeddings_scope_key"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "project_id", "key", name="uq_memory_embeddings_scope_key"),)
 
     key: Mapped[str] = mapped_column(Text, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(Text, nullable=False, server_default="default")
@@ -118,7 +116,7 @@ class Tenant(Base):
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
     # Phase 5.6: Data Governance
     retention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = use global default
-    deleted_at: Mapped[str | None] = mapped_column(Text, nullable=True)          # soft-delete timestamp
+    deleted_at: Mapped[str | None] = mapped_column(Text, nullable=True)  # soft-delete timestamp
 
 
 class Project(Base):
@@ -132,10 +130,10 @@ class Project(Base):
     max_patterns: Mapped[int] = mapped_column(Integer, nullable=False, server_default="10000")
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
     # Phase 5.6: Data Governance
-    retention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)         # None = inherit tenant
+    retention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = inherit tenant
     default_classification: Mapped[str] = mapped_column(Text, nullable=False, server_default="internal")
     redaction_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    deleted_at: Mapped[str | None] = mapped_column(Text, nullable=True)                # soft-delete timestamp
+    deleted_at: Mapped[str | None] = mapped_column(Text, nullable=True)  # soft-delete timestamp
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +155,7 @@ class ApiKey(Base):
     tenant_id: Mapped[str] = mapped_column(Text, ForeignKey("tenants.id"), nullable=False)
     project_id: Mapped[str] = mapped_column(Text, ForeignKey("projects.id"), nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    key_prefix: Mapped[str] = mapped_column(Text, nullable=False)    # e.g. "engramia_sk_aBcD1234..."
+    key_prefix: Mapped[str] = mapped_column(Text, nullable=False)  # e.g. "engramia_sk_aBcD1234..."
     key_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # SHA-256 of full key
     role: Mapped[str] = mapped_column(Text, nullable=False, server_default="editor")
     max_patterns: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = inherit project
@@ -181,7 +179,7 @@ class AuditLogEntry(Base):
     tenant_id: Mapped[str] = mapped_column(Text, nullable=False)
     project_id: Mapped[str] = mapped_column(Text, nullable=False)
     key_id: Mapped[str | None] = mapped_column(Text, ForeignKey("api_keys.id"), nullable=True)
-    action: Mapped[str] = mapped_column(Text, nullable=False)        # e.g. "learn", "key_created"
+    action: Mapped[str] = mapped_column(Text, nullable=False)  # e.g. "learn", "key_created"
     resource_type: Mapped[str | None] = mapped_column(Text, nullable=True)
     resource_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -94,6 +94,7 @@ class TimingMiddleware(BaseHTTPMiddleware):
         # Prometheus observation (no-op when metrics are disabled)
         try:
             from engramia.telemetry.metrics import observe_request
+
             observe_request(method, _normalise_path(path), status, duration_s)
         except Exception:
             pass

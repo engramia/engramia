@@ -122,9 +122,7 @@ def _decode_jwt(token: str) -> dict:
         import jwt as _jwt
         from jwt import PyJWTError
     except ImportError as exc:
-        raise RuntimeError(
-            "OIDC auth requires the 'oidc' extra: pip install 'engramia[oidc]'"
-        ) from exc
+        raise RuntimeError("OIDC auth requires the 'oidc' extra: pip install 'engramia[oidc]'") from exc
 
     # Peek at the header to get the key ID without full validation.
     try:
@@ -142,11 +140,19 @@ def _decode_jwt(token: str) -> dict:
     # Explicit algorithm allowlist — reject anything outside asymmetric RSA/EC
     # families.  This prevents "alg:none" and symmetric HMAC attacks where an
     # attacker supplies a known secret as the public key.
-    _ALLOWED_ALGORITHMS: frozenset[str] = frozenset({
-        "RS256", "RS384", "RS512",
-        "ES256", "ES384", "ES512",
-        "PS256", "PS384", "PS512",
-    })
+    _ALLOWED_ALGORITHMS: frozenset[str] = frozenset(
+        {
+            "RS256",
+            "RS384",
+            "RS512",
+            "ES256",
+            "ES384",
+            "ES512",
+            "PS256",
+            "PS384",
+            "PS512",
+        }
+    )
     if alg not in _ALLOWED_ALGORITHMS:
         _log.warning("OIDC: rejected token with disallowed algorithm %r", alg)
         raise HTTPException(

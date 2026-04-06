@@ -42,8 +42,7 @@ def make_embeddings():
         return OpenAIEmbeddings(model=model)
     except ImportError:
         _log.warning(
-            "openai package not installed — semantic search disabled. "
-            "Install with: pip install 'engramia[openai]'"
+            "openai package not installed — semantic search disabled. Install with: pip install 'engramia[openai]'"
         )
         return None
 

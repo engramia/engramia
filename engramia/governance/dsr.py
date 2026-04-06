@@ -302,9 +302,7 @@ class DSRTracker:
             return None
         return self._row_to_dsr(row)
 
-    def _db_list(
-        self, tenant_id: str, status: DSRStatus | None, limit: int
-    ) -> list[DSRRequest]:
+    def _db_list(self, tenant_id: str, status: DSRStatus | None, limit: int) -> list[DSRRequest]:
         from sqlalchemy import text
 
         filters = "WHERE tenant_id = :tenant_id"

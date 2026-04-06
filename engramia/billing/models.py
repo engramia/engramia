@@ -13,10 +13,10 @@ from pydantic import BaseModel
 # ---------------------------------------------------------------------------
 
 PLAN_LIMITS: dict[str, dict[str, int | None]] = {
-    "sandbox":    {"eval_runs": 500,    "patterns": 5_000,   "projects": 1},
-    "pro":        {"eval_runs": 3_000,  "patterns": 50_000,  "projects": 3},
-    "team":       {"eval_runs": 15_000, "patterns": 500_000, "projects": 15},
-    "enterprise": {"eval_runs": None,   "patterns": None,    "projects": None},
+    "sandbox": {"eval_runs": 500, "patterns": 5_000, "projects": 1},
+    "pro": {"eval_runs": 3_000, "patterns": 50_000, "projects": 3},
+    "team": {"eval_runs": 15_000, "patterns": 500_000, "projects": 15},
+    "enterprise": {"eval_runs": None, "patterns": None, "projects": None},
 }
 
 # Overage pricing per tier and metric.
@@ -24,7 +24,7 @@ PLAN_LIMITS: dict[str, dict[str, int | None]] = {
 # Pro:  $5  / 500  eval runs
 # Team: $25 / 5000 eval runs
 OVERAGE_CONFIG: dict[str, dict[str, dict[str, int]]] = {
-    "pro":  {"eval_runs": {"price_per_unit_cents": 500,  "unit_size": 500}},
+    "pro": {"eval_runs": {"price_per_unit_cents": 500, "unit_size": 500}},
     "team": {"eval_runs": {"price_per_unit_cents": 2500, "unit_size": 5000}},
 }
 
