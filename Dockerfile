@@ -3,7 +3,9 @@
 # Stage 1: builder — installs dependencies into a virtualenv
 # Stage 2: runtime — copies only the venv, keeps image small
 
-FROM python:3.12-slim AS builder
+ARG PYTHON_VERSION=3.14
+
+FROM python:${PYTHON_VERSION}-slim AS builder
 
 WORKDIR /app
 
@@ -16,14 +18,14 @@ RUN pip install --upgrade pip
 
 COPY pyproject.toml README.md LICENSE.txt ./
 COPY engramia/ ./engramia/
-# Install with all runtime extras (api + openai + postgres).
-# Both env vars needed: HATCH_VCS_PRETEND_VERSION for hatch-vcs,
-# SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ENGRAMIA for setuptools-scm underneath.
+# SETUPTOOLS_SCM_PRETEND_VERSION tells hatch-vcs / setuptools-scm the version
+# without needing a .git directory in the build context.
 RUN SETUPTOOLS_SCM_PRETEND_VERSION=${APP_VERSION} \
     pip install --no-cache-dir ".[api,openai,postgres]"
 
 # Stage 2: runtime
-FROM python:3.12-slim AS runtime
+ARG PYTHON_VERSION=3.14
+FROM python:${PYTHON_VERSION}-slim AS runtime
 
 WORKDIR /app
 
@@ -43,8 +45,10 @@ LABEL org.opencontainers.image.licenses="BUSL-1.1"
 RUN addgroup --gid 1001 --system engramia \
     && adduser --disabled-password --gecos "" --uid 1001 --ingroup engramia engramia
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+# Copy installed packages from builder — resolve Python minor version dynamically
+RUN PY_SITELIB=$(python -c "import sysconfig; print(sysconfig.get_path('purelib'))") \
+    && echo "$PY_SITELIB" > /tmp/py_sitelib
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application source

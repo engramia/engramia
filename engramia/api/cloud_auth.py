@@ -119,22 +119,20 @@ def _bearer_token(request: Request) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Password helpers (passlib bcrypt — never plain compare)
+# Password helpers (bcrypt — never plain compare)
 # ---------------------------------------------------------------------------
 
 
 def _hash_password(password: str) -> str:
-    from passlib.context import CryptContext
+    import bcrypt
 
-    ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    return ctx.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def _verify_password(password: str, password_hash: str) -> bool:
-    from passlib.context import CryptContext
+    import bcrypt
 
-    ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    return ctx.verify(password, password_hash)
+    return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
 # ---------------------------------------------------------------------------
