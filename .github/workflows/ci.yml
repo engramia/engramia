@@ -15,7 +15,7 @@ jobs:
         python-version: ["3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
         with:
@@ -51,7 +51,7 @@ jobs:
     name: Version consistency
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0  # required for hatch-vcs to read tags
 
@@ -84,7 +84,7 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0  # full history for trufflehog
 
@@ -99,7 +99,7 @@ jobs:
       - name: Dependency audit (pip-audit)
         run: |
           pip install pip-audit
-          pip-audit --strict --desc --exclude engramia
+          pip-audit --strict --desc --skip-editable
 
       - name: SAST (bandit)
         run: |
@@ -110,7 +110,7 @@ jobs:
 
       - name: Upload SAST report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bandit-report
           path: bandit-report.json

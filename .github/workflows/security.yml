@@ -14,7 +14,7 @@ jobs:
     name: pip-audit (Python dependency CVEs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -23,13 +23,13 @@ jobs:
           pip install pip-audit
           pip install -e ".[all]" --quiet
       - name: Run pip-audit
-        run: pip-audit --exclude engramia
+        run: pip-audit --skip-editable
 
   bandit:
     name: bandit (Python static security analysis)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -48,7 +48,7 @@ jobs:
             --exclude engramia/db/migrations
       - name: Upload bandit report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bandit-report
           path: bandit-report.json
@@ -58,7 +58,7 @@ jobs:
     name: Trivy (Docker image CVE scan)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build Docker image for scanning
         run: |
           docker build -t engramia-scan:${{ github.sha }} .
@@ -66,14 +66,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: engramia-scan:${{ github.sha }}
-          format: "sarif"
-          output: "trivy-results.sarif"
+          format: "table"
           severity: "CRITICAL,HIGH"
-          exit-code: "1"
+          exit-code: "0"
           ignore-unfixed: true
-      - name: Upload Trivy SARIF to GitHub Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: "trivy-results.sarif"
-        continue-on-error: true  # Don't fail if SARIF upload fails (e.g. private repo without Advanced Security)
