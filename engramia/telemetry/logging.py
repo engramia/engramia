@@ -37,7 +37,7 @@ class _ContextInjectingFormatter(logging.Formatter):
         try:
             from opentelemetry import trace
 
-            span = trace.get_current_span()
+            span = trace.get_current_span()  # type: ignore[attr-defined]
             ctx = span.get_span_context()
             if ctx and ctx.is_valid:
                 record.__dict__.setdefault("trace_id", format(ctx.trace_id, "032x"))

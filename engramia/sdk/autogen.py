@@ -30,10 +30,7 @@ from engramia.memory import Memory as _EngramiaMemory
 
 _log = logging.getLogger(__name__)
 
-_INSTALL_MSG = (
-    "AutoGen integration requires autogen-agentchat. "
-    "Install with: pip install engramia[autogen]"
-)
+_INSTALL_MSG = "AutoGen integration requires autogen-agentchat. Install with: pip install engramia[autogen]"
 
 
 def _check_import() -> None:
@@ -121,10 +118,7 @@ class EngramiaMemory:
             task[:80],
         )
 
-        results = [
-            MemoryContent(content=m.pattern.task, mime_type="text/plain")
-            for m in matches
-        ]
+        results = [MemoryContent(content=m.pattern.task, mime_type="text/plain") for m in matches]
         return UpdateContextResult(memories=MemoryQueryResult(results=results))
 
     async def query(self, query: Any, cancellation_token: Any = None, **kwargs: Any) -> Any:
@@ -145,10 +139,7 @@ class EngramiaMemory:
             _log.warning("EngramiaMemory query failed: %s", exc)
             return MemoryQueryResult(results=[])
 
-        results = [
-            MemoryContent(content=m.pattern.task, mime_type="text/plain")
-            for m in matches
-        ]
+        results = [MemoryContent(content=m.pattern.task, mime_type="text/plain") for m in matches]
         return MemoryQueryResult(results=results)
 
     async def add(self, content: Any, cancellation_token: Any = None, **kwargs: Any) -> None:

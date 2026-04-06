@@ -36,10 +36,7 @@ from engramia.memory import Memory
 
 _log = logging.getLogger(__name__)
 
-_INSTALL_MSG = (
-    "OpenAI Agents integration requires openai-agents. "
-    "Install with: pip install engramia[openai-agents]"
-)
+_INSTALL_MSG = "OpenAI Agents integration requires openai-agents. Install with: pip install engramia[openai-agents]"
 
 
 def _check_import() -> None:
@@ -78,7 +75,9 @@ class EngramiaRunHooks:
         self._agent_tasks: dict[str, str] = {}
 
     async def on_agent_start(
-        self, context: Any, agent: Any,
+        self,
+        context: Any,
+        agent: Any,
     ) -> None:
         """Capture the agent's current task for later learning."""
         task = _extract_task_from_context(context)
@@ -88,7 +87,10 @@ class EngramiaRunHooks:
             _log.debug("EngramiaRunHooks: agent %r started with task %r", agent_id, task[:80])
 
     async def on_agent_end(
-        self, context: Any, agent: Any, output: Any,
+        self,
+        context: Any,
+        agent: Any,
+        output: Any,
     ) -> None:
         """Learn from the completed agent run."""
         if not self._auto_learn:
@@ -116,22 +118,36 @@ class EngramiaRunHooks:
             _log.warning("EngramiaRunHooks learn failed: %s", exc)
 
     async def on_tool_start(
-        self, context: Any, agent: Any, tool: Any,
+        self,
+        context: Any,
+        agent: Any,
+        tool: Any,
     ) -> None:
         """No-op — required by RunHooks interface."""
 
     async def on_tool_end(
-        self, context: Any, agent: Any, tool: Any, result: str,
+        self,
+        context: Any,
+        agent: Any,
+        tool: Any,
+        result: str,
     ) -> None:
         """No-op — required by RunHooks interface."""
 
     async def on_handoff(
-        self, context: Any, from_agent: Any, to_agent: Any,
+        self,
+        context: Any,
+        from_agent: Any,
+        to_agent: Any,
     ) -> None:
         """No-op — required by RunHooks interface."""
 
     async def on_llm_start(
-        self, context: Any, agent: Any, system_prompt: str | None, input_items: Any,
+        self,
+        context: Any,
+        agent: Any,
+        system_prompt: str | None,
+        input_items: Any,
     ) -> None:
         """Capture task from input items if not already captured."""
         agent_id = getattr(agent, "name", None) or str(id(agent))
@@ -141,7 +157,10 @@ class EngramiaRunHooks:
                 self._agent_tasks[agent_id] = task
 
     async def on_llm_end(
-        self, context: Any, agent: Any, response: Any,
+        self,
+        context: Any,
+        agent: Any,
+        response: Any,
     ) -> None:
         """No-op — required by RunHooks interface."""
 

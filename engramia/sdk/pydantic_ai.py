@@ -29,10 +29,7 @@ from engramia.memory import Memory as EngramiaMemory
 
 _log = logging.getLogger(__name__)
 
-_INSTALL_MSG = (
-    "Pydantic AI integration requires pydantic-ai. "
-    "Install with: pip install engramia[pydantic-ai]"
-)
+_INSTALL_MSG = "Pydantic AI integration requires pydantic-ai. Install with: pip install engramia[pydantic-ai]"
 
 
 def _check_import() -> None:

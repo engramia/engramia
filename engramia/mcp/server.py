@@ -292,7 +292,7 @@ async def _run() -> None:
         await server.run(
             read_stream,
             write_stream,
-            InitializationOptions(
+            InitializationOptions(  # type: ignore[call-arg]
                 server_name="engramia",
                 server_version=__version__,
             ),

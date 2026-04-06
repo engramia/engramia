@@ -40,8 +40,7 @@ from engramia.memory import Memory
 _log = logging.getLogger(__name__)
 
 _INSTALL_MSG = (
-    "Anthropic Agent SDK integration requires claude-agent-sdk. "
-    "Install with: pip install engramia[anthropic-agents]"
+    "Anthropic Agent SDK integration requires claude-agent-sdk. Install with: pip install engramia[anthropic-agents]"
 )
 
 
@@ -121,7 +120,10 @@ async def engramia_query(
 
     # Build system prompt with recalled context
     system_prompt = recall_system_prompt(
-        memory, task=prompt, base=base_system_prompt, recall_limit=recall_limit,
+        memory,
+        task=prompt,
+        base=base_system_prompt,
+        recall_limit=recall_limit,
     )
 
     # Merge with provided options
