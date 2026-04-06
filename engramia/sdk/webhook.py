@@ -311,7 +311,7 @@ class EngramiaWebhook:
         req = urllib.request.Request(url, data=data, headers=self._headers(), method=method)
 
         try:
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # nosec B310
                 content_type = resp.headers.get("Content-Type", "")
                 if "json" not in content_type:
                     raise EngramiaWebhookError(
