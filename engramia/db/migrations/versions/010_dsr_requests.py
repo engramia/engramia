@@ -10,8 +10,8 @@ Revises: 009
 Create Date: 2026-04-05
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision: str = "010"
 down_revision: str = "009"

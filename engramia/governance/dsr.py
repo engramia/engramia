@@ -31,7 +31,7 @@ import datetime
 import logging
 import os
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 _log = logging.getLogger(__name__)
@@ -343,3 +343,4 @@ class DSRTracker:
             completed_at=str(row[8]) if row[8] else None,
             notes=str(row[9]) if row[9] else "",
         )
+       

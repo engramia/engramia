@@ -9,7 +9,7 @@ WORKDIR /app
 
 # Build-time version — injected by CI so hatch-vcs can embed the correct
 # version into the wheel without needing a .git directory in the build context.
-ARG APP_VERSION=unknown
+ARG APP_VERSION=0.1.0
 
 # Install build dependencies
 RUN pip install --upgrade pip
@@ -17,9 +17,11 @@ RUN pip install --upgrade pip
 COPY pyproject.toml README.md LICENSE.txt ./
 COPY engramia/ ./engramia/
 # Install with all runtime extras (api + openai + postgres).
-# HATCH_VCS_PRETEND_VERSION tells hatch-vcs to use APP_VERSION instead of
-# trying to derive the version from git tags (which aren't available here).
-RUN HATCH_VCS_PRETEND_VERSION=${APP_VERSION} pip install --no-cache-dir ".[api,openai,postgres]"
+# Both env vars needed: HATCH_VCS_PRETEND_VERSION for hatch-vcs,
+# SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ENGRAMIA for setuptools-scm underneath.
+RUN HATCH_VCS_PRETEND_VERSION=${APP_VERSION} \
+    SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ENGRAMIA=${APP_VERSION} \
+    pip install --no-cache-dir ".[api,openai,postgres]"
 
 # Stage 2: runtime
 FROM python:3.12-slim AS runtime
