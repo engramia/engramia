@@ -6,8 +6,8 @@ Reusable execution memory and evaluation infrastructure for AI agent frameworks.
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![License: BSL 1.1](https://img.shields.io/badge/license-BSL%201.1-orange)](LICENSE.txt)
 
-> **Status:** v0.6.5 — phases 0–5.8 complete — 726 tests / 80.29% coverage.
-> Core library · REST API · multi-tenancy · RBAC · async jobs · observability · data governance · ROI analytics · admin dashboard · service layer.
+> **Status:** v0.6.5 — 1200+ tests / 80%+ coverage.
+> Core library · REST API · 9 framework integrations · multi-tenancy · RBAC · async jobs · observability · data governance · ROI analytics.
 > See [roadmap.md](roadmap.md) for what's next.
 
 ---
@@ -16,7 +16,7 @@ Reusable execution memory and evaluation infrastructure for AI agent frameworks.
 
 Engramia solves the problem every agent framework has: **agents don't learn from previous runs**.
 
-LangChain, CrewAI, AutoGPT, and similar frameworks are stateless — every run starts from scratch.
+LangChain, CrewAI, OpenAI Agents SDK, Pydantic AI, AutoGen, and similar frameworks are stateless — every run starts from scratch.
 Engramia is a memory layer you add beneath any framework, and it:
 
 - **Remembers** what worked (success patterns with time-decay)
@@ -33,7 +33,7 @@ Extracted from Agent Factory V2 — a system that reached a 93% task success rat
 
 **Primary users:**
 - AI platform teams building multi-agent pipelines
-- Agent builders using LangChain, CrewAI, or custom frameworks
+- Agent builders using LangChain, CrewAI, OpenAI Agents SDK, Pydantic AI, AutoGen, or custom frameworks
 - Automation studios running repeated agentic workflows
 
 **Not designed for:**
@@ -96,6 +96,10 @@ pip install "engramia[openai,api,postgres]"
 | `local` | sentence-transformers embeddings, no API key | ✅ |
 | `langchain` | LangChain EngramiaCallback | ✅ |
 | `crewai` | CrewAI EngramiaCrewCallback | ✅ |
+| `openai-agents` | OpenAI Agents SDK RunHooks + dynamic instructions | ✅ |
+| `anthropic-agents` | Anthropic Agent SDK query wrapper + hooks | ✅ |
+| `pydantic-ai` | Pydantic AI Capability (before/after run) | ✅ |
+| `autogen` | AutoGen Memory interface for AssistantAgent | ✅ |
 | `cli` | CLI tool (Typer + Rich) | ✅ |
 | `mcp` | MCP server (Claude Desktop, Cursor, Windsurf) | ✅ |
 | `oidc` | SSO via OIDC JWT validation (Okta, Azure AD, Auth0, Keycloak) | ✅ |
@@ -346,7 +350,10 @@ print(f"Imported {imported} patterns")
 Engramia uses a custom exception hierarchy for precise error handling:
 
 ```python
-from engramia import EngramiaError, ProviderError, ValidationError, StorageError
+from engramia import (
+    EngramiaError, ProviderError, ValidationError,
+    StorageError, QuotaExceededError, AuthorizationError,
+)
 
 try:
     result = mem.evaluate(task, code)
@@ -356,6 +363,9 @@ except ProviderError:
 except ValidationError:
     # Invalid input (empty task, code too long, ...)
     pass
+except QuotaExceededError:
+    # Billing quota exceeded
+    pass
 except EngramiaError:
     # Any Engramia exception
     pass
@@ -363,26 +373,116 @@ except EngramiaError:
 
 ---
 
-### LangChain integration
+### Framework integrations
+
+Engramia integrates with every major agent framework. Each integration automatically
+recalls relevant patterns before a run and learns from the result after.
+
+#### OpenAI Agents SDK
+
+```bash
+pip install "engramia[openai-agents]"
+```
+
+```python
+from agents import Agent, Runner
+from engramia.sdk.openai_agents import EngramiaRunHooks, engramia_instructions
+
+agent = Agent(
+    name="coder",
+    instructions=engramia_instructions(mem, base="You are a senior developer."),
+)
+result = await Runner.run(agent, "Build a CSV parser", hooks=EngramiaRunHooks(mem))
+```
+
+#### Anthropic Agent SDK
+
+```bash
+pip install "engramia[anthropic-agents]"
+```
+
+```python
+from engramia.sdk.anthropic_agents import engramia_query
+
+async for message in engramia_query(mem, prompt="Build a CSV parser"):
+    print(message)
+# Automatically recalls context → injects into system_prompt → learns from result.
+```
+
+#### Pydantic AI
+
+```bash
+pip install "engramia[pydantic-ai]"
+```
+
+```python
+from pydantic_ai import Agent
+from engramia.sdk.pydantic_ai import EngramiaCapability
+
+agent = Agent('openai:gpt-4o', capabilities=[EngramiaCapability(mem)])
+result = agent.run_sync("Build a CSV parser")
+```
+
+#### AutoGen
+
+```bash
+pip install "engramia[autogen]"
+```
+
+```python
+from autogen_agentchat.agents import AssistantAgent
+from engramia.sdk.autogen import EngramiaMemory, learn_from_result
+
+agent = AssistantAgent(name="coder", model_client=client, memory=[EngramiaMemory(mem)])
+result = await agent.run(task="Build a CSV parser")
+learn_from_result(mem, task="Build a CSV parser", result=result)
+```
+
+#### LangChain
+
+```bash
+pip install "engramia[langchain]"
+```
 
 ```python
 from engramia.sdk.langchain import EngramiaCallback
 
 callback = EngramiaCallback(mem, auto_learn=True, auto_recall=True)
-chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
-# Engramia automatically learns from chain runs and recalls relevant context
+chain.invoke(input, config={"callbacks": [callback]})
 ```
 
----
+#### CrewAI
 
-### Webhook SDK client
+```bash
+pip install "engramia[crewai]"
+```
+
+```python
+from engramia.sdk.crewai import EngramiaCrewCallback
+
+callback = EngramiaCrewCallback(mem, auto_learn=True, auto_recall=True)
+result = callback.kickoff(crew)
+```
+
+#### REST API client (any language)
 
 ```python
 from engramia.sdk.webhook import EngramiaWebhook
 
-hook = EngramiaWebhook(url="http://localhost:8000", api_key="sk-...")
-hook.learn(task="Parse CSV", code=code, eval_score=8.5)
-matches = hook.recall(task="Read CSV and compute averages")
+client = EngramiaWebhook(url="http://localhost:8000", api_key="sk-...")
+client.learn(task="Parse CSV", code=code, eval_score=8.5)
+matches = client.recall(task="Read CSV and compute averages")
+```
+
+#### Generic framework (EngramiaBridge)
+
+```python
+from engramia.sdk.bridge import EngramiaBridge
+
+bridge = EngramiaBridge(data_path="./engramia_data")
+context = bridge.before_run("Build a CSV parser")
+result = my_agent(task, system_context=context)
+bridge.after_run("Build a CSV parser", code=result, eval_score=8.0)
 ```
 
 ---
@@ -738,16 +838,20 @@ engramia/
 │   └── metrics.py            # Prometheus histogram/counter definitions
 │
 ├── db/                  # Database
-│   ├── models.py             # SQLAlchemy 2.x models (6 migrations applied)
-│   └── migrations/           # Alembic (001_initial → 006_governance)
+│   ├── models.py             # SQLAlchemy 2.x models (13 migrations applied)
+│   └── migrations/           # Alembic (001_initial → 013_cloud_users)
 │
 ├── evolution/           # Prompt evolution + failure clustering (Experimental)
 │   ├── prompt_evolver.py
 │   └── failure_cluster.py
 │
-├── sdk/                 # Framework integrations
-│   ├── langchain.py          # LangChain EngramiaCallback
-│   ├── crewai.py             # CrewAI EngramiaCrewCallback
+├── sdk/                 # Framework integrations (9 adapters)
+│   ├── openai_agents.py      # OpenAI Agents SDK — RunHooks + dynamic instructions
+│   ├── anthropic_agents.py   # Anthropic Agent SDK — query wrapper + hooks
+│   ├── pydantic_ai.py        # Pydantic AI — Capability (before/after run)
+│   ├── autogen.py            # AutoGen — Memory ABC for AssistantAgent
+│   ├── langchain.py          # LangChain — EngramiaCallback
+│   ├── crewai.py             # CrewAI — EngramiaCrewCallback
 │   ├── bridge.py             # EngramiaBridge — drop-in for any agent factory
 │   └── webhook.py            # Lightweight HTTP SDK client (stdlib only)
 │
@@ -790,6 +894,10 @@ engramia/
 | ROI analytics (collector, rollup, REST API) | ✅ Stable |
 | Admin dashboard (Next.js 15, 10 pages) | ✅ Stable |
 | Service layer (LearningService, RecallService, ...) | ✅ Stable |
+| OpenAI Agents SDK integration (RunHooks + instructions) | ✅ Stable |
+| Anthropic Agent SDK integration (query wrapper + hooks) | ✅ Stable |
+| Pydantic AI integration (Capability) | ✅ Stable |
+| AutoGen integration (Memory ABC) | ✅ Stable |
 | LangChain EngramiaCallback | ✅ Stable |
 | CrewAI EngramiaCrewCallback | ✅ Stable |
 | EngramiaBridge (drop-in agent factory adapter) | ✅ Stable |

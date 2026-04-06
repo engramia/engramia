@@ -1,5 +1,57 @@
 # Integration Examples
 
+## OpenAI Agents SDK
+
+```python
+from agents import Agent, Runner
+from engramia import Memory
+from engramia.providers import OpenAIProvider, OpenAIEmbeddings, JSONStorage
+from engramia.sdk.openai_agents import EngramiaRunHooks, engramia_instructions
+
+mem = Memory(
+    embeddings=OpenAIEmbeddings(),
+    storage=JSONStorage(path="./engramia_data"),
+)
+
+# Dynamic instructions with recalled patterns + auto-learn hooks
+agent = Agent(
+    name="coder",
+    instructions=engramia_instructions(mem, base="You are a Python developer."),
+)
+result = await Runner.run(agent, "Build a CSV parser", hooks=EngramiaRunHooks(mem))
+```
+
+## Anthropic Agent SDK
+
+```python
+from engramia.sdk.anthropic_agents import engramia_query
+
+# One call: recall → run → learn
+async for message in engramia_query(mem, prompt="Build a CSV parser"):
+    print(message)
+```
+
+## Pydantic AI
+
+```python
+from pydantic_ai import Agent
+from engramia.sdk.pydantic_ai import EngramiaCapability
+
+agent = Agent('openai:gpt-4o', capabilities=[EngramiaCapability(mem)])
+result = agent.run_sync("Build a CSV parser")
+```
+
+## AutoGen
+
+```python
+from autogen_agentchat.agents import AssistantAgent
+from engramia.sdk.autogen import EngramiaMemory, learn_from_result
+
+agent = AssistantAgent(name="coder", model_client=client, memory=[EngramiaMemory(mem)])
+result = await agent.run(task="Build a CSV parser")
+learn_from_result(mem, task="Build a CSV parser", result=result)
+```
+
 ## LangChain
 
 ```python
