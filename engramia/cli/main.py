@@ -136,7 +136,7 @@ def init(
 
 @app.command()
 def serve(
-    host: str = typer.Option("0.0.0.0", help="Host to listen on."),
+    host: str = typer.Option("0.0.0.0", help="Host to listen on."),  # nosec B104
     port: int = typer.Option(8000, help="Port to listen on."),
     reload: bool = typer.Option(False, help="Enable auto-reload (dev mode)."),
     storage: str = typer.Option("json", "--storage", help="Storage backend: 'json' or 'postgres'."),

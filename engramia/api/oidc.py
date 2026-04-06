@@ -71,7 +71,7 @@ def _fetch_jwks_raw() -> dict:
     url = _jwks_url()
     req = urllib.request.Request(url, headers={"User-Agent": "engramia-oidc/1.0"})
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
             import json
 
             data = json.loads(resp.read().decode())

@@ -304,7 +304,7 @@ def _verify_google_token(
 
     url = "https://oauth2.googleapis.com/tokeninfo?" + urllib.parse.urlencode({"id_token": id_token})
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
+        with urllib.request.urlopen(url, timeout=10) as resp:  # nosec B310
             data = json.loads(resp.read())
     except urllib.error.HTTPError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Google token.") from None

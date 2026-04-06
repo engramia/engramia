@@ -19,8 +19,7 @@ COPY engramia/ ./engramia/
 # Install with all runtime extras (api + openai + postgres).
 # Both env vars needed: HATCH_VCS_PRETEND_VERSION for hatch-vcs,
 # SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ENGRAMIA for setuptools-scm underneath.
-RUN HATCH_VCS_PRETEND_VERSION=${APP_VERSION} \
-    SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ENGRAMIA=${APP_VERSION} \
+RUN SETUPTOOLS_SCM_PRETEND_VERSION=${APP_VERSION} \
     pip install --no-cache-dir ".[api,openai,postgres]"
 
 # Stage 2: runtime
