@@ -9,6 +9,7 @@ Provides GDPR-compliant operations on top of the core Engramia storage layer:
 - ScopedDeletion    — GDPR Art. 17 right-to-erasure (tenant/project wipe)
 - DataExporter      — GDPR Art. 20 data portability (scoped streaming export)
 - LifecycleJobs     — compaction, dedup, job/audit cleanup
+- AuditScrubber     — PII scrubbing of audit_log entries older than N days
 
 Usage (low-level, from Memory or API routes)::
 
@@ -21,6 +22,7 @@ Usage (low-level, from Memory or API routes)::
     clean_design, findings = pipeline.process({"code": "...", "output": "..."})
 """
 
+from engramia.governance.audit_scrubber import AuditScrubber, ScrubResult
 from engramia.governance.deletion import DeletionResult, ScopedDeletion
 from engramia.governance.export import DataExporter
 from engramia.governance.lifecycle import LifecycleJobs
@@ -28,6 +30,7 @@ from engramia.governance.redaction import Finding, RedactionPipeline
 from engramia.governance.retention import PurgeResult, RetentionManager
 
 __all__ = [
+    "AuditScrubber",
     "DataExporter",
     "DeletionResult",
     "Finding",
@@ -36,4 +39,5 @@ __all__ = [
     "RedactionPipeline",
     "RetentionManager",
     "ScopedDeletion",
+    "ScrubResult",
 ]

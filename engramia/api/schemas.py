@@ -430,3 +430,59 @@ class ROIEventOut(BaseModel):
 class ROIEventsResponse(BaseModel):
     events: list[ROIEventOut]
     total: int
+
+
+# ---------------------------------------------------------------------------
+# Data Subject Requests (Phase 5.8 — GDPR Art. 15-20 SLA tracking)
+# ---------------------------------------------------------------------------
+
+
+class DSRCreateRequest(BaseModel):
+    request_type: str = Field(
+        description="Type of DSR: access | erasure | portability | rectification",
+        pattern="^(access|erasure|portability|rectification)$",
+    )
+    subject_email: str = Field(
+        max_length=320,
+        description="E-mail address of the data subject filing the request.",
+    )
+    handler_notes: str = Field(
+        default="",
+        max_length=10_000,
+        description="Optional operator notes (e.g. original request text, ticket ID).",
+    )
+
+
+class DSRUpdateRequest(BaseModel):
+    status: str = Field(
+        description="New status: pending | in_progress | completed | rejected",
+        pattern="^(pending|in_progress|completed|rejected)$",
+    )
+    handler_notes: str = Field(
+        default="",
+        max_length=10_000,
+        description="Operator notes to append to the existing notes.",
+    )
+
+
+class DSRResponse(BaseModel):
+    id: str
+    tenant_id: str
+    request_type: str
+    subject_email: str
+    status: str
+    created_at: str
+    due_at: str
+    updated_at: str
+    completed_at: str | None = None
+    handler_notes: str = ""
+    overdue: bool = False
+
+
+class DSRListResponse(BaseModel):
+    requests: list[DSRResponse]
+    total: int
+    pending_counts: dict[str, int] = Field(
+        default_factory=dict,
+        description="Counts of open requests by status: {pending, in_progress, overdue}.",
+    )

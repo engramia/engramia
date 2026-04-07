@@ -3,12 +3,13 @@
 """SQLAlchemy 2.x models for PostgreSQL + pgvector storage backend.
 
 Schema design:
-- ``memory_data``       — generic key-value store (TEXT key, JSONB data, scope columns)
-- ``memory_embeddings`` — vector index (TEXT key, pgvector vector(1536), scope columns)
-- ``tenants``           — top-level tenant accounts
-- ``projects``          — projects within a tenant (isolation boundary)
-- ``api_keys``          — hashed API keys with RBAC role + quota
-- ``audit_log``         — structured audit trail for security events
+- ``memory_data``           — generic key-value store (TEXT key, JSONB data, scope columns)
+- ``memory_embeddings``     — vector index (TEXT key, pgvector vector(1536), scope columns)
+- ``tenants``               — top-level tenant accounts
+- ``projects``              — projects within a tenant (isolation boundary)
+- ``api_keys``              — hashed API keys with RBAC role + quota
+- ``audit_log``             — structured audit trail for security events
+- ``data_subject_requests`` — GDPR Data Subject Request queue with SLA tracking
 
 The ``tenant_id`` / ``project_id`` columns on ``memory_data`` and
 ``memory_embeddings`` default to ``'default'`` so that existing single-tenant
@@ -312,3 +313,45 @@ class OverageSettings(Base):
     price_per_unit_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_size: Mapped[int] = mapped_column(Integer, nullable=False)
     budget_cap_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Data Subject Requests (Phase 5.8 — GDPR Art. 15-20 SLA tracking)
+# ---------------------------------------------------------------------------
+
+
+class DataSubjectRequest(Base):
+    """GDPR Data Subject Request queue with SLA deadline tracking.
+
+    Stores one row per DSR received by a tenant. Operators are expected to
+    process requests within the SLA window (default 30 days, configurable via
+    ``ENGRAMIA_DSR_SLA_DAYS``).  Rows approaching their ``due_at`` deadline
+    trigger WARNING-level log messages so monitoring dashboards can alert.
+
+    Supported request types (GDPR articles):
+    - ``access``        Art. 15 — copy of personal data
+    - ``erasure``       Art. 17 — right to be forgotten
+    - ``portability``   Art. 20 — machine-readable export
+    - ``rectification`` Art. 16 — correct inaccurate data
+    """
+
+    __tablename__ = "data_subject_requests"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)  # UUID
+    tenant_id: Mapped[str] = mapped_column(Text, nullable=False)
+    request_type: Mapped[str] = mapped_column(Text, nullable=False)  # access|erasure|portability|rectification
+    subject_email: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
+    created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
+    due_at: Mapped[str] = mapped_column(Text, nullable=False)  # ISO-8601 UTC; created_at + SLA
+    updated_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
+    completed_at: Mapped[str | None] = mapped_column(Text, nullable=True)
+    handler_notes: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+
+
+dsr_tenant_index = Index(
+    "idx_dsr_tenant_status",
+    DataSubjectRequest.tenant_id,
+    DataSubjectRequest.status,
+    DataSubjectRequest.created_at,
+)
