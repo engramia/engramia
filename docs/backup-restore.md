@@ -175,6 +175,104 @@ The CI/CD deploy step in `docker.yml` runs migrations automatically. If you're d
 
 ---
 
+## Automated Restore Testing (A12)
+
+Restore testing is a **launch blocker** (GTM A12).  A GitHub Actions workflow
+runs the full cycle automatically so regressions are caught before production
+incidents.
+
+### What the test does
+
+`scripts/test_backup_restore.py` runs end-to-end without any external
+dependencies beyond Docker and Python:
+
+1. Starts a **source** `pgvector/pgvector:0.7.4-pg16` container on port 15441.
+2. Applies the full Alembic migration chain (`alembic upgrade head`).
+3. Inserts test seed rows (tenant, project, two `memory_data` keys).
+4. Runs `pg_dump` → gzip-compressed `.sql.gz` backup.
+5. Starts a **target** pgvector container on port 15442.
+6. Restores the backup with `psql`.
+7. Validates:
+   - pgvector extension is active.
+   - All 14 expected tables are present (`memory_data`, `tenants`, `jobs`, … `cloud_users`).
+   - `alembic_version` is at revision `013` (head).
+   - Default tenant seeded by migration 003 is present.
+   - Seed tenant `brt-tenant-1` and both seed `memory_data` keys are present.
+8. Tears down both containers and deletes the temp backup file.
+9. Exits `0` (PASS) or `1` (FAIL).
+
+### CI schedule
+
+The workflow (`.github/workflows/backup-restore-test.yml`) runs:
+
+- **Weekly** — every Sunday at 04:00 UTC.
+- **On demand** — via the GitHub Actions UI (`workflow_dispatch`).
+
+Artifacts: the full run log is uploaded as `brt-log-<run_id>` and kept for 30
+days.  A Markdown job summary is posted directly to the Actions run page so
+triage is possible without downloading the artifact.
+
+### Run locally
+
+Prerequisites: Docker daemon running, Python 3.12, Postgres extras installed.
+
+```bash
+# From the project root
+pip install -e ".[dev,postgres]"
+python scripts/test_backup_restore.py
+```
+
+Expected output (abridged):
+
+```
+[HH:MM:SS] ============================================================
+[HH:MM:SS] Engramia Backup Restore Test  run=a1b2c3d4
+...
+[HH:MM:SS] [Phase 4/4] Running validation checks
+[HH:MM:SS]
+[HH:MM:SS] RESULT: PASS  (42.3s)
+[HH:MM:SS]   ✓ pgvector extension active
+[HH:MM:SS]   ✓ all 14 expected tables present
+[HH:MM:SS]   ✓ alembic_version = 013
+[HH:MM:SS]   ✓ default tenant present
+[HH:MM:SS]   ✓ seed tenant 'brt-tenant-1' present
+[HH:MM:SS]   ✓ 2 seed memory_data rows present
+```
+
+### Trigger via GitHub Actions UI
+
+1. Go to **Actions → Backup Restore Test** in the repository.
+2. Click **Run workflow**.
+3. Optionally fill in **pgvector Docker image override** (leave blank for
+   the default prod image `pgvector/pgvector:0.7.4-pg16`).
+4. Click **Run workflow**.
+
+### On failure
+
+1. Open the failing run; the Markdown summary shows the last 100 lines of
+   output.
+2. Download artifact `brt-log-<run_id>` for the full log.
+3. Reproduce locally: `python scripts/test_backup_restore.py`.
+4. Common failure modes:
+   - **Missing table** — a new migration was added but `EXPECTED_TABLES` in
+     the script was not updated.  Add the table name to the set.
+   - **Alembic revision mismatch** — a new migration was merged; update
+     `EXPECTED_ALEMBIC_REVISION` in the script.
+   - **psql restore failed** — the dump format or encoding changed; check
+     pg_dump options in `create_backup()`.
+   - **Container port conflict** — set `ENGRAMIA_BRT_SOURCE_PORT` /
+     `ENGRAMIA_BRT_TARGET_PORT` to unused ports.
+
+### Environment overrides
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENGRAMIA_BRT_PGIMAGE` | `pgvector/pgvector:0.7.4-pg16` | Docker image |
+| `ENGRAMIA_BRT_SOURCE_PORT` | `15441` | Host port for source container |
+| `ENGRAMIA_BRT_TARGET_PORT` | `15442` | Host port for target container |
+
+---
+
 ## Off-Site Storage Configuration
 
 Hetzner Object Storage (FSN1 region, S3-compatible):
