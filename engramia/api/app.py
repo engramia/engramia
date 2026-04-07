@@ -40,7 +40,7 @@ import logging
 import os
 import sys
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -259,17 +259,76 @@ def create_app() -> FastAPI:
     )
 
     # ------------------------------------------------------------------
-    # Error handlers
+    # Error handlers — structured error responses
+    #
+    # All API errors return a JSON body with at minimum:
+    #   error_code    — machine-readable string enum (e.g. "UNAUTHORIZED")
+    #   error_message — human-readable description
+    # Plus contextual fields where relevant (e.g. current/limit for quota).
     # ------------------------------------------------------------------
+
+    # Map HTTP status codes to canonical error_code strings.
+    _STATUS_TO_ERROR_CODE: dict[int, str] = {
+        400: "BAD_REQUEST",
+        401: "UNAUTHORIZED",
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        409: "CONFLICT",
+        413: "PAYLOAD_TOO_LARGE",
+        422: "VALIDATION_ERROR",
+        429: "RATE_LIMITED",
+        501: "PROVIDER_NOT_CONFIGURED",
+        503: "SERVICE_UNAVAILABLE",
+    }
+
+    def _build_error_body(status_code: int, detail) -> dict:
+        """Convert an HTTPException detail into a structured error response body."""
+        default_code = _STATUS_TO_ERROR_CODE.get(status_code, "ERROR")
+
+        if isinstance(detail, dict):
+            # Detail is already structured (e.g. quota_exceeded from _check_quota).
+            inner_error = detail.get("error", "")
+            if inner_error == "quota_exceeded" or status_code == 429 and "limit" in detail:
+                error_code = "QUOTA_EXCEEDED"
+            else:
+                error_code = default_code
+            body: dict = {
+                "error_code": error_code,
+                "error_message": detail.get("message") or detail.get("detail") or str(detail),
+            }
+            # Preserve contextual fields (current, limit, etc.) at the top level.
+            for key in ("current", "limit", "current_count", "retry_after"):
+                if key in detail:
+                    body[key] = detail[key]
+            return body
+
+        # Plain string detail.
+        return {
+            "error_code": default_code,
+            "error_message": str(detail) if detail else _STATUS_TO_ERROR_CODE.get(status_code, "An error occurred."),
+        }
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        body = _build_error_body(exc.status_code, exc.detail)
+        headers = getattr(exc, "headers", None) or {}
+        return JSONResponse(status_code=exc.status_code, content=body, headers=headers)
+
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
         _log.warning("ValueError in request %s %s: %s", request.method, request.url.path, exc)
-        return JSONResponse(status_code=422, content={"detail": "Invalid request parameters."})
+        return JSONResponse(
+            status_code=422,
+            content={"error_code": "VALIDATION_ERROR", "error_message": "Invalid request parameters."},
+        )
 
     @app.exception_handler(ValidationError)
     async def validation_error_handler(request: Request, exc: ValidationError) -> JSONResponse:
         _log.warning("ValidationError in request %s %s: %s", request.method, request.url.path, exc)
-        return JSONResponse(status_code=422, content={"detail": "Validation error in request."})
+        return JSONResponse(
+            status_code=422,
+            content={"error_code": "VALIDATION_ERROR", "error_message": "Validation error in request."},
+        )
 
     # ------------------------------------------------------------------
     # Memory instance
