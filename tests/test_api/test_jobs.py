@@ -111,7 +111,6 @@ class TestJobServiceGet:
     def test_get_returns_submitted_job(self, job_service):
         result = job_service.submit("evaluate", {"task": "t", "code": "c"})
         job = job_service.get(result.job_id)
-        assert job is not None
         assert job.id == result.job_id
         assert job.operation == "evaluate"
         assert job.status == JobStatus.PENDING
@@ -123,7 +122,8 @@ class TestJobServiceGet:
         scope_a = Scope(tenant_id="a", project_id="p")
         scope_b = Scope(tenant_id="b", project_id="p")
         result = job_service.submit("aging", {}, scope=scope_a)
-        assert job_service.get(result.job_id, scope=scope_a) is not None
+        job_a = job_service.get(result.job_id, scope=scope_a)
+        assert job_a.id == result.job_id
         assert job_service.get(result.job_id, scope=scope_b) is None
 
 
@@ -186,7 +186,6 @@ class TestJobServicePollAndExecute:
         assert executed == 1
         job = job_service.get(result.job_id)
         assert job.status == JobStatus.COMPLETED
-        assert job.result is not None
         assert "pruned" in job.result
 
     def test_execute_evaluate_job(self, job_service):
@@ -223,7 +222,7 @@ class TestJobServicePollAndExecute:
             job_service.poll_and_execute()
         job = job_service.get(result.job_id)
         assert job.status == JobStatus.FAILED
-        assert job.error is not None
+        assert isinstance(job.error, str) and len(job.error) > 0
 
     def test_poll_empty_queue(self, job_service):
         assert job_service.poll_and_execute() == 0
@@ -314,10 +313,18 @@ class TestJobWorker:
         assert worker.running is False
 
     def test_worker_processes_job(self, job_service):
+        import threading
+
         worker = JobWorker(service=job_service, poll_interval=0.1)
         job_service.submit("aging", {})
         worker.start()
-        time.sleep(0.5)  # Let worker pick up the job
+        # Poll until the job completes rather than sleeping a fixed duration
+        _poll = threading.Event()
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if job_service.list_jobs()[0].status == JobStatus.COMPLETED:
+                break
+            _poll.wait(timeout=0.05)
         worker.stop(timeout=2.0)
         jobs = job_service.list_jobs()
         assert jobs[0].status == JobStatus.COMPLETED

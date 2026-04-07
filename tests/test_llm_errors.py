@@ -178,7 +178,7 @@ class TestConcurrentEvalFailures:
         # what we're proving is the test does NOT hang forever.
         try:
             result = mem.evaluate(task="Parse CSV", code="import csv", num_evals=3)
-            assert result is not None
+            assert isinstance(result.median_score, float)
         except RuntimeError:
             pass  # acceptable — all concurrent attempts may fail on flaky network
 

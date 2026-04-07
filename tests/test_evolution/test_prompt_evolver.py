@@ -168,8 +168,8 @@ class TestEvolveWithEval:
 
         assert result.accepted is True
         assert result.improved_prompt == "Better prompt with error handling."
-        assert result.current_score is not None
-        assert result.candidate_score is not None
+        assert isinstance(result.current_score, float)
+        assert isinstance(result.candidate_score, float)
         assert "accepted" in result.reason
 
     def test_rejected_when_candidate_below_tolerance(self, feedback_store):

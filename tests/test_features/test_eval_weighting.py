@@ -109,7 +109,7 @@ def test_eval_unweighted_does_not_penalise_low_score(
         )
 
         # Just assert we can get results without error — order depends on raw similarity
-        assert matches_unweighted is not None, "Unweighted recall returned None"
+        assert isinstance(matches_unweighted, list), "Unweighted recall did not return a list"
 
     finally:
         for key in set(learned_keys):

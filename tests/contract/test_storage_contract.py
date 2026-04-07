@@ -45,7 +45,6 @@ class TestSaveLoadContract:
         data = {"task": "Parse CSV", "score": 8.5}
         store.save("patterns/test_001", data)
         loaded = store.load("patterns/test_001")
-        assert loaded is not None
         assert loaded["task"] == "Parse CSV"
         assert loaded["score"] == 8.5
 

@@ -61,7 +61,6 @@ def svc_no_embed(mock_llm, storage):
 class TestCompositionService:
     def test_compose_returns_pipeline(self, svc):
         pipeline = svc.compose("load and process CSV data")
-        assert pipeline is not None
         assert len(pipeline.stages) == 2
         assert pipeline.stages[0].task == "load CSV data from disk"
         assert pipeline.stages[1].task == "process the loaded data"
@@ -101,7 +100,6 @@ class TestCompositionService:
 
     def test_compose_without_embeddings(self, svc_no_embed):
         pipeline = svc_no_embed.compose("load and process data")
-        assert pipeline is not None
         assert len(pipeline.stages) == 2
 
     def test_compose_calls_llm(self, svc, mock_llm):

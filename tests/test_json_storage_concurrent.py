@@ -33,8 +33,7 @@ class TestConcurrentWrites:
 
         for i in range(n):
             data = storage.load(f"patterns/item_{i:03d}")
-            assert data is not None, f"item_{i:03d} was lost"
-            assert data["value"] == i
+            assert data["value"] == i, f"item_{i:03d} was lost or corrupted"
 
     def test_concurrent_saves_correct_count(self, tmp_path):
         storage = JSONStorage(path=tmp_path)
