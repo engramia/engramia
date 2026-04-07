@@ -12,6 +12,7 @@ Both providers use lazy imports so the module can be imported without the
 import logging
 import random
 import time
+from typing import Any
 
 from engramia.providers._concurrency import llm_semaphore
 from engramia.providers.base import EmbeddingProvider, LLMProvider
@@ -61,7 +62,7 @@ class OpenAIProvider(LLMProvider):
     ) -> str:
         from openai import AuthenticationError, BadRequestError, PermissionDeniedError
 
-        messages: list[dict] = []  # type: ignore[type-arg]
+        messages: list[dict[str, Any]] = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})

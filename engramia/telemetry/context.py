@@ -28,11 +28,11 @@ def get_request_id() -> str:
     return _request_id_var.get()
 
 
-def set_request_id(request_id: str) -> Token:  # type: ignore[type-arg]
+def set_request_id(request_id: str) -> Token[str]:
     """Set the request ID for the current context. Returns a reset Token."""
     return _request_id_var.set(request_id)
 
 
-def reset_request_id(token: Token) -> None:  # type: ignore[type-arg]
+def reset_request_id(token: Token[str]) -> None:
     """Restore the previous request ID using the Token from set_request_id()."""
     _request_id_var.reset(token)

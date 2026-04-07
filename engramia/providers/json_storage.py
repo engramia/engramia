@@ -22,6 +22,7 @@ import os
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -145,7 +146,7 @@ class JSONStorage(StorageBackend):
             )
             return {}
 
-    def _atomic_write(self, path: Path, data: dict | list) -> None:  # type: ignore[type-arg]
+    def _atomic_write(self, path: Path, data: dict[str, Any] | list[Any]) -> None:
         """Write *data* to *path* atomically using a tmp → bak → replace sequence."""
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
@@ -179,7 +180,7 @@ class JSONStorage(StorageBackend):
             _log.warning("JSONStorage.load: corrupted file at %s — returning None", path)
             return None
 
-    def save(self, key: str, data: dict | list) -> None:  # type: ignore[override]
+    def save(self, key: str, data: dict[str, Any] | list[Any]) -> None:
         t0 = time.perf_counter()
         self._atomic_write(self._key_to_path(key), data)
         _metrics.observe_storage("json", "save", time.perf_counter() - t0)

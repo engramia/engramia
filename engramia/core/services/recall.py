@@ -21,20 +21,50 @@ _DEDUP_FETCH_MULTIPLIER = 3
 
 
 def _deduplicate_matches(matches: list[Match]) -> list[Match]:
-    """Keep only the best-scoring pattern per task group (Jaccard > threshold)."""
-    groups: list[Match] = []
-    for match in matches:
-        merged = False
-        for i, best in enumerate(groups):
-            if jaccard(match.pattern.task, best.pattern.task) > JACCARD_DEDUP_THRESHOLD:
-                if match.pattern.success_score > best.pattern.success_score:
-                    groups[i] = match
-                merged = True
-                break
-        if not merged:
-            groups.append(match)
-    groups.sort(key=lambda m: m.similarity, reverse=True)
-    return groups
+    """Keep only the best-scoring pattern per task group using union-find connected components.
+
+    All matches transitively connected by Jaccard similarity > JACCARD_DEDUP_THRESHOLD
+    (A similar to B, B similar to C → A, B, C in the same group) are reduced to the
+    single highest-scoring pattern. This avoids the ordering-dependent behaviour of a
+    greedy pairwise scan.
+    """
+    n = len(matches)
+    if n == 0:
+        return []
+
+    parent = list(range(n))
+    rank = [0] * n
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]  # path-halving compression
+            x = parent[x]
+        return x
+
+    def union(x: int, y: int) -> None:
+        rx, ry = find(x), find(y)
+        if rx == ry:
+            return
+        if rank[rx] < rank[ry]:
+            rx, ry = ry, rx
+        parent[ry] = rx
+        if rank[rx] == rank[ry]:
+            rank[rx] += 1
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if jaccard(matches[i].pattern.task, matches[j].pattern.task) > JACCARD_DEDUP_THRESHOLD:
+                union(i, j)
+
+    best: dict[int, Match] = {}
+    for i, match in enumerate(matches):
+        root = find(i)
+        if root not in best or match.pattern.success_score > best[root].pattern.success_score:
+            best[root] = match
+
+    result = list(best.values())
+    result.sort(key=lambda m: m.similarity, reverse=True)
+    return result
 
 
 class RecallService:

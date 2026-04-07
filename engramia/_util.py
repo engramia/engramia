@@ -2,8 +2,10 @@
 # Copyright (c) 2026 Marek Čermák
 """Shared internal utilities for Engramia."""
 
+import hashlib
 import json
 import re
+import time
 from typing import Literal
 
 # ---------------------------------------------------------------------------
@@ -17,6 +19,20 @@ PATTERNS_PREFIX = "patterns"
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+
+def _pattern_key(task: str) -> str:
+    """Generate a unique storage key for a task pattern.
+
+    Args:
+        task: Natural language description of the task.
+
+    Returns:
+        Storage key in the format ``patterns/<hash8>_<ts_ms>``.
+    """
+    task_hash = hashlib.sha256(task.encode()).hexdigest()[:8]
+    ts = int(time.time() * 1000)
+    return f"{PATTERNS_PREFIX}/{task_hash}_{ts}"
 
 
 def jaccard(a: str, b: str) -> float:
@@ -77,8 +93,16 @@ def extract_json_from_llm(text: str) -> dict:
     m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if m:
         return json.loads(m.group(1))
-    # Any JSON object in the text
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if m:
-        return json.loads(m.group())
+    # Any JSON object in the text — scan with JSONDecoder to find the first valid object
+    decoder = json.JSONDecoder()
+    idx = 0
+    while idx < len(text):
+        start = text.find("{", idx)
+        if start == -1:
+            break
+        try:
+            obj, _ = decoder.raw_decode(text, start)
+            return obj
+        except json.JSONDecodeError:
+            idx = start + 1
     raise ValueError(f"No valid JSON found in LLM response: {text[:300]}")

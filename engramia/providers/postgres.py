@@ -112,7 +112,7 @@ class PostgresStorage(StorageBackend):
             ).fetchone()
         return row[0] if row else None  # psycopg2 deserialises JSONB to dict/list directly
 
-    def save(self, key: str, data: dict | list) -> None:  # type: ignore[override]
+    def save(self, key: str, data: dict[str, Any] | list[Any]) -> None:
         import json
 
         sp = self._scope_params()

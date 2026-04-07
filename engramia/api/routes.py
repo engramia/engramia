@@ -169,7 +169,21 @@ def learn(
     memory: Memory = Depends(get_memory),
     auth_ctx: AuthContext | None = Depends(get_auth_context),
 ) -> LearnResponse:
-    """Record a successful agent run and store it as a reusable pattern."""
+    """Record a successful agent run and store it as a reusable pattern.
+
+    Args:
+        body: Request body containing task, code, eval_score, and optional
+            run_id, classification, source, and output fields.
+        request: FastAPI request object (used for quota checks).
+        memory: Memory instance injected by dependency.
+        auth_ctx: Authentication context injected by dependency.
+
+    Returns:
+        LearnResponse with ``stored=True`` and the updated ``pattern_count``.
+
+    Raises:
+        HTTPException 429: If the caller has exceeded their pattern quota.
+    """
     _check_quota(memory, auth_ctx, request)
     result = memory.learn(
         task=body.task,
@@ -198,10 +212,18 @@ def learn(
 def recall(body: RecallRequest, memory: Memory = Depends(get_memory)) -> RecallResponse:
     """Find stored patterns most relevant to the given task.
 
-    Supports offset-based pagination via ``offset`` and filters by
-    ``classification``, ``source``, and ``min_score``.
-    The matcher fetches extra candidates so that post-filtering does not
-    reduce the result set below the requested ``limit``.
+    Fetches extra candidates to absorb post-filter losses. Supports
+    offset-based pagination and filters by ``classification``, ``source``,
+    and ``min_score``.
+
+    Args:
+        body: Request body containing task, limit, deduplicate, eval_weighted,
+            and optional filter/pagination fields.
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        RecallResponse with ``matches``, ``has_more`` flag, and ``next_offset``
+        for pagination.
     """
     # Fetch extra candidates to absorb post-filter losses and satisfy pagination.
     fetch_limit = (body.offset + body.limit) * 4
@@ -262,7 +284,24 @@ def recall(body: RecallRequest, memory: Memory = Depends(get_memory)) -> RecallR
     dependencies=[require_permission("compose")],
 )
 def compose(body: ComposeRequest, request: Request, memory: Memory = Depends(get_memory)):
-    """Decompose a task into a multi-stage pipeline from stored patterns."""
+    """Decompose a task into a multi-stage pipeline from stored patterns.
+
+    Breaks the high-level task into stages via LLM, finds the best matching
+    pattern per stage, and validates data-flow contracts between stages.
+    Supports ``Prefer: respond-async`` for background execution.
+
+    Args:
+        body: Request body containing the task description.
+        request: FastAPI request object (used for async job dispatch).
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        ComposeResponse with ``task``, ``stages``, ``valid`` flag, and
+        ``contract_errors``.
+
+    Raises:
+        HTTPException 501: If no LLM provider is configured.
+    """
     async_resp = _try_async(request, "compose", body.model_dump())
     if async_resp is not None:
         return async_resp
@@ -311,7 +350,26 @@ def evaluate(
     memory: Memory = Depends(get_memory),
     auth_ctx: AuthContext | None = Depends(get_auth_context),
 ):
-    """Run multi-evaluator scoring on agent code."""
+    """Run multi-evaluator scoring on agent code.
+
+    Executes ``num_evals`` independent LLM evaluations concurrently, aggregates
+    results by median, and records them for quality-weighted recall. Eval-run
+    billing quota is enforced when a billing service is configured. Supports
+    ``Prefer: respond-async`` for background execution.
+
+    Args:
+        body: Request body containing task, code, optional output, and num_evals.
+        request: FastAPI request object (used for billing checks and async dispatch).
+        memory: Memory instance injected by dependency.
+        auth_ctx: Authentication context injected by dependency.
+
+    Returns:
+        EvaluateResponse with ``median_score``, ``variance``, ``high_variance``,
+        ``feedback``, ``adversarial_detected``, and per-run ``scores``.
+
+    Raises:
+        HTTPException 501: If no LLM provider is configured.
+    """
     # Eval-run quota enforcement (billing-aware; no-op in dev/JSON mode)
     billing_svc = getattr(request.app.state, "billing_service", None)
     tenant_id = auth_ctx.tenant_id if auth_ctx else "default"
@@ -380,7 +438,23 @@ def get_feedback(
     limit: int = Query(default=5, ge=1, le=20),
     offset: int = Query(default=0, ge=0, le=10_000, description="Number of results to skip (for pagination)."),
 ) -> FeedbackResponse:
-    """Return top recurring quality issues for prompt injection."""
+    """Return top recurring quality issues for prompt injection.
+
+    Results are sorted by relevance (score × count) and support offset-based
+    pagination. One extra item is fetched internally to determine ``has_more``
+    without a separate count query.
+
+    Args:
+        memory: Memory instance injected by dependency.
+        task_type: Optional keyword filter — only feedback patterns containing
+            this string are returned (e.g. ``"csv"``, ``"api"``).
+        limit: Maximum number of results to return (1–20, default 5).
+        offset: Number of results to skip for pagination (default 0).
+
+    Returns:
+        FeedbackResponse with ``feedback`` strings, ``has_more`` flag, and
+        ``next_offset`` for pagination.
+    """
     # Fetch one extra item to detect has_more without a separate count query.
     feedback = memory.get_feedback(task_type=task_type, limit=limit + 1, offset=offset)
     has_more = len(feedback) > limit
@@ -402,7 +476,15 @@ def get_feedback(
     dependencies=[require_permission("metrics")],
 )
 def get_metrics(memory: Memory = Depends(get_memory)) -> MetricsResponse:
-    """Return aggregate run statistics."""
+    """Return aggregate run statistics.
+
+    Args:
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        MetricsResponse with ``runs``, ``success_rate``, ``avg_eval_score``,
+        ``pattern_count``, and ``reuse_rate``.
+    """
     m = memory.metrics
     reuse_rate = m.pipeline_reuse / m.runs if m.runs > 0 else 0.0
     return MetricsResponse(
@@ -449,8 +531,25 @@ def delete_pattern(
 ) -> DeletePatternResponse:
     """Permanently delete a stored pattern by its key.
 
-    Admin+ can delete any pattern. Editors can delete only patterns they created
-    (matched by ``_author_key_id`` stored in pattern data).
+    Admin+ can delete any pattern. Editors can only delete patterns they
+    created, matched by the ``_author_key_id`` field stored in pattern data.
+    The deletion is audit-logged with the caller's key_id, tenant_id, and IP.
+
+    Args:
+        pattern_key: Full storage key of the pattern to delete
+            (e.g. ``"patterns/abc12345_1234567890"``).
+        request: FastAPI request object (used for audit logging).
+        memory: Memory instance injected by dependency.
+        auth_ctx: Authentication context injected by dependency.
+
+    Returns:
+        DeletePatternResponse with ``deleted=True`` if the pattern existed,
+        ``deleted=False`` if not found, and the ``pattern_key``.
+
+    Raises:
+        HTTPException 403: If the caller's role lacks delete permission or
+            an editor attempts to delete another user's pattern.
+        HTTPException 422: If the pattern key is invalid.
     """
     # Ownership check for editors with patterns:delete_own
     if auth_ctx is not None:
@@ -501,7 +600,19 @@ def delete_pattern(
     dependencies=[require_permission("aging")],
 )
 def run_aging(request: Request, memory: Memory = Depends(get_memory)):
-    """Apply time-based decay to all patterns. Prune those below threshold."""
+    """Apply time-based decay to all patterns and prune those below threshold.
+
+    Patterns decay at 2 % per week. Patterns whose score drops below 0.1 are
+    removed permanently. Supports ``Prefer: respond-async`` for background
+    execution. Call periodically (e.g. weekly) to keep the pattern store fresh.
+
+    Args:
+        request: FastAPI request object (used for async job dispatch).
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        AgingResponse with the number of patterns ``pruned``.
+    """
     async_resp = _try_async(request, "aging", {})
     if async_resp is not None:
         return async_resp
@@ -521,7 +632,19 @@ def run_aging(request: Request, memory: Memory = Depends(get_memory)):
     dependencies=[require_permission("feedback:decay")],
 )
 def run_feedback_decay(request: Request, memory: Memory = Depends(get_memory)):
-    """Apply time-based decay to feedback patterns. Prune those below threshold."""
+    """Apply time-based decay to feedback patterns and prune those below threshold.
+
+    Feedback decays at 10 % per week. Patterns whose score drops below 0.15
+    are removed permanently. Supports ``Prefer: respond-async`` for background
+    execution.
+
+    Args:
+        request: FastAPI request object (used for async job dispatch).
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        FeedbackDecayResponse with the number of feedback patterns ``pruned``.
+    """
     async_resp = _try_async(request, "feedback_decay", {})
     if async_resp is not None:
         return async_resp
@@ -565,7 +688,15 @@ def get_version() -> dict:
     dependencies=[require_permission("health")],
 )
 def health(memory: Memory = Depends(get_memory)) -> HealthResponse:
-    """Health check — returns storage backend type and pattern count."""
+    """Shallow health check — returns storage backend type and pattern count.
+
+    Args:
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        HealthResponse with ``status="ok"``, the storage backend class name,
+        and the current ``pattern_count``.
+    """
     return HealthResponse(
         status="ok",
         storage=memory.storage_type,
@@ -627,7 +758,25 @@ def health_deep(request: Request, memory: Memory = Depends(get_memory)):
     dependencies=[require_permission("evolve")],
 )
 def evolve_prompt(body: EvolveRequest, request: Request, memory: Memory = Depends(get_memory)):
-    """Generate an improved prompt based on recurring feedback patterns."""
+    """Generate an improved prompt based on recurring feedback patterns.
+
+    Analyzes the top failure patterns from eval feedback and produces a
+    candidate prompt that addresses them. Does not run A/B evaluation.
+    Supports ``Prefer: respond-async`` for background execution.
+
+    Args:
+        body: Request body containing ``role``, ``current_prompt``, and
+            ``num_issues`` to address.
+        request: FastAPI request object (used for async job dispatch).
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        EvolveResponse with ``improved_prompt``, ``changes``,
+        ``issues_addressed``, ``accepted`` flag, and ``reason``.
+
+    Raises:
+        HTTPException 501: If no LLM provider is configured.
+    """
     async_resp = _try_async(request, "evolve", body.model_dump())
     if async_resp is not None:
         return async_resp
@@ -663,7 +812,21 @@ def evolve_prompt(body: EvolveRequest, request: Request, memory: Memory = Depend
     dependencies=[require_permission("analyze_failures")],
 )
 def analyze_failures(body: AnalyzeFailuresRequest, memory: Memory = Depends(get_memory)) -> AnalyzeFailuresResponse:
-    """Cluster failure patterns to identify systemic issues."""
+    """Cluster failure patterns to identify systemic issues.
+
+    Groups recurring eval feedback by similarity to surface the most impactful
+    problem areas in the pattern store.
+
+    Args:
+        body: Request body containing ``min_count`` — the minimum occurrence
+            count for a cluster to be included in the results.
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        AnalyzeFailuresResponse with ``clusters`` sorted by ``total_count``
+        descending, each containing a representative failure, its members,
+        and aggregate statistics.
+    """
     clusters = memory.analyze_failures(min_count=body.min_count)
     out = [
         FailureClusterOut(
@@ -689,7 +852,21 @@ def analyze_failures(body: AnalyzeFailuresRequest, memory: Memory = Depends(get_
     dependencies=[require_permission("skills:register")],
 )
 def register_skills(body: RegisterSkillsRequest, memory: Memory = Depends(get_memory)) -> RegisterSkillsResponse:
-    """Associate skill tags with a stored pattern."""
+    """Associate skill tags with a stored pattern.
+
+    Skill tags (e.g. ``"csv_parsing"``, ``"statistics"``) are stored in the
+    skill registry and used by the ``/skills/search`` endpoint to filter
+    patterns by capability.
+
+    Args:
+        body: Request body containing ``pattern_key`` and a list of
+            ``skills`` to associate with it.
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        RegisterSkillsResponse with the total number of ``registered`` skills
+        now associated with the pattern.
+    """
     memory.register_skills(body.pattern_key, body.skills)
     registered = len(memory._skill_registry.get_skills(body.pattern_key))
     return RegisterSkillsResponse(registered=registered)
@@ -707,7 +884,21 @@ def register_skills(body: RegisterSkillsRequest, memory: Memory = Depends(get_me
     dependencies=[require_permission("skills:search")],
 )
 def skills_search(body: SkillsSearchRequest, memory: Memory = Depends(get_memory)) -> RecallResponse:
-    """Find patterns that have the required skills."""
+    """Find patterns that have the required skills.
+
+    Uses the skill registry (populated via ``/skills/register``) rather than
+    semantic embedding search, so results are exact skill matches with
+    ``similarity=1.0``.
+
+    Args:
+        body: Request body containing ``required`` skill tags and ``match_all``
+            flag (True = pattern must have ALL skills, False = ANY skill).
+        memory: Memory instance injected by dependency.
+
+    Returns:
+        RecallResponse with matching ``matches`` (no pagination; ``has_more``
+        is always ``False``).
+    """
     matches = memory.find_by_skills(required=body.required, match_all=body.match_all)
     out: list[MatchOut] = []
     for m in matches:
