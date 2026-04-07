@@ -10,12 +10,15 @@ On registration, automatically creates:
   - A cloud_user record
 
 JWT tokens:
-  Access token:  1 hour  — claims: sub, tenant_id, email, role, type
+  Access token:  1 hour  — claims: sub, tenant_id, email, role, jti, type
   Refresh token: 30 days — same claims, type='refresh'
   Secret: ENGRAMIA_JWT_SECRET env var (required in production)
 
 Rate limiting: POST /auth/register is capped at 5 requests/minute per IP
 via an in-process fixed-window counter.
+
+Token revocation: /auth/logout blocklists JTIs in an in-memory dict with TTL
+matching the token expiry.  A Redis-backed solution can replace this later.
 """
 
 import collections
@@ -29,7 +32,7 @@ import time
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Body, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 _log = logging.getLogger(__name__)
@@ -87,6 +90,7 @@ def _make_token(
         "email": email,
         "role": role,
         "type": "refresh" if is_refresh else "access",
+        "jti": str(uuid.uuid4()),
         "iat": now,
         "exp": exp,
     }
@@ -102,6 +106,10 @@ def _decode_token(token: str, *, require_refresh: bool = False) -> dict:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.") from None
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.") from None
+
+    jti = payload.get("jti")
+    if jti and _is_jti_blocked(jti):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked.")
 
     token_type = payload.get("type")
     if require_refresh and token_type != "refresh":
@@ -122,6 +130,60 @@ def _bearer_token(request: Request) -> str:
             detail="Missing or malformed Authorization header. Expected: Bearer <token>",
         )
     return auth[len("Bearer ") :]
+
+
+# ---------------------------------------------------------------------------
+# Token revocation blocklist (in-memory, TTL-based)
+# ---------------------------------------------------------------------------
+
+_token_blocklist: dict[str, float] = {}  # jti → expiry epoch
+_token_blocklist_lock = threading.Lock()
+
+
+def _blocklist_token(token: str) -> None:
+    """Add a token's JTI to the in-memory revocation blocklist until it expires.
+
+    Verifies the token signature before blocklisting.  Ignores malformed tokens.
+    """
+    import jwt
+
+    try:
+        payload = jwt.decode(
+            token,
+            _get_jwt_secret(),
+            algorithms=["HS256"],
+            options={"verify_exp": False},  # allow blocklisting tokens that just expired
+        )
+    except jwt.InvalidTokenError:
+        return  # malformed or tampered — nothing to blocklist
+
+    jti = payload.get("jti")
+    exp = payload.get("exp")
+    if not jti or exp is None:
+        _log.debug("_blocklist_token: token missing jti or exp, cannot blocklist")
+        return
+
+    now = time.time()
+    with _token_blocklist_lock:
+        _token_blocklist[jti] = float(exp)
+        # Opportunistic cleanup of entries that have already expired
+        stale = [k for k, v in _token_blocklist.items() if v < now]
+        for k in stale:
+            del _token_blocklist[k]
+
+
+def _is_jti_blocked(jti: str) -> bool:
+    """Return True if the given JTI is present in the revocation blocklist."""
+    with _token_blocklist_lock:
+        exp = _token_blocklist.get(jti)
+    if exp is None:
+        return False
+    if exp < time.time():
+        # Entry expired — clean it up lazily
+        with _token_blocklist_lock:
+            _token_blocklist.pop(jti, None)
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -419,6 +481,13 @@ class MeResponse(BaseModel):
     created_at: str
 
 
+class LogoutRequest(BaseModel):
+    refresh_token: str | None = Field(
+        default=None,
+        description="Optional refresh token to also revoke. Strongly recommended to prevent re-authentication.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -664,8 +733,23 @@ def refresh(request: Request) -> dict:
     return {"access_token": access_token}
 
 
-@router.post("/logout", summary="Logout (client-side token invalidation)")
-def logout() -> dict:
-    # JWTs are stateless — discard tokens on the client side.
-    # For server-side invalidation, back this endpoint with a Redis blocklist.
-    return {"message": "Logged out successfully. Discard your access and refresh tokens."}
+@router.post(
+    "/logout",
+    summary="Logout — revoke the current access token and optionally the refresh token",
+    description=(
+        "Blocklists the Bearer access token by its JTI so it is rejected on future requests. "
+        "Pass `refresh_token` in the request body to also revoke the long-lived refresh token "
+        "(strongly recommended to prevent silent re-authentication). "
+        "Revocation is stored in-process with TTL matching the token expiry; "
+        "a Redis-backed store can be swapped in without changing this interface."
+    ),
+)
+def logout(
+    request: Request,
+    body: LogoutRequest | None = Body(default=None),
+) -> dict:
+    token = _bearer_token(request)
+    _blocklist_token(token)
+    if body and body.refresh_token:
+        _blocklist_token(body.refresh_token)
+    return {"message": "Logged out successfully."}
