@@ -22,10 +22,6 @@ Example::
 from __future__ import annotations
 
 __all__ = [
-    "engramia_hooks",
-    "engramia_instructions",
-    "engramia_query",
-    "engramia_system_prompt",
     "EngramiaBridge",
     "EngramiaCallback",
     "EngramiaCapability",
@@ -34,6 +30,10 @@ __all__ = [
     "EngramiaRunHooks",
     "EngramiaWebhook",
     "EngramiaWebhookError",
+    "engramia_hooks",
+    "engramia_instructions",
+    "engramia_query",
+    "engramia_system_prompt",
     "learn_from_result",
     "recall_system_prompt",
 ]
