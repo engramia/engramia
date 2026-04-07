@@ -38,8 +38,9 @@ engramia_data/
 htmlcov/
 tests/recall_quality/results/
 
-# Benchmark outputs
-benchmarks/results/
+# Benchmark outputs (auto-generated runs — but published reference data is tracked)
+benchmarks/results/*
+!benchmarks/results/longmemeval_*.json
 
 # Dashboard build
 dashboard/node_modules/
