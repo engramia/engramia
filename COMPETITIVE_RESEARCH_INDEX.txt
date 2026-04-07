@@ -1,0 +1,178 @@
+================================================================================
+ENGRAMIA COMPETITIVE ANALYSIS - RESEARCH INDEX
+Date: April 7, 2026
+================================================================================
+
+DELIVERABLES
+================================================================================
+
+1. Engramia_Competitive_Brief_Apr2026.md (674 lines, 32KB)
+   - Comprehensive competitive analysis across 8 competitors + market trends
+   - Detailed feature matrices and differentiation analysis
+   - GTM strategy with sales battle cards
+   - 2026 roadmap recommendations
+   - Full source citations
+
+2. COMPETITIVE_ANALYSIS_SUMMARY.md (192 lines, 7.7KB)
+   - Executive summary for quick reference
+   - Key market metrics and opportunities
+   - Positioning strategy & GTM roadmap
+   - Critical success factors
+   - Feature comparison matrix
+
+RESEARCH COVERAGE
+================================================================================
+
+DIRECT COMPETITORS (Tier 1):
+  - Mem0 (mem0.ai): $24M funded, 48K GitHub stars, AWS partnership
+  - Letta (letta.com): Stateful agents, agent-editable memory
+  - Zep (getzep.com): Temporal knowledge graphs, enterprise compliance
+
+FRAMEWORK VENDORS (Tier 2):
+  - LangChain/LangSmith: Eval framework for orchestration
+  - CrewAI: Multi-agent orchestration with optional memory
+  - LlamaIndex: Data framework with conversation memory
+
+OBSERVABILITY (Tier 3):
+  - Weights & Biases (W&B Weave): LLM tracing & eval
+  - Arize AI: Enterprise LLM observability
+
+FIRST-PARTY SOLUTIONS:
+  - OpenAI Agents SDK: Sessions + context personalization
+
+MARKET & TRENDS:
+  - AI agent memory infrastructure: $7.84B → $52.62B by 2030 (CAGR 46.3%)
+  - Memory moving to metered billing (Google, AWS, Jan-Apr 2026)
+  - LLM evaluation frameworks maturation (DeepEval, Langfuse, Maxim, Confident AI)
+  - Developer-first GTM strategies for AI infrastructure tools
+  - Memory hardware market: $551.6B (2026) → $842.7B (2027)
+
+ENGRAMIA'S UNIQUE ADVANTAGE
+================================================================================
+
+1. Eval-Weighted Memory Ranking (UNIQUE)
+   - Memories ranked by success_score (0-10), not just relevance
+   - Score decays 2%/week (forget failed patterns)
+   - Closes feedback loop: Eval → reweight → better recall
+
+2. Multi-Evaluator Aggregation (RARE)
+   - Concurrent LLM scoring, median aggregation, variance detection
+   - Applied to memory (others use for prompts only)
+
+3. Reuse-Tier Composition (UNIQUE)
+   - DUPLICATE (0.92) vs. ADAPT (0.70) vs. CREATE (<0.70)
+   - Actionable pattern selection, not ranked lists
+
+4. Closed-Loop Learning Cycle (UNIQUE)
+   - Learn → Recall → Compose → Evaluate → Improve
+   - No competitor closes the feedback loop on memory
+
+5. Production-Grade Governance (RARE)
+   - Full RBAC + GDPR Art.17/20 + DSR tracking + PII redaction
+   - Combined with learning (unique)
+
+GTM POSITIONING
+================================================================================
+
+Primary Message: "Agents That Learn from Every Run"
+  - Problem: Agents plateau; don't improve after deployment
+  - Solution: Eval-weighted memory improves recall over time
+  - Proof: 15-25% quality improvement over 10 runs
+
+Secondary Messages:
+  - "Evaluation-Driven Memory for Agent Stacks" (vs. LangGraph/CrewAI)
+  - "Agent Memory with RBAC & Governance" (vs. Zep, for enterprise)
+
+Battle Cards:
+  - vs. Mem0: "Speed vs. Learning"
+  - vs. Letta: "Agent Autonomy vs. Memory Intelligence"
+  - vs. LangSmith: "Memory vs. Prompt Optimization"
+  - vs. OpenAI: "Context Persistence vs. Context Learning"
+
+CRITICAL SUCCESS FACTORS (2026)
+================================================================================
+
+Q2 2026:
+  [ ] Publish eval-weighted recall benchmark
+  [ ] Build LangGraph + CrewAI integration examples
+  [ ] Land 3 pilot customers (proof of 15-25% improvement)
+  [ ] Hire sales engineer
+
+Q3 2026:
+  [ ] Reach 5K GitHub stars
+  [ ] Publish customer case studies
+  [ ] Achieve SOC 2 Type II
+  [ ] Launch MCP server
+  [ ] Partner with eval frameworks (DeepEval, Langfuse)
+
+Q4 2026 & Beyond:
+  [ ] Analyst coverage (Gartner)
+  [ ] Series A fundraising
+  [ ] Expand to graph memory
+
+KEY METRICS TO PUBLISH
+================================================================================
+
+1. Eval-Weighted Recall Benchmark
+   Target: 15-25% quality improvement over 10 runs vs. standard retrieval
+
+2. Multi-Evaluator Variance Detection
+   Target: 85%+ detection rate on disagreement
+
+3. Cost Efficiency: Memory Access
+   Target: 30% cost reduction per correct retrieval
+
+4. Pattern Deprecation (Decay)
+   Target: 98%+ of zero-score patterns gone within 30 days
+
+MARKET TIMING & OPPORTUNITY
+================================================================================
+
+Strong Timing Indicators:
+  1. Memory now metered (Google, AWS, Jan-Apr 2026)
+  2. Evaluation frameworks maturing (standardized discipline)
+  3. Agents moving to production (learning becomes critical)
+  4. 80% of enterprise apps embedding AI copilots by EOY 2026
+  5. 46.3% CAGR in agentic AI market ($52.62B by 2030)
+
+COMPETITIVE VULNERABILITIES TO ADDRESS
+================================================================================
+
+1. Mem0's Community (48K⭐) + AWS Partnership
+   Response: Differentiate on closed-loop learning, not retrieval speed
+   Action: LangChain/CrewAI integrations Mem0+AWS don't cover
+
+2. Letta's Stateful Architecture Maturity
+   Response: Position as "Letta's memory backend" (SDK integration)
+   Action: Build Letta partnership
+
+3. LangSmith's Distribution Lock-in
+   Response: Work with LangGraph as preferred memory backend
+   Action: LangGraph integration + multi-agent stack positioning
+
+4. OpenAI's First-Party Status
+   Response: Pitch to Claude + Open Source model teams
+   Action: Emphasize "not locked to one LLM provider"
+
+5. Zep's Enterprise Compliance
+   Response: Match SOC 2 + HIPAA BAA by Q3 2026
+   Action: Compliance audit + certification push
+
+================================================================================
+RESEARCH SOURCES
+================================================================================
+
+All claims backed by web research from 2025-2026 sources. Full citations in:
+  - Engramia_Competitive_Brief_Apr2026.md (Sources section)
+
+Key Sources:
+  - Mem0 arXiv paper + blog ("State of AI Agent Memory 2026")
+  - Letta documentation + Medium articles
+  - Zep technical papers + pricing documentation
+  - LangChain/LangSmith official docs + blog
+  - Market reports: Coherent Market Insights, TrendForce, Markets & Markets
+  - Analyst reports: Gartner, Forrester
+
+================================================================================
+END OF INDEX
+================================================================================
