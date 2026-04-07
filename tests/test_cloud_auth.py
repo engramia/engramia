@@ -81,7 +81,7 @@ def test_register_success(mock_log_db, mock_log, mock_tok, mock_hash, mock_creat
 
     resp = client.post(
         "/auth/register",
-        json={"email": "test@example.com", "password": "securepass1"},
+        json={"email": "test@example.com", "password": "securepass123"},
     )
 
     assert resp.status_code == 201
@@ -91,7 +91,7 @@ def test_register_success(mock_log_db, mock_log, mock_tok, mock_hash, mock_creat
     assert data["api_key"].startswith("engramia-")
     assert "access_token" in data
     assert "refresh_token" in data
-    mock_hash.assert_called_once_with("securepass1")
+    mock_hash.assert_called_once_with("securepass123")
     mock_create.assert_called_once()
 
 
@@ -107,7 +107,7 @@ def test_register_duplicate_email(mock_rate, client, mock_engine):
 
     resp = client.post(
         "/auth/register",
-        json={"email": "dupe@example.com", "password": "securepass1"},
+        json={"email": "dupe@example.com", "password": "securepass123"},
     )
 
     assert resp.status_code == 409
@@ -123,7 +123,7 @@ def test_register_duplicate_email(mock_rate, client, mock_engine):
 def test_register_invalid_email(mock_rate, client, mock_engine):
     resp = client.post(
         "/auth/register",
-        json={"email": "not-an-email", "password": "securepass1"},
+        json={"email": "not-an-email", "password": "securepass123"},
     )
 
     assert resp.status_code == 422
@@ -146,7 +146,7 @@ def test_login_success(mock_tok, mock_verify, client, mock_engine):
 
     resp = client.post(
         "/auth/login",
-        json={"email": "test@example.com", "password": "securepass1"},
+        json={"email": "test@example.com", "password": "securepass123"},
     )
 
     assert resp.status_code == 200
@@ -155,7 +155,7 @@ def test_login_success(mock_tok, mock_verify, client, mock_engine):
     assert data["tenant_id"] == "testuser"
     assert "access_token" in data
     assert "refresh_token" in data
-    mock_verify.assert_called_once_with("securepass1", "$2b$fake_hash")
+    mock_verify.assert_called_once_with("securepass123", "$2b$fake_hash")
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ def test_login_unknown_email(mock_log, client, mock_engine):
 
     resp = client.post(
         "/auth/login",
-        json={"email": "ghost@example.com", "password": "securepass1"},
+        json={"email": "ghost@example.com", "password": "securepass123"},
     )
 
     assert resp.status_code == 401
@@ -274,7 +274,7 @@ def test_register_rate_limit_called(mock_rate, client, mock_engine):
     """Rate limit check is invoked before any DB access."""
     client.post(
         "/auth/register",
-        json={"email": "ratelimited@example.com", "password": "securepass1"},
+        json={"email": "ratelimited@example.com", "password": "securepass123"},
     )
     # The mock raises a generic Exception which becomes a 500 in test mode,
     # but the important assertion is that _check_register_rate was called.

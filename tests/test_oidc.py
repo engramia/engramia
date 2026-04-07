@@ -242,12 +242,14 @@ class TestOidcAuth:
         claims = {
             "sub": "user-123",
             "engramia_role": "admin",
+            "engramia_tenant": "default",
             "aud": "engramia-api",
             "iss": "https://idp.example.com",
         }
 
         with (
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
         ):
             oidc_module.oidc_auth(request, "valid-token")
@@ -262,10 +264,11 @@ class TestOidcAuth:
         """Unrecognised role claim falls back to 'reader'."""
         request = _mock_request()
 
-        claims = {"sub": "user-456", "engramia_role": "superadmin"}
+        claims = {"sub": "user-456", "engramia_role": "superadmin", "engramia_tenant": "default"}
 
         with (
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
         ):
             oidc_module.oidc_auth(request, "token")
@@ -276,10 +279,11 @@ class TestOidcAuth:
         """Token without role claim uses DEFAULT_ROLE."""
         request = _mock_request()
 
-        claims = {"sub": "user-789"}
+        claims = {"sub": "user-789", "engramia_tenant": "default"}
 
         with (
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "_DEFAULT_ROLE", "editor"),
         ):
@@ -302,8 +306,8 @@ class TestOidcAuth:
 
         assert request.state.auth_context.tenant_id == "acme-corp"
 
-    def test_missing_tenant_claim_falls_back_to_default(self):
-        """When the tenant claim is configured but absent in token, fallback to 'default'."""
+    def test_missing_tenant_claim_raises_401(self):
+        """When the tenant claim is configured but absent in token, raises 401."""
         request = _mock_request()
 
         claims = {"sub": "user"}  # no org_id
@@ -312,19 +316,22 @@ class TestOidcAuth:
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "_TENANT_CLAIM", "org_id"),
+            pytest.raises(HTTPException) as exc_info,
         ):
             oidc_module.oidc_auth(request, "token")
 
-        assert request.state.auth_context.tenant_id == "default"
+        assert exc_info.value.status_code == 401
+        assert "org_id" in exc_info.value.detail
 
     def test_custom_project_claim(self):
         """Project ID is read from the custom claim when configured."""
         request = _mock_request()
 
-        claims = {"sub": "user", "project": "alpha"}
+        claims = {"sub": "user", "project": "alpha", "engramia_tenant": "default"}
 
         with (
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "_PROJECT_CLAIM", "project"),
         ):
@@ -336,10 +343,11 @@ class TestOidcAuth:
         """When the project claim is configured but absent, fallback to 'default'."""
         request = _mock_request()
 
-        claims = {"sub": "user"}
+        claims = {"sub": "user", "engramia_tenant": "default"}
 
         with (
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "_PROJECT_CLAIM", "project_id"),
         ):
@@ -347,8 +355,8 @@ class TestOidcAuth:
 
         assert request.state.auth_context.project_id == "default"
 
-    def test_no_tenant_claim_configured_uses_default(self):
-        """When TENANT_CLAIM is empty, tenant_id is always 'default'."""
+    def test_no_tenant_claim_configured_raises_503(self):
+        """When TENANT_CLAIM is empty but ISSUER is set, raises 503."""
         request = _mock_request()
 
         claims = {"sub": "user", "org_id": "should-be-ignored"}
@@ -357,19 +365,22 @@ class TestOidcAuth:
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "_TENANT_CLAIM", ""),
+            pytest.raises(HTTPException) as exc_info,
         ):
             oidc_module.oidc_auth(request, "token")
 
-        assert request.state.auth_context.tenant_id == "default"
+        assert exc_info.value.status_code == 503
+        assert "ENGRAMIA_OIDC_TENANT_CLAIM" in exc_info.value.detail
 
     def test_scope_contextvar_set(self):
         """oidc_auth must set the scope contextvar."""
         request = _mock_request()
 
-        claims = {"sub": "user"}
+        claims = {"sub": "user", "engramia_tenant": "default"}
 
         with (
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope") as mock_set_scope,
         ):
@@ -384,10 +395,11 @@ class TestOidcAuth:
         """When 'sub' claim is absent, key_id falls back to 'oidc-unknown'."""
         request = _mock_request()
 
-        claims = {}  # no sub
+        claims = {"engramia_tenant": "default"}  # no sub
 
         with (
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
         ):
             oidc_module.oidc_auth(request, "token")
@@ -398,10 +410,11 @@ class TestOidcAuth:
         """All four valid roles are accepted without fallback."""
         for role in ("owner", "admin", "editor", "reader"):
             request = _mock_request()
-            claims = {"sub": "user", "engramia_role": role}
+            claims = {"sub": "user", "engramia_role": role, "engramia_tenant": "default"}
 
             with (
                 patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+                patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
                 patch.object(oidc_module, "_decode_jwt", return_value=claims),
             ):
                 oidc_module.oidc_auth(request, "token")
@@ -411,10 +424,11 @@ class TestOidcAuth:
     def test_role_case_insensitive(self):
         """Role claim is case-insensitive."""
         request = _mock_request()
-        claims = {"sub": "user", "engramia_role": "ADMIN"}
+        claims = {"sub": "user", "engramia_role": "ADMIN", "engramia_tenant": "default"}
 
         with (
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
         ):
             oidc_module.oidc_auth(request, "token")

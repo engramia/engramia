@@ -62,11 +62,13 @@ class TestOidcAuthUnit:
     def test_valid_claims_sets_auth_context(self):
         """Valid JWT → AuthContext with correct role, tenant, project on request.state."""
         req = _mock_request()
-        claims = _claims()
+        claims = _claims(engramia_tenant="default")
 
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
+                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"}),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope") as mock_set_scope,
         ):
@@ -109,11 +111,13 @@ class TestOidcAuthUnit:
     def test_unknown_role_falls_back_to_reader(self):
         """JWT role claim value not in VALID_ROLES → falls back to 'reader'."""
         req = _mock_request()
-        claims = _claims(engramia_role="superuser")
+        claims = _claims(engramia_role="superuser", engramia_tenant="default")
 
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
+                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"}),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),
         ):
@@ -126,10 +130,13 @@ class TestOidcAuthUnit:
         req = _mock_request()
         # claims without the role claim key at all
         claims = {k: v for k, v in _claims().items() if k != "engramia_role"}
+        claims["engramia_tenant"] = "default"
 
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
+                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"}),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),
         ):
@@ -141,6 +148,7 @@ class TestOidcAuthUnit:
         """ENGRAMIA_OIDC_DEFAULT_ROLE is honoured when role claim is absent."""
         req = _mock_request()
         claims = {k: v for k, v in _claims().items() if k != "engramia_role"}
+        claims["engramia_tenant"] = "default"
 
         with (
             patch.dict(
@@ -148,9 +156,11 @@ class TestOidcAuthUnit:
                 {
                     "ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
                     "ENGRAMIA_OIDC_DEFAULT_ROLE": "admin",
+                    "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant",
                 },
             ),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_DEFAULT_ROLE", "admin"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),
@@ -177,8 +187,10 @@ class TestOidcAuthUnit:
         req = _mock_request()
 
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
+                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"}),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", side_effect=HTTPException(status_code=401, detail="Token expired.")),
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -291,6 +303,7 @@ def test_valid_signed_jwt_accepted(rsa_key_pair):
     claims = {
         "sub": "user-xyz",
         "engramia_role": "admin",
+        "engramia_tenant": "default",
         "iss": issuer,
         "aud": audience,
         "exp": int(time.time()) + 3600,
@@ -308,6 +321,7 @@ def test_valid_signed_jwt_accepted(rsa_key_pair):
         ),
         patch.object(oidc_module, "_ISSUER", issuer),
         patch.object(oidc_module, "_AUDIENCE", audience),
+        patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
         patch.object(oidc_module, "_jwks_cache", {kid: jwk}),
         patch.object(oidc_module, "_jwks_fetched_at", float("inf")),  # cache is fresh
         patch.object(oidc_module, "set_scope"),
@@ -349,6 +363,7 @@ def test_expired_jwt_raises_401(rsa_key_pair):
         ),
         patch.object(oidc_module, "_ISSUER", issuer),
         patch.object(oidc_module, "_AUDIENCE", audience),
+        patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
         patch.object(oidc_module, "_jwks_cache", {kid: jwk}),
         patch.object(oidc_module, "_jwks_fetched_at", float("inf")),
         patch.object(oidc_module, "set_scope"),
@@ -387,6 +402,7 @@ def test_unknown_kid_raises_401(rsa_key_pair):
         ),
         patch.object(oidc_module, "_ISSUER", issuer),
         patch.object(oidc_module, "_AUDIENCE", audience),
+        patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
         patch.object(oidc_module, "_jwks_cache", {}),  # empty cache
         patch.object(oidc_module, "_jwks_fetched_at", float("inf")),
         patch.object(oidc_module, "set_scope"),
@@ -517,24 +533,30 @@ class TestOidcAuthTenantProjectClaims:
     """Test oidc_auth() with tenant/project claims present but missing from token."""
 
     def test_missing_tenant_claim_falls_back_to_default(self):
+        """When tenant claim is configured but missing from token, raises 401."""
         req = _mock_request()
-        claims = _claims()
+        claims = _claims()  # no 'org' claim
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
+                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "org"}),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_TENANT_CLAIM", "org"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),
+            pytest.raises(HTTPException) as exc_info,
         ):
             oidc_auth(req, "token")
-        assert req.state.auth_context.tenant_id == "default"
+        assert exc_info.value.status_code == 401
+        assert "org" in exc_info.value.detail
 
     def test_missing_project_claim_falls_back_to_default(self):
         req = _mock_request()
-        claims = _claims()
+        claims = _claims(org="acme")  # has tenant claim, no project claim
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
+                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "org"}),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "org"),
             patch.object(oidc_module, "_PROJECT_CLAIM", "proj"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),
@@ -557,10 +579,12 @@ class TestOidcAuthTenantProjectClaims:
 
     def test_project_claim_set_when_present(self):
         req = _mock_request()
-        claims = _claims(proj="backend")
+        claims = _claims(proj="backend", org="acme")  # has both tenant and project claims
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com"}),
+            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
+                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "org"}),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
+            patch.object(oidc_module, "_TENANT_CLAIM", "org"),
             patch.object(oidc_module, "_PROJECT_CLAIM", "proj"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
             patch.object(oidc_module, "set_scope"),

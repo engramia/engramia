@@ -52,7 +52,7 @@ def reset_scope_after():
 class TestROICollectorRecordLearn:
     def test_appends_learn_event(self, collector):
         collector.record_learn(pattern_key="patterns/abc", eval_score=7.5)
-        events = collector.load_events()
+        events = collector.load_events(tenant_id="*")
         assert len(events) == 1
         e = events[0]
         assert e.kind == EventKind.LEARN
@@ -64,7 +64,7 @@ class TestROICollectorRecordLearn:
         c = ROICollector(storage)
         token = set_scope(Scope(tenant_id="acme", project_id="proj1"))
         c.record_learn(pattern_key="patterns/x", eval_score=9.0)
-        events = c.load_events()  # load before resetting scope
+        events = c.load_events(tenant_id="acme")  # load before resetting scope
         reset_scope(token)
         assert len(events) == 1
         assert events[0].scope_tenant == "acme"
@@ -74,13 +74,13 @@ class TestROICollectorRecordLearn:
         fixed_ts = 1_700_000_000.0
         monkeypatch.setattr(time, "time", lambda: fixed_ts)
         collector.record_learn(pattern_key="patterns/ts", eval_score=5.0)
-        events = collector.load_events()
+        events = collector.load_events(tenant_id="*")
         assert events[0].ts == fixed_ts
 
     def test_multiple_learn_events(self, collector):
         for i in range(5):
             collector.record_learn(pattern_key=f"patterns/p{i}", eval_score=float(i))
-        events = collector.load_events()
+        events = collector.load_events(tenant_id="*")
         assert len(events) == 5
 
 
@@ -92,7 +92,7 @@ class TestROICollectorRecordLearn:
 class TestROICollectorRecordRecall:
     def test_appends_recall_event(self, collector):
         collector.record_recall(best_similarity=0.9, best_reuse_tier="duplicate", best_pattern_key="patterns/abc")
-        events = collector.load_events()
+        events = collector.load_events(tenant_id="*")
         assert len(events) == 1
         e = events[0]
         assert e.kind == EventKind.RECALL
@@ -102,7 +102,7 @@ class TestROICollectorRecordRecall:
 
     def test_recall_with_no_match(self, collector):
         collector.record_recall(best_similarity=None, best_reuse_tier=None, best_pattern_key="")
-        events = collector.load_events()
+        events = collector.load_events(tenant_id="*")
         assert len(events) == 1
         e = events[0]
         assert e.similarity is None
@@ -113,7 +113,7 @@ class TestROICollectorRecordRecall:
         c = ROICollector(storage)
         token = set_scope(Scope(tenant_id="tenant_b", project_id="proj_b"))
         c.record_recall(best_similarity=0.7, best_reuse_tier="adapt", best_pattern_key="patterns/q")
-        events = c.load_events()  # load before resetting scope
+        events = c.load_events(tenant_id="tenant_b")  # load before resetting scope
         reset_scope(token)
         assert len(events) == 1
         assert events[0].scope_tenant == "tenant_b"
@@ -163,7 +163,7 @@ class TestROICollectorRollingWindow:
         c = ROICollector(storage)
         for i in range(4):
             c.record_learn(pattern_key=f"patterns/p{i}", eval_score=float(i))
-        events = c.load_events()
+        events = c.load_events(tenant_id="*")
         assert len(events) == 3
         # Oldest (eval_score=0.0) should be dropped
         scores = [e.eval_score for e in events]
@@ -223,18 +223,18 @@ class TestROICollectorFiltering:
         storage.save(_EVENTS_KEY, [old_event.model_dump()])
         c.record_learn(pattern_key="patterns/new", eval_score=9.0)
 
-        recent = c.load_events(since_ts=time.time() - 60)
+        recent = c.load_events(since_ts=time.time() - 60, tenant_id="*")
         assert all(e.ts >= time.time() - 60 for e in recent)
         assert all(e.pattern_key != "patterns/old" for e in recent)
 
     def test_load_events_empty_returns_empty_list(self, collector):
-        assert collector.load_events() == []
+        assert collector.load_events(tenant_id="*") == []
 
     def test_malformed_events_in_storage_are_skipped(self, storage):
         storage.save(_EVENTS_KEY, [{"bad": "data"}, {"no_kind": True, "ts": "not-a-number"}])
         c = ROICollector(storage)
         # Should not raise; both records are missing required fields and must be silently dropped
-        events = c.load_events()
+        events = c.load_events(tenant_id="*")
         assert events == []
 
 

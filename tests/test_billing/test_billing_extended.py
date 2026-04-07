@@ -29,6 +29,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import sqlalchemy.exc
+
 from engramia.billing.models import (
     METRIC_EVAL_RUNS,
     BillingSubscription,
@@ -133,7 +135,7 @@ class TestIsEventProcessed:
     def test_db_error_returns_false_to_allow_processing(self):
         """On DB error, return False — better to process twice than drop a billing event."""
         engine = MagicMock()
-        engine.connect.side_effect = RuntimeError("DB unavailable")
+        engine.connect.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB unavailable"))
         svc = _billing_service(engine=engine)
         assert svc._is_event_processed("evt_err") is False
 
@@ -170,7 +172,7 @@ class TestMarkEventProcessed:
     def test_db_error_does_not_raise(self):
         """A DB failure must be swallowed (logged), not propagated."""
         engine = MagicMock()
-        engine.begin.side_effect = RuntimeError("DB down")
+        engine.begin.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
         svc = _billing_service(engine=engine)
         svc._mark_event_processed("evt_err", "invoice.paid")  # must not raise
 
@@ -363,7 +365,7 @@ class TestReportOverageHappyPath:
     def test_stripe_error_is_swallowed_not_raised(self):
         """An exception from stripe.create_invoice_item must be logged and swallowed."""
         svc, stripe, patches = self._svc_with_patches(excess_units=1000)
-        stripe.create_invoice_item.side_effect = RuntimeError("Stripe 500")
+        stripe.create_invoice_item.side_effect = ConnectionError("Stripe 500")
         with patches[0], patches[1], patches[2], patches[3]:
             svc._report_overage_for_customer("cus_abc")  # must not raise
 

@@ -34,6 +34,7 @@ class TestParseIso:
         ts = _parse_iso("2024-01-15T12:00:00")
         assert ts > 0
 
-    def test_malformed_returns_zero(self):
+    def test_malformed_returns_current_time(self):
+        import time
         ts = _parse_iso("not-a-date")
-        assert ts == 0.0
+        assert abs(ts - time.time()) < 5

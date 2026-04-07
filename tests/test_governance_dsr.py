@@ -52,7 +52,7 @@ class TestCreate:
         tracker = _tracker()
         req = tracker.create("t1", "access", "a@b.com")
         created = datetime.datetime.fromisoformat(req.created_at)
-        deadline = datetime.datetime.fromisoformat(req.deadline)
+        deadline = datetime.datetime.fromisoformat(req.due_at)
         delta = deadline - created
         assert 29 <= delta.days <= 31  # SLA_DAYS ± rounding
 
@@ -63,8 +63,8 @@ class TestCreate:
 
     def test_notes_stored(self):
         tracker = _tracker()
-        req = tracker.create("t1", "erasure", "a@b.com", notes="Received by email")
-        assert req.notes == "Received by email"
+        req = tracker.create("t1", "erasure", "a@b.com", handler_notes="Received by email")
+        assert req.handler_notes == "Received by email"
 
     def test_all_request_types_accepted(self):
         tracker = _tracker()
@@ -99,10 +99,10 @@ class TestUpdateStatus:
 
     def test_notes_appended(self):
         tracker = _tracker()
-        req = tracker.create("t1", "erasure", "a@b.com", notes="Initial note")
-        updated = tracker.update_status(req.id, "in_progress", notes="Operator review started")
-        assert "Initial note" in updated.notes
-        assert "Operator review started" in updated.notes
+        req = tracker.create("t1", "erasure", "a@b.com", handler_notes="Initial note")
+        updated = tracker.update_status(req.id, "in_progress", handler_notes="Operator review started")
+        assert "Initial note" in updated.handler_notes
+        assert "Operator review started" in updated.handler_notes
 
     def test_returns_none_for_unknown_id(self):
         tracker = _tracker()
@@ -188,7 +188,7 @@ class TestOverdue:
         req = tracker.create("t1", "access", "a@b.com")
         # Manually set deadline in the past
         past = (datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=1)).isoformat()
-        req.deadline = past
+        req.due_at = past
         assert req.overdue is True
 
     def test_completed_request_never_overdue(self):
@@ -196,7 +196,7 @@ class TestOverdue:
         req = tracker.create("t1", "access", "a@b.com")
         req.status = "completed"
         past = (datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=1)).isoformat()
-        req.deadline = past
+        req.due_at = past
         assert req.overdue is False
 
     def test_rejected_request_never_overdue(self):
@@ -204,7 +204,7 @@ class TestOverdue:
         req = tracker.create("t1", "erasure", "a@b.com")
         req.status = "rejected"
         past = (datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=1)).isoformat()
-        req.deadline = past
+        req.due_at = past
         assert req.overdue is False
 
     def test_overdue_only_filter(self):
@@ -213,13 +213,36 @@ class TestOverdue:
         req2 = tracker.create("t1", "erasure", "b@b.com")
         # Make req1 overdue
         import engramia.governance.dsr as dsr_module
-        dsr_module._mem_store[req1.id].deadline = (
+        dsr_module._mem_store[req1.id].due_at = (
             datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=1)
         ).isoformat()
 
         result = tracker.list_requests("t1", overdue_only=True)
         assert len(result) == 1
         assert result[0].id == req1.id
+
+    def test_invalid_due_at_overdue_returns_false(self):
+        tracker = _tracker()
+        req = tracker.create("t1", "access", "a@b.com")
+        req.due_at = "not-a-date"
+        assert req.overdue is False
+
+    def test_invalid_due_at_days_until_due_returns_none(self):
+        tracker = _tracker()
+        req = tracker.create("t1", "access", "a@b.com")
+        req.due_at = "not-a-date"
+        assert req.days_until_due is None
+
+    def test_approaching_deadline_list_requests(self):
+        """Requests within 7 days of due_at are still returned by list_requests."""
+        tracker = _tracker()
+        req = tracker.create("t1", "access", "a@b.com")
+        # Set due_at to 3 days in the future (within DEADLINE_WARN_DAYS=7)
+        soon = (datetime.datetime.now(tz=datetime.UTC) + datetime.timedelta(days=3)).isoformat()
+        import engramia.governance.dsr as dsr_module
+        dsr_module._mem_store[req.id].due_at = soon
+        result = tracker.list_requests("t1")
+        assert len(result) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +273,7 @@ class TestPendingCount:
         tracker = _tracker()
         req = tracker.create("t1", "access", "a@b.com")
         import engramia.governance.dsr as dsr_module
-        dsr_module._mem_store[req.id].deadline = (
+        dsr_module._mem_store[req.id].due_at = (
             datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=1)
         ).isoformat()
         counts = tracker.pending_count("t1")

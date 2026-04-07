@@ -362,9 +362,9 @@ class TestApiVersioning:
 class TestPatternKeyGeneration:
     def test_pattern_key_uses_sha256(self):
         """Brain._pattern_key() must use SHA-256, not hashlib.md5()."""
-        from engramia import memory as memory_module
+        import engramia._util as util_module
 
-        source = inspect.getsource(memory_module)
+        source = inspect.getsource(util_module)
         assert "sha256" in source
         # No hashlib.md5 call (comments mentioning MD5 are fine)
         assert "hashlib.md5" not in source

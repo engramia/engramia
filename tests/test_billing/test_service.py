@@ -11,6 +11,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+import sqlalchemy.exc
 
 from engramia.billing.models import (
     METRIC_EVAL_RUNS,
@@ -103,7 +104,7 @@ class TestGetSubscription:
 
     def test_db_error_returns_sandbox_default(self):
         engine = MagicMock()
-        engine.connect.side_effect = RuntimeError("DB down")
+        engine.connect.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
         svc = _billing_service(engine=engine)
         sub = svc.get_subscription("t1")
         assert sub.plan_tier == "sandbox"
@@ -143,7 +144,7 @@ class TestGetOverageSettings:
 
     def test_db_error_returns_none(self):
         engine = MagicMock()
-        engine.connect.side_effect = RuntimeError("DB down")
+        engine.connect.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
         svc = _billing_service(engine=engine)
         result = svc.get_overage_settings("t1", METRIC_EVAL_RUNS)
         assert result is None
@@ -418,7 +419,7 @@ class TestInternalHelpers:
 
     def test_count_projects_db_error_returns_zero(self):
         engine = MagicMock()
-        engine.connect.side_effect = RuntimeError("DB down")
+        engine.connect.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
         svc = _billing_service(engine=engine)
         assert svc._count_projects("t1") == 0
 
@@ -528,7 +529,7 @@ class TestCreateStripeCustomer:
         stripe = MagicMock()
         stripe.create_customer.return_value = "cus_ok"
         engine = MagicMock()
-        engine.begin.side_effect = RuntimeError("DB down")
+        engine.begin.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
         svc = _billing_service(engine=engine, stripe_client=stripe)
         result = svc.create_stripe_customer("t1")
         # Should still return the customer ID even if DB write failed

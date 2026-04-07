@@ -1313,3 +1313,108 @@ class TestDataExporterMockEngine:
             reset_scope(token)
 
 
+# ---------------------------------------------------------------------------
+# AuditScrubber — _scrub_value and scrub()
+# ---------------------------------------------------------------------------
+
+
+class TestScrubValue:
+    def test_dict_pii_key_replaced(self):
+        from engramia.governance.audit_scrubber import _scrub_value
+        result = _scrub_value({"email": "user@example.com", "action": "login"})
+        assert result["email"] == "[REDACTED]"
+        assert result["action"] == "login"
+
+    def test_nested_dict_scrubbed(self):
+        from engramia.governance.audit_scrubber import _scrub_value
+        result = _scrub_value({"outer": {"email": "x@y.com", "safe": "ok"}})
+        assert result["outer"]["email"] == "[REDACTED]"
+        assert result["outer"]["safe"] == "ok"
+
+    def test_list_elements_scrubbed(self):
+        from engramia.governance.audit_scrubber import _scrub_value
+        result = _scrub_value(["user@example.com", "no email here", 42])
+        assert result[0] == "[REDACTED]"
+        assert result[1] == "no email here"
+        assert result[2] == 42
+
+    def test_string_email_replaced(self):
+        from engramia.governance.audit_scrubber import _scrub_value
+        result = _scrub_value("Contact user@example.com for details")
+        assert "[REDACTED]" in result
+        assert "user@example.com" not in result
+
+    def test_string_ip_replaced(self):
+        from engramia.governance.audit_scrubber import _scrub_value
+        result = _scrub_value("Request from 192.168.1.1 was logged")
+        assert "[REDACTED]" in result
+        assert "192.168.1.1" not in result
+
+    def test_non_string_scalar_unchanged(self):
+        from engramia.governance.audit_scrubber import _scrub_value
+        assert _scrub_value(42) == 42
+        assert _scrub_value(3.14) == 3.14
+        assert _scrub_value(None) is None
+        assert _scrub_value(True) is True
+
+
+class TestAuditScrubber:
+    def _make_engine(self, rows):
+        from unittest.mock import MagicMock
+        engine = MagicMock()
+        result = MagicMock()
+        result.fetchall.return_value = rows
+        conn = MagicMock()
+        conn.execute.return_value = result
+        engine.connect.return_value.__enter__ = MagicMock(return_value=conn)
+        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+        engine.begin.return_value.__enter__ = MagicMock(return_value=conn)
+        engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+        return engine, conn
+
+    def test_no_rows_returns_zero(self):
+        from engramia.governance.audit_scrubber import AuditScrubber
+        engine, _ = self._make_engine([])
+        scrubber = AuditScrubber(engine=engine)
+        result = scrubber.scrub(older_than_days=90)
+        assert result.rows_scrubbed == 0
+        assert result.dry_run is False
+        assert result.older_than_days == 90
+
+    def test_row_with_pii_is_scrubbed(self):
+        from engramia.governance.audit_scrubber import AuditScrubber
+        row = (1, "192.168.1.1", {"email": "user@example.com", "action": "login"})
+        engine, conn = self._make_engine([row])
+        scrubber = AuditScrubber(engine=engine)
+        result = scrubber.scrub(older_than_days=90)
+        assert result.rows_scrubbed == 1
+        conn.execute.assert_called()
+
+    def test_dry_run_counts_but_no_update(self):
+        from engramia.governance.audit_scrubber import AuditScrubber
+        row = (2, "10.0.0.1", {"email": "a@b.com"})
+        engine, conn = self._make_engine([row])
+        scrubber = AuditScrubber(engine=engine)
+        result = scrubber.scrub(older_than_days=30, dry_run=True)
+        assert result.rows_scrubbed == 1
+        assert result.dry_run is True
+        # In dry_run mode, _apply_update should NOT be called
+        assert engine.begin.call_count == 0
+
+    def test_already_redacted_row_skipped(self):
+        from engramia.governance.audit_scrubber import AuditScrubber
+        row = (3, "[REDACTED]", {"email": "[REDACTED]", "action": "login"})
+        engine, conn = self._make_engine([row])
+        scrubber = AuditScrubber(engine=engine)
+        result = scrubber.scrub(older_than_days=90)
+        assert result.rows_scrubbed == 0
+
+    def test_row_with_none_detail_and_ip_scrubbed(self):
+        from engramia.governance.audit_scrubber import AuditScrubber
+        row = (4, "10.0.0.1", None)
+        engine, conn = self._make_engine([row])
+        scrubber = AuditScrubber(engine=engine)
+        result = scrubber.scrub(older_than_days=90)
+        assert result.rows_scrubbed == 1
+
+

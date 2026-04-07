@@ -50,15 +50,18 @@ class TestErrorSanitization:
         )
         assert resp.status_code == 422
         data = resp.json()
-        assert "detail" in data
+        # Production error format uses error_code / error_message keys
+        assert "error_code" in data
+        assert data["error_code"] == "VALIDATION_ERROR"
+        assert "error_message" in data
         # Production returns a generic string, not the raw exception message
-        assert data["detail"] in (
+        assert data["error_message"] in (
             "Validation error in request.",
             "Invalid request parameters.",
         )
         # Must NOT leak internal exception details
-        assert "non-empty" not in data["detail"]
-        assert "task" not in data["detail"]
+        assert "non-empty" not in data["error_message"]
+        assert "task" not in data["error_message"]
 
     def test_invalid_eval_score_returns_422(self, app_client):
         """Pydantic validation (ge=0, le=10) must produce a 422."""
@@ -83,7 +86,11 @@ class TestMaintenanceMode:
         )
         assert resp.status_code == 503
         data = resp.json()
-        assert "maintenance" in data["detail"].lower()
+        # Production error format uses error_code / error_message keys
+        assert "error_code" in data
+        assert data["error_code"] == "SERVICE_UNAVAILABLE"
+        assert "error_message" in data
+        assert "maintenance" in data["error_message"].lower()
         assert "Retry-After" in resp.headers
 
     def test_maintenance_allows_health(self, app_client, monkeypatch):

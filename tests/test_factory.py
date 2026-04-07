@@ -103,6 +103,21 @@ class TestMakeEmbeddings:
 
         mock_module.OpenAIEmbeddings.assert_called_once_with(model="text-embedding-ada-002")
 
+    def test_none_model_returns_none(self, monkeypatch):
+        """ENGRAMIA_EMBEDDING_MODEL=none → returns None (semantic search disabled)."""
+        monkeypatch.setenv("ENGRAMIA_EMBEDDING_MODEL", "none")
+        from engramia._factory import make_embeddings
+        result = make_embeddings()
+        assert result is None
+
+    def test_import_error_returns_none(self, monkeypatch):
+        """When openai package is missing, make_embeddings returns None."""
+        monkeypatch.delenv("ENGRAMIA_EMBEDDING_MODEL", raising=False)
+        with patch.dict(sys.modules, {"engramia.providers.openai": None}):
+            from engramia._factory import make_embeddings
+            result = make_embeddings()
+        assert result is None
+
 
 # ---------------------------------------------------------------------------
 # make_llm
@@ -144,6 +159,32 @@ class TestMakeLLM:
     def test_unknown_provider_returns_none(self, monkeypatch):
         """Unrecognised ENGRAMIA_LLM_PROVIDER → None (with a warning logged)."""
         monkeypatch.setenv("ENGRAMIA_LLM_PROVIDER", "some-unknown-provider")
+
+        from engramia._factory import make_llm
+
+        result = make_llm()
+        assert result is None
+
+    def test_anthropic_provider(self, monkeypatch):
+        """ENGRAMIA_LLM_PROVIDER=anthropic → AnthropicProvider instantiated."""
+        monkeypatch.setenv("ENGRAMIA_LLM_PROVIDER", "anthropic")
+        monkeypatch.setenv("ENGRAMIA_LLM_MODEL", "claude-3-haiku-20240307")
+
+        mock_module = MagicMock()
+        mock_instance = MagicMock()
+        mock_module.AnthropicProvider.return_value = mock_instance
+
+        with patch.dict(sys.modules, {"engramia.providers.anthropic": mock_module}):
+            from engramia._factory import make_llm
+
+            result = make_llm()
+
+        mock_module.AnthropicProvider.assert_called_once_with(model="claude-3-haiku-20240307", timeout=30.0)
+        assert result is mock_instance
+
+    def test_none_provider_returns_none(self, monkeypatch):
+        """ENGRAMIA_LLM_PROVIDER=none → returns None without warning."""
+        monkeypatch.setenv("ENGRAMIA_LLM_PROVIDER", "none")
 
         from engramia._factory import make_llm
 
