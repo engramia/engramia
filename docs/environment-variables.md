@@ -39,6 +39,7 @@ Complete reference for all Engramia environment variables, grouped by category.
 | `ENGRAMIA_ENVIRONMENT` | — | Deployment environment label (`local`, `development`, `staging`, `production`). Used to block `ENGRAMIA_AUTH_MODE=dev` in non-local environments. |
 | `ENGRAMIA_ENV_AUTH_ROLE` | `owner` | Role assigned to requests authenticated via `env` auth mode (`ENGRAMIA_API_KEYS`). Valid values: `owner` \| `admin` \| `editor` \| `reader`. Defaults to `owner` for backward compatibility with single-key deployments. Set to `reader` or `editor` to limit the scope of static keys in production. |
 | `ENGRAMIA_BOOTSTRAP_TOKEN` | — | Secret token required to call `POST /v1/keys/bootstrap` (the first-ever owner key creation). Must be set before deploying to production. Without it the bootstrap endpoint is disabled. Minimum 32 characters recommended. |
+| `ENGRAMIA_JWT_SECRET` | *(auto-generated)* | HS256 signing secret for cloud-auth JWTs (access tokens: 1 h, refresh tokens: 30 d). **Required in production.** If absent, an ephemeral random secret is generated at startup — all issued tokens are invalidated on every restart. Generate with `python -c "import secrets; print(secrets.token_hex(32))"`. Minimum 32 hex characters recommended. |
 
 **Auth mode behaviour:**
 
@@ -55,6 +56,7 @@ Complete reference for all Engramia environment variables, grouped by category.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `ENGRAMIA_ENV` | `prod` | Runtime environment mode. Set to `dev`, `development`, or `local` to expose the Swagger UI (`/docs`) and OpenAPI schema (`/openapi.json`). Defaults to `prod`, which returns 404 for these endpoints to reduce attack surface. |
 | `ENGRAMIA_CORS_ORIGINS` | — | Comma-separated allowed CORS origins. CORS is disabled when unset. Use `*` only in dev. |
 | `ENGRAMIA_RATE_LIMIT_DEFAULT` | `60` | Max requests per minute for standard endpoints (per IP). |
 | `ENGRAMIA_RATE_LIMIT_EXPENSIVE` | `10` | Max requests per minute for LLM-intensive endpoints (`/evaluate`, `/compose`, `/evolve`). |
@@ -118,6 +120,14 @@ Activated when `ENGRAMIA_AUTH_MODE=oidc`. Requires `pip install "engramia[oidc]"
 |----------|---------|-------------|
 | `ENGRAMIA_API_URL` | — | API base URL for SDK bridge mode (e.g. `https://api.engramia.dev`). |
 | `ENGRAMIA_API_KEY` | — | Single API key for SDK bridge mode. |
+
+---
+
+## Governance
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENGRAMIA_DSR_SLA_DAYS` | `30` | Data Subject Request (DSR) SLA in days. Default matches GDPR Article 12 §3. Operators may tighten this (e.g. `14`) for stricter internal SLAs. Requests past their deadline are returned with `overdue=true` in the DSR API response so monitoring dashboards can alert. |
 
 ---
 

@@ -109,7 +109,22 @@ class ROICollector:
 
         Returns:
             List of ROIEvent objects in chronological order.
+
+        Raises:
+            ValueError: If both tenant_id and project_id are None.  Callers
+                must supply at least a tenant_id to prevent accidental
+                cross-tenant data leakage.  Admin/internal callers that
+                intentionally need a full scan should pass the special
+                sentinel ``tenant_id="*"`` — filtering is then skipped for
+                that dimension.
         """
+        if tenant_id is None and project_id is None:
+            raise ValueError(
+                "load_events() requires at least tenant_id to be specified. "
+                "Passing both as None would return events across all tenants, "
+                "which is a cross-tenant data leak risk. "
+                "Pass tenant_id='*' to explicitly request an unscoped scan."
+            )
         raw = self._load_raw()
         events: list[ROIEvent] = []
         for item in raw:
@@ -119,9 +134,9 @@ class ROICollector:
                 continue
             if since_ts is not None and e.ts < since_ts:
                 continue
-            if tenant_id is not None and e.scope_tenant != tenant_id:
+            if tenant_id is not None and tenant_id != "*" and e.scope_tenant != tenant_id:
                 continue
-            if project_id is not None and e.scope_project != project_id:
+            if project_id is not None and project_id != "*" and e.scope_project != project_id:
                 continue
             events.append(e)
         return events
