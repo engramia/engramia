@@ -68,6 +68,7 @@ CLAUDE.md
 roadmap.md
 CHANGELOG.md
 test_run_prompt.md
+docs/internal/
 
 # Audit outputs (LLM-generated, never version)
 AUDIT_PROMPT.md
