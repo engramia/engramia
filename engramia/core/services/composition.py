@@ -8,6 +8,7 @@ from engramia.core.eval_store import EvalStore
 from engramia.providers.base import EmbeddingProvider, LLMProvider, StorageBackend
 from engramia.reuse.composer import PipelineComposer
 from engramia.reuse.matcher import PatternMatcher
+from engramia.telemetry import tracing as _tracing
 from engramia.types import Pipeline
 
 _log = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class CompositionService:
         self._embeddings = embeddings
         self._eval_store = eval_store
 
+    @_tracing.traced("memory.compose")
     def compose(self, task: str) -> Pipeline:
         """Build a pipeline by decomposing task into stages via LLM.
 

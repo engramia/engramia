@@ -14,6 +14,7 @@ from engramia._util import extract_json_from_llm
 from engramia.core.eval_feedback import EvalFeedbackStore
 from engramia.eval.evaluator import MultiEvaluator
 from engramia.providers.base import LLMProvider
+from engramia.telemetry import tracing as _tracing
 
 _log = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ class PromptEvolver:
         self._llm = llm
         self._feedback_store = feedback_store
 
+    @_tracing.traced("memory.evolve")
     def evolve(
         self,
         role: str,
