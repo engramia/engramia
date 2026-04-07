@@ -249,7 +249,7 @@ class Memory:
         self._validate_code(code)
         self._require_llm("evaluate")
         svc = EvaluationService(
-            llm=cast(LLMProvider, self._llm),
+            llm=cast("LLMProvider", self._llm),
             eval_store=self._eval_store,
             feedback_store=self._feedback_store,
         )
@@ -277,7 +277,7 @@ class Memory:
         self._validate_task(task)
         self._require_llm("compose")
         svc = CompositionService(
-            llm=cast(LLMProvider, self._llm),
+            llm=cast("LLMProvider", self._llm),
             storage=self._storage,
             embeddings=self._embeddings,
             eval_store=self._eval_store,
@@ -383,7 +383,7 @@ class Memory:
             RuntimeError: If no LLM provider was configured.
         """
         self._require_llm("evolve_prompt")
-        evolver = PromptEvolver(cast(LLMProvider, self._llm), self._feedback_store)
+        evolver = PromptEvolver(cast("LLMProvider", self._llm), self._feedback_store)
         return evolver.evolve(role, current_prompt, num_issues=num_issues)
 
     # ------------------------------------------------------------------
