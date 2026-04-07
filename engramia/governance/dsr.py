@@ -7,9 +7,9 @@ so that operators can demonstrate GDPR compliance with measurable SLAs.
 
 Supported request types
 -----------------------
-- ``access``      Art. 15 — subject wants a copy of their data
-- ``erasure``     Art. 17 — "right to be forgotten"
-- ``portability`` Art. 20 — machine-readable data export
+- ``access``        Art. 15 — subject wants a copy of their data
+- ``erasure``       Art. 17 — "right to be forgotten"
+- ``portability``   Art. 20 — machine-readable data export
 - ``rectification`` Art. 16 — correct inaccurate personal data
 
 SLA
@@ -18,9 +18,14 @@ Default SLA is 30 days (GDPR Art. 12 §3).  A separate ``ENGRAMIA_DSR_SLA_DAYS``
 env var allows operators to tighten it.  Requests past their deadline are
 returned with ``overdue=True`` so monitoring dashboards can alert.
 
+Near-deadline warnings
+----------------------
+Any open request within 7 days of its ``due_at`` deadline emits a WARNING-level
+log message so that Loki/Grafana alert rules can pick it up.
+
 Storage
 -------
-DSRs are stored in a dedicated table ``dsr_requests`` (migration 010).
+DSRs are stored in the ``data_subject_requests`` table (migration 010).
 When no DB engine is available (JSON storage mode) requests are stored
 in-memory for the lifetime of the process and a warning is emitted.
 """
@@ -40,6 +45,7 @@ DSRType = Literal["access", "erasure", "portability", "rectification"]
 DSRStatus = Literal["pending", "in_progress", "completed", "rejected"]
 
 _SLA_DAYS = int(os.environ.get("ENGRAMIA_DSR_SLA_DAYS", "30"))
+_DEADLINE_WARN_DAYS = 7  # Warn when fewer than this many days remain
 
 # ---------------------------------------------------------------------------
 # Domain model
@@ -57,10 +63,10 @@ class DSRRequest:
         subject_email: E-mail address of the data subject.
         status: Current processing status.
         created_at: ISO-8601 UTC timestamp when the request was created.
-        deadline: ISO-8601 UTC timestamp of the SLA deadline (created_at + SLA).
+        due_at: ISO-8601 UTC timestamp of the SLA deadline (created_at + SLA).
         updated_at: ISO-8601 UTC timestamp of the last status change.
         completed_at: ISO-8601 UTC timestamp when the request was fulfilled.
-        notes: Free-text notes for the operator.
+        handler_notes: Free-text notes for the operator.
         overdue: True when status != "completed" / "rejected" and deadline has passed.
     """
 
@@ -70,20 +76,30 @@ class DSRRequest:
     subject_email: str
     status: DSRStatus
     created_at: str
-    deadline: str
+    due_at: str
     updated_at: str
     completed_at: str | None = None
-    notes: str = ""
+    handler_notes: str = ""
 
     @property
     def overdue(self) -> bool:
         if self.status in ("completed", "rejected"):
             return False
         try:
-            deadline_dt = datetime.datetime.fromisoformat(self.deadline)
-            return datetime.datetime.now(tz=datetime.UTC) > deadline_dt
+            due_dt = datetime.datetime.fromisoformat(self.due_at)
+            return datetime.datetime.now(tz=datetime.UTC) > due_dt
         except ValueError:
             return False
+
+    @property
+    def days_until_due(self) -> float | None:
+        """Return days remaining until the SLA deadline, or None on parse error."""
+        try:
+            due_dt = datetime.datetime.fromisoformat(self.due_at)
+            delta = due_dt - datetime.datetime.now(tz=datetime.UTC)
+            return delta.total_seconds() / 86400
+        except ValueError:
+            return None
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +138,7 @@ class DSRTracker:
         tenant_id: str,
         request_type: DSRType,
         subject_email: str,
-        notes: str = "",
+        handler_notes: str = "",
     ) -> DSRRequest:
         """Create a new DSR and persist it.
 
@@ -130,13 +146,13 @@ class DSRTracker:
             tenant_id: Tenant receiving the request.
             request_type: Type of DSR.
             subject_email: E-mail of the data subject.
-            notes: Optional operator notes.
+            handler_notes: Optional operator notes.
 
         Returns:
             The created :class:`DSRRequest`.
         """
         now = datetime.datetime.now(tz=datetime.UTC)
-        deadline = now + datetime.timedelta(days=_SLA_DAYS)
+        due_at = now + datetime.timedelta(days=_SLA_DAYS)
         req = DSRRequest(
             id=str(uuid.uuid4()),
             tenant_id=tenant_id,
@@ -144,32 +160,33 @@ class DSRTracker:
             subject_email=subject_email,
             status="pending",
             created_at=now.isoformat(),
-            deadline=deadline.isoformat(),
+            due_at=due_at.isoformat(),
             updated_at=now.isoformat(),
-            notes=notes,
+            handler_notes=handler_notes,
         )
         self._persist(req)
         _log.info(
-            "DSR created: id=%s type=%s tenant=%s deadline=%s",
+            "DSR created: id=%s type=%s tenant=%s due_at=%s",
             req.id,
             req.request_type,
             req.tenant_id,
-            req.deadline[:10],
+            req.due_at[:10],
         )
+        self._maybe_warn_deadline(req)
         return req
 
     def update_status(
         self,
         dsr_id: str,
         status: DSRStatus,
-        notes: str = "",
+        handler_notes: str = "",
     ) -> DSRRequest | None:
         """Update the status of an existing DSR.
 
         Args:
             dsr_id: UUID of the DSR.
             status: New status.
-            notes: Optional operator notes to append.
+            handler_notes: Optional operator notes to append.
 
         Returns:
             Updated :class:`DSRRequest`, or ``None`` if not found.
@@ -180,12 +197,13 @@ class DSRTracker:
         now = datetime.datetime.now(tz=datetime.UTC)
         req.status = status
         req.updated_at = now.isoformat()
-        if notes:
-            req.notes = f"{req.notes}\n{notes}".strip()
+        if handler_notes:
+            req.handler_notes = f"{req.handler_notes}\n{handler_notes}".strip()
         if status in ("completed", "rejected"):
             req.completed_at = now.isoformat()
         self._persist(req)
         _log.info("DSR updated: id=%s status=%s", req.id, status)
+        self._maybe_warn_deadline(req)
         return req
 
     def get(self, dsr_id: str) -> DSRRequest | None:
@@ -202,6 +220,9 @@ class DSRTracker:
         limit: int = 100,
     ) -> list[DSRRequest]:
         """List DSRs for a tenant with optional filters.
+
+        Emits WARNING-level log messages for any open requests within
+        ``_DEADLINE_WARN_DAYS`` days of their SLA deadline.
 
         Args:
             tenant_id: Tenant to query.
@@ -222,7 +243,12 @@ class DSRTracker:
         if overdue_only:
             requests = [r for r in requests if r.overdue]
         requests.sort(key=lambda r: r.created_at, reverse=True)
-        return requests[:limit]
+        result = requests[:limit]
+
+        for req in result:
+            self._maybe_warn_deadline(req)
+
+        return result
 
     def pending_count(self, tenant_id: str) -> dict[str, int]:
         """Return counts of open DSRs grouped by status for a tenant.
@@ -236,6 +262,37 @@ class DSRTracker:
             "in_progress": sum(1 for r in open_reqs if r.status == "in_progress"),
             "overdue": sum(1 for r in open_reqs if r.overdue),
         }
+
+    # ------------------------------------------------------------------
+    # Near-deadline warning
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _maybe_warn_deadline(req: DSRRequest) -> None:
+        """Emit a WARNING log if the request is open and within 7 days of due_at."""
+        if req.status in ("completed", "rejected"):
+            return
+        days = req.days_until_due
+        if days is None:
+            return
+        if days < 0:
+            _log.warning(
+                "DSR overdue: id=%s type=%s tenant=%s due_at=%s overdue_by=%.1fd",
+                req.id,
+                req.request_type,
+                req.tenant_id,
+                req.due_at[:10],
+                abs(days),
+            )
+        elif days <= _DEADLINE_WARN_DAYS:
+            _log.warning(
+                "DSR deadline approaching: id=%s type=%s tenant=%s due_at=%s days_remaining=%.1f",
+                req.id,
+                req.request_type,
+                req.tenant_id,
+                req.due_at[:10],
+                days,
+            )
 
     # ------------------------------------------------------------------
     # Persistence helpers
@@ -254,16 +311,16 @@ class DSRTracker:
             with self._engine.begin() as conn:
                 conn.execute(
                     text(
-                        "INSERT INTO dsr_requests "
+                        "INSERT INTO data_subject_requests "
                         "(id, tenant_id, request_type, subject_email, status, "
-                        " created_at, deadline, updated_at, completed_at, notes) "
+                        " created_at, due_at, updated_at, completed_at, handler_notes) "
                         "VALUES (:id, :tenant_id, :request_type, :subject_email, :status, "
-                        " :created_at, :deadline, :updated_at, :completed_at, :notes) "
+                        " :created_at, :due_at, :updated_at, :completed_at, :handler_notes) "
                         "ON CONFLICT (id) DO UPDATE SET "
                         "  status = :status, "
                         "  updated_at = :updated_at, "
                         "  completed_at = :completed_at, "
-                        "  notes = :notes"
+                        "  handler_notes = :handler_notes"
                     ),
                     {
                         "id": req.id,
@@ -272,10 +329,10 @@ class DSRTracker:
                         "subject_email": req.subject_email,
                         "status": req.status,
                         "created_at": req.created_at,
-                        "deadline": req.deadline,
+                        "due_at": req.due_at,
                         "updated_at": req.updated_at,
                         "completed_at": req.completed_at,
-                        "notes": req.notes,
+                        "handler_notes": req.handler_notes,
                     },
                 )
         except Exception as exc:
@@ -290,8 +347,8 @@ class DSRTracker:
                 row = conn.execute(
                     text(
                         "SELECT id, tenant_id, request_type, subject_email, status, "
-                        "       created_at, deadline, updated_at, completed_at, notes "
-                        "FROM dsr_requests WHERE id = :id"
+                        "       created_at, due_at, updated_at, completed_at, handler_notes "
+                        "FROM data_subject_requests WHERE id = :id"
                     ),
                     {"id": dsr_id},
                 ).fetchone()
@@ -316,8 +373,8 @@ class DSRTracker:
                 rows = conn.execute(
                     text(
                         "SELECT id, tenant_id, request_type, subject_email, status, "
-                        "       created_at, deadline, updated_at, completed_at, notes "
-                        f"FROM dsr_requests {filters} "
+                        "       created_at, due_at, updated_at, completed_at, handler_notes "
+                        f"FROM data_subject_requests {filters} "
                         "ORDER BY created_at DESC LIMIT :limit"
                     ),
                     params,
@@ -336,8 +393,8 @@ class DSRTracker:
             subject_email=str(row[3]),
             status=row[4],
             created_at=str(row[5]),
-            deadline=str(row[6]),
+            due_at=str(row[6]),
             updated_at=str(row[7]),
             completed_at=str(row[8]) if row[8] else None,
-            notes=str(row[9]) if row[9] else "",
+            handler_notes=str(row[9]) if row[9] else "",
         )

@@ -5,8 +5,8 @@
 All endpoints are mounted under ``/v1/governance/``.
 
 Permissions required:
-- governance:read  — admin+  — read retention policy
-- governance:write — admin+  — update retention policy, reclassify patterns
+- governance:read  — admin+  — read retention policy, list DSRs
+- governance:write — admin+  — update retention policy, reclassify patterns, create/update DSRs
 - governance:admin — admin+  — trigger retention cleanup
 - governance:delete — admin+ — scoped deletion (GDPR Art. 17)
 - export           — admin+  — scoped export (GDPR Art. 20)
@@ -25,6 +25,10 @@ from engramia.api.routes import _try_async
 from engramia.api.schemas import (
     ClassifyPatternRequest,
     ClassifyPatternResponse,
+    DSRCreateRequest,
+    DSRListResponse,
+    DSRResponse,
+    DSRUpdateRequest,
     RetentionApplyRequest,
     RetentionApplyResponse,
     RetentionPolicyResponse,
@@ -394,10 +398,159 @@ def delete_tenant(
 
 
 # ---------------------------------------------------------------------------
-# Internal helper
+# POST /v1/governance/dsr  — create a Data Subject Request
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/dsr",
+    response_model=DSRResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[require_permission("governance:write")],
+)
+def create_dsr(
+    body: DSRCreateRequest,
+    request: Request,
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+) -> DSRResponse:
+    """Create a new Data Subject Request (GDPR Art. 15-20).
+
+    The SLA deadline (``due_at``) is calculated as ``now + ENGRAMIA_DSR_SLA_DAYS``
+    (default 30 days). A WARNING is logged if the deadline is within 7 days.
+    """
+    from engramia._context import get_scope
+    from engramia.governance.dsr import DSRTracker
+
+    scope = get_scope()
+    engine = _get_engine(request)
+    tracker = DSRTracker(engine=engine)
+
+    dsr = tracker.create(
+        tenant_id=scope.tenant_id,
+        request_type=body.request_type,  # type: ignore[arg-type]
+        subject_email=body.subject_email,
+        handler_notes=body.handler_notes,
+    )
+    return _dsr_to_response(dsr)
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/governance/dsr  — list Data Subject Requests for current tenant
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/dsr",
+    response_model=DSRListResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("governance:read")],
+)
+def list_dsrs(
+    request: Request,
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+    filter_status: str | None = Query(
+        default=None,
+        alias="status",
+        description="Filter by status: pending | in_progress | completed | rejected",
+        pattern="^(pending|in_progress|completed|rejected)$",
+    ),
+    overdue_only: bool = Query(default=False, description="Return only past-deadline open requests."),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> DSRListResponse:
+    """List Data Subject Requests for the current tenant.
+
+    Near-deadline requests (within 7 days of ``due_at``) emit WARNING log
+    messages so alert rules can pick them up.
+    """
+    from engramia._context import get_scope
+    from engramia.governance.dsr import DSRTracker
+
+    scope = get_scope()
+    engine = _get_engine(request)
+    tracker = DSRTracker(engine=engine)
+
+    requests = tracker.list_requests(
+        tenant_id=scope.tenant_id,
+        status=filter_status,  # type: ignore[arg-type]
+        overdue_only=overdue_only,
+        limit=limit,
+    )
+    pending_counts = tracker.pending_count(scope.tenant_id)
+
+    return DSRListResponse(
+        requests=[_dsr_to_response(r) for r in requests],
+        total=len(requests),
+        pending_counts=pending_counts,
+    )
+
+
+# ---------------------------------------------------------------------------
+# PATCH /v1/governance/dsr/{dsr_id}  — update DSR status
+# ---------------------------------------------------------------------------
+
+
+@router.patch(
+    "/dsr/{dsr_id}",
+    response_model=DSRResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("governance:write")],
+)
+def update_dsr(
+    dsr_id: str,
+    body: DSRUpdateRequest,
+    request: Request,
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+) -> DSRResponse:
+    """Update the status (and optionally append handler notes) of a DSR."""
+    from engramia._context import get_scope
+    from engramia.governance.dsr import DSRTracker
+
+    scope = get_scope()
+    engine = _get_engine(request)
+    tracker = DSRTracker(engine=engine)
+
+    # Verify the DSR belongs to the caller's tenant
+    existing = tracker.get(dsr_id)
+    if existing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DSR not found.")
+    if existing.tenant_id != scope.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You may only modify DSRs belonging to your tenant.",
+        )
+
+    updated = tracker.update_status(
+        dsr_id=dsr_id,
+        status=body.status,  # type: ignore[arg-type]
+        handler_notes=body.handler_notes,
+    )
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DSR not found.")
+    return _dsr_to_response(updated)
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
 # ---------------------------------------------------------------------------
 
 
 def _get_engine(request: Request):
     """Return the auth DB engine from app state, or None if not configured."""
     return getattr(request.app.state, "auth_engine", None)
+
+
+def _dsr_to_response(dsr) -> DSRResponse:
+    """Convert a :class:`DSRRequest` domain object to the API response schema."""
+    return DSRResponse(
+        id=dsr.id,
+        tenant_id=dsr.tenant_id,
+        request_type=dsr.request_type,
+        subject_email=dsr.subject_email,
+        status=dsr.status,
+        created_at=dsr.created_at,
+        due_at=dsr.due_at,
+        updated_at=dsr.updated_at,
+        completed_at=dsr.completed_at,
+        handler_notes=dsr.handler_notes,
+        overdue=dsr.overdue,
+    )
