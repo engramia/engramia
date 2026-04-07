@@ -54,7 +54,11 @@ class MaintenanceModeMiddleware(BaseHTTPMiddleware):
         ):
             return JSONResponse(
                 status_code=503,
-                content={"detail": "Service is under scheduled maintenance. Please try again later."},
+                content={
+                    "error_code": "SERVICE_UNAVAILABLE",
+                    "error_message": "Service is under scheduled maintenance. Please try again later.",
+                    "retry_after": 3600,
+                },
                 headers={"Retry-After": "3600"},
             )
         return await call_next(request)
@@ -158,7 +162,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             log_event(AuditEvent.RATE_LIMITED, ip=ip, path=path, count=ip_count, limit=ip_limit)
             return JSONResponse(
                 status_code=429,
-                content={"detail": f"Rate limit exceeded. Max {ip_limit} requests per minute."},
+                content={
+                    "error_code": "RATE_LIMITED",
+                    "error_message": f"Rate limit exceeded. Max {ip_limit} requests per minute.",
+                    "retry_after": 60,
+                },
                 headers={"Retry-After": "60"},
             )
 
@@ -172,7 +180,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             log_event(AuditEvent.RATE_LIMITED, ip=ip, path=path, count=key_count, limit=self._key_limit)
             return JSONResponse(
                 status_code=429,
-                content={"detail": f"Rate limit exceeded. Max {self._key_limit} requests per minute per API key."},
+                content={
+                    "error_code": "RATE_LIMITED",
+                    "error_message": f"Rate limit exceeded. Max {self._key_limit} requests per minute per API key.",
+                    "retry_after": 60,
+                },
                 headers={"Retry-After": "60"},
             )
 
@@ -205,7 +217,11 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
                 if size > self._max:
                     return JSONResponse(
                         status_code=413,
-                        content={"detail": (f"Request body too large. Maximum allowed: {self._max} bytes.")},
+                        content={
+                            "error_code": "PAYLOAD_TOO_LARGE",
+                            "error_message": f"Request body too large. Maximum allowed: {self._max} bytes.",
+                            "max_bytes": self._max,
+                        },
                     )
             except ValueError:
                 pass  # Malformed Content-Length — let FastAPI handle it

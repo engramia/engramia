@@ -437,7 +437,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=254)
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=12, max_length=128)
     name: str | None = Field(default=None, max_length=200)
 
 
