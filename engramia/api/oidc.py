@@ -13,7 +13,10 @@ Configuration (env vars):
                                  Default: ``engramia_role``.
     ENGRAMIA_OIDC_DEFAULT_ROLE  Fallback role when the claim is absent.
                                  Default: ``reader``.
-    ENGRAMIA_OIDC_TENANT_CLAIM  JWT claim for tenant_id. Default: use ``default``.
+    ENGRAMIA_OIDC_TENANT_CLAIM  Required when OIDC is enabled. JWT claim for
+                                 tenant_id.  The app will refuse to start (or
+                                 raise a 503 on the first request) if this is
+                                 not set while ENGRAMIA_OIDC_ISSUER is set.
     ENGRAMIA_OIDC_PROJECT_CLAIM JWT claim for project_id. Default: use ``default``.
 
 JWKS keys are fetched once from ``{issuer}/.well-known/jwks.json`` and cached
@@ -51,6 +54,17 @@ _TENANT_CLAIM = os.environ.get("ENGRAMIA_OIDC_TENANT_CLAIM", "")
 _PROJECT_CLAIM = os.environ.get("ENGRAMIA_OIDC_PROJECT_CLAIM", "")
 
 _VALID_ROLES = {"owner", "admin", "editor", "reader"}
+
+# Fail fast at module load time if OIDC is configured without the mandatory
+# tenant claim.  This surfaces a misconfiguration as a startup error rather
+# than silently falling back to the shared "default" tenant in production.
+if _ISSUER and not _TENANT_CLAIM:
+    raise RuntimeError(
+        "OIDC auth is enabled (ENGRAMIA_OIDC_ISSUER is set) but "
+        "ENGRAMIA_OIDC_TENANT_CLAIM is not configured. "
+        "Set ENGRAMIA_OIDC_TENANT_CLAIM to the JWT claim containing the tenant ID "
+        "(e.g. ENGRAMIA_OIDC_TENANT_CLAIM=engramia_tenant)."
+    )
 
 # ---------------------------------------------------------------------------
 # JWKS cache
@@ -209,6 +223,14 @@ def oidc_auth(request: Request, token: str) -> None:
             detail="OIDC auth is enabled but ENGRAMIA_OIDC_ISSUER is not configured.",
         )
 
+    # Belt-and-suspenders: the module-level check should have caught this at
+    # startup, but guard here too in case env was mutated after import.
+    if not _TENANT_CLAIM:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OIDC auth is enabled but ENGRAMIA_OIDC_TENANT_CLAIM is not configured.",
+        )
+
     claims = _decode_jwt(token)
 
     # Map JWT claims to Engramia constructs.
@@ -217,17 +239,20 @@ def oidc_auth(request: Request, token: str) -> None:
         _log.warning("OIDC: unrecognised role %r in claim %r; falling back to reader", role, _ROLE_CLAIM)
         role = "reader"
 
-    if _TENANT_CLAIM:
-        raw_tenant = claims.get(_TENANT_CLAIM)
-        if raw_tenant is None:
-            _log.warning(
-                "OIDC: tenant claim '%s' missing from token for sub=%s — falling back to 'default'.",
-                _TENANT_CLAIM,
-                claims.get("sub", "?"),
-            )
-        tenant_id = str(raw_tenant) if raw_tenant is not None else "default"
-    else:
-        tenant_id = "default"
+    # Tenant claim is mandatory — a missing claim is a token/config error, not a
+    # silent fallback, to prevent cross-tenant data leakage.
+    raw_tenant = claims.get(_TENANT_CLAIM)
+    if raw_tenant is None:
+        _log.warning(
+            "OIDC: tenant claim '%s' missing from token for sub=%s.",
+            _TENANT_CLAIM,
+            claims.get("sub", "?"),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token is missing the required tenant claim '{_TENANT_CLAIM}'.",
+        )
+    tenant_id = str(raw_tenant)
 
     if _PROJECT_CLAIM:
         raw_project = claims.get(_PROJECT_CLAIM)

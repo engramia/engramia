@@ -13,6 +13,7 @@ Responsibilities:
 import datetime
 import logging
 
+import sqlalchemy.exc
 from sqlalchemy import text
 
 from engramia.billing.enforcement import LimitEnforcer
@@ -28,6 +29,21 @@ from engramia.billing.models import (
 from engramia.billing.stripe_client import StripeClient
 
 _log = logging.getLogger(__name__)
+
+# Build a tuple of Stripe-related exception types at import time so that
+# except clauses stay readable.  Falls back to generic network errors when
+# the stripe SDK is not installed.
+try:
+    import stripe as _stripe_lib
+
+    _STRIPE_ERRORS: tuple[type[Exception], ...] = (
+        _stripe_lib.error.StripeError,
+        ConnectionError,
+        TimeoutError,
+    )
+except ImportError:
+    _stripe_lib = None  # type: ignore[assignment]
+    _STRIPE_ERRORS = (ConnectionError, TimeoutError, OSError)
 
 
 class BillingService:
@@ -104,7 +120,7 @@ class BillingService:
                     ),
                     {"tid": tenant_id},
                 ).fetchone()
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.warning("BillingService.get_subscription DB error for tenant=%s", tenant_id, exc_info=True)
             return BillingSubscription.sandbox_default(tenant_id)
 
@@ -137,7 +153,7 @@ class BillingService:
                     ),
                     {"tid": tenant_id, "metric": metric},
                 ).fetchone()
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.warning("BillingService.get_overage_settings DB error", exc_info=True)
             return None
         if row is None:
@@ -260,7 +276,7 @@ class BillingService:
                         "proj_lim": limits["projects"],
                     },
                 )
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.error(
                 "create_stripe_customer: DB error persisting customer ID for tenant=%s",
                 tenant_id,
@@ -309,7 +325,7 @@ class BillingService:
                         "cap": budget_cap_cents,
                     },
                 )
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.error("BillingService.set_overage DB error for tenant=%s", tenant_id, exc_info=True)
             raise
 
@@ -430,7 +446,7 @@ class BillingService:
                         "period_end": period_end,
                     },
                 )
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.error("_upsert_subscription DB error", exc_info=True)
 
     def _downgrade_to_sandbox(self, customer_id: str) -> None:
@@ -455,7 +471,7 @@ class BillingService:
                         "proj_lim": limits["projects"],
                     },
                 )
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.error("_downgrade_to_sandbox DB error", exc_info=True)
 
     def _set_status_by_customer(self, customer_id: str, status: str) -> None:
@@ -498,7 +514,7 @@ class BillingService:
                         ),
                         {"cid": customer_id, "status": status},
                     )
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.error("_set_status_by_customer DB error", exc_info=True)
 
     def _report_overage_for_customer(self, customer_id: str) -> None:
@@ -535,7 +551,7 @@ class BillingService:
                 description=description,
                 subscription_id=sub.stripe_subscription_id,
             )
-        except Exception:
+        except _STRIPE_ERRORS:
             _log.error("_report_overage_for_customer Stripe error", exc_info=True)
 
     def _tenant_id_by_customer(self, customer_id: str) -> str | None:
@@ -549,7 +565,7 @@ class BillingService:
                     {"cid": customer_id},
                 ).fetchone()
             return row[0] if row else None
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.warning("_tenant_id_by_customer DB error", exc_info=True)
             return None
 
@@ -564,7 +580,7 @@ class BillingService:
                     {"tid": tenant_id},
                 ).fetchone()
             return row[0] if row else 0
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.warning("_count_projects DB error for tenant=%s", tenant_id, exc_info=True)
             return 0
 
@@ -583,7 +599,7 @@ class BillingService:
                     {"eid": stripe_event_id},
                 ).fetchone()
             return row is not None
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             # On DB error, allow processing to proceed (better to process twice
             # than to silently drop a billing event).
             _log.warning("_is_event_processed DB error for event_id=%s", stripe_event_id, exc_info=True)
@@ -604,5 +620,5 @@ class BillingService:
                     ),
                     {"eid": stripe_event_id, "etype": event_type},
                 )
-        except Exception:
+        except sqlalchemy.exc.SQLAlchemyError:
             _log.warning("_mark_event_processed DB error for event_id=%s", stripe_event_id, exc_info=True)
