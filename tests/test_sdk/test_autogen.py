@@ -83,7 +83,6 @@ class TestEngramiaMemory:
         model_context.add_message.assert_called_once()
         added_msg = model_context.add_message.call_args[0][0]
         assert "Relevant patterns" in added_msg.content
-        assert result.memories is not None
         assert len(result.memories.results) >= 1
 
     @pytest.mark.asyncio

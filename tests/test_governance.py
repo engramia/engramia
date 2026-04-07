@@ -189,7 +189,7 @@ class TestRetentionManager:
         assert result.dry_run is True
         assert result.purged_count >= 1
         # Key still exists after dry run
-        assert storage.load(key) is not None
+        assert storage.load(key)["task"] == "old task"
 
     def test_apply_deletes_expired_patterns(self, storage):
         key = "patterns/old_xyz_1000000000001"
@@ -211,7 +211,7 @@ class TestRetentionManager:
         manager = RetentionManager(engine=None, default_retention_days=30)
         result = manager.apply(storage, dry_run=False)
 
-        assert storage.load(key) is not None
+        assert storage.load(key)["task"] == "fresh task"
         assert key not in result.purged_keys
 
 
@@ -814,7 +814,7 @@ class TestRetentionManagerEdgeCases:
         assert len(result.purged_keys) == 3
         # Nothing was deleted
         for i in range(3):
-            assert storage.load(f"patterns/dry_{i}") is not None
+            assert storage.load(f"patterns/dry_{i}")["task"] == f"dry task {i}"
 
 
 # ---------------------------------------------------------------------------
@@ -936,7 +936,7 @@ class TestLifecycleJobs:
         assert result["dry_run"] is True
         assert result["purged_count"] >= 1
         # Still exists after dry run
-        assert storage.load("patterns/lifecycle_old_002") is not None
+        assert storage.load("patterns/lifecycle_old_002")["task"] == "old2"
 
     def test_cleanup_old_jobs_no_engine(self, storage, fake_embeddings):
         mem = Memory(embeddings=fake_embeddings, storage=storage)

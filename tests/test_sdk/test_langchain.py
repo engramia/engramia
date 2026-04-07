@@ -47,7 +47,6 @@ class TestEngramiaCallback:
         )
 
         context = callback.get_recalled_context("test-run-1")
-        assert context is not None
         assert len(context) >= 1
         assert context[0]["task"] == "Parse CSV file"
 

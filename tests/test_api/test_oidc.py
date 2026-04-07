@@ -457,7 +457,6 @@ class TestJwksHelpers:
             patch.object(oidc_module, "_jwks_fetched_at", 0.0),
         ):
             result = oidc_module._get_jwk("my-key")
-            assert result is not None
             assert result["kid"] == "my-key"
 
     def test_get_jwk_returns_none_for_unknown_kid(self):

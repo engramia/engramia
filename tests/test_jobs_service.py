@@ -58,7 +58,6 @@ class TestJobServiceMemorySubmit:
     def test_get_returns_job_info(self, svc):
         result = svc.submit("aging", {})
         info = svc.get(result.job_id)
-        assert info is not None
         assert info.id == result.job_id
         assert info.status == JobStatus.PENDING
 
@@ -291,7 +290,6 @@ class TestJobServiceDBGet:
 
         svc = JobService(engine=engine, memory=None)
         info = svc.get("job-1")
-        assert info is not None
         assert info.id == "job-1"
         assert info.status == "completed"
 

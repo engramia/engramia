@@ -56,7 +56,7 @@ def test_aging_preserves_recent_patterns(storage, fake_embeddings, pattern_store
     pruned = pattern_store.run_aging()
 
     assert pruned == 0
-    assert storage.load(key) is not None
+    assert storage.load(key)["task"] == "Recent task"
 
 
 def test_mark_reused_increments_count(storage, fake_embeddings, pattern_store):
@@ -98,7 +98,6 @@ def test_aging_boundary_score_at_threshold(storage, fake_embeddings, pattern_sto
     pruned = pattern_store.run_aging()
     assert pruned == 0
     data = storage.load(key)
-    assert data is not None
     assert data["success_score"] <= 0.11
 
 
@@ -118,7 +117,6 @@ def test_aging_future_timestamp_no_inflation(storage, fake_embeddings, pattern_s
     pruned = pattern_store.run_aging()
     assert pruned == 0
     data = storage.load(key)
-    assert data is not None
     assert data["success_score"] <= 5.0
 
 

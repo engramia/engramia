@@ -96,7 +96,6 @@ class TestKeyCache:
 
         result = _lookup_key_cached(mock_engine, h)
 
-        assert result is not None
         assert result["tenant_id"] == "tenant-x"
         assert h in _key_cache
 

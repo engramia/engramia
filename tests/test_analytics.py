@@ -397,7 +397,6 @@ class TestROIAggregator:
         self._seed_events(storage)
         aggregator.rollup("daily")
         loaded = aggregator.get_rollup("daily", "default", "default")
-        assert loaded is not None
         assert loaded.window == "daily"
         assert loaded.learn.total == 2
 

@@ -107,6 +107,7 @@ class TestConfigureJsonLogging:
         root.handlers = [handler]
         try:
             configure_json_logging()
-            assert handler.formatter is not None
+            from pythonjsonlogger.jsonlogger import JsonFormatter
+            assert isinstance(handler.formatter, JsonFormatter)
         finally:
             root.handlers = original_handlers

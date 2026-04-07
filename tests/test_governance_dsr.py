@@ -59,7 +59,7 @@ class TestCreate:
     def test_persists_to_memory_store(self):
         tracker = _tracker()
         req = tracker.create("t1", "portability", "x@y.com")
-        assert tracker.get(req.id) is not None
+        assert tracker.get(req.id).id == req.id
 
     def test_notes_stored(self):
         tracker = _tracker()
@@ -89,13 +89,13 @@ class TestUpdateStatus:
         tracker = _tracker()
         req = tracker.create("t1", "access", "a@b.com")
         updated = tracker.update_status(req.id, "completed")
-        assert updated.completed_at is not None
+        datetime.datetime.fromisoformat(updated.completed_at)  # raises if None or invalid
 
     def test_completed_at_set_on_rejection(self):
         tracker = _tracker()
         req = tracker.create("t1", "access", "a@b.com")
         updated = tracker.update_status(req.id, "rejected")
-        assert updated.completed_at is not None
+        datetime.datetime.fromisoformat(updated.completed_at)  # raises if None or invalid
 
     def test_notes_appended(self):
         tracker = _tracker()
@@ -129,7 +129,6 @@ class TestGet:
         tracker = _tracker()
         req = tracker.create("t1", "access", "a@b.com")
         fetched = tracker.get(req.id)
-        assert fetched is not None
         assert fetched.id == req.id
 
     def test_returns_none_for_missing_id(self):
