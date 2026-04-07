@@ -17,29 +17,49 @@ worktree_count=$(git worktree list | wc -l)
 echo "Before: $branch_count claude/* branches, $worktree_count worktrees"
 echo ""
 
+# Prune stale worktree refs first
+if [ "$DRY_RUN" = false ]; then
+    git worktree prune 2>/dev/null
+fi
+
 # Find merged branches
-merged=$(git branch --merged main | grep "claude/" | grep -v "\\*")
+merged=$(git branch --merged main | grep "claude/" | grep -v "\*")
 if [ -n "$merged" ]; then
-    count=$(echo "$merged" | wc -l)
-    echo "Found $count merged claude/* branches:"
+    count=$(echo "$merged" | wc -l | xargs)
+    echo "Found $count merged claude/* branch(es):"
     echo "$merged" | sed 's/^/  /'
-    if [ "$DRY_RUN" = false ]; then
-        echo "$merged" | xargs git branch -d 2>/dev/null
-        echo "  -> Deleted."
-    fi
+    echo ""
+    while IFS= read -r branch; do
+        branch=$(echo "$branch" | xargs)
+        # Check for associated worktree
+        worktree_dir=$(git worktree list | grep "\[$branch\]" | awk '{print $1}')
+        if [ -n "$worktree_dir" ]; then
+            echo "  Worktree for $branch: $worktree_dir"
+            if [ "$DRY_RUN" = false ]; then
+                git worktree remove --force "$worktree_dir" 2>/dev/null \
+                    && echo "    -> Worktree removed." \
+                    || echo "    -> Failed to remove worktree (may be active)."
+            fi
+        fi
+        if [ "$DRY_RUN" = false ]; then
+            git branch -d "$branch" 2>/dev/null \
+                && echo "  -> Deleted branch: $branch" \
+                || echo "  -> Could not delete: $branch (still has worktree?)"
+        fi
+    done <<< "$merged"
 else
     echo "No merged claude/* branches found."
 fi
 echo ""
 
-# Find worktrees with no matching branch
-echo "Checking worktree directories..."
+# Find leftover worktree directories with no matching branch
+echo "Checking for orphaned worktree directories..."
 orphaned=0
 for dir in .claude/worktrees/*/; do
     [ -d "$dir" ] || continue
     branch_name=$(basename "$dir")
     if ! git branch --list "claude/$branch_name" | grep -q .; then
-        echo "  Orphaned worktree: $dir"
+        echo "  Orphaned: $dir"
         if [ "$DRY_RUN" = false ]; then
             rm -rf "$dir"
             echo "    -> Removed."
@@ -48,16 +68,11 @@ for dir in .claude/worktrees/*/; do
     fi
 done
 if [ "$orphaned" -eq 0 ]; then
-    echo "  No orphaned worktree directories."
+    echo "  None found."
 fi
 echo ""
 
-# Prune git worktree refs
-if [ "$DRY_RUN" = false ]; then
-    git worktree prune 2>/dev/null
-fi
-
-# Count after
+# Summary
 if [ "$DRY_RUN" = false ]; then
     branch_count_after=$(git branch --list "claude/*" | wc -l)
     worktree_count_after=$(git worktree list | wc -l)
