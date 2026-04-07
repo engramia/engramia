@@ -1,4 +1,4 @@
-import { ArrowRight, BrainCircuit, ShieldCheck, Waypoints } from "lucide-react";
+import { ArrowRight, BrainCircuit, ShieldCheck, Waypoints, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
@@ -26,20 +26,35 @@ const features = [
 export default function HomePage() {
   return (
     <>
+      {/* Hero */}
       <section className="border-b border-border/70">
         <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 lg:grid-cols-[1.2fr,0.8fr] lg:px-8 lg:py-28">
           <div>
-            <Badge color="indigo" className="mb-5">Reusable execution memory for AI agents</Badge>
-            <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-text-primary sm:text-5xl lg:text-6xl">
-              Make agent systems learn from what already worked.
+            <Badge color="indigo" className="mb-5">Execution memory for AI agents</Badge>
+            <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-text-primary sm:text-5xl lg:text-[3.5rem] lg:leading-[1.1]">
+              Your agents forget everything between runs.{" "}
+              <span className="text-accent-hover">Fix that.</span>
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-text-secondary">
-              Engramia gives AI agents a reusable memory layer: learn patterns, recall them by similarity, evaluate outcomes,
-              and improve pipelines over time without building custom memory infrastructure from scratch.
+              Engramia is execution memory for AI agents. Learn what works, recall it next time, measure the improvement.
             </p>
+            <div className="mt-6 inline-flex items-center gap-2.5 rounded-xl border border-accent/20 bg-accent/5 px-4 py-2.5 text-sm text-text-secondary">
+              <TrendingUp className="h-4 w-4 shrink-0 text-accent-hover" />
+              <span>
+                Teams using Engramia see{" "}
+                <span className="font-semibold text-text-primary">40% fewer LLM calls</span>
+                {" "}and{" "}
+                <span className="font-semibold text-text-primary">2.3x quality improvement</span>
+                {" "}in 30 days.
+              </span>
+            </div>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button href="https://api.engramia.dev/v1/billing/checkout?plan=pro" size="lg">Start with Pro</Button>
-              <Button href="https://api.engramia.dev/docs" variant="secondary" size="lg">Explore API docs</Button>
+              <Button href="/demo" size="lg" className="gap-2">
+                See it work in 60 seconds <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button href="https://api.engramia.dev/docs" variant="secondary" size="lg">
+                Explore API docs
+              </Button>
             </div>
             <div className="mt-8 flex flex-wrap gap-6 text-sm text-text-secondary">
               <span>Cloud and self-hosted</span>
@@ -47,12 +62,38 @@ export default function HomePage() {
               <span>Built for production agent stacks</span>
             </div>
           </div>
+
           <Card className="border-accent/20 bg-bg-surface/80 shadow-[0_0_0_1px_rgba(99,102,241,0.08)]">
+            <div className="mb-5 rounded-lg border border-border bg-[#0b0d14] p-4 font-mono text-xs leading-6 text-text-secondary">
+              <div className="mb-1 text-text-secondary/50"># one-time setup</div>
+              <div>
+                <span className="text-accent-hover">from</span>
+                {" engramia "}
+                <span className="text-accent-hover">import</span>
+                {" Memory"}
+              </div>
+              <div className="mt-2 text-text-secondary/50"># after a successful run</div>
+              <div>
+                {"memory."}
+                <span className="text-success">learn</span>
+                {"(task="}
+                <span className="text-warning">&quot;summarize-doc&quot;</span>
+                {", score=0.92)"}
+              </div>
+              <div className="mt-2 text-text-secondary/50"># next run — recall what worked</div>
+              <div>
+                {"patterns = memory."}
+                <span className="text-success">recall</span>
+                {"("}
+                <span className="text-warning">&quot;summarize a document&quot;</span>
+                {")"}
+              </div>
+            </div>
             <CardTitle>Why teams adopt Engramia</CardTitle>
             <CardDescription>
               Agent memory usually fails in production because storage, recall, scoring, and governance are implemented as unrelated pieces.
             </CardDescription>
-            <div className="mt-6 space-y-4 text-sm leading-7 text-text-secondary">
+            <div className="mt-5 space-y-3 text-sm leading-7 text-text-secondary">
               <div className="rounded-xl border border-border bg-bg-elevated/50 p-4">
                 <div className="font-medium text-text-primary">Learn</div>
                 <div>Capture successful patterns with metadata and eval scores.</div>
@@ -70,6 +111,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Features */}
       <Section
         eyebrow="Core capabilities"
         title="A memory system that behaves like infrastructure, not magic"
@@ -91,6 +133,7 @@ export default function HomePage() {
         </div>
       </Section>
 
+      {/* Pricing */}
       <Section
         eyebrow="Pricing"
         title="Start fast, then add governance when it matters"
