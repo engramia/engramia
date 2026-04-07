@@ -32,11 +32,21 @@ metadata:
   namespace: engramia
 type: Opaque
 stringData:
-  # Replace with actual values before applying
-  ENGRAMIA_DATABASE_URL: "postgresql://engramia:changeme@postgres:5432/engramia"
-  OPENAI_API_KEY: "sk-..."
-  ENGRAMIA_BOOTSTRAP_TOKEN: "changeme-bootstrap-token"
-  ENGRAMIA_METRICS_TOKEN: "changeme-metrics-token"
+  # REQUIRED: Replace all values below before applying.
+  # Recommended: use SealedSecrets, External Secrets Operator, or Vault
+  # instead of storing plaintext credentials in this file.
+  #
+  # Example (imperative, never commit the result):
+  #   kubectl create secret generic engramia-secrets \
+  #     --from-literal=ENGRAMIA_DATABASE_URL="postgresql://USER:PASS@postgres:5432/engramia" \
+  #     --from-literal=OPENAI_API_KEY="sk-..." \
+  #     --from-literal=ENGRAMIA_BOOTSTRAP_TOKEN="$(openssl rand -hex 32)" \
+  #     --from-literal=ENGRAMIA_METRICS_TOKEN="$(openssl rand -hex 32)" \
+  #     -n engramia
+  ENGRAMIA_DATABASE_URL: "REPLACE_ME_postgresql://USER:PASSWORD@postgres:5432/engramia"
+  OPENAI_API_KEY: "REPLACE_ME_sk-..."
+  ENGRAMIA_BOOTSTRAP_TOKEN: "REPLACE_ME_generate_with_openssl_rand_hex_32"
+  ENGRAMIA_METRICS_TOKEN: "REPLACE_ME_generate_with_openssl_rand_hex_32"
 ---
 apiVersion: apps/v1
 kind: Deployment
