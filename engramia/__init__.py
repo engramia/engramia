@@ -11,6 +11,7 @@ from engramia.exceptions import (
     ValidationError,
 )
 from engramia.memory import Memory
+from engramia.sdk.webhook import EngramiaWebhookError
 
 try:
     __version__ = version("engramia")
@@ -22,6 +23,7 @@ __license__ = "BUSL-1.1"
 __all__ = [
     "AuthorizationError",
     "EngramiaError",
+    "EngramiaWebhookError",
     "Memory",
     "ProviderError",
     "QuotaExceededError",

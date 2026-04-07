@@ -87,7 +87,9 @@ class SuccessPatternStore:
                 self._storage.delete(key)
                 pruned += 1
             else:
-                updated = pattern.model_copy(update={"success_score": round(decayed, 4), "timestamp": now})
+                # Preserve the original creation timestamp — resetting it to now
+                # would make elapsed_weeks = 0 on the next run, halting all decay.
+                updated = pattern.model_copy(update={"success_score": round(decayed, 4)})
                 save_data = updated.model_dump()
                 # Preserve internal metadata fields (e.g. _author_key_id)
                 for k, v in data.items():

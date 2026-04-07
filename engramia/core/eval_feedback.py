@@ -133,7 +133,7 @@ class EvalFeedbackStore:
 
         for p in patterns:
             last_decayed_ts = _parse_iso(p.get("last_decayed", p.get("last_seen", "")))
-            elapsed_weeks = (now - last_decayed_ts) / (7 * 24 * 3600) if last_decayed_ts else 0
+            elapsed_weeks = (now - last_decayed_ts) / (7 * 24 * 3600)
             decayed = p["score"] * (_DECAY_PER_WEEK**elapsed_weeks)
             if decayed >= _MIN_SCORE:
                 p["score"] = round(decayed, 4)
@@ -157,8 +157,9 @@ def _parse_iso(iso: str) -> float:
     """Parse an ISO 8601 datetime string to a Unix timestamp.
 
     - Empty string → returns current time (treat as "just created", no decay).
-    - Malformed string → returns 0.0 (falsy) and logs a warning; the caller's
-      ``if last_decayed_ts else 0`` guard then sets elapsed_weeks to 0.
+    - Malformed string → returns current time and logs a warning (treat as
+      "just decayed", applying no decay — safer than returning epoch 0 which
+      would cause ~2900 elapsed weeks and destroy all patterns on next decay).
     """
     if not iso:
         return time.time()
@@ -166,5 +167,5 @@ def _parse_iso(iso: str) -> float:
         dt = datetime.datetime.strptime(iso, "%Y-%m-%dT%H:%M:%S")
         return dt.replace(tzinfo=datetime.UTC).timestamp()
     except (ValueError, TypeError):
-        _log.warning("Could not parse ISO timestamp %r; skipping decay for this pattern", iso)
-        return 0.0
+        _log.warning("Could not parse ISO timestamp %r; treating as current time to skip decay", iso)
+        return time.time()
