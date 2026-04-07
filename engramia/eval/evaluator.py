@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from engramia._util import extract_json_from_llm
 from engramia.providers.base import LLMProvider
+from engramia.telemetry import tracing as _tracing
 from engramia.types import EvalResult, EvalScore
 
 # Backward-compatible alias for tests that import _extract_json directly
@@ -101,6 +102,7 @@ class MultiEvaluator:
         self._llm = llm
         self._num_evals = num_evals
 
+    @_tracing.traced("llm.multi_eval")
     def evaluate(
         self,
         task: str,

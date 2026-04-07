@@ -12,6 +12,9 @@ check is a no-op for backward compatibility.
 
 Pattern-count quota is enforced on write operations (``/learn``, ``/import``)
 by checking the storage backend's scoped count against the per-key limit.
+Both tenant-level and project-level quotas are checked: a project is capped
+at ``ENGRAMIA_PROJECT_QUOTA_PCT`` (default 80%) of the tenant's plan limit to
+prevent a single project from exhausting the entire tenant allocation.
 """
 
 import logging
@@ -72,6 +75,11 @@ _log = logging.getLogger(__name__)
 # env var for deployments that need longer prompts.
 _MAX_LLM_RESPONSE = int(os.environ.get("ENGRAMIA_MAX_LLM_RESPONSE", "20000"))
 
+# Project-level pattern quota as a fraction of the tenant's plan limit.
+# Prevents a single project from consuming the entire tenant allocation.
+# Set to 1.0 to disable project-level capping (tenant-level check only).
+_PROJECT_QUOTA_PCT = float(os.environ.get("ENGRAMIA_PROJECT_QUOTA_PCT", "0.8"))
+
 
 def _trunc(s: str) -> str:
     """Truncate an LLM-generated string to _MAX_LLM_RESPONSE characters."""
@@ -118,15 +126,49 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 def _check_quota(memory: Memory, auth_ctx: AuthContext | None, request: Request | None = None) -> None:
     """Raise HTTP 429 if the caller has exceeded their pattern quota.
 
-    Delegates to BillingService when available (DB auth + billing configured).
-    Falls back to the legacy max_patterns field on AuthContext for backward
-    compatibility with deployments that have not run migration 008.
+    Enforces two quota layers for defense-in-depth:
+
+    1. **Project-level** (billing-aware path only): the current project is
+       capped at ``ENGRAMIA_PROJECT_QUOTA_PCT`` (default 80%) of the tenant's
+       plan limit. This prevents any single project from monopolising the
+       tenant's allocation.
+    2. **Tenant-level**: delegates to BillingService when available (DB auth +
+       billing configured). Falls back to the legacy ``max_patterns`` field on
+       AuthContext for backward compatibility with deployments that have not run
+       migration 008.
     """
     current = memory._storage.count_patterns("patterns/")
 
     # Billing-aware path
     billing_svc = getattr(request.app.state, "billing_service", None) if request else None
     if billing_svc is not None and auth_ctx is not None:
+        # Project-level quota: cap each project at PROJECT_QUOTA_PCT of tenant limit.
+        # Checked before the tenant-level cap so the tighter constraint fires first.
+        sub = billing_svc.get_subscription(auth_ctx.tenant_id)
+        if sub.patterns_limit is not None:
+            project_cap = int(sub.patterns_limit * _PROJECT_QUOTA_PCT)
+            if current >= project_cap:
+                log_event(
+                    AuditEvent.QUOTA_EXCEEDED,
+                    tenant_id=auth_ctx.tenant_id,
+                    project_id=auth_ctx.project_id,
+                    current=current,
+                    limit=project_cap,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={
+                        "error": "project_quota_exceeded",
+                        "current": current,
+                        "limit": project_cap,
+                        "message": (
+                            f"Project pattern quota reached ({project_cap} patterns, "
+                            f"{int(_PROJECT_QUOTA_PCT * 100)}% of tenant limit). "
+                            "Delete old patterns or contact your admin to increase the project limit."
+                        ),
+                    },
+                )
+        # Tenant-level check (existing behavior)
         billing_svc.check_patterns(auth_ctx.tenant_id, current)
         return
 
