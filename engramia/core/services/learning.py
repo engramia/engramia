@@ -5,7 +5,7 @@
 import logging
 from typing import Any
 
-from engramia._util import PATTERNS_PREFIX
+from engramia._util import PATTERNS_PREFIX, _pattern_key
 from engramia.analytics.collector import ROICollector
 from engramia.core.eval_store import EvalStore
 from engramia.core.metrics import MetricsStore
@@ -18,15 +18,6 @@ from engramia.types import LearnResult, Pattern
 _log = logging.getLogger(__name__)
 
 _MAX_PATTERN_COUNT = 100_000
-
-
-def _pattern_key(task: str) -> str:
-    import hashlib
-    import time
-
-    task_hash = hashlib.sha256(task.encode()).hexdigest()[:8]
-    ts = int(time.time() * 1000)
-    return f"{PATTERNS_PREFIX}/{task_hash}_{ts}"
 
 
 class LearningService:

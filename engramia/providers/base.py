@@ -101,7 +101,7 @@ class StorageBackend(ABC):
         """
 
     @abstractmethod
-    def save(self, key: str, data: dict | list) -> None:  # type: ignore[type-arg]
+    def save(self, key: str, data: dict[str, Any] | list[Any]) -> None:
         """Persist data under key. Overwrites if key exists.
 
         Args:

@@ -8,9 +8,9 @@ stores and providers together and delegates each public operation to the
 appropriate service.
 """
 
-import hashlib
 import logging
 import time
+from typing import cast
 
 from engramia._util import PATTERNS_PREFIX
 from engramia.analytics.collector import ROICollector
@@ -249,7 +249,7 @@ class Memory:
         self._validate_code(code)
         self._require_llm("evaluate")
         svc = EvaluationService(
-            llm=self._llm,  # type: ignore[arg-type]
+            llm=cast(LLMProvider, self._llm),
             eval_store=self._eval_store,
             feedback_store=self._feedback_store,
         )
@@ -277,7 +277,7 @@ class Memory:
         self._validate_task(task)
         self._require_llm("compose")
         svc = CompositionService(
-            llm=self._llm,  # type: ignore[arg-type]
+            llm=cast(LLMProvider, self._llm),
             storage=self._storage,
             embeddings=self._embeddings,
             eval_store=self._eval_store,
@@ -383,7 +383,7 @@ class Memory:
             RuntimeError: If no LLM provider was configured.
         """
         self._require_llm("evolve_prompt")
-        evolver = PromptEvolver(self._llm, self._feedback_store)  # type: ignore[arg-type]
+        evolver = PromptEvolver(cast(LLMProvider, self._llm), self._feedback_store)
         return evolver.evolve(role, current_prompt, num_issues=num_issues)
 
     # ------------------------------------------------------------------
@@ -619,10 +619,3 @@ class Memory:
     def _validate_eval_score(score: float) -> None:
         if not (_MIN_EVAL_SCORE <= score <= _MAX_EVAL_SCORE):
             raise ValidationError(f"eval_score must be between {_MIN_EVAL_SCORE} and {_MAX_EVAL_SCORE}, got {score}")
-
-    @staticmethod
-    def _pattern_key(task: str) -> str:
-        # SHA-256 (first 8 hex chars) — MD5 is cryptographically broken
-        task_hash = hashlib.sha256(task.encode()).hexdigest()[:8]
-        ts = int(time.time() * 1000)
-        return f"{PATTERNS_PREFIX}/{task_hash}_{ts}"

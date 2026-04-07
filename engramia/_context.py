@@ -18,22 +18,28 @@ Usage (internal only — not part of the public API)::
     reset_scope(token)           # restore previous scope
 """
 
+from __future__ import annotations
+
 from contextvars import ContextVar, Token
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from engramia.types import Scope
 
 # Import deferred to avoid circular imports at module level.
 # Types are resolved at call time.
 
 
-def _default_scope():  # type: ignore[return]
+def _default_scope() -> Scope:
     from engramia.types import Scope
 
     return Scope()
 
 
-_scope_var: ContextVar = ContextVar("engramia_scope")
+_scope_var: ContextVar[Scope] = ContextVar("engramia_scope")
 
 
-def get_scope():
+def get_scope() -> Scope:
     """Return the Scope active in the current request/task context.
 
     Returns the default Scope (tenant_id='default', project_id='default')
@@ -45,11 +51,11 @@ def get_scope():
         return _default_scope()
 
 
-def set_scope(scope) -> Token:  # type: ignore[type-arg]
+def set_scope(scope: Scope) -> Token[Scope]:
     """Set the Scope for the current request/task. Returns a reset Token."""
     return _scope_var.set(scope)
 
 
-def reset_scope(token: Token) -> None:
+def reset_scope(token: Token[Scope]) -> None:
     """Restore the previous Scope using the Token returned by set_scope()."""
     _scope_var.reset(token)
