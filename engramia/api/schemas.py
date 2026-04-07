@@ -194,6 +194,8 @@ class DeepHealthCheckResult(BaseModel):
     status: str
     latency_ms: float | None = None
     error: str | None = None
+    current_revision: str | None = None
+    expected_revision: str | None = None
 
 
 class DeepHealthResponse(BaseModel):
