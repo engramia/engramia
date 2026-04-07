@@ -12,7 +12,7 @@ On registration, automatically creates:
 JWT tokens:
   Access token:  1 hour  — claims: sub, tenant_id, email, role, type
   Refresh token: 30 days — same claims, type='refresh'
-  Secret: ENGRAMIA_JWT_SECRET env var (ephemeral auto-generated if absent)
+  Secret: ENGRAMIA_JWT_SECRET env var (required in production)
 
 Rate limiting: POST /auth/register is capped at 5 requests/minute per IP
 via an in-process fixed-window counter.
@@ -53,6 +53,12 @@ def _get_jwt_secret() -> str:
         if _JWT_SECRET is None:
             secret = os.environ.get("ENGRAMIA_JWT_SECRET", "").strip()
             if not secret:
+                env = os.environ.get("ENGRAMIA_ENV", "").strip().lower()
+                if env == "production":
+                    raise RuntimeError(
+                        "ENGRAMIA_JWT_SECRET must be explicitly set in production. "
+                        "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                    )
                 secret = secrets.token_hex(32)
                 _log.warning(
                     "ENGRAMIA_JWT_SECRET not set — generated ephemeral secret. "
@@ -288,12 +294,11 @@ def _create_registration(
 # ---------------------------------------------------------------------------
 
 
-def _verify_google_token(
-    id_token: str,
-    fallback_email: str | None,
-    fallback_name: str | None,
-) -> tuple[str | None, str, str | None]:
+def _verify_google_token(id_token: str) -> tuple[str | None, str, str | None]:
     """Verify Google ID token via tokeninfo endpoint.
+
+    Verifies the 'aud' claim against ENGRAMIA_GOOGLE_CLIENT_ID to prevent
+    tokens issued for other Google applications from being accepted.
 
     Returns (email, provider_sub, name).
     """
@@ -314,21 +319,33 @@ def _verify_google_token(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Google token verification failed."
         ) from None
 
-    email = data.get("email") or fallback_email
+    # Verify the audience claim to prevent tokens from other Google apps being accepted.
+    google_client_id = os.environ.get("ENGRAMIA_GOOGLE_CLIENT_ID", "").strip()
+    if not google_client_id:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Google OAuth is not configured: ENGRAMIA_GOOGLE_CLIENT_ID is not set.",
+        )
+    if data.get("aud") != google_client_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Google token: audience mismatch.",
+        )
+
+    email = data.get("email") or None
     provider_id = str(data.get("sub", ""))
-    name = data.get("name") or fallback_name
+    name = data.get("name") or None
     return email, provider_id, name
 
 
-def _verify_apple_token(
-    id_token: str,
-    fallback_email: str | None,
-    fallback_name: str | None,
-) -> tuple[str | None, str, str | None]:
+def _verify_apple_token(id_token: str, name: str | None) -> tuple[str | None, str, str | None]:
     """Decode Apple ID token (JWT payload only — no signature verification).
 
     Production deployments should verify against Apple's JWKS endpoint at
     https://appleid.apple.com/auth/keys.
+
+    The name is not present in the token payload; Apple sends it only on the
+    first authorization via the native UI, so the caller passes it separately.
     """
     import base64
     import json
@@ -339,9 +356,9 @@ def _verify_apple_token(
             raise ValueError("not a JWT")
         padding = "=" * (-len(parts[1]) % 4)
         payload = json.loads(base64.urlsafe_b64decode(parts[1] + padding))
-        email = payload.get("email") or fallback_email
+        email = payload.get("email") or None
         provider_id = str(payload.get("sub", ""))
-        return email, provider_id, fallback_name
+        return email, provider_id, name
     except Exception as exc:
         _log.warning("Apple token decode failed: %s", exc)
         raise HTTPException(
@@ -370,8 +387,10 @@ class LoginRequest(BaseModel):
 class OAuthRequest(BaseModel):
     provider: Literal["google", "apple"]
     provider_token: str
+    # name is included for Apple OAuth: Apple sends the user's name only on
+    # the first authorization (not in subsequent token payloads). Email is
+    # intentionally excluded — it must come from the verified provider token.
     name: str | None = None
-    email: str | None = None
 
 
 class RegisterResponse(BaseModel):
@@ -563,9 +582,9 @@ def oauth_login(body: OAuthRequest, request: Request) -> RegisterResponse:
     ip = request.client.host if request.client else "unknown"
 
     if body.provider == "google":
-        email, provider_id, name = _verify_google_token(body.provider_token, body.email, body.name)
+        email, provider_id, name = _verify_google_token(body.provider_token)
     else:
-        email, provider_id, name = _verify_apple_token(body.provider_token, body.email, body.name)
+        email, provider_id, name = _verify_apple_token(body.provider_token, body.name)
 
     if not email:
         raise HTTPException(
