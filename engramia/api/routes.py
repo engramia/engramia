@@ -767,13 +767,19 @@ def health_deep(request: Request, memory: Memory = Depends(get_memory)):
         aggregate_status,
         check_embedding,
         check_llm,
+        check_migration,
+        check_redis,
         check_storage,
+        check_stripe,
     )
 
     checks = {
         "storage": check_storage(memory.storage),
         "llm": check_llm(memory.llm),
         "embedding": check_embedding(memory.embeddings),
+        "redis": check_redis(),
+        "stripe": check_stripe(),
+        "migration": check_migration(memory.storage),
     }
 
     overall = aggregate_status(checks)
