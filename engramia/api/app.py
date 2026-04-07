@@ -288,7 +288,7 @@ def create_app() -> FastAPI:
         if isinstance(detail, dict):
             # Detail is already structured (e.g. quota_exceeded from _check_quota).
             inner_error = detail.get("error", "")
-            if inner_error == "quota_exceeded" or status_code == 429 and "limit" in detail:
+            if inner_error == "quota_exceeded" or (status_code == 429 and "limit" in detail):
                 error_code = "QUOTA_EXCEEDED"
             else:
                 error_code = default_code

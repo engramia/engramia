@@ -482,7 +482,7 @@ def get_feedback(
 ) -> FeedbackResponse:
     """Return top recurring quality issues for prompt injection.
 
-    Results are sorted by relevance (score × count) and support offset-based
+    Results are sorted by relevance (score x count) and support offset-based
     pagination. One extra item is fetched internally to determine ``has_more``
     without a separate count query.
 
@@ -490,7 +490,7 @@ def get_feedback(
         memory: Memory instance injected by dependency.
         task_type: Optional keyword filter — only feedback patterns containing
             this string are returned (e.g. ``"csv"``, ``"api"``).
-        limit: Maximum number of results to return (1–20, default 5).
+        limit: Maximum number of results to return (1-20, default 5).
         offset: Number of results to skip for pagination (default 0).
 
     Returns:

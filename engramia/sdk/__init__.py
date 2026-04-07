@@ -22,28 +22,20 @@ Example::
 from __future__ import annotations
 
 __all__ = [
-    # Universal bridge (zero extra deps)
+    "engramia_hooks",
+    "engramia_instructions",
+    "engramia_query",
+    "engramia_system_prompt",
     "EngramiaBridge",
-    # REST HTTP client (zero extra deps)
+    "EngramiaCallback",
+    "EngramiaCapability",
+    "EngramiaCrewCallback",
+    "EngramiaMemory",
+    "EngramiaRunHooks",
     "EngramiaWebhook",
     "EngramiaWebhookError",
-    # Anthropic Agent SDK integration
-    "engramia_query",
-    "engramia_hooks",
-    "recall_system_prompt",
-    # OpenAI Agents SDK integration
-    "EngramiaRunHooks",
-    "engramia_instructions",
-    # LangChain integration
-    "EngramiaCallback",
-    # CrewAI integration
-    "EngramiaCrewCallback",
-    # Pydantic AI integration
-    "EngramiaCapability",
-    "engramia_system_prompt",
-    # AutoGen integration
-    "EngramiaMemory",
     "learn_from_result",
+    "recall_system_prompt",
 ]
 
 # Lazy import table: symbol name → (module path, attribute name)
