@@ -59,10 +59,7 @@ def main() -> None:
 
     db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
     if not db_url:
-        log.error(
-            "ENGRAMIA_DATABASE_URL is not set. "
-            "Export it before running this script."
-        )
+        log.error("ENGRAMIA_DATABASE_URL is not set. Export it before running this script.")
         sys.exit(1)
 
     try:

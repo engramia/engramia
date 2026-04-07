@@ -97,10 +97,7 @@ def _scrub_value(value: object) -> object:
     - All other types are returned unchanged.
     """
     if isinstance(value, dict):
-        return {
-            k: (_REDACTED if k in _PII_KEYS else _scrub_value(v))
-            for k, v in value.items()
-        }
+        return {k: (_REDACTED if k in _PII_KEYS else _scrub_value(v)) for k, v in value.items()}
     if isinstance(value, list):
         return [_scrub_value(item) for item in value]
     if isinstance(value, str):
@@ -150,18 +147,11 @@ class AuditScrubber:
         """
         from sqlalchemy import text
 
-        cutoff = (
-            datetime.datetime.now(tz=datetime.UTC)
-            - datetime.timedelta(days=older_than_days)
-        ).isoformat()
+        cutoff = (datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=older_than_days)).isoformat()
 
         with self._engine.connect() as conn:
             rows = conn.execute(
-                text(
-                    "SELECT id, ip_address, detail "
-                    "FROM audit_log "
-                    "WHERE created_at < :cutoff"
-                ),
+                text("SELECT id, ip_address, detail FROM audit_log WHERE created_at < :cutoff"),
                 {"cutoff": cutoff},
             ).fetchall()
 
@@ -210,11 +200,7 @@ class AuditScrubber:
         detail_json = json.dumps(new_detail) if new_detail is not None else None
 
         if detail_json is not None:
-            sql = (
-                "UPDATE audit_log "
-                "SET ip_address = :ip, detail = CAST(:detail AS jsonb) "
-                "WHERE id = :id"
-            )
+            sql = "UPDATE audit_log SET ip_address = :ip, detail = CAST(:detail AS jsonb) WHERE id = :id"
             params: dict = {"ip": new_ip, "detail": detail_json, "id": row_id}
         else:
             sql = "UPDATE audit_log SET ip_address = :ip WHERE id = :id"

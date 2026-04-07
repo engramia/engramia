@@ -60,7 +60,7 @@ def _get_jwt_secret() -> str:
                 if env == "production":
                     raise RuntimeError(
                         "ENGRAMIA_JWT_SECRET must be explicitly set in production. "
-                        "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                        'Generate with: python -c "import secrets; print(secrets.token_hex(32))"'
                     )
                 secret = secrets.token_hex(32)
                 _log.warning(
