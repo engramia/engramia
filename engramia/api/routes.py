@@ -97,6 +97,10 @@ def _trunc(s: str) -> str:
 def _try_async(request: Request, operation: str, params: dict) -> JSONResponse | None:
     """If ``Prefer: respond-async`` header is set and job service is available,
     submit an async job and return a 202 response. Otherwise return None.
+
+    Reads the optional ``X-Max-Execution-Seconds`` header and forwards it to
+    the job service so the worker can actively cancel the job if it runs too
+    long. Invalid or non-positive values are silently ignored.
     """
     if request.headers.get("Prefer") != "respond-async":
         return None
@@ -108,7 +112,22 @@ def _try_async(request: Request, operation: str, params: dict) -> JSONResponse |
     auth_ctx = getattr(request.state, "auth_context", None)
     key_id = auth_ctx.key_id if auth_ctx else None
 
-    result = service.submit(operation=operation, params=params, key_id=key_id)
+    max_execution_seconds: int | None = None
+    raw = request.headers.get("X-Max-Execution-Seconds")
+    if raw is not None:
+        try:
+            parsed = int(raw)
+            if parsed > 0:
+                max_execution_seconds = parsed
+        except ValueError:
+            pass
+
+    result = service.submit(
+        operation=operation,
+        params=params,
+        key_id=key_id,
+        max_execution_seconds=max_execution_seconds,
+    )
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
         content={"job_id": result.job_id, "status": result.status},

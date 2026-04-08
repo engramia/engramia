@@ -332,3 +332,64 @@ class TestJobServiceDBReapExpired:
 
         svc = JobService(engine=engine, memory=None)
         assert svc.reap_expired() == 2
+
+
+# ---------------------------------------------------------------------------
+# In-memory — max_execution_seconds
+# ---------------------------------------------------------------------------
+
+
+class TestJobServiceMaxExecutionSeconds:
+    def test_submit_stores_max_execution_seconds(self, svc):
+        result = svc.submit("aging", {}, max_execution_seconds=30)
+        job = svc._mem_store[result.job_id]
+        assert job["max_execution_seconds"] == 30
+
+    def test_submit_without_max_execution_seconds_defaults_to_none(self, svc):
+        result = svc.submit("aging", {})
+        job = svc._mem_store[result.job_id]
+        assert job["max_execution_seconds"] is None
+
+    def test_job_expires_when_timeout_exceeded(self, svc, mem_mock):
+        """A job whose dispatch takes longer than max_execution_seconds is marked expired."""
+        import time as _time
+
+        svc._memory = mem_mock
+
+        def slow_aging():
+            _time.sleep(5)
+            return 0
+
+        mem_mock.run_aging.side_effect = slow_aging
+
+        result = svc.submit("aging", {}, max_execution_seconds=1)
+        svc.poll_and_execute()
+
+        info = svc.get(result.job_id)
+        assert info.status == "expired"
+        assert "max execution time" in (info.error or "")
+
+    def test_job_completes_within_timeout(self, svc, mem_mock):
+        """A job that finishes before the deadline is marked completed normally."""
+        svc._memory = mem_mock
+        mem_mock.run_aging.return_value = 2
+
+        result = svc.submit("aging", {}, max_execution_seconds=60)
+        svc.poll_and_execute()
+
+        info = svc.get(result.job_id)
+        assert info.status == "completed"
+
+    def test_db_submit_passes_max_execution_seconds(self):
+        engine = MagicMock()
+        begin_inner = MagicMock()
+        engine.begin.return_value.__enter__ = MagicMock(return_value=begin_inner)
+        engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+
+        svc = JobService(engine=engine, memory=None)
+        svc.submit("aging", {}, max_execution_seconds=120)
+
+        call_kwargs = begin_inner.execute.call_args
+        # The bound params dict is the second positional arg
+        params = call_kwargs[0][1]
+        assert params["max_exec"] == 120
