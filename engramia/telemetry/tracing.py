@@ -69,7 +69,8 @@ def init_tracing(
 
     resource = Resource.create({"service.name": svc})
     provider = TracerProvider(resource=resource)
-    exporter = OTLPSpanExporter(endpoint=ep, insecure=True)
+    insecure = os.environ.get("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() in ("1", "true", "yes")
+    exporter = OTLPSpanExporter(endpoint=ep, insecure=insecure)
     provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
     _tracer_provider = provider

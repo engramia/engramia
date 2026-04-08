@@ -401,31 +401,15 @@ def _verify_google_token(id_token: str) -> tuple[str | None, str, str | None]:
 
 
 def _verify_apple_token(id_token: str, name: str | None) -> tuple[str | None, str, str | None]:
-    """Decode Apple ID token (JWT payload only — no signature verification).
+    """Decode Apple ID token.
 
-    Production deployments should verify against Apple's JWKS endpoint at
-    https://appleid.apple.com/auth/keys.
-
-    The name is not present in the token payload; Apple sends it only on the
-    first authorization via the native UI, so the caller passes it separately.
+    Not yet implemented — production deployments must verify against Apple's
+    JWKS endpoint at https://appleid.apple.com/auth/keys before enabling.
     """
-    import base64
-    import json
-
-    try:
-        parts = id_token.split(".")
-        if len(parts) != 3:
-            raise ValueError("not a JWT")
-        padding = "=" * (-len(parts[1]) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(parts[1] + padding))
-        email = payload.get("email") or None
-        provider_id = str(payload.get("sub", ""))
-        return email, provider_id, name
-    except Exception as exc:
-        _log.warning("Apple token decode failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Apple token verification failed."
-        ) from None
+    raise NotImplementedError(
+        "Apple token verification is not implemented. "
+        "Verify the JWT signature against Apple's JWKS endpoint before enabling."
+    )
 
 
 # ---------------------------------------------------------------------------
