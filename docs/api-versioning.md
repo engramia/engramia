@@ -80,7 +80,7 @@ Endpoints marked `[BETA]` in the API reference (`/v1/governance/*`, `/v1/analyti
 
 When a breaking change is required, Engramia follows this process:
 
-### 1. Announce deprecation (minimum 90 days before removal)
+### 1. Announce deprecation (minimum 6 months before removal)
 
 Deprecated endpoints or fields are announced via:
 
@@ -105,9 +105,9 @@ After the sunset date, the deprecated endpoint or field is removed. A new major 
 
 | Scenario | Minimum notice period |
 |---|---|
-| Remove a stable endpoint | 90 days |
-| Remove a stable response field | 90 days |
-| Add a required request field | 90 days |
+| Remove a stable endpoint | 6 months |
+| Remove a stable response field | 6 months |
+| Add a required request field | 6 months |
 | Remove a beta endpoint | 30 days |
 
 ## Migration Guides
