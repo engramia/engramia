@@ -5,6 +5,7 @@ Reusable execution memory and evaluation infrastructure for AI agent frameworks.
 [![CI](https://github.com/engramia/engramia/actions/workflows/ci.yml/badge.svg)](https://github.com/engramia/engramia/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 [![License: BSL 1.1](https://img.shields.io/badge/license-BSL%201.1-orange)](LICENSE.txt)
+[![Docs](https://img.shields.io/badge/docs-ReadTheDocs-blue)](https://engramia.readthedocs.io)
 
 > **Status:** v0.6.5 — 1200+ tests / 80%+ coverage.
 > Core library · REST API · 9 framework integrations · multi-tenancy · RBAC · async jobs · observability · data governance · ROI analytics.
