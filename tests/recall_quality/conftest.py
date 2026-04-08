@@ -252,10 +252,16 @@ def learn_and_get_key(
         pattern_key string, or "" if recall returned nothing.
     """
     client.learn(task=task, code=code, eval_score=eval_score, output=output)
-    # Small pause helps in remote mode where pgvector may have slight indexing lag
-    if os.environ.get("ENGRAMIA_TEST_MODE", "local").lower() == "remote":
-        time.sleep(0.15)
-    matches = client.recall(task=task, limit=1, deduplicate=False, eval_weighted=False)
-    if matches:
-        return matches[0]["pattern_key"]
+    # In remote mode pgvector may have slight indexing lag.  Poll until the
+    # record is visible rather than sleeping a fixed interval — exits as soon
+    # as the pattern appears, or after a 2-second budget.
+    is_remote = os.environ.get("ENGRAMIA_TEST_MODE", "local").lower() == "remote"
+    deadline = time.monotonic() + 2.0 if is_remote else time.monotonic()
+    while True:
+        matches = client.recall(task=task, limit=1, deduplicate=False, eval_weighted=False)
+        if matches:
+            return matches[0]["pattern_key"]
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(0.05)
     return ""
