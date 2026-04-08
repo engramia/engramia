@@ -12,6 +12,7 @@ Responsibilities:
 
 import datetime
 import logging
+from typing import Any
 
 import sqlalchemy.exc
 from sqlalchemy import text
@@ -33,6 +34,7 @@ _log = logging.getLogger(__name__)
 # Build a tuple of Stripe-related exception types at import time so that
 # except clauses stay readable.  Falls back to generic network errors when
 # the stripe SDK is not installed.
+_stripe_lib: Any = None
 try:
     import stripe as _stripe_lib
 
@@ -42,7 +44,6 @@ try:
         TimeoutError,
     )
 except ImportError:
-    _stripe_lib = None  # type: ignore[assignment]
     _STRIPE_ERRORS = (ConnectionError, TimeoutError, OSError)
 
 

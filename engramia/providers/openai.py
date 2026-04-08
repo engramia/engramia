@@ -12,7 +12,7 @@ Both providers use lazy imports so the module can be imported without the
 import logging
 import random
 import time
-from typing import Any
+from typing import Any, cast
 
 from engramia.providers._concurrency import llm_semaphore
 from engramia.providers.base import EmbeddingProvider, LLMProvider
@@ -74,7 +74,7 @@ class OpenAIProvider(LLMProvider):
                 try:
                     response = self._client.chat.completions.create(
                         model=self._model,
-                        messages=messages,  # type: ignore[arg-type]
+                        messages=cast(list[Any], messages),
                     )
                     _metrics.observe_llm("openai", self._model, time.perf_counter() - t0)
                     return response.choices[0].message.content or ""

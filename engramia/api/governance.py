@@ -13,6 +13,7 @@ Permissions required:
 """
 
 import logging
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
@@ -425,9 +426,11 @@ def create_dsr(
     engine = _get_engine(request)
     tracker = DSRTracker(engine=engine)
 
+    from engramia.governance.dsr import DSRType
+
     dsr = tracker.create(
         tenant_id=scope.tenant_id,
-        request_type=body.request_type,  # type: ignore[arg-type]
+        request_type=cast(DSRType, body.request_type),
         subject_email=body.subject_email,
         handler_notes=body.handler_notes,
     )
@@ -469,9 +472,11 @@ def list_dsrs(
     engine = _get_engine(request)
     tracker = DSRTracker(engine=engine)
 
+    from engramia.governance.dsr import DSRStatus
+
     requests = tracker.list_requests(
         tenant_id=scope.tenant_id,
-        status=filter_status,  # type: ignore[arg-type]
+        status=cast(DSRStatus, filter_status) if filter_status else None,
         overdue_only=overdue_only,
         limit=limit,
     )
@@ -519,9 +524,11 @@ def update_dsr(
             detail="You may only modify DSRs belonging to your tenant.",
         )
 
+    from engramia.governance.dsr import DSRStatus
+
     updated = tracker.update_status(
         dsr_id=dsr_id,
-        status=body.status,  # type: ignore[arg-type]
+        status=cast(DSRStatus, body.status),
         handler_notes=body.handler_notes,
     )
     if updated is None:

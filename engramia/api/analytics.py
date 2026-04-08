@@ -12,6 +12,7 @@ Permissions required:
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 
 from engramia import Memory
 from engramia._context import get_scope
@@ -47,7 +48,7 @@ def trigger_rollup(
     body: ROIRollupRequest,
     request: Request,
     memory: Memory = Depends(get_memory),
-) -> ROIRollupListResponse:
+) -> ROIRollupListResponse | JSONResponse:
     """Compute and persist ROI rollup for the given window.
 
     Aggregates all raw events collected in the last window period and
@@ -62,7 +63,7 @@ def trigger_rollup(
     """
     async_resp = _try_async(request, "roi_rollup", {"window": body.window})
     if async_resp is not None:
-        return async_resp  # type: ignore[return-value]
+        return async_resp
 
     from engramia.analytics.aggregator import ROIAggregator
     from engramia.analytics.collector import ROICollector
