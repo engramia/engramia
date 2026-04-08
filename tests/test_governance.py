@@ -168,6 +168,185 @@ class TestRedactionPipeline:
 
 
 # ---------------------------------------------------------------------------
+# Phone redaction
+# ---------------------------------------------------------------------------
+
+
+class TestPhoneRedaction:
+    def setup_method(self):
+        self.hook = RegexRedactor()
+
+    # --- detection ---
+
+    def test_detects_us_international(self):
+        findings = self.hook.scan("Call +1-800-555-0123 for support")
+        assert any(f.kind == "phone" for f in findings)
+
+    def test_detects_uk_international(self):
+        findings = self.hook.scan("UK line: +44 7700 900123")
+        assert any(f.kind == "phone" for f in findings)
+
+    def test_detects_czech_international(self):
+        findings = self.hook.scan("CZ support: +420 123 456 789")
+        assert any(f.kind == "phone" for f in findings)
+
+    def test_detects_international_with_dots(self):
+        findings = self.hook.scan("Fax: +1.800.555.0199")
+        assert any(f.kind == "phone" for f in findings)
+
+    def test_detects_international_with_00_prefix(self):
+        findings = self.hook.scan("Dial 0044 7700 900123 from abroad")
+        assert any(f.kind == "phone" for f in findings)
+
+    def test_detects_parenthesized_area_code(self):
+        findings = self.hook.scan("Reservations: (800) 555-0199")
+        assert any(f.kind == "phone" for f in findings)
+
+    def test_detects_parenthesized_with_dot_separator(self):
+        findings = self.hook.scan("(800) 555.0199")
+        assert any(f.kind == "phone" for f in findings)
+
+    def test_counts_multiple_phones(self):
+        findings = self.hook.scan("+1-800-555-0100 and +1-888-555-0200")
+        phone_findings = [f for f in findings if f.kind == "phone"]
+        assert sum(f.count for f in phone_findings) >= 2
+
+    # --- redaction ---
+
+    def test_redacts_us_phone(self):
+        result = self.hook.redact("Contact +1-800-555-0123 now")
+        assert "+1-800-555-0123" not in result
+        assert "[REDACTED_PHONE]" in result
+
+    def test_redacts_uk_phone(self):
+        result = self.hook.redact("Reach us on +44 7700 900123")
+        assert "+44 7700 900123" not in result
+        assert "[REDACTED_PHONE]" in result
+
+    def test_redacts_parenthesized_phone(self):
+        result = self.hook.redact("Call (800) 555-0199")
+        assert "(800) 555-0199" not in result
+        assert "[REDACTED_PHONE]" in result
+
+    # --- no false positives ---
+
+    def test_no_match_on_short_number(self):
+        # Only 4 digits total — not a phone number
+        findings = self.hook.scan("error code: +1 234")
+        assert not any(f.kind == "phone" for f in findings)
+
+    def test_no_match_on_version_number(self):
+        findings = self.hook.scan("version 1.2.3.4 released")
+        assert not any(f.kind == "phone" for f in findings)
+
+    def test_no_match_on_clean_text(self):
+        findings = self.hook.scan("loop 10 times and return result")
+        assert not any(f.kind == "phone" for f in findings)
+
+
+# ---------------------------------------------------------------------------
+# Credit card redaction
+# ---------------------------------------------------------------------------
+
+
+class TestCreditCardRedaction:
+    def setup_method(self):
+        self.hook = RegexRedactor()
+
+    # --- detection by card type ---
+
+    def test_detects_visa(self):
+        # Standard Luhn-valid Visa test number
+        findings = self.hook.scan("Visa: 4111111111111111")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    def test_detects_mastercard_old_range(self):
+        # 51xx range
+        findings = self.hook.scan("MC: 5500005555555559")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    def test_detects_mastercard_new_range(self):
+        # 2xxx range (2221-2720)
+        findings = self.hook.scan("MC2: 2221000000000009")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    def test_detects_amex(self):
+        # Amex 4-6-5 format, starts with 37
+        findings = self.hook.scan("Amex: 378282246310005")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    def test_detects_discover(self):
+        # Discover starts with 6011
+        findings = self.hook.scan("Discover: 6011111111111117")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    def test_detects_discover_65xx(self):
+        # Discover 65xx range
+        findings = self.hook.scan("Discover: 6500000000000002")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    # --- separator variants ---
+
+    def test_detects_card_with_spaces(self):
+        findings = self.hook.scan("4111 1111 1111 1111")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    def test_detects_card_with_dashes(self):
+        findings = self.hook.scan("4111-1111-1111-1111")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    def test_detects_amex_with_spaces(self):
+        # Amex canonical grouping: 4-6-5 → 3782 822463 10005
+        findings = self.hook.scan("3782 822463 10005")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    def test_detects_amex_with_dashes(self):
+        # Amex canonical grouping: 4-6-5 → 3782-822463-10005
+        findings = self.hook.scan("3782-822463-10005")
+        assert any(f.kind == "credit_card" for f in findings)
+
+    # --- redaction ---
+
+    def test_redacts_visa_no_separators(self):
+        result = self.hook.redact("charged to 4111111111111111")
+        assert "4111111111111111" not in result
+        assert "[REDACTED_CARD]" in result
+
+    def test_redacts_visa_with_spaces(self):
+        result = self.hook.redact("card: 4111 1111 1111 1111 expires 12/26")
+        assert "4111 1111 1111 1111" not in result
+        assert "[REDACTED_CARD]" in result
+
+    def test_redacts_amex(self):
+        result = self.hook.redact("Amex ending 378282246310005")
+        assert "378282246310005" not in result
+        assert "[REDACTED_CARD]" in result
+
+    # --- no false positives ---
+
+    def test_no_match_on_15_digit_visa_like(self):
+        # Visa must be exactly 16 digits; 15 shouldn't match Visa slot
+        findings = self.hook.scan("ref: 411111111111111")  # 15 digits starting with 4
+        assert not any(f.kind == "credit_card" for f in findings)
+
+    def test_no_match_on_random_digits(self):
+        # 16 digits starting with 9 — no valid BIN
+        findings = self.hook.scan("order 9999999999999999")
+        assert not any(f.kind == "credit_card" for f in findings)
+
+    def test_no_match_on_clean_text(self):
+        findings = self.hook.scan("the price is 42 dollars and 50 cents")
+        assert not any(f.kind == "credit_card" for f in findings)
+
+    def test_pipeline_detects_card_in_field(self):
+        pipeline = RedactionPipeline.default()
+        data = {"code": "token = 4111111111111111"}
+        clean, findings = pipeline.process(data)
+        assert "4111111111111111" not in clean["code"]
+        assert any(f.kind == "credit_card" for f in findings)
+
+
+# ---------------------------------------------------------------------------
 # RetentionManager
 # ---------------------------------------------------------------------------
 
