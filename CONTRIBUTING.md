@@ -26,7 +26,9 @@ The most valuable contributions right now are non-code:
 - **Feature requests** — describe your use case in an Issue. Explain what you
   are trying to achieve, not just what you want added.
 - **Documentation feedback** — if something in the docs is wrong, unclear, or
-  missing, open an Issue.
+  missing, open an Issue. Please reference the specific page or section
+  (docs are built from Markdown files in the `docs/` directory and published
+  at [engramia.readthedocs.io](https://engramia.readthedocs.io)).
 - **Spread the word** — write about how you use Engramia, share benchmarks,
   mention it in your projects. This directly supports continued development.
 
