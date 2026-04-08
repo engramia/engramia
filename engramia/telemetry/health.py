@@ -160,11 +160,9 @@ def check_stripe() -> dict:
 
     start = time.perf_counter()
     try:
-        import urllib.request
+        import httpx
 
-        req = urllib.request.Request("https://api.stripe.com/v1/", method="HEAD")
-        with urllib.request.urlopen(req, timeout=_PROBE_TIMEOUT):
-            pass
+        httpx.head("https://api.stripe.com/v1/", timeout=_PROBE_TIMEOUT)
         return {"status": "ok", "latency_ms": round((time.perf_counter() - start) * 1000, 2)}
     except Exception as exc:
         _log.warning("Stripe reachability probe failed: %s", exc)
