@@ -7,15 +7,14 @@ using a mocked SQLAlchemy engine.
 """
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from engramia._context import reset_scope, set_scope
-from engramia.jobs.models import JobOperation, JobStatus
+from engramia.jobs.models import JobStatus
 from engramia.jobs.service import JobService
 from engramia.types import Scope
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -393,3 +392,61 @@ class TestJobServiceMaxExecutionSeconds:
         # The bound params dict is the second positional arg
         params = call_kwargs[0][1]
         assert params["max_exec"] == 120
+
+
+# ---------------------------------------------------------------------------
+# DB path — list / poll
+# ---------------------------------------------------------------------------
+
+
+class TestJobServiceDBList:
+    def test_db_list_returns_empty_when_no_rows(self):
+        engine = MagicMock()
+        conn = MagicMock()
+        conn.execute.return_value.fetchall.return_value = []
+        engine.connect.return_value.__enter__ = MagicMock(return_value=conn)
+        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        svc = JobService(engine=engine, memory=None)
+        jobs = svc.list_jobs()
+        assert jobs == []
+
+    def test_db_list_returns_job_infos(self):
+        engine = MagicMock()
+        conn = MagicMock()
+        conn.execute.return_value.fetchall.return_value = [
+            (
+                "job-1", "aging", "pending", None, None,
+                0, "2026-01-01T00:00:00Z", None, None, None,
+            )
+        ]
+        engine.connect.return_value.__enter__ = MagicMock(return_value=conn)
+        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        svc = JobService(engine=engine, memory=None)
+        jobs = svc.list_jobs()
+        assert len(jobs) == 1
+        assert jobs[0].id == "job-1"
+
+    def test_db_list_with_status_filter(self):
+        engine = MagicMock()
+        conn = MagicMock()
+        conn.execute.return_value.fetchall.return_value = []
+        engine.connect.return_value.__enter__ = MagicMock(return_value=conn)
+        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        svc = JobService(engine=engine, memory=None)
+        jobs = svc.list_jobs(status="completed")
+        assert jobs == []
+
+
+class TestJobServiceDBPoll:
+    def test_db_poll_returns_zero_when_no_pending_jobs(self):
+        engine = MagicMock()
+        conn = MagicMock()
+        conn.execute.return_value.fetchall.return_value = []
+        engine.begin.return_value.__enter__ = MagicMock(return_value=conn)
+        engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+
+        svc = JobService(engine=engine, memory=None)
+        assert svc.poll_and_execute() == 0

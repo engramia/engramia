@@ -48,12 +48,12 @@ from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
 from engramia.api.analytics import router as analytics_router
 from engramia.api.cloud_auth import router as cloud_auth_router
+from engramia.api.errors import STATUS_TO_ERROR_CODE, ErrorCode
 from engramia.api.governance import router as governance_router
 from engramia.api.jobs import router as jobs_router
 from engramia.api.keys import router as keys_router
 from engramia.api.routes import meta_router, router
 from engramia.billing.webhooks import router as billing_router
-from engramia.api.errors import STATUS_TO_ERROR_CODE, ErrorCode
 from engramia.exceptions import (
     AuthorizationError,
     EngramiaError,

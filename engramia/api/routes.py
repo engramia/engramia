@@ -28,6 +28,7 @@ from engramia import Memory
 from engramia.api.audit import AuditEvent, log_event
 from engramia.api.auth import require_auth
 from engramia.api.deps import get_auth_context, get_memory
+from engramia.api.errors import ErrorCode
 from engramia.api.permissions import PERMISSIONS, require_permission
 from engramia.api.schemas import (
     AgingResponse,
@@ -62,7 +63,6 @@ from engramia.api.schemas import (
     SkillsSearchRequest,
     StageOut,
 )
-from engramia.api.errors import ErrorCode
 from engramia.exceptions import ProviderError
 from engramia.types import AuthContext
 from engramia.versioning import API_VERSION, APP_VERSION, BUILD_TIME, GIT_COMMIT

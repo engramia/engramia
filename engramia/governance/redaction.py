@@ -129,9 +129,9 @@ _REGEX_RULES: list[tuple[str, re.Pattern[str], str]] = [
             (?<!\d)   # not preceded by a digit
             (?:
                 3[47]\d{2}[\s\-]?\d{6}[\s\-]?\d{5}              # Amex 4-6-5
-              | 4\d{3}(?:[\s\-]?\d{4}){3}                        # Visa 4×4
-              | (?:5[1-5]\d{2}|2[2-7]\d{2})(?:[\s\-]?\d{4}){3}  # Mastercard 4×4
-              | (?:6011|65\d{2})(?:[\s\-]?\d{4}){3}              # Discover 4×4
+              | 4\d{3}(?:[\s\-]?\d{4}){3}                        # Visa 4x4
+              | (?:5[1-5]\d{2}|2[2-7]\d{2})(?:[\s\-]?\d{4}){3}  # Mastercard 4x4
+              | (?:6011|65\d{2})(?:[\s\-]?\d{4}){3}              # Discover 4x4
             )
             (?!\d)    # not followed by a digit
             """,
