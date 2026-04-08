@@ -12,6 +12,7 @@ from engramia._context import reset_scope, set_scope
 from engramia.analytics.aggregator import ROIAggregator, _compute_rollup
 from engramia.analytics.collector import ROICollector, _EVENTS_KEY
 from engramia.analytics.models import EventKind, LearnSummary, ROIEvent, RecallOutcome
+from engramia.exceptions import ValidationError
 from engramia.providers.json_storage import JSONStorage
 from engramia.types import Scope
 
@@ -207,9 +208,25 @@ class TestROICollectorFiltering:
         ]
         storage.save(_EVENTS_KEY, events_data)
 
-        events = c.load_events(project_id="proj1")
+        events = c.load_events(project_id="proj1", admin_override=True)
         assert len(events) == 1
         assert events[0].scope_project == "proj1"
+
+    def test_load_events_raises_without_tenant_id_or_admin_override(self, collector):
+        with pytest.raises(ValidationError, match="admin_override=True"):
+            collector.load_events()
+
+    def test_load_events_admin_override_allows_unscoped_read(self, storage):
+        c = ROICollector(storage)
+        events_data = [
+            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=8.0,
+                     scope_tenant="tenant_x", scope_project="p").model_dump(),
+            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=6.0,
+                     scope_tenant="tenant_y", scope_project="p").model_dump(),
+        ]
+        storage.save(_EVENTS_KEY, events_data)
+        events = c.load_events(admin_override=True)
+        assert len(events) == 2
 
     def test_time_filtering_since_ts(self, storage):
         c = ROICollector(storage)
