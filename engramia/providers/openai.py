@@ -74,7 +74,7 @@ class OpenAIProvider(LLMProvider):
                 try:
                     response = self._client.chat.completions.create(
                         model=self._model,
-                        messages=cast(list[Any], messages),
+                        messages=cast("list[Any]", messages),
                     )
                     _metrics.observe_llm("openai", self._model, time.perf_counter() - t0)
                     return response.choices[0].message.content or ""

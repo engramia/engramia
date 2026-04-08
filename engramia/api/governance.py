@@ -430,7 +430,7 @@ def create_dsr(
 
     dsr = tracker.create(
         tenant_id=scope.tenant_id,
-        request_type=cast(DSRType, body.request_type),
+        request_type=cast("DSRType", body.request_type),
         subject_email=body.subject_email,
         handler_notes=body.handler_notes,
     )
@@ -476,7 +476,7 @@ def list_dsrs(
 
     requests = tracker.list_requests(
         tenant_id=scope.tenant_id,
-        status=cast(DSRStatus, filter_status) if filter_status else None,
+        status=cast("DSRStatus", filter_status) if filter_status else None,
         overdue_only=overdue_only,
         limit=limit,
     )
@@ -528,7 +528,7 @@ def update_dsr(
 
     updated = tracker.update_status(
         dsr_id=dsr_id,
-        status=cast(DSRStatus, body.status),
+        status=cast("DSRStatus", body.status),
         handler_notes=body.handler_notes,
     )
     if updated is None:
