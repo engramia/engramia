@@ -409,23 +409,14 @@ def _verify_apple_token(id_token: str, name: str | None) -> tuple[str | None, st
     The name is not present in the token payload; Apple sends it only on the
     first authorization via the native UI, so the caller passes it separately.
     """
-    import base64
-    import json
-
-    try:
-        parts = id_token.split(".")
-        if len(parts) != 3:
-            raise ValueError("not a JWT")
-        padding = "=" * (-len(parts[1]) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(parts[1] + padding))
-        email = payload.get("email") or None
-        provider_id = str(payload.get("sub", ""))
-        return email, provider_id, name
-    except Exception as exc:
-        _log.warning("Apple token decode failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Apple token verification failed."
-        ) from None
+    # Apple Sign-In is not production-ready: this implementation decodes the JWT
+    # payload without verifying the RS256 signature against Apple's JWKS endpoint
+    # (https://appleid.apple.com/auth/keys). Accepting unverified tokens would
+    # allow token forgery — an attacker could craft a payload with any email/sub
+    # and gain access. Enable only after adding proper JWKS signature verification.
+    raise NotImplementedError(
+        "Apple Sign-In is not yet implemented — enable only after adding JWKS signature verification"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -192,14 +192,14 @@ class PostgresStorage(StorageBackend):
         with self._engine.begin() as conn:
             conn.execute(
                 self._text(
-                    f"""
+                    """
                     INSERT INTO memory_embeddings (key, tenant_id, project_id, embedding)
-                    VALUES (:key, :tid, :pid, '{vec_str}'::vector)
+                    VALUES (:key, :tid, :pid, CAST(:embedding AS vector))
                     ON CONFLICT (tenant_id, project_id, key) DO UPDATE
                         SET embedding = EXCLUDED.embedding
                     """
                 ),
-                {"key": key, **sp},
+                {"key": key, "embedding": vec_str, **sp},
             )
 
     # ------------------------------------------------------------------
@@ -281,31 +281,31 @@ class PostgresStorage(StorageBackend):
                 safe_prefix = _escape_like(prefix)
                 rows = conn.execute(
                     self._text(
-                        f"""
-                        SELECT key, 1 - (embedding <=> '{vec_str}'::vector) AS similarity
+                        """
+                        SELECT key, 1 - (embedding <=> CAST(:embedding AS vector)) AS similarity
                         FROM memory_embeddings
                         WHERE key LIKE :prefix ESCAPE '\\'
                           AND tenant_id = :tid
                           AND project_id = :pid
-                        ORDER BY embedding <=> '{vec_str}'::vector
+                        ORDER BY embedding <=> CAST(:embedding AS vector)
                         LIMIT :limit
                         """
                     ),
-                    {"prefix": f"{safe_prefix}%", "limit": limit, **sp},
+                    {"embedding": vec_str, "prefix": f"{safe_prefix}%", "limit": limit, **sp},
                 ).fetchall()
             else:
                 rows = conn.execute(
                     self._text(
-                        f"""
-                        SELECT key, 1 - (embedding <=> '{vec_str}'::vector) AS similarity
+                        """
+                        SELECT key, 1 - (embedding <=> CAST(:embedding AS vector)) AS similarity
                         FROM memory_embeddings
                         WHERE tenant_id = :tid
                           AND project_id = :pid
-                        ORDER BY embedding <=> '{vec_str}'::vector
+                        ORDER BY embedding <=> CAST(:embedding AS vector)
                         LIMIT :limit
                         """
                     ),
-                    {"limit": limit, **sp},
+                    {"embedding": vec_str, "limit": limit, **sp},
                 ).fetchall()
         return [(row[0], float(row[1])) for row in rows]
 
