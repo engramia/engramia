@@ -275,11 +275,13 @@ def create_app() -> FastAPI:
     #   error_context — optional dict with structured context (limits, etc.)
     # ------------------------------------------------------------------
 
-    _QUOTA_INNER_ERRORS = frozenset({
-        "quota_exceeded",
-        "project_quota_exceeded",
-        "overage_budget_cap_reached",
-    })
+    _QUOTA_INNER_ERRORS = frozenset(
+        {
+            "quota_exceeded",
+            "project_quota_exceeded",
+            "overage_budget_cap_reached",
+        }
+    )
     # Context keys promoted to error_context for structured consumers.
     _CONTEXT_KEYS = frozenset({"current", "limit", "current_count", "retry_after", "reset_date", "metric", "max_bytes"})
 
@@ -343,7 +345,10 @@ def create_app() -> FastAPI:
         _log.warning("ProviderError in request %s %s: %s", request.method, request.url.path, exc)
         return JSONResponse(
             status_code=501,
-            content={"error_code": ErrorCode.PROVIDER_NOT_CONFIGURED, "detail": "LLM or embedding provider not configured."},
+            content={
+                "error_code": ErrorCode.PROVIDER_NOT_CONFIGURED,
+                "detail": "LLM or embedding provider not configured.",
+            },
         )
 
     @app.exception_handler(StorageError)

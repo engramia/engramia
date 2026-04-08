@@ -91,7 +91,14 @@ class JobService:
 
         if self._use_db:
             self._db_submit(
-                job_id, operation, params, scope, key_id, now, expires, request_id,
+                job_id,
+                operation,
+                params,
+                scope,
+                key_id,
+                now,
+                expires,
+                request_id,
                 max_execution_seconds,
             )
         else:
@@ -307,7 +314,9 @@ class JobService:
     # PostgreSQL implementation
     # ------------------------------------------------------------------
 
-    def _db_submit(self, job_id, operation, params, scope, key_id, now, expires, request_id=None, max_execution_seconds=None):
+    def _db_submit(
+        self, job_id, operation, params, scope, key_id, now, expires, request_id=None, max_execution_seconds=None
+    ):
         from sqlalchemy import text
 
         with self._engine.begin() as conn:
