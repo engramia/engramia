@@ -97,6 +97,49 @@ _REGEX_RULES: list[tuple[str, re.Pattern[str], str]] = [
         "[REDACTED_GITHUB_TOKEN]",
     ),
     (
+        "phone",
+        # International: +CC or 00CC followed by digit groups (e.g. +1-800-555-0123,
+        # +44 7700 900123, +420 123 456 789). Domestic: (NXX) NXX-XXXX.
+        # Each group must have ≥2 digits to suppress version/math false-positives.
+        re.compile(
+            r"""
+            (?<!\d)          # not preceded by a digit
+            (?:
+                (?:\+|00)[1-9]\d{0,3}   # country code: +1, +44, +420, 001 …
+                (?:[\s\-.]?\d{2,}){2,5} # 2-5 digit groups, each ≥2 digits
+            |
+                \(\d{2,4}\)[\s\-.]?\d{3,4}[\s\-.]?\d{3,6}  # (NXX) NXX-XXXX
+            )
+            (?!\d)           # not followed by a digit
+            """,
+            re.VERBOSE,
+        ),
+        "[REDACTED_PHONE]",
+    ),
+    (
+        "credit_card",
+        # Structural card patterns (Luhn-aware first-digit ranges + correct length).
+        # Amex: 4-6-5 digits (15 total), starts with 34/37.
+        # Visa: 16 digits, starts with 4.
+        # Mastercard: 16 digits, starts with 51-55 or 2221-2720 range.
+        # Discover: 16 digits, starts with 6011 or 65xx.
+        # Separators between groups: space, dash, or none.
+        re.compile(
+            r"""
+            (?<!\d)   # not preceded by a digit
+            (?:
+                3[47]\d{2}[\s\-]?\d{6}[\s\-]?\d{5}              # Amex 4-6-5
+              | 4\d{3}(?:[\s\-]?\d{4}){3}                        # Visa 4×4
+              | (?:5[1-5]\d{2}|2[2-7]\d{2})(?:[\s\-]?\d{4}){3}  # Mastercard 4×4
+              | (?:6011|65\d{2})(?:[\s\-]?\d{4}){3}              # Discover 4×4
+            )
+            (?!\d)    # not followed by a digit
+            """,
+            re.VERBOSE,
+        ),
+        "[REDACTED_CARD]",
+    ),
+    (
         "hex_secret",
         # 32-64 hex chars as standalone token (likely an API key / secret)
         re.compile(r"(?<![A-Za-z0-9])[0-9a-fA-F]{32,64}(?![A-Za-z0-9])"),
