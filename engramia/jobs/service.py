@@ -7,6 +7,8 @@ async jobs. It works with both PostgreSQL (production) and an in-memory
 fallback for JSON storage mode.
 """
 
+import concurrent.futures
+import contextvars
 import logging
 import time
 import traceback
@@ -59,6 +61,7 @@ class JobService:
         params: dict,
         scope: Scope | None = None,
         key_id: str | None = None,
+        max_execution_seconds: int | None = None,
     ) -> JobSubmitResult:
         """Submit a new job for async processing.
 
@@ -67,6 +70,9 @@ class JobService:
             params: Serialized request parameters.
             scope: Tenant/project scope. Uses current context if None.
             key_id: API key ID of the submitter.
+            max_execution_seconds: Optional hard cap on execution time. If the
+                job runs longer than this, the worker marks it expired and frees
+                the concurrency slot. Defaults to passive TTL-based expiry.
 
         Returns:
             JobSubmitResult with the job ID and initial status.
@@ -84,7 +90,10 @@ class JobService:
         )
 
         if self._use_db:
-            self._db_submit(job_id, operation, params, scope, key_id, now, expires, request_id)
+            self._db_submit(
+                job_id, operation, params, scope, key_id, now, expires, request_id,
+                max_execution_seconds,
+            )
         else:
             self._mem_store[job_id] = {
                 "id": job_id,
@@ -104,6 +113,7 @@ class JobService:
                 "started_at": None,
                 "completed_at": None,
                 "expires_at": expires,
+                "max_execution_seconds": max_execution_seconds,
             }
 
         _log.info("Job %s submitted: operation=%s, scope=%s/%s", job_id, operation, scope.tenant_id, scope.project_id)
@@ -242,12 +252,33 @@ class JobService:
         return len(claimed)
 
     def _execute_job(self, job: dict) -> None:
-        """Execute a single job dict, updating status and result in place."""
+        """Execute a single job dict, updating status and result in place.
+
+        If ``max_execution_seconds`` is set on the job, execution is run in a
+        thread and cancelled (marked expired) if the deadline is exceeded.
+        """
+        max_exec = job.get("max_execution_seconds")
         scope = Scope(tenant_id=job["tenant_id"], project_id=job["project_id"])
         token = set_scope(scope)
         rid_token = set_request_id(job.get("request_id") or "")
         try:
-            result = dispatch_job(self._memory, job["operation"], job["params"])
+            if max_exec is not None:
+                # Capture context vars so the worker thread sees the same scope/request_id.
+                ctx = contextvars.copy_context()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                    fut = ex.submit(ctx.run, dispatch_job, self._memory, job["operation"], job["params"])
+                    try:
+                        result = fut.result(timeout=max_exec)
+                    except concurrent.futures.TimeoutError:
+                        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                        job["status"] = JobStatus.EXPIRED
+                        job["error"] = f"Job exceeded max execution time ({max_exec}s)"
+                        job["completed_at"] = now
+                        _log.warning("Job %s timed out after %ds", job["id"], max_exec)
+                        return
+            else:
+                result = dispatch_job(self._memory, job["operation"], job["params"])
+
             now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             job["status"] = JobStatus.COMPLETED
             job["result"] = result
@@ -276,15 +307,15 @@ class JobService:
     # PostgreSQL implementation
     # ------------------------------------------------------------------
 
-    def _db_submit(self, job_id, operation, params, scope, key_id, now, expires, request_id=None):
+    def _db_submit(self, job_id, operation, params, scope, key_id, now, expires, request_id=None, max_execution_seconds=None):
         from sqlalchemy import text
 
         with self._engine.begin() as conn:
             conn.execute(
                 text(
                     "INSERT INTO jobs (id, tenant_id, project_id, key_id, request_id, operation, "
-                    "params, status, attempts, max_attempts, created_at, expires_at) "
-                    "VALUES (:id, :tid, :pid, :kid, :rid, :op, :params, 'pending', 0, 3, :now, :exp)"
+                    "params, status, attempts, max_attempts, created_at, expires_at, max_execution_seconds) "
+                    "VALUES (:id, :tid, :pid, :kid, :rid, :op, :params, 'pending', 0, 3, :now, :exp, :max_exec)"
                 ),
                 {
                     "id": job_id,
@@ -296,6 +327,7 @@ class JobService:
                     "params": params,
                     "now": now,
                     "exp": expires,
+                    "max_exec": max_execution_seconds,
                 },
             )
 
@@ -390,7 +422,7 @@ class JobService:
                     "  ORDER BY created_at "
                     "  LIMIT :batch "
                     "  FOR UPDATE SKIP LOCKED"
-                    ") RETURNING id, operation, params, tenant_id, project_id, attempts, max_attempts, request_id"
+                    ") RETURNING id, operation, params, tenant_id, project_id, attempts, max_attempts, request_id, max_execution_seconds"
                 ),
                 {"batch": batch_size},
             ).fetchall()
@@ -406,6 +438,7 @@ class JobService:
                 "attempts": row[5],
                 "max_attempts": row[6],
                 "request_id": row[7],
+                "max_execution_seconds": row[8],
             }
             self._db_execute_one(job_dict)
             count += 1
@@ -414,11 +447,35 @@ class JobService:
     def _db_execute_one(self, job_dict):
         from sqlalchemy import text
 
+        max_exec = job_dict.get("max_execution_seconds")
         scope = Scope(tenant_id=job_dict["tenant_id"], project_id=job_dict["project_id"])
         token = set_scope(scope)
         rid_token = set_request_id(job_dict.get("request_id") or "")
         try:
-            result = dispatch_job(self._memory, job_dict["operation"], job_dict["params"])
+            if max_exec is not None:
+                # Capture context vars so the worker thread sees the same scope/request_id.
+                ctx = contextvars.copy_context()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                    fut = ex.submit(ctx.run, dispatch_job, self._memory, job_dict["operation"], job_dict["params"])
+                    try:
+                        result = fut.result(timeout=max_exec)
+                    except concurrent.futures.TimeoutError:
+                        with self._engine.begin() as conn:
+                            conn.execute(
+                                text(
+                                    "UPDATE jobs SET status = 'expired', "
+                                    "error = :error, completed_at = now()::text WHERE id = :id"
+                                ),
+                                {
+                                    "id": job_dict["id"],
+                                    "error": f"Job exceeded max execution time ({max_exec}s)",
+                                },
+                            )
+                        _log.warning("Job %s timed out after %ds", job_dict["id"], max_exec)
+                        return
+            else:
+                result = dispatch_job(self._memory, job_dict["operation"], job_dict["params"])
+
             with self._engine.begin() as conn:
                 conn.execute(
                     text(
