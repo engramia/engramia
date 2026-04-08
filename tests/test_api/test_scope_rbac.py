@@ -444,9 +444,12 @@ class TestQuotaEnforcement:
         )
         assert resp.status_code == 429
         body = resp.json()
-        assert body["detail"]["error"] == "quota_exceeded"
-        assert body["detail"]["current"] == 3
-        assert body["detail"]["limit"] == 3
+        # _make_auth_app is a bare FastAPI() without the production error handler,
+        # so HTTPException detail dicts are returned raw under "detail".
+        detail = body["detail"]
+        assert detail["error_code"] == "QUOTA_EXCEEDED"
+        assert detail["current"] == 3
+        assert detail["limit"] == 3
 
     def test_quota_not_enforced_without_auth_context(self, tmp_path):
         """In env-var auth mode (no auth_context), quota is never enforced."""
