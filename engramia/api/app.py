@@ -53,7 +53,15 @@ from engramia.api.jobs import router as jobs_router
 from engramia.api.keys import router as keys_router
 from engramia.api.routes import meta_router, router
 from engramia.billing.webhooks import router as billing_router
-from engramia.exceptions import ValidationError
+from engramia.api.errors import STATUS_TO_ERROR_CODE, ErrorCode
+from engramia.exceptions import (
+    AuthorizationError,
+    EngramiaError,
+    ProviderError,
+    QuotaExceededError,
+    StorageError,
+    ValidationError,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -261,51 +269,46 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     # Error handlers — structured error responses
     #
-    # All API errors return a JSON body with at minimum:
+    # All API errors return a JSON body conforming to ErrorResponse:
     #   error_code    — machine-readable string enum (e.g. "UNAUTHORIZED")
-    #   error_message — human-readable description
-    # Plus contextual fields where relevant (e.g. current/limit for quota).
+    #   detail        — human-readable description
+    #   error_context — optional dict with structured context (limits, etc.)
     # ------------------------------------------------------------------
 
-    # Map HTTP status codes to canonical error_code strings.
-    _STATUS_TO_ERROR_CODE: dict[int, str] = {
-        400: "BAD_REQUEST",
-        401: "UNAUTHORIZED",
-        403: "FORBIDDEN",
-        404: "NOT_FOUND",
-        409: "CONFLICT",
-        413: "PAYLOAD_TOO_LARGE",
-        422: "VALIDATION_ERROR",
-        429: "RATE_LIMITED",
-        501: "PROVIDER_NOT_CONFIGURED",
-        503: "SERVICE_UNAVAILABLE",
-    }
+    _QUOTA_INNER_ERRORS = frozenset({
+        "quota_exceeded",
+        "project_quota_exceeded",
+        "overage_budget_cap_reached",
+    })
+    # Context keys promoted to error_context for structured consumers.
+    _CONTEXT_KEYS = frozenset({"current", "limit", "current_count", "retry_after", "reset_date", "metric", "max_bytes"})
 
     def _build_error_body(status_code: int, detail) -> dict:
-        """Convert an HTTPException detail into a structured error response body."""
-        default_code = _STATUS_TO_ERROR_CODE.get(status_code, "ERROR")
+        """Convert an HTTPException detail into a structured ErrorResponse body."""
+        default_code = STATUS_TO_ERROR_CODE.get(status_code, ErrorCode.ERROR)
 
         if isinstance(detail, dict):
-            # Detail is already structured (e.g. quota_exceeded from _check_quota).
+            # Explicit error_code in the detail dict takes precedence.
+            inner_error_code = detail.get("error_code", "")
             inner_error = detail.get("error", "")
-            if inner_error == "quota_exceeded" or (status_code == 429 and "limit" in detail):
-                error_code = "QUOTA_EXCEEDED"
+            if inner_error_code:
+                error_code = inner_error_code
+            elif inner_error in _QUOTA_INNER_ERRORS or (status_code == 429 and "limit" in detail):
+                error_code = ErrorCode.QUOTA_EXCEEDED
             else:
                 error_code = default_code
-            body: dict = {
-                "error_code": error_code,
-                "error_message": detail.get("message") or detail.get("detail") or str(detail),
-            }
-            # Preserve contextual fields (current, limit, etc.) at the top level.
-            for key in ("current", "limit", "current_count", "retry_after"):
-                if key in detail:
-                    body[key] = detail[key]
+
+            human_msg = detail.get("detail") or detail.get("message") or str(detail)
+            context = {k: detail[k] for k in _CONTEXT_KEYS if k in detail}
+            body: dict = {"error_code": error_code, "detail": human_msg}
+            if context:
+                body["error_context"] = context
             return body
 
-        # Plain string detail.
+        # Plain string or None detail.
         return {
             "error_code": default_code,
-            "error_message": str(detail) if detail else _STATUS_TO_ERROR_CODE.get(status_code, "An error occurred."),
+            "detail": str(detail) if detail else STATUS_TO_ERROR_CODE.get(status_code, "An error occurred."),
         }
 
     @app.exception_handler(HTTPException)
@@ -319,7 +322,7 @@ def create_app() -> FastAPI:
         _log.warning("ValueError in request %s %s: %s", request.method, request.url.path, exc)
         return JSONResponse(
             status_code=422,
-            content={"error_code": "VALIDATION_ERROR", "error_message": "Invalid request parameters."},
+            content={"error_code": ErrorCode.VALIDATION_ERROR, "detail": "Invalid request parameters."},
         )
 
     @app.exception_handler(ValidationError)
@@ -327,7 +330,52 @@ def create_app() -> FastAPI:
         _log.warning("ValidationError in request %s %s: %s", request.method, request.url.path, exc)
         return JSONResponse(
             status_code=422,
-            content={"error_code": "VALIDATION_ERROR", "error_message": "Validation error in request."},
+            content={"error_code": ErrorCode.VALIDATION_ERROR, "detail": "Validation error in request."},
+        )
+
+    # ------------------------------------------------------------------
+    # EngramiaError subclass handlers — catch domain exceptions that
+    # escape route handlers and map them to structured HTTP responses.
+    # ------------------------------------------------------------------
+
+    @app.exception_handler(ProviderError)
+    async def provider_error_handler(request: Request, exc: ProviderError) -> JSONResponse:
+        _log.warning("ProviderError in request %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=501,
+            content={"error_code": ErrorCode.PROVIDER_NOT_CONFIGURED, "detail": "LLM or embedding provider not configured."},
+        )
+
+    @app.exception_handler(StorageError)
+    async def storage_error_handler(request: Request, exc: StorageError) -> JSONResponse:
+        _log.error("StorageError in request %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=503,
+            content={"error_code": ErrorCode.STORAGE_ERROR, "detail": "Storage backend error."},
+        )
+
+    @app.exception_handler(QuotaExceededError)
+    async def quota_exceeded_error_handler(request: Request, exc: QuotaExceededError) -> JSONResponse:
+        _log.warning("QuotaExceededError in request %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=429,
+            content={"error_code": ErrorCode.QUOTA_EXCEEDED, "detail": "Pattern quota exceeded."},
+        )
+
+    @app.exception_handler(AuthorizationError)
+    async def authorization_error_handler(request: Request, exc: AuthorizationError) -> JSONResponse:
+        _log.warning("AuthorizationError in request %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=403,
+            content={"error_code": ErrorCode.FORBIDDEN, "detail": "Operation not permitted for the current role."},
+        )
+
+    @app.exception_handler(EngramiaError)
+    async def engramia_error_handler(request: Request, exc: EngramiaError) -> JSONResponse:
+        _log.error("Unhandled EngramiaError in request %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=500,
+            content={"error_code": ErrorCode.INTERNAL_ERROR, "detail": "An internal error occurred."},
         )
 
     # ------------------------------------------------------------------

@@ -56,8 +56,8 @@ class MaintenanceModeMiddleware(BaseHTTPMiddleware):
                 status_code=503,
                 content={
                     "error_code": "SERVICE_UNAVAILABLE",
-                    "error_message": "Service is under scheduled maintenance. Please try again later.",
-                    "retry_after": 3600,
+                    "detail": "Service is under scheduled maintenance. Please try again later.",
+                    "error_context": {"retry_after": 3600},
                 },
                 headers={"Retry-After": "3600"},
             )
@@ -164,8 +164,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 status_code=429,
                 content={
                     "error_code": "RATE_LIMITED",
-                    "error_message": f"Rate limit exceeded. Max {ip_limit} requests per minute.",
-                    "retry_after": 60,
+                    "detail": f"Rate limit exceeded. Max {ip_limit} requests per minute.",
+                    "error_context": {"retry_after": 60},
                 },
                 headers={"Retry-After": "60"},
             )
@@ -182,8 +182,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 status_code=429,
                 content={
                     "error_code": "RATE_LIMITED",
-                    "error_message": f"Rate limit exceeded. Max {self._key_limit} requests per minute per API key.",
-                    "retry_after": 60,
+                    "detail": f"Rate limit exceeded. Max {self._key_limit} requests per minute per API key.",
+                    "error_context": {"retry_after": 60},
                 },
                 headers={"Retry-After": "60"},
             )
@@ -219,8 +219,8 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
                         status_code=413,
                         content={
                             "error_code": "PAYLOAD_TOO_LARGE",
-                            "error_message": f"Request body too large. Maximum allowed: {self._max} bytes.",
-                            "max_bytes": self._max,
+                            "detail": f"Request body too large. Maximum allowed: {self._max} bytes.",
+                            "error_context": {"max_bytes": self._max},
                         },
                     )
             except ValueError:

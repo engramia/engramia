@@ -62,6 +62,7 @@ from engramia.api.schemas import (
     SkillsSearchRequest,
     StageOut,
 )
+from engramia.api.errors import ErrorCode
 from engramia.exceptions import ProviderError
 from engramia.types import AuthContext
 from engramia.versioning import API_VERSION, APP_VERSION, BUILD_TIME, GIT_COMMIT
@@ -158,10 +159,10 @@ def _check_quota(memory: Memory, auth_ctx: AuthContext | None, request: Request 
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail={
-                        "error": "project_quota_exceeded",
+                        "error_code": ErrorCode.QUOTA_EXCEEDED,
                         "current": current,
                         "limit": project_cap,
-                        "message": (
+                        "detail": (
                             f"Project pattern quota reached ({project_cap} patterns, "
                             f"{int(_PROJECT_QUOTA_PCT * 100)}% of tenant limit). "
                             "Delete old patterns or contact your admin to increase the project limit."
@@ -186,10 +187,10 @@ def _check_quota(memory: Memory, auth_ctx: AuthContext | None, request: Request 
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
-                "error": "quota_exceeded",
+                "error_code": ErrorCode.QUOTA_EXCEEDED,
                 "current": current,
                 "limit": auth_ctx.max_patterns,
-                "message": "Pattern quota reached. Delete old patterns or upgrade your plan.",
+                "detail": "Pattern quota reached. Delete old patterns or upgrade your plan.",
             },
         )
 
@@ -352,7 +353,10 @@ def compose(body: ComposeRequest, request: Request, memory: Memory = Depends(get
     except ProviderError:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="LLM provider not configured. compose() requires an LLM.",
+            detail={
+                "error_code": ErrorCode.PROVIDER_NOT_CONFIGURED,
+                "detail": "LLM provider not configured. compose() requires an LLM.",
+            },
         ) from None
 
     stages_out = [
@@ -432,7 +436,10 @@ def evaluate(
     except ProviderError:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="LLM provider not configured. evaluate() requires an LLM.",
+            detail={
+                "error_code": ErrorCode.PROVIDER_NOT_CONFIGURED,
+                "detail": "LLM provider not configured. evaluate() requires an LLM.",
+            },
         ) from None
 
     # Increment eval run counter after successful evaluation (fire-and-log)
@@ -837,7 +844,10 @@ def evolve_prompt(body: EvolveRequest, request: Request, memory: Memory = Depend
     except ProviderError:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="LLM provider not configured. evolve_prompt() requires an LLM.",
+            detail={
+                "error_code": ErrorCode.PROVIDER_NOT_CONFIGURED,
+                "detail": "LLM provider not configured. evolve_prompt() requires an LLM.",
+            },
         ) from None
     return EvolveResponse(
         improved_prompt=_trunc(result.improved_prompt),
