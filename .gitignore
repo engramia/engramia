@@ -81,4 +81,5 @@ docs/*AUDIT*
 
 # Legal internal docs
 docs/legal/key-legal-design-decisions.md
+docs/legal/ROPA.md
 website/**/key-legal-design-decisions.md
