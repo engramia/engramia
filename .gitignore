@@ -66,9 +66,12 @@ Thumbs.db
 /.claude
 CLAUDE.md
 roadmap.md
-CHANGELOG.md
 test_run_prompt.md
+STRIPE.md
+COMPLIANCE_INPUT_TEMPLATE.md
 docs/internal/
+docs/GTM_ROADMAP*
+docs/uat.md
 
 # Audit outputs (LLM-generated, never version)
 AUDIT_PROMPT.md
@@ -78,3 +81,4 @@ docs/*AUDIT*
 
 # Legal internal docs
 docs/legal/key-legal-design-decisions.md
+website/**/key-legal-design-decisions.md
