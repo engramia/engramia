@@ -92,7 +92,7 @@ class ROIAggregator:
             raise ValueError(f"Unsupported window {window!r}. Use: {list(_WINDOW_SECONDS)}")
 
         since_ts = time.time() - _WINDOW_SECONDS[window]
-        events = self._collector.load_events(since_ts=since_ts, tenant_id="*")
+        events = self._collector.load_events(since_ts=since_ts, tenant_id="*", admin_override=True)
 
         # Group by (tenant_id, project_id)
         grouped: dict[tuple[str, str], list[ROIEvent]] = {}

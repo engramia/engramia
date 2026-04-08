@@ -17,6 +17,7 @@ from typing import Literal
 
 from engramia._context import get_scope
 from engramia.analytics.models import EventKind, ROIEvent
+from engramia.exceptions import ValidationError
 from engramia.providers.base import StorageBackend
 
 _log = logging.getLogger(__name__)
@@ -99,31 +100,32 @@ class ROICollector:
         since_ts: float | None = None,
         tenant_id: str | None = None,
         project_id: str | None = None,
+        admin_override: bool = False,
     ) -> list[ROIEvent]:
         """Load raw events with optional scope and time filtering.
 
         Args:
             since_ts: If set, only return events with ts >= since_ts.
-            tenant_id: Filter to this tenant (None = all tenants).
+            tenant_id: Filter to this tenant.  Pass ``"*"`` to skip tenant
+                filtering (requires ``admin_override=True``).
             project_id: Filter to this project (None = all projects).
+            admin_override: Must be explicitly set to ``True`` to perform an
+                unscoped (all-tenant) read.  Prevents accidental cross-tenant
+                data leakage when tenant_id is omitted.
 
         Returns:
             List of ROIEvent objects in chronological order.
 
         Raises:
-            ValueError: If both tenant_id and project_id are None.  Callers
-                must supply at least a tenant_id to prevent accidental
-                cross-tenant data leakage.  Admin/internal callers that
-                intentionally need a full scan should pass the special
-                sentinel ``tenant_id="*"`` — filtering is then skipped for
-                that dimension.
+            ValidationError: If tenant_id is None and admin_override is False.
+                Pass admin_override=True to explicitly request an unscoped scan.
         """
-        if tenant_id is None and project_id is None:
-            raise ValueError(
-                "load_events() requires at least tenant_id to be specified. "
-                "Passing both as None would return events across all tenants, "
+        if tenant_id is None and not admin_override:
+            raise ValidationError(
+                "load_events() requires tenant_id to be specified. "
+                "Omitting tenant_id would return events across all tenants, "
                 "which is a cross-tenant data leak risk. "
-                "Pass tenant_id='*' to explicitly request an unscoped scan."
+                "Pass admin_override=True to explicitly request an unscoped scan."
             )
         raw = self._load_raw()
         events: list[ROIEvent] = []
