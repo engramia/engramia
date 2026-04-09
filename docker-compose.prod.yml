@@ -27,8 +27,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 256M
+          cpus: "0.2"
+          memory: 128M
         reservations:
           cpus: "0.1"
           memory: 64M
@@ -58,11 +58,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 512M
+          cpus: "0.5"
+          memory: 384M
         reservations:
           cpus: "0.1"
-          memory: 128M
+          memory: 192M
 
   engramia-api:
     image: ghcr.io/engramia/engramia:${IMAGE_TAG:?IMAGE_TAG must be set}
@@ -96,8 +96,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
-          memory: 1G
+          cpus: "1.0"
+          memory: 512M
         reservations:
           cpus: "0.25"
           memory: 256M
@@ -108,6 +108,21 @@ services:
       POSTGRES_USER: engramia
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: engramia
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=512MB
+      -c work_mem=8MB
+      -c maintenance_work_mem=128MB
+      -c wal_buffers=16MB
+      -c checkpoint_completion_target=0.9
+      -c random_page_cost=1.1
+      -c max_connections=100
+      -c max_parallel_workers_per_gather=2
+      -c max_parallel_workers=4
+      -c log_min_duration_statement=500
+      -c log_checkpoints=on
+      -c log_lock_waits=on
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -128,11 +143,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
-          memory: 2G
+          cpus: "0.75"
+          memory: 512M
         reservations:
           cpus: "0.5"
-          memory: 512M
+          memory: 256M
 
 volumes:
   engramia_data:

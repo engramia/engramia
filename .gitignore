@@ -21,6 +21,7 @@ venv/
 # Environment
 .env
 .env.*
+!.env.*.example
 
 # Secrets / certificates
 *.pem
