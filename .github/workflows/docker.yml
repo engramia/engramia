@@ -10,6 +10,7 @@ permissions:
   security-events: write
 
 jobs:
+  # ── 1. Build & push image to GHCR ──────────────────────────────────────────
   build-and-push:
     name: Build and push Docker image
     runs-on: ubuntu-latest
@@ -90,10 +91,86 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    name: Deploy to VM
+  # ── 2. Deploy to staging (non-prod server) ─────────────────────────────────
+  # Requires repository variable STAGING_ENABLED=true and secrets:
+  #   STAGING_DEPLOY_HOST, STAGING_DEPLOY_USER, STAGING_DEPLOY_SSH_KEY,
+  #   STAGING_DEPLOY_PATH, STAGING_API_KEY
+  deploy-staging:
+    name: Deploy to staging
     runs-on: ubuntu-latest
     needs: build-and-push
+    if: vars.STAGING_ENABLED == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy compose files to staging
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.STAGING_DEPLOY_HOST }}
+          username: ${{ secrets.STAGING_DEPLOY_USER }}
+          key: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          source: "docker-compose.staging.yml,Caddyfile.non-prod"
+          target: ${{ secrets.STAGING_DEPLOY_PATH }}
+
+      - name: Deploy staging via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_DEPLOY_HOST }}
+          username: ${{ secrets.STAGING_DEPLOY_USER }}
+          key: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          script: |
+            export IMAGE_TAG=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+            cd ${{ secrets.STAGING_DEPLOY_PATH }}
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            IMAGE_TAG=$IMAGE_TAG docker compose -f docker-compose.staging.yml pull engramia-api-staging
+            IMAGE_TAG=$IMAGE_TAG docker compose -f docker-compose.staging.yml up -d pgvector-staging
+            IMAGE_TAG=$IMAGE_TAG docker compose -f docker-compose.staging.yml run --rm -T engramia-api-staging alembic upgrade head
+            IMAGE_TAG=$IMAGE_TAG docker compose -f docker-compose.staging.yml up -d engramia-api-staging caddy-staging
+            docker image prune -f
+
+  # ── 3. Smoke test staging ───────────────────────────────────────────────────
+  smoke-test-staging:
+    name: Smoke test staging
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: vars.STAGING_ENABLED == 'true'
+    steps:
+      - name: Wait for staging to stabilize
+        run: sleep 15
+
+      - name: Version check
+        run: |
+          EXPECTED=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          ACTUAL=$(curl -sf https://staging-api.engramia.dev/v1/version | python3 -c "import sys,json; print(json.load(sys.stdin)['app_version'])")
+          echo "expected=$EXPECTED  actual=$ACTUAL"
+          [ "$EXPECTED" = "$ACTUAL" ] || (echo "STAGING VERSION MISMATCH" && exit 1)
+
+      - name: Health check
+        run: |
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.STAGING_API_KEY }}" \
+            https://staging-api.engramia.dev/v1/health)
+          echo "staging_health_status=$STATUS"
+          [ "$STATUS" = "200" ] || (echo "STAGING HEALTH CHECK FAILED (status=$STATUS)" && exit 1)
+
+      - name: Deep health check
+        run: |
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.STAGING_API_KEY }}" \
+            https://staging-api.engramia.dev/v1/health/deep)
+          echo "staging_deep_health_status=$STATUS"
+          [ "$STATUS" = "200" ] || (echo "STAGING DEEP HEALTH FAILED (status=$STATUS)" && exit 1)
+
+  # ── 4. Deploy to production (requires manual approval) ─────────────────────
+  # Gate: GitHub environment "production" must have required reviewers configured.
+  # If STAGING_ENABLED=false, deploys directly after build (no staging gate).
+  deploy-prod:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs:
+      - build-and-push
+      - smoke-test-staging
+    if: always() && needs.build-and-push.result == 'success' && (needs.smoke-test-staging.result == 'success' || needs.smoke-test-staging.result == 'skipped')
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -123,27 +200,35 @@ jobs:
             IMAGE_TAG=$IMAGE_TAG docker compose -f docker-compose.prod.yml up -d engramia-api caddy
             docker image prune -f
 
-      - name: Post-deploy smoke test
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            EXPECTED=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+  # ── 5. Smoke test production ────────────────────────────────────────────────
+  smoke-test-prod:
+    name: Smoke test production
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    steps:
+      - name: Wait for prod to stabilize
+        run: sleep 15
 
-            # 1. Version check
-            ACTUAL=$(curl -sf https://api.engramia.dev/v1/version | python3 -c "import sys,json; print(json.load(sys.stdin)['app_version'])")
-            echo "expected=$EXPECTED  actual=$ACTUAL"
-            [ "$EXPECTED" = "$ACTUAL" ] || (echo "POST-DEPLOY VERSION MISMATCH" && exit 1)
+      - name: Version check
+        run: |
+          EXPECTED=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          ACTUAL=$(curl -sf https://api.engramia.dev/v1/version | python3 -c "import sys,json; print(json.load(sys.stdin)['app_version'])")
+          echo "expected=$EXPECTED  actual=$ACTUAL"
+          [ "$EXPECTED" = "$ACTUAL" ] || (echo "POST-DEPLOY VERSION MISMATCH" && exit 1)
 
-            # 2. Deep health check — storage, LLM, and external dependencies
-            HEALTH=$(curl -sf -o /dev/null -w "%{http_code}" https://api.engramia.dev/v1/health/deep)
-            echo "deep_health_http_status=$HEALTH"
-            [ "$HEALTH" = "200" ] || (echo "POST-DEPLOY DEEP HEALTH CHECK FAILED (status=$HEALTH)" && exit 1)
+      - name: Health check
+        run: |
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.PROD_API_KEY }}" \
+            https://api.engramia.dev/v1/health)
+          echo "prod_health_status=$STATUS"
+          [ "$STATUS" = "200" ] || (echo "PROD HEALTH CHECK FAILED (status=$STATUS)" && exit 1)
 
-            # 3. Verify no component is in hard error state
-            DEEP=$(curl -sf https://api.engramia.dev/v1/health/deep)
-            STATUS=$(echo "$DEEP" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
-            echo "deep_health_status=$STATUS"
-            [ "$STATUS" != "error" ] || (echo "POST-DEPLOY DEEP HEALTH RETURNED error: $DEEP" && exit 1)
+      - name: Deep health check
+        run: |
+          RESP=$(curl -sf \
+            -H "Authorization: Bearer ${{ secrets.PROD_API_KEY }}" \
+            https://api.engramia.dev/v1/health/deep)
+          STATUS=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+          echo "prod_deep_health_status=$STATUS"
+          [ "$STATUS" != "error" ] || (echo "PROD DEEP HEALTH RETURNED error: $RESP" && exit 1)
