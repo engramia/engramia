@@ -231,7 +231,7 @@ def bootstrap(body: BootstrapRequest, request: Request) -> KeyCreateResponse:
     # ------------------------------------------------------------------
     with engine.begin() as conn:
         # Exclusive session-level advisory lock (arbitrary stable integer).
-        conn.execute(text("SELECT pg_advisory_xact_lock(7369726d616e)"))
+        conn.execute(text("SELECT pg_advisory_xact_lock(736972)"))
 
         count = conn.execute(text("SELECT COUNT(*) FROM api_keys")).fetchone()
         if count and int(count[0]) > 0:
