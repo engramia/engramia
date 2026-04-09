@@ -1,8 +1,8 @@
 # Deployment Runbook
 
 > **Ops reference:** Step-by-step procedures for deploying, verifying, and rolling back Engramia in production.
-> For background on configuration options see [Environment Variables](environment-variables.md).
-> For backup procedures see [Backup & Restore](backup-restore.md).
+> For background on configuration options see [Environment Variables](../environment-variables.md).
+> For backup procedures see [Backup & Restore](../backup-restore.md).
 
 ---
 

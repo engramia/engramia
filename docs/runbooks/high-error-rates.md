@@ -64,4 +64,4 @@ rate(engramia_llm_call_duration_seconds_count{status="error"}[5m])
 
 - **P2** (elevated but <50%): Monitor for 15 min, investigate root cause
 - **P1** (>50% or all requests failing): Immediate investigation, consider rollback if recent deployment
-- **P0** (data corruption or security breach): Follow [incident-response.md](incident-response.md)
+- **P0** (data corruption or security breach): Follow [Incident Response Plan](../incident-response-plan.md)

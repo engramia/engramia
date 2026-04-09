@@ -71,7 +71,6 @@ STRIPE.md
 COMPLIANCE_INPUT_TEMPLATE.md
 docs/internal/
 docs/GTM_ROADMAP*
-docs/uat.md
 
 # Audit outputs (LLM-generated, never version)
 AUDIT_PROMPT.md
@@ -81,5 +80,4 @@ docs/*AUDIT*
 
 # Legal internal docs
 docs/legal/key-legal-design-decisions.md
-docs/legal/ROPA.md
 website/**/key-legal-design-decisions.md

@@ -1,6 +1,13 @@
 # Security
 
-## Implemented measures
+This page summarizes Engramia's security measures and links to detailed
+documentation. For the full security policy, vulnerability reporting process,
+and production deployment checklist, see the repository-level
+[SECURITY.md](https://github.com/engramia/engramia/blob/main/SECURITY.md).
+
+---
+
+## Implemented Measures
 
 | Area | Measure |
 |------|---------|
@@ -20,44 +27,24 @@
 | **Docker hardening** | Non-root user (`brain:1001`) |
 | **API versioning** | All endpoints under `/v1/` prefix |
 
-## Reporting vulnerabilities
+## Reporting Vulnerabilities
 
-If you discover a security vulnerability, please report it responsibly via email or a private GitHub security advisory. **Do not open a public issue for security vulnerabilities.**
+If you discover a security vulnerability, please report it responsibly.
+**Do not open a public issue for security vulnerabilities.**
 
-Contact: security@engramia.dev
+Contact: [security@engramia.dev](mailto:security@engramia.dev)
 
-## Known limitations
+You will receive an acknowledgement within 48 hours. See the full
+[SECURITY.md](https://github.com/engramia/engramia/blob/main/SECURITY.md)
+for the disclosure process and known limitations.
 
-### 1. Prompt injection (fundamental LLM limitation)
+## Detailed Security Documentation
 
-User-supplied `task`, `code`, and `output` fields are inserted into LLM prompts. XML delimiters and explicit "disregard" instructions are applied, but **no technique can guarantee 100% prevention** of prompt injection with current LLMs.
-
-**Recommendation:** Treat LLM outputs as untrusted. Validate results before acting on them.
-
-### 2. Rate limiting is in-memory, single-process
-
-In multi-worker or multi-instance deployments, each process has independent counters.
-
-**Recommendation:** Use an external rate limiter (Redis, API gateway, WAF) in front of Engramia for production deployments.
-
-### 3. IP identification behind reverse proxies
-
-Rate limiting and audit logging use `request.client.host`. Behind a reverse proxy, this returns the proxy's IP.
-
-**Recommendation:** Configure `X-Forwarded-For` headers and use uvicorn's `--proxy-headers` flag.
-
-### 4. Dev mode (no authentication)
-
-When `ENGRAMIA_API_KEYS` is not set, the API runs without authentication. A warning is logged at startup.
-
-**Recommendation:** Always set `ENGRAMIA_API_KEYS` in production.
-
-### 5. Model download verification (local embeddings)
-
-When using `LocalEmbeddings`, models are downloaded from Hugging Face Hub without cryptographic signature verification.
-
-**Recommendation:** Pin model versions and verify checksums in security-sensitive environments.
-
-## OWASP ASVS compliance
-
-Engramia targets **OWASP ASVS Level 2/3** for its security hardening. See the full [SECURITY.md](https://github.com/engramia/engramia/blob/main/SECURITY.md) in the repository for the complete security policy and production deployment checklist.
+| Document | Description |
+|----------|-------------|
+| [SECURITY.md](https://github.com/engramia/engramia/blob/main/SECURITY.md) | Full security policy — 10 known limitations, production deployment checklist, OWASP ASVS Level 2/3 compliance |
+| [Security Architecture](security-architecture.md) | Threat model, defense layers, trust boundaries |
+| [SOC 2 Controls](soc2-controls.md) | SOC 2 Type II control mapping |
+| [Incident Response Plan](incident-response-plan.md) | Severity matrix, response procedures, GDPR breach notification, communication templates |
+| [Production Hardening](production-hardening.md) | TLS termination, secrets management, infrastructure security |
+| [Data Handling](data-handling.md) | How Engramia processes and stores data |

@@ -216,7 +216,7 @@ cd /opt/engramia
 ### Step 4 — Notify affected tenant(s)
 
 If personal data was involved, GDPR breach notification may apply (72 h window).
-See [incident-response.md](runbooks/incident-response.md) — "P0 Response: Data Breach".
+See [Incident Response Plan](incident-response-plan.md) — Section 10.2 "Compromised API Key".
 
 ---
 
@@ -324,7 +324,7 @@ ssh root@engramia-staging \
 
 - [backup-restore.md](backup-restore.md) — backup configuration and manual restore steps
 - [runbooks/database-recovery.md](runbooks/database-recovery.md) — PostgreSQL-specific recovery cases
-- [runbooks/incident-response.md](runbooks/incident-response.md) — P0/P1 response playbook and post-mortem template
+- [Incident Response Plan](incident-response-plan.md) — severity matrix, response procedures, operational commands, and post-mortem template
 - [runbooks/deploy-rollback.md](runbooks/deploy-rollback.md) — deploy and rollback procedure
 - [runbooks/llm-provider-outage.md](runbooks/llm-provider-outage.md) — LLM provider failover
 - [runbooks/disk-full.md](runbooks/disk-full.md) — disk space recovery

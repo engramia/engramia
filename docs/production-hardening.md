@@ -244,7 +244,7 @@ pgvector embedding size: ~6 KB per pattern (1536 × 4 bytes float32). 10 000 pat
 
 ## Incident Response
 
-See [runbooks/incident-response.md](runbooks/incident-response.md) for the full IR process.
+See [Incident Response Plan](incident-response-plan.md) for the full IR process.
 
 Quick contacts:
 - **Infrastructure**: Hetzner Cloud Console (hetzner.com/cloud)

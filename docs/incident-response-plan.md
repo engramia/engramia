@@ -506,8 +506,151 @@ The following activities must be completed once per calendar year to validate th
 
 ---
 
-## 10. Document Version History
+## 10. Operational Quick Reference
+
+This section provides specific commands for the most critical incident types.
+For detailed runbooks per failure mode, see `docs/runbooks/`.
+
+### 10.1 API Unreachable (P1 Critical)
+
+**Detection:**
+```bash
+curl -sf https://api.engramia.dev/v1/health || echo "DOWN"
+```
+
+**Diagnosis:**
+```bash
+ssh root@engramia-staging
+cd /opt/engramia
+
+# Check container status
+docker compose -f docker-compose.prod.yml ps
+
+# Check recent logs (last 100 lines)
+docker compose -f docker-compose.prod.yml logs --tail=100 engramia-api
+
+# Check Caddy
+docker compose -f docker-compose.prod.yml logs --tail=50 caddy
+
+# Check DB
+docker compose -f docker-compose.prod.yml exec pgvector pg_isready -U engramia
+```
+
+**Common fixes:**
+
+- **Container exited:** `docker compose -f docker-compose.prod.yml up -d`
+- **Out of memory:** `free -h && docker stats --no-stream`
+- **Disk full:** See [disk-full.md](runbooks/disk-full.md) runbook
+- **DB connection refused:**
+  ```bash
+  docker compose -f docker-compose.prod.yml restart pgvector
+  sleep 10
+  docker compose -f docker-compose.prod.yml restart engramia-api
+  ```
+
+### 10.2 Compromised API Key (P1 Critical)
+
+**Immediate containment (< 15 minutes):**
+```bash
+# 1. Revoke the compromised key
+curl -X DELETE https://api.engramia.dev/v1/keys/{KEY_ID} \
+  -H "Authorization: Bearer $OWNER_KEY"
+
+# 2. If the owner key is compromised — rotate via direct DB access
+ssh root@engramia-staging
+docker compose -f /opt/engramia/docker-compose.prod.yml exec pgvector \
+  psql -U engramia engramia \
+  -c "UPDATE api_keys SET revoked_at = NOW() WHERE role = 'owner';"
+
+# 3. Enter maintenance mode
+cd /opt/engramia
+echo "ENGRAMIA_MAINTENANCE=true" >> .env
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**Investigation:**
+```bash
+# Review audit log for the compromised key
+docker compose -f /opt/engramia/docker-compose.prod.yml exec pgvector \
+  psql -U engramia engramia \
+  -c "SELECT * FROM audit_log WHERE key_id = '{KEY_ID}' ORDER BY ts DESC LIMIT 100;"
+```
+
+### 10.3 Database Corruption (P1 Critical)
+
+```bash
+# Check PostgreSQL logs
+docker compose -f /opt/engramia/docker-compose.prod.yml logs pgvector | grep -i error
+
+# Run integrity check
+docker compose exec pgvector pg_dumpall -U engramia --globals-only > /dev/null \
+  && echo "DB accessible" || echo "DB corrupted"
+```
+
+If corruption confirmed:
+1. Stop the API (enter maintenance mode)
+2. Take a dump of what's recoverable: `pg_dump --no-synchronous-commit`
+3. Restore from last clean backup (see [backup-restore.md](backup-restore.md))
+4. Apply any recoverable transactions from the partial dump
+
+### 10.4 High API Latency (P2 High)
+
+```bash
+# Check deep health
+curl https://api.engramia.dev/v1/health/deep \
+  -H "Authorization: Bearer $OWNER_KEY"
+
+# Check DB performance
+docker compose exec pgvector \
+  psql -U engramia engramia \
+  -c "SELECT pid, wait_event_type, wait_event, state, query FROM pg_stat_activity WHERE state != 'idle';"
+```
+
+See [high-latency.md](runbooks/high-latency.md) for detailed diagnosis steps.
+
+### 10.5 Backup Failure (P2 High)
+
+```bash
+# Check backup log
+tail -50 /var/log/engramia-backup.log
+
+# Manual backup
+/opt/engramia/scripts/backup.sh
+```
+
+See [backup-restore.md](backup-restore.md) for full restore procedures.
+
+---
+
+## 11. SOC 2 Incident Classification
+
+For SOC 2 Type II purposes, incidents must be classified and logged:
+
+| Category | SOC 2 Criterion |
+|----------|----------------|
+| Unauthorized access | CC6.1, CC6.7 |
+| Availability incident | A1.1, A1.2 |
+| Data loss | A1.3, CC9.1 |
+| System failure | CC7.1, CC7.2 |
+
+Log all P1/P2 incidents in the incident register within 24 hours of resolution.
+
+---
+
+## 12. Contact Points — Quick Reference
+
+| Role | Contact | Escalation |
+|------|---------|-----------|
+| On-call (Marek) | Per escalation chain (Section 4) | External security consultant |
+| Security incidents | security@engramia.dev | Founder direct |
+| Infrastructure | Hetzner Cloud Console | Hetzner support ticket |
+| Legal / GDPR DPA | legal@engramia.dev | Czech DPA (uoou.gov.cz) |
+
+---
+
+## 13. Document Version History
 
 | Version | Date | Author | Changes |
 |---|---|---|---|
 | 1.0.0 | 2026-04-07 | Marek | Initial version |
+| 1.1.0 | 2026-04-09 | Marek | Merged operational playbook from runbooks/incident-response.md; added SOC 2 classification, contact quick reference, and operational commands for critical incidents |

@@ -60,7 +60,7 @@ Engramia v0.6.0 · Trust Service Criteria: Security (CC), Availability (A)
 |-----------|-------------|--------|---------|
 | CC7.1 | Vulnerability detection | ✅ | `pip-audit --strict` in CI; trufflehog on every push |
 | CC7.2 | Monitoring | ✅ | Prometheus metrics; OTel tracing; Docker healthcheck; `GET /v1/health/deep` |
-| CC7.3 | Incident evaluation | ✅ | docs/runbooks/incident-response.md; severity levels defined |
+| CC7.3 | Incident evaluation | ✅ | docs/incident-response-plan.md; severity levels defined |
 | CC7.4 | Incident response | ✅ | Runbook with containment, investigation, notification steps |
 | CC7.5 | Incident identification | ✅ | Audit log: AUTH_FAILURE, QUOTA_EXCEEDED, SCOPE_DELETED, PII_REDACTED |
 

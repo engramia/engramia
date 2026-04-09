@@ -26,11 +26,27 @@ The most valuable contributions right now are non-code:
 - **Feature requests** — describe your use case in an Issue. Explain what you
   are trying to achieve, not just what you want added.
 - **Documentation feedback** — if something in the docs is wrong, unclear, or
-  missing, open an Issue. Please reference the specific page or section
-  (docs are built from Markdown files in the `docs/` directory and published
-  at [engramia.readthedocs.io](https://engramia.readthedocs.io)).
+  missing, open an Issue. Please reference the specific page or section.
 - **Spread the word** — write about how you use Engramia, share benchmarks,
   mention it in your projects. This directly supports continued development.
+
+## Documentation structure
+
+Documentation is built from Markdown files with [MkDocs Material](https://squidfunnel.com/mkdocs-material/)
+and published at [engramia.readthedocs.io](https://engramia.readthedocs.io).
+
+When reporting documentation issues, it helps to know where files live:
+
+| Location | Contents |
+|----------|----------|
+| `docs/` | All public documentation (guides, API reference, runbooks, legal) |
+| `docs/integrations/` | Agent framework integration guides |
+| `docs/legal/` | Terms of Service, Privacy Policy, and other legal documents |
+| `docs/runbooks/` | Operational playbooks for incidents and maintenance |
+| `mkdocs.yml` | Site navigation and build configuration |
+
+The entry point is `docs/index.md`. When referencing a problem, please include
+the file path or the URL of the published page.
 
 ## Reporting security vulnerabilities
 
