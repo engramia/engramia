@@ -110,16 +110,16 @@ services:
       POSTGRES_DB: engramia
     command: >
       postgres
-      -c shared_buffers=256MB
-      -c effective_cache_size=512MB
-      -c work_mem=8MB
-      -c maintenance_work_mem=128MB
-      -c wal_buffers=16MB
+      -c shared_buffers=128MB
+      -c effective_cache_size=256MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
+      -c wal_buffers=8MB
       -c checkpoint_completion_target=0.9
       -c random_page_cost=1.1
       -c max_connections=100
-      -c max_parallel_workers_per_gather=2
-      -c max_parallel_workers=4
+      -c max_parallel_workers_per_gather=1
+      -c max_parallel_workers=2
       -c log_min_duration_statement=500
       -c log_checkpoints=on
       -c log_lock_waits=on

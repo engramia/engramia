@@ -1,6 +1,6 @@
 #!/bin/bash
 # /opt/engramia/scripts/env-manager.sh
-# Engramia Environment Manager — CX33
+# Engramia Environment Manager — non-prod server (CX23)
 #
 # Usage: ./scripts/env-manager.sh <action> [environment]
 #   start   <staging|test>  — start environment with health check
@@ -125,11 +125,7 @@ case "$ACTION" in
     ;;
 
   status-all)
-    echo -e "${YELLOW}=== All environments ===${NC}"
-    echo ""
-    echo "--- Production ---"
-    docker compose -f "${PROJECT_DIR}/docker-compose.prod.yml" ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null \
-        || echo "Not running."
+    echo -e "${YELLOW}=== Non-prod environments ===${NC}"
     echo ""
     echo "--- Staging ---"
     docker compose -f "${PROJECT_DIR}/docker-compose.staging.yml" ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null \
@@ -165,7 +161,7 @@ case "$ACTION" in
     ;;
 
   help|*)
-    echo "Engramia Environment Manager (CX33)"
+    echo "Engramia Environment Manager — non-prod server"
     echo ""
     echo "Usage: $0 <action> [environment]"
     echo ""
