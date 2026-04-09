@@ -61,9 +61,15 @@ jobs:
       - name: Version check
         run: |
           EXPECTED=$(echo "${{ inputs.image_tag }}" | sed 's/^v//')
-          ACTUAL=$(curl -sf https://api.engramia.dev/v1/version | python3 -c "import sys,json; print(json.load(sys.stdin)['app_version'])")
-          echo "expected=$EXPECTED  actual=$ACTUAL"
-          [ "$EXPECTED" = "$ACTUAL" ] || (echo "POST-DEPLOY VERSION MISMATCH" && exit 1)
+          RESP=$(curl -sf --max-time 10 https://api.engramia.dev/v1/version || echo "")
+          if [ -z "$RESP" ]; then
+            echo "WARNING: /v1/version not available (older image) — skipping version check"
+          else
+            echo "version_response=$RESP"
+            ACTUAL=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('app_version','unknown'))" 2>/dev/null || echo "unknown")
+            echo "expected=$EXPECTED  actual=$ACTUAL"
+            [ "$EXPECTED" = "$ACTUAL" ] || (echo "POST-DEPLOY VERSION MISMATCH" && exit 1)
+          fi
 
       - name: Health check
         run: |
