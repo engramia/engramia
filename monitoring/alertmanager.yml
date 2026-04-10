@@ -1,8 +1,8 @@
 global:
-  smtp_smarthost: "smtp.example.com:587"       # CHANGE: your SMTP server
-  smtp_from: "monitoring@engramia.dev"          # CHANGE: sender address
-  smtp_auth_username: "monitoring@engramia.dev" # CHANGE: SMTP user
-  smtp_auth_password: "smtp-password-here"      # CHANGE: SMTP password
+  smtp_smarthost: "${SMTP_HOST}:${SMTP_PORT}"
+  smtp_from: "${SMTP_FROM}"
+  smtp_auth_username: "${SMTP_USER}"
+  smtp_auth_password: "${SMTP_PASSWORD}"
   smtp_require_tls: true
 
 route:
