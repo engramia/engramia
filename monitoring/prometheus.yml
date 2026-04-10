@@ -32,3 +32,17 @@ scrape_configs:
       - targets: ["node-exporter:9100"]
         labels:
           instance: "engramia-prod"
+
+  - job_name: "engramia-api-staging"
+    metrics_path: /metrics/
+    scrape_interval: 30s
+    scheme: https
+    tls_config:
+      insecure_skip_verify: false
+    authorization:
+      type: Bearer
+      credentials: "${ENGRAMIA_METRICS_TOKEN}"
+    static_configs:
+      - targets: ["staging-api.engramia.dev:443"]
+        labels:
+          instance: "engramia-staging"
