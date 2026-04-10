@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { Outfit } from "next/font/google";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import "@/styles/globals.css";
+
+const outfit = Outfit({ weight: "700", subsets: ["latin"], variable: "--font-display" });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://engramia.dev"),
@@ -48,7 +51,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className={`dark ${outfit.variable}`}>
       <body>
         <SiteHeader />
         <main>{children}</main>
