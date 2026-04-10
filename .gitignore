@@ -1,6 +1,9 @@
 # MkDocs
 site/
 
+# Infrastructure docs (contain server IPs, credential locations)
+docs/architecture/infra_arch.md
+
 # Python
 __pycache__/
 *.py[cod]
