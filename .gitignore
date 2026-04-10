@@ -55,6 +55,7 @@ dashboard/.next/
 # Website build
 website/website/node_modules/
 website/website/.next/
+website/website/out/
 
 # General node artifacts (catch-all)
 node_modules/

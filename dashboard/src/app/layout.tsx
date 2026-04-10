@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className="dark">
       <head>
         <title>Engramia Dashboard</title>
-        <link rel="icon" href="/dashboard/favicon.svg" />
+        <link rel="icon" href="/favicon.svg" />
       </head>
       <body>
         <SessionProvider>

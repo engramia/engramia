@@ -1,9 +1,23 @@
-api.engramia.dev {
-    reverse_proxy engramia-api:8000
+engramia.dev {
+    root * /srv/website
+    file_server
+    encode gzip
+
+    handle_errors {
+        respond "{err.status_code} {err.status_text}" {err.status_code}
+    }
+}
+
+www.engramia.dev {
+    redir https://engramia.dev{uri} permanent
 }
 
 app.engramia.dev {
     reverse_proxy dashboard:3000
+}
+
+api.engramia.dev {
+    reverse_proxy engramia-api:8000
 }
 
 status.engramia.dev {

@@ -42,7 +42,7 @@ export function Sidebar() {
       <nav className="flex-1 space-y-0.5 px-3 py-3">
         {NAV_ITEMS.filter((item) => hasPermission(role, item.perm)).map(
           (item) => {
-            const active = pathname?.startsWith(`/dashboard${item.href}`);
+            const active = pathname?.startsWith(item.href);
             const Icon = item.icon;
             return (
               <Link

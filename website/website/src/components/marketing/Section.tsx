@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-export function Section({ eyebrow, title, description, children }: { eyebrow?: string; title: string; description?: string; children: ReactNode; }) {
+export function Section({ eyebrow, title, description, children, id }: { eyebrow?: string; title: string; description?: string; children: ReactNode; id?: string; }) {
   return (
-    <section className="py-14 lg:py-18">
+    <section id={id} className="py-14 lg:py-18">
       <div className="mx-auto max-w-6xl px-6 lg:px-8">
         <div className="mb-8 max-w-3xl">
           {eyebrow ? <div className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-accent-hover">{eyebrow}</div> : null}
