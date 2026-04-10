@@ -246,7 +246,7 @@ groups:
           severity: critical
         annotations:
           summary: "RAM usage > 90%"
-          description: "Server {{ $labels.instance }} has only {{ printf \"%.0f\" (node_memory_MemAvailable_bytes / 1024 / 1024) }} MB available RAM."
+          description: "Server {{ $labels.instance }} RAM usage is above 90%. Current value: {{ $value | humanizePercentage }}."
 
       - alert: HighSwapUsage
         expr: (node_memory_SwapTotal_bytes > 0) and ((node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes) / node_memory_SwapTotal_bytes > 0.5)

@@ -109,7 +109,7 @@ services:
 
   # ---------- Uptime Kuma ----------
   uptime-kuma:
-    image: louislam/uptime-kuma:1.23
+    image: louislam/uptime-kuma:2
     container_name: uptime-kuma
     volumes:
       - uptime_kuma_data:/app/data
