@@ -1,5 +1,6 @@
 networks:
   engramia-net:
+    name: engramia-net
     driver: bridge
 
 services:

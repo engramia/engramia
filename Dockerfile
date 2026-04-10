@@ -41,6 +41,10 @@ LABEL org.opencontainers.image.created="${BUILD_TIME}"
 LABEL org.opencontainers.image.title="Engramia"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 
+# Install curl for container healthchecks
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create a non-root user — never run services as root
 RUN addgroup --gid 1001 --system engramia \
     && adduser --disabled-password --gecos "" --uid 1001 --ingroup engramia engramia
