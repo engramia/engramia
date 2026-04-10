@@ -30,7 +30,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-950">
       <div className="w-full max-w-md p-8 bg-gray-900 rounded-2xl border border-gray-800 shadow-xl">
         <div className="mb-8 text-center">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white mb-3">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-lg font-bold text-white mb-3">
             E
           </div>
           <h1 className="text-2xl font-bold text-white">Welcome back</h1>
@@ -80,7 +80,7 @@ export default function LoginPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3 py-2.5 bg-elevated border border-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-accent"
               placeholder="you@company.com"
             />
           </div>
@@ -91,7 +91,7 @@ export default function LoginPage() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3 py-2.5 bg-elevated border border-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-accent"
               placeholder="••••••••"
             />
           </div>
@@ -99,7 +99,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-medium transition"
+            className="w-full py-2.5 bg-accent hover:bg-accent/80 disabled:opacity-50 text-white rounded-lg font-medium transition"
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
@@ -107,7 +107,7 @@ export default function LoginPage() {
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-indigo-400 hover:text-indigo-300">
+          <Link href="/register" className="text-accent hover:text-accent/80">
             Sign up free
           </Link>
         </p>
