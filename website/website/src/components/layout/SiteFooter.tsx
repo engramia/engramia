@@ -5,7 +5,7 @@ export function SiteFooter() {
     <footer className="border-t border-border/70">
       <div className="mx-auto grid max-w-6xl gap-8 px-6 py-10 text-sm text-text-secondary lg:grid-cols-[1.4fr,1fr,1fr] lg:px-8">
         <div>
-          <div className="mb-3 text-base font-semibold text-text-primary">Engramia</div>
+          <div className="mb-3"><span className="text-2xl font-bold" style={{fontFamily: "'Outfit', sans-serif"}}>engram<span className="text-accent">ia</span></span></div>
           <p className="max-w-xl leading-7">
             Reusable execution memory for AI agents. Store patterns, evaluate outcomes, compose better pipelines,
             and harden production agent systems.

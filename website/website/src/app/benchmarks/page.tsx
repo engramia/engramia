@@ -26,7 +26,7 @@ const systems = [
     version: ENGRAMIA_VERSION,
     overall: 93.4,
     highlight: true,
-    color: "#6366f1",
+    color: "#6B5DC8",
     source: "This run",
     dimensions: {
       "Single-hop recall": 96.7,
@@ -130,7 +130,7 @@ const improvementCurve = [
 function ScoreBar({
   score,
   maxScore = 100,
-  color = "#6366f1",
+  color = "#6B5DC8",
   height = 8,
 }: {
   score: number;
@@ -162,7 +162,7 @@ function OverallScoreCard({
     <Card
       className={
         isTop
-          ? "relative border-accent bg-bg-surface shadow-[0_0_0_1px_rgba(99,102,241,0.18),0_8px_32px_rgba(99,102,241,0.10)]"
+          ? "relative border-accent bg-bg-surface shadow-[0_0_0_1px_rgba(107,93,200,0.18),0_8px_32px_rgba(107,93,200,0.10)]"
           : "border-border/60 bg-bg-surface/70"
       }
     >
@@ -176,7 +176,7 @@ function OverallScoreCard({
           <div className="text-sm font-medium text-text-secondary">{system.name}</div>
           <div
             className="mt-1 text-4xl font-bold tabular-nums"
-            style={{ color: isTop ? "#6366f1" : "#e2e8f0" }}
+            style={{ color: isTop ? "#6B5DC8" : "#e2e8f0" }}
           >
             {system.overall}%
           </div>
@@ -191,7 +191,7 @@ function OverallScoreCard({
       <div className="mt-4">
         <ScoreBar
           score={system.overall}
-          color={isTop ? "#6366f1" : "#475569"}
+          color={isTop ? "#6B5DC8" : "#475569"}
           height={6}
         />
       </div>
@@ -227,14 +227,14 @@ function DimensionRow({ dimension }: { dimension: string }) {
                 <div className="flex-1">
                   <ScoreBar
                     score={score}
-                    color={sys.highlight ? "#6366f1" : sys.color}
+                    color={sys.highlight ? "#6B5DC8" : sys.color}
                     height={sys.highlight ? 10 : 6}
                   />
                 </div>
                 <div
                   className="w-14 shrink-0 text-right text-sm tabular-nums"
                   style={{
-                    color: sys.highlight ? "#6366f1" : "#94a3b8",
+                    color: sys.highlight ? "#6B5DC8" : "#94a3b8",
                     fontWeight: sys.highlight ? 600 : 400,
                   }}
                 >
@@ -340,10 +340,10 @@ function ImprovementChart() {
         </text>
 
         {/* Area fill */}
-        <path d={areaD} fill="rgba(99,102,241,0.08)" />
+        <path d={areaD} fill="rgba(107,93,200,0.08)" />
 
         {/* Line */}
-        <path d={pathD} fill="none" stroke="#6366f1" strokeWidth={2} />
+        <path d={pathD} fill="none" stroke="#6B5DC8" strokeWidth={2} />
 
         {/* Data points */}
         {points.map((p) => (
@@ -352,7 +352,7 @@ function ImprovementChart() {
             cx={p.x}
             cy={p.y}
             r={3.5}
-            fill="#6366f1"
+            fill="#6B5DC8"
             stroke="#0f1117"
             strokeWidth={1.5}
           />
@@ -462,7 +462,7 @@ export default function BenchmarksPage() {
                   <th
                     key={sys.name}
                     className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: sys.highlight ? "#6366f1" : "#94a3b8" }}
+                    style={{ color: sys.highlight ? "#6B5DC8" : "#94a3b8" }}
                   >
                     {sys.name}
                   </th>
@@ -570,7 +570,7 @@ export default function BenchmarksPage() {
                       style={{
                         color:
                           d.patterns === 36
-                            ? "#6366f1"
+                            ? "#6B5DC8"
                             : d.patterns === 0
                             ? "#ef4444"
                             : "#94a3b8",
