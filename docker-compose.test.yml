@@ -93,6 +93,7 @@ services:
           memory: 256M
 
   mock-llm:
+    build: ./mock-llm
     image: engramia/mock-llm:latest
     container_name: engramia-mock-llm
     ports:
