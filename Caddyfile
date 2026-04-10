@@ -23,3 +23,7 @@ api.engramia.dev {
 status.engramia.dev {
     reverse_proxy uptime-kuma:3001
 }
+
+grafana.engramia.dev {
+    reverse_proxy grafana:3000
+}

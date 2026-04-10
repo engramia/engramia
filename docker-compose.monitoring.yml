@@ -87,7 +87,7 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
-      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://grafana.engramia.dev}
       GF_SMTP_ENABLED: "true"
       GF_SMTP_HOST: ${SMTP_HOST}:${SMTP_PORT:-587}
       GF_SMTP_USER: ${SMTP_USER}
@@ -98,6 +98,7 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     networks:
+      - engramia-net
       - monitoring
     ports:
       - "127.0.0.1:3000:3000"
