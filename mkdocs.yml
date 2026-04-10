@@ -10,18 +10,19 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: deep purple
-      accent: amber
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: deep purple
-      accent: amber
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+  custom_dir: docs/overrides
   features:
     - content.code.copy
     - content.code.annotate
@@ -124,6 +125,9 @@ nav:
 
 plugins:
   - search
+
+extra_css:
+  - overrides/assets/stylesheets/custom.css
 
 extra:
   social:

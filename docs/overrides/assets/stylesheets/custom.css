@@ -1,0 +1,19 @@
+/* Engramia brand colors — match website palette */
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #1a1d27;
+  --md-primary-fg-color--light: #252832;
+  --md-primary-fg-color--dark: #0f1117;
+  --md-accent-fg-color: #6B5DC8;
+  --md-accent-fg-color--transparent: rgba(107, 93, 200, 0.1);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #1a1d27;
+  --md-primary-fg-color--light: #252832;
+  --md-primary-fg-color--dark: #0f1117;
+  --md-accent-fg-color: #8B7FD4;
+  --md-accent-fg-color--transparent: rgba(139, 127, 212, 0.1);
+  --md-default-bg-color: #0f1117;
+  --md-default-bg-color--light: #1a1d27;
+}
