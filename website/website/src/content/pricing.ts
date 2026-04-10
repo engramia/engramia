@@ -62,7 +62,7 @@ export const cloudPlans: Plan[] = [
     name: "Enterprise Cloud",
     price: "Custom",
     subtitle: "",
-    description: "Unlimited capacity, enterprise controls, and commercial support.",
+    description: "Enterprise controls, unlimited capacity, and dedicated support.",
     features: [
       "Unlimited projects & patterns",
       "Custom eval quotas",

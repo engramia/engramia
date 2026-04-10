@@ -92,7 +92,7 @@ nav:
       - HNSW Maintenance: hnsw-maintenance.md
   - Security:
       - Overview: security.md
-      - Security Architecture: security-architecture.md
+      - Security Architecture: architecture/security-architecture.md
       - SOC 2 Controls: soc2-controls.md
       - Incident Response: incident-response-plan.md
   - Architecture:

@@ -10,6 +10,9 @@ export type LegalDoc = {
 
 const LEGAL_DIR = path.join(process.cwd(), "src", "content", "legal");
 
+/** Internal docs that should not appear on the public website. */
+const EXCLUDED_FILES = new Set(["key-legal-design-decisions.md"]);
+
 function slugFromFilename(filename: string) {
   return filename.toLowerCase().replace(/\.md$/, "").replace(/_/g, "-");
 }
@@ -22,7 +25,7 @@ function titleFromContent(filename: string, content: string) {
 export function getLegalDocs(): LegalDoc[] {
   return fs
     .readdirSync(LEGAL_DIR)
-    .filter((name) => name.endsWith(".md"))
+    .filter((name) => name.endsWith(".md") && !EXCLUDED_FILES.has(name))
     .sort()
     .map((filename) => {
       const content = fs.readFileSync(path.join(LEGAL_DIR, filename), "utf8");

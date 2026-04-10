@@ -373,10 +373,8 @@ export default function BenchmarksPage() {
     <>
       {/* Hero */}
       <section className="border-b border-border/70">
-        <div className="mx-auto max-w-6xl px-6 py-20 lg:px-8 lg:py-28">
-          <Badge color="indigo" className="mb-5">
-            LongMemEval — {RUN_DATE}
-          </Badge>
+        <div className="mx-auto max-w-6xl px-6 py-10 lg:px-8 lg:py-14">
+          <p className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-accent-hover">LongMemEval — {RUN_DATE}</p>
           <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-text-primary sm:text-5xl lg:text-6xl">
             Engramia leads on long-term memory recall.
           </h1>
@@ -391,7 +389,7 @@ export default function BenchmarksPage() {
             </Button>
             <Button
               href="https://github.com/engramia/engramia/tree/main/benchmarks"
-              variant="ghost"
+              variant="secondary"
             >
               View source
             </Button>
@@ -652,12 +650,15 @@ export default function BenchmarksPage() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Button
-                href="https://github.com/engramia/engramia/blob/main/benchmarks/results/longmemeval_2026-04-07.json"
+                href="https://github.com/engramia/engramia/raw/main/benchmarks/results/longmemeval_2026-04-07.json"
                 variant="secondary"
               >
-                View on GitHub
+                Download JSON
               </Button>
-              <Button href="https://github.com/engramia/engramia/blob/main/benchmarks/LONGMEMEVAL.md" variant="ghost">
+              <Button
+                href="https://github.com/engramia/engramia/blob/main/benchmarks/LONGMEMEVAL.md"
+                variant="secondary"
+              >
                 Methodology docs
               </Button>
             </div>

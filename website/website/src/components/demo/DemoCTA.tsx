@@ -15,10 +15,10 @@ export function DemoCTA() {
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-3">
         <Button href="https://app.engramia.dev/register" size="lg" className="gap-2">
-          Start free trial <ArrowRight className="h-4 w-4" />
+          Start free <ArrowRight className="h-4 w-4" />
         </Button>
-        <Button href="https://api.engramia.dev/docs" variant="secondary" size="lg">
-          Read the docs
+        <Button href="https://docs.engramia.dev" variant="secondary" size="lg">
+          Explore docs
         </Button>
       </div>
       <p className="mt-4 text-xs text-text-secondary/50">

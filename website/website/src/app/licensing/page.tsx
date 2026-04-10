@@ -1,27 +1,57 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/Card";
 
-type MatrixRow = {
-  question: string;
-  detail: string;
-  verdict: string;
-  verdictColor: "green" | "indigo" | "amber" | "red";
-  tier: string;
-};
-
-const matrix: MatrixRow[] = [
-  { question: "Personal or hobby project", detail: "No revenue, not building for a client or employer.", verdict: "✓ Free", verdictColor: "green", tier: "Developer License" },
-  { question: "Academic research or education", detail: "University, thesis, or course project with no commercial output.", verdict: "✓ Free", verdictColor: "green", tier: "Developer License" },
-  { question: "Open-source project with no revenue", detail: "MIT/Apache project with no paid tiers or sponsor income.", verdict: "✓ Free", verdictColor: "green", tier: "Developer License" },
-  { question: "Open-source project with sponsors or paid tiers", detail: "GitHub Sponsors, Open Collective, paid features, and similar cases.", verdict: "Requires Pro", verdictColor: "indigo", tier: "Pro / Team" },
-  { question: "Evaluating Engramia for a commercial project", detail: "POC, integration test, or internal demo before shipping.", verdict: "✓ Sandbox", verdictColor: "green", tier: "30-day evaluation" },
-  { question: "Freelance or client work", detail: "You are paid to deliver a project that uses Engramia.", verdict: "Requires Pro", verdictColor: "indigo", tier: "Pro" },
-  { question: "Startup, with or without revenue", detail: "Any incorporated entity building a commercial product.", verdict: "Requires Pro", verdictColor: "indigo", tier: "Pro / Team" },
-  { question: "Internal company tool", detail: "Used by employees, not sold externally, but still commercial use.", verdict: "Requires Pro", verdictColor: "indigo", tier: "Pro / Team" },
-  { question: "Commercial SaaS or API product", detail: "Engramia powers a feature inside your paid product.", verdict: "Requires Team+", verdictColor: "indigo", tier: "Team / Enterprise" },
-  { question: "Self-hosting for compliance or data residency", detail: "Air-gapped, VPC, or regulated environments.", verdict: "Enterprise", verdictColor: "amber", tier: "Enterprise Self-hosted" },
-  { question: "Reselling or white-labelling Engramia", detail: "Offering Engramia as part of your own product or service.", verdict: "Contact us", verdictColor: "amber", tier: "Custom" },
+const useCaseBoxes = [
+  {
+    tier: "Free",
+    tierColor: "green" as const,
+    title: "Non-commercial use",
+    cases: [
+      "Personal or hobby projects",
+      "Academic research & education",
+      "Open-source with no revenue",
+      "Evaluating before purchase (Sandbox)",
+    ],
+    note: "Developer License (BSL 1.1) or Cloud Sandbox",
+  },
+  {
+    tier: "Pro",
+    tierColor: "indigo" as const,
+    title: "Individual & small team",
+    cases: [
+      "Freelance or client work",
+      "Startups at any stage",
+      "Open-source with sponsors or paid tiers",
+      "Internal company tools",
+    ],
+    note: "From $29/mo",
+  },
+  {
+    tier: "Team",
+    tierColor: "indigo" as const,
+    title: "Growing teams",
+    cases: [
+      "Commercial SaaS or API products",
+      "Multiple projects & higher quotas",
+      "GDPR export & async jobs",
+      "Budget-capped overage",
+    ],
+    note: "From $99/mo",
+  },
+  {
+    tier: "Enterprise",
+    tierColor: "amber" as const,
+    title: "Regulated & custom",
+    cases: [
+      "Self-hosting for compliance or data residency",
+      "Air-gapped / VPC deployments",
+      "Reselling or white-labelling",
+      "SSO, SLA, DPA, cross-agent memory",
+    ],
+    note: "Custom agreement",
+  },
 ];
 
 const cloudPlans = [
@@ -55,7 +85,7 @@ const cloudPlans = [
   {
     name: "Enterprise Cloud",
     price: "Custom",
-    description: "Unlimited projects, cross-agent memory, SSO, SLA, DPA, and enterprise support.",
+    description: "Enterprise controls, unlimited capacity, and dedicated support.",
     limits: ["Unlimited projects & patterns", "Custom eval quotas", "Cross-agent memory sharing", "SSO / OIDC", "Data residency / VPC"],
     ctaLabel: "Contact sales",
     ctaHref: "mailto:sales@engramia.dev",
@@ -97,7 +127,7 @@ const faqs = [
   },
   {
     q: 'Can I contribute to Engramia?',
-    a: 'A contributor license agreement is planned before external PRs are accepted. See CONTRIBUTING.md for the current workflow.',
+    a: 'Engramia does not accept external code contributions at this time. To maintain legal clarity and product direction, all code is written by the Engramia team. Pull requests from external contributors will be closed without review. You can help by filing bug reports, feature requests, and documentation feedback via GitHub Issues. Security vulnerabilities should be reported privately to security@engramia.dev.',
   },
   {
     q: 'I have a use case not listed above.',
@@ -109,9 +139,9 @@ export default function LicensingPage() {
   return (
     <>
       <section className="border-b border-border/70">
-        <div className="mx-auto max-w-4xl px-6 py-18 text-center lg:px-8 lg:py-24">
-          <Badge color="gray">License: BSL 1.1 (non-commercial) · Commercial plans available</Badge>
-          <h1 className="mt-5 text-4xl font-semibold tracking-tight text-text-primary lg:text-5xl">How can I use Engramia?</h1>
+        <div className="mx-auto max-w-4xl px-6 py-10 text-center lg:px-8 lg:py-12">
+          <p className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-accent-hover">BSL 1.1 · Commercial plans available</p>
+          <h1 className="text-4xl font-semibold tracking-tight text-text-primary lg:text-5xl">How can I use Engramia?</h1>
           <p className="mt-5 text-lg leading-8 text-text-secondary">
             Engramia is free for non-commercial use. Commercial use requires a paid plan or commercial agreement.
             This page answers the most common licensing questions.
@@ -122,15 +152,17 @@ export default function LicensingPage() {
       <section className="py-14 lg:py-18">
         <div className="mx-auto max-w-6xl px-6 lg:px-8">
           <h2 className="mb-6 text-2xl font-semibold tracking-tight text-text-primary">Can I use this for…</h2>
-          <div className="space-y-3">
-            {matrix.map((row) => (
-              <Card key={row.question} className="grid gap-4 p-5 md:grid-cols-[1fr,auto,auto] md:items-center">
-                <div>
-                  <div className="font-medium text-text-primary">{row.question}</div>
-                  <div className="mt-1 text-sm text-text-secondary">{row.detail}</div>
+          <div className="grid gap-6 sm:grid-cols-2">
+            {useCaseBoxes.map((box) => (
+              <Card key={box.tier} className="h-full">
+                <div className="flex items-center gap-3">
+                  <CardTitle>{box.title}</CardTitle>
+                  <Badge color={box.tierColor}>{box.tier}</Badge>
                 </div>
-                <Badge color={row.verdictColor}>{row.verdict}</Badge>
-                <div className="text-sm text-text-secondary">{row.tier}</div>
+                <ul className="mt-4 space-y-2 text-sm text-text-secondary">
+                  {box.cases.map((c) => <li key={c}>• {c}</li>)}
+                </ul>
+                <div className="mt-4 text-xs text-text-secondary/60">{box.note}</div>
               </Card>
             ))}
           </div>
@@ -142,15 +174,30 @@ export default function LicensingPage() {
           <h2 className="mb-6 text-2xl font-semibold tracking-tight text-text-primary">Cloud plans</h2>
           <div className="grid gap-6 lg:grid-cols-4">
             {cloudPlans.map((plan) => (
-              <Card key={plan.name} className={plan.highlight ? "border-accent shadow-[0_0_0_1px_rgba(99,102,241,0.16)]" : ""}>
-                <CardTitle>{plan.name}</CardTitle>
-                <div className="mt-4 text-3xl font-semibold text-text-primary">{plan.price}</div>
-                <CardDescription>{plan.description}</CardDescription>
-                <ul className="mt-4 space-y-2 text-sm text-text-secondary">
-                  {plan.limits.map((limit) => <li key={limit}>• {limit}</li>)}
-                </ul>
-                <div className="mt-6"><Button href={plan.ctaHref} variant={plan.highlight ? "primary" : "secondary"} className="w-full">{plan.ctaLabel}</Button></div>
-              </Card>
+              <Link key={plan.name} href={plan.ctaHref} className="block h-full">
+                <Card className={`h-full transition-all duration-200 hover:border-accent hover:shadow-[0_0_0_1px_rgba(107,93,200,0.25)] ${plan.highlight ? "border-accent shadow-[0_0_0_1px_rgba(99,102,241,0.16)]" : ""}`}>
+                  <div className="flex h-full flex-col">
+                    <div className="flex items-center justify-between gap-3">
+                      <CardTitle>{plan.name}</CardTitle>
+                      {plan.highlight ? <Badge color="indigo">Recommended</Badge> : null}
+                    </div>
+                    <div className="mt-4 text-3xl font-semibold text-text-primary">{plan.price}</div>
+                    <CardDescription>{plan.description}</CardDescription>
+                    <ul className="mt-4 space-y-2 text-sm text-text-secondary">
+                      {plan.limits.map((limit) => <li key={limit}>• {limit}</li>)}
+                    </ul>
+                    <div className="mt-auto pt-6">
+                      <span className={`inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                        plan.highlight
+                          ? "bg-accent text-white hover:bg-accent-hover"
+                          : "border border-border bg-bg-elevated text-text-primary hover:bg-bg-surface"
+                      }`}>
+                        {plan.ctaLabel}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              </Link>
             ))}
           </div>
         </div>
@@ -161,7 +208,7 @@ export default function LicensingPage() {
           <h2 className="mb-6 text-2xl font-semibold tracking-tight text-text-primary">Self-hosted</h2>
           <div className="grid gap-6 md:grid-cols-2">
             {selfHosted.map((plan) => (
-              <Card key={plan.name}>
+              <Card key={plan.name} className="h-full transition-all duration-200 hover:border-accent hover:shadow-[0_0_0_1px_rgba(107,93,200,0.25)]">
                 <CardTitle>{plan.name}</CardTitle>
                 <div className="mt-4 text-3xl font-semibold text-text-primary">{plan.price}</div>
                 <CardDescription>{plan.description}</CardDescription>

@@ -1,5 +1,6 @@
 # MkDocs
 site/
+docs-site/
 
 # Infrastructure docs (contain server IPs, credential locations)
 docs/architecture/infra_arch.md

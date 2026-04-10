@@ -74,7 +74,7 @@ what works, forget what does not, reuse proven solutions, and improve over time.
 ## Security
 
 - [Security Overview](security.md) — summary of measures
-- [Security Architecture](security-architecture.md) — threat model and defense layers
+- [Security Architecture](architecture/security-architecture.md) — threat model and defense layers
 - [SOC 2 Controls](soc2-controls.md) — SOC 2 Type II control mapping
 - [Incident Response Plan](incident-response-plan.md) — detection, response, GDPR breach
 

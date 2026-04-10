@@ -65,7 +65,7 @@ Unlimited capacity, enterprise controls, and commercial support.
 | Cross-agent memory | ✓ |
 | SSO / OIDC | ✓ |
 | Usage & quality analytics | ✓ |
-| Support | SLA + dedicated Slack |
+| Support | SLA + dedicated channel(s) |
 
 **[Contact sales →](mailto:sales@engramia.dev)**
 
@@ -97,7 +97,7 @@ Commercial self-hosting for regulated or customer-managed environments.
 | Commercial license agreement | ✓ |
 | Air-gapped / VPC deployment | ✓ |
 | SSO, audit log, cross-agent memory | ✓ |
-| Hotfix SLA + dedicated Slack | ✓ |
+| Hotfix SLA + dedicated channel(s) | ✓ |
 | DPA support | ✓ |
 
 **[Contact sales →](mailto:sales@engramia.dev)**

@@ -68,6 +68,14 @@ log "Running Alembic migrations (upgrade head)..."
 IMAGE_TAG=$VERSION docker compose -f "$COMPOSE_FILE" run --rm -T engramia-api \
   alembic upgrade head
 
+# ── Build docs site (if mkdocs available) ────────────────────────────────────
+if command -v mkdocs &>/dev/null; then
+  log "Building docs site..."
+  mkdocs build -d docs-site
+else
+  log "NOTICE: mkdocs not found — skipping docs build (install with: pip install mkdocs-material)"
+fi
+
 # ── Restart API + Caddy ───────────────────────────────────────────────────────
 log "Starting engramia-api and caddy..."
 IMAGE_TAG=$VERSION docker compose -f "$COMPOSE_FILE" up -d engramia-api caddy

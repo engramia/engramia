@@ -28,15 +28,12 @@ export default function DemoPage() {
   return (
     <>
       {/* Hero */}
-      <section className="border-b border-border/70 py-14 text-center">
+      <section className="border-b border-border/70 py-8 text-center">
         <div className="mx-auto max-w-2xl px-6">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/5 px-3.5 py-1.5 text-xs font-medium text-accent-hover">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-            Live interactive demo
-          </div>
+          <p className="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-accent-hover">Live interactive demo</p>
           <h1 className="text-3xl font-bold tracking-tight text-text-primary sm:text-4xl lg:text-[2.75rem] lg:leading-[1.15]">
             See{' '}
-            <span className="text-2xl font-bold" style={{ fontFamily: "'Outfit', sans-serif" }}>
+            <span style={{ fontFamily: "'Outfit', sans-serif" }}>
               engram<span className="text-accent">ia</span>
             </span>{' '}
             in action

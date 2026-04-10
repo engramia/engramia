@@ -6,9 +6,8 @@ const nav = [
   { href: "/pricing", label: "Pricing" },
   { href: "/benchmarks", label: "Benchmarks" },
   { href: "/licensing", label: "Licensing" },
-  { href: "/blog", label: "Blog" },
   { href: "/legal", label: "Legal" },
-  { href: "mailto:support@engramia.dev", label: "Support" },
+  { href: "/support", label: "Support" },
 ];
 
 export function SiteHeader() {
@@ -16,7 +15,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-border/70 bg-bg-primary/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 lg:px-8">
         <Link href="/" className="flex items-center text-sm font-semibold tracking-wide text-text-primary">
-          <span className="text-2xl font-bold" style={{fontFamily: "'Outfit', sans-serif"}}>engram<span className="text-accent">ia</span></span>
+          <span className="text-3xl font-bold" style={{fontFamily: "'Outfit', sans-serif"}}>engram<span className="text-accent">ia</span></span>
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-text-secondary md:flex">
           {nav.map((item) => (
