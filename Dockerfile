@@ -21,7 +21,7 @@ COPY engramia/ ./engramia/
 # SETUPTOOLS_SCM_PRETEND_VERSION tells hatch-vcs / setuptools-scm the version
 # without needing a .git directory in the build context.
 RUN SETUPTOOLS_SCM_PRETEND_VERSION=${APP_VERSION} \
-    pip install --no-cache-dir ".[api,openai,postgres]"
+    pip install --no-cache-dir ".[api,openai,postgres,telemetry]"
 
 # Stage 2: runtime
 ARG PYTHON_VERSION=3.14
