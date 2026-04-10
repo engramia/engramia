@@ -206,10 +206,10 @@ def create_app() -> FastAPI:
 
     setup_telemetry()
 
-    # Swagger UI and OpenAPI schema are only exposed in dev/local environments.
+    # Swagger UI and OpenAPI schema are only exposed in dev/staging environments.
     # In production (default when ENGRAMIA_ENV is unset), these endpoints return 404
     # to reduce attack surface and avoid leaking API schema to the public internet.
-    _is_dev = os.getenv("ENGRAMIA_ENV", "prod").lower() in ("dev", "development", "local")
+    _is_dev = os.getenv("ENGRAMIA_ENV", "prod").lower() in ("dev", "development", "local", "staging")
 
     app = FastAPI(
         title="Engramia API",

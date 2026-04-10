@@ -52,8 +52,8 @@ export default function HomePage() {
               <Button href="/demo" size="lg" className="gap-2">
                 See it work in 60 seconds <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button href="https://api.engramia.dev/docs" variant="secondary" size="lg">
-                Explore API docs
+              <Button href="https://docs.engramia.dev" variant="secondary" size="lg">
+                Explore docs
               </Button>
             </div>
             <div className="mt-8 flex flex-wrap gap-6 text-sm text-text-secondary">

@@ -678,8 +678,8 @@ export default function BenchmarksPage() {
             <Button href="https://api.engramia.dev/v1/billing/checkout?plan=pro" size="lg">
               Start with Pro
             </Button>
-            <Button href="https://api.engramia.dev/docs" variant="secondary" size="lg">
-              Explore API docs
+            <Button href="https://docs.engramia.dev" variant="secondary" size="lg">
+              Explore docs
             </Button>
           </div>
         </div>

@@ -22,7 +22,7 @@ export const cloudPlans: Plan[] = [
       "Community support",
     ],
     ctaLabel: "Try free",
-    ctaHref: "https://api.engramia.dev/docs",
+    ctaHref: "https://docs.engramia.dev/quickstart",
   },
   {
     name: "Pro",

@@ -1,6 +1,6 @@
 site_name: Engramia
 site_description: Self-learning memory layer for AI agent frameworks
-site_url: https://engramia.readthedocs.io
+site_url: https://docs.engramia.dev
 repo_url: https://github.com/engramia/engramia
 repo_name: engramia/engramia
 edit_uri: edit/main/docs/
@@ -48,6 +48,9 @@ markdown_extensions:
   - pymdownx.snippets
   - attr_list
   - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - toc:
       permalink: true
 

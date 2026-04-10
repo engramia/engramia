@@ -66,6 +66,10 @@ node_modules/
 
 # Test / CI artifacts
 coverage.xml
+e2e/.env
+e2e/how_to_run_tests.md
+e2e/test-results/
+e2e/playwright-report/
 
 # OS
 .DS_Store

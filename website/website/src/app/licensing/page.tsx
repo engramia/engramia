@@ -31,7 +31,7 @@ const cloudPlans = [
     description: "Try the hosted API. No credit card required. Non-commercial evaluation only.",
     limits: ["1 project", "500 eval runs / month", "5,000 patterns", "Community support"],
     ctaLabel: "Try free",
-    ctaHref: "https://api.engramia.dev/docs",
+    ctaHref: "https://docs.engramia.dev/quickstart",
     highlight: false,
   },
   {

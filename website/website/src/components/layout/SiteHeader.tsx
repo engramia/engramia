@@ -8,7 +8,6 @@ const nav = [
   { href: "/licensing", label: "Licensing" },
   { href: "/blog", label: "Blog" },
   { href: "/legal", label: "Legal" },
-  { href: "https://docs.engramia.dev", label: "Docs" },
   { href: "mailto:support@engramia.dev", label: "Support" },
 ];
 
@@ -28,7 +27,7 @@ export function SiteHeader() {
         </nav>
         <div className="hidden items-center gap-3 md:flex">
           <Button href="https://github.com/engramia/engramia" variant="ghost">GitHub</Button>
-          <Button href="https://api.engramia.dev/docs" variant="secondary">API Docs</Button>
+          <Button href="https://docs.engramia.dev" variant="secondary">Docs</Button>
           <Button href="https://app.engramia.dev/login" variant="ghost">Sign in</Button>
           <Button href="https://app.engramia.dev/register">Sign up free</Button>
         </div>

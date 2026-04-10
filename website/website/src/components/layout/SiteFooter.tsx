@@ -17,7 +17,7 @@ export function SiteFooter() {
             <Link href="/pricing">Pricing</Link>
             <Link href="/licensing">Licensing</Link>
             <Link href="/blog">Blog</Link>
-            <a href="https://api.engramia.dev/docs">API Docs</a>
+            <a href="https://docs.engramia.dev">Docs</a>
           </div>
         </div>
         <div>
