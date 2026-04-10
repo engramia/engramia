@@ -15,9 +15,8 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-bg-primary/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 lg:px-8">
-        <Link href="/" className="flex items-center gap-3 text-sm font-semibold tracking-wide text-text-primary">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent font-bold text-white">E</span>
-          Engramia
+        <Link href="/" className="flex items-center text-sm font-semibold tracking-wide text-text-primary">
+          <span className="text-2xl font-bold" style={{fontFamily: "'Outfit', sans-serif"}}>engram<span className="text-accent">ia</span></span>
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-text-secondary md:flex">
           {nav.map((item) => (
