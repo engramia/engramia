@@ -122,6 +122,21 @@ services:
     restart: unless-stopped
     mem_limit: 128m
 
+  # ---------- Node Exporter ----------
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    command:
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - monitoring
+    pid: host
+    restart: unless-stopped
+    mem_limit: 64m
+
 volumes:
   prometheus_data:
   alertmanager_data:
