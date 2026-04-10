@@ -8,7 +8,7 @@ interface TierData {
   fresh: number;
 }
 
-const COLORS = ["#6366f1", "#818cf8", "#475569"];
+const COLORS = ["#6B5DC8", "#8b7dd4", "#475569"];
 
 export function ReuseTierPie({ data }: { data: TierData }) {
   const chartData = [

@@ -34,10 +34,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-56 flex-col border-r border-border bg-bg-surface">
       <div className="flex items-center gap-2 border-b border-border px-5 py-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-xs font-bold text-white">
-          E
-        </div>
-        <span className="text-sm font-semibold">Engramia</span>
+        <span className="text-lg font-bold" style={{fontFamily: "'Outfit', sans-serif"}}>engram<span className="text-accent">ia</span></span>
       </div>
       <nav className="flex-1 space-y-0.5 px-3 py-3">
         {NAV_ITEMS.filter((item) => hasPermission(role, item.perm)).map(

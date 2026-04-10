@@ -33,9 +33,9 @@ export function ROIScoreChart({ data }: { data: DataPoint[] }) {
         <Line
           type="monotone"
           dataKey="roi_score"
-          stroke="#6366f1"
+          stroke="#6B5DC8"
           strokeWidth={2}
-          dot={{ fill: "#6366f1", r: 3 }}
+          dot={{ fill: "#6B5DC8", r: 3 }}
         />
       </LineChart>
     </ResponsiveContainer>

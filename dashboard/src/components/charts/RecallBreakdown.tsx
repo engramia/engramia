@@ -20,8 +20,8 @@ export function RecallBreakdown({ data }: { data: RecallData }) {
   const total = data.duplicate_hits + data.adapt_hits + data.fresh_misses;
   const pct = (n: number) => (total ? Math.round((n / total) * 100) : 0);
   const chartData = [
-    { name: "Duplicate", value: pct(data.duplicate_hits), fill: "#6366f1" },
-    { name: "Adapt", value: pct(data.adapt_hits), fill: "#818cf8" },
+    { name: "Duplicate", value: pct(data.duplicate_hits), fill: "#6B5DC8" },
+    { name: "Adapt", value: pct(data.adapt_hits), fill: "#8b7dd4" },
     { name: "Fresh", value: pct(data.fresh_misses), fill: "#475569" },
   ];
 
