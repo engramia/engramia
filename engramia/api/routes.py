@@ -143,7 +143,12 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 # ---------------------------------------------------------------------------
 
 
-def _check_quota(memory: Memory, auth_ctx: AuthContext | None, request: Request | None = None) -> None:
+def _check_quota(
+    memory: Memory,
+    auth_ctx: AuthContext | None,
+    request: Request | None = None,
+    additional: int = 0,
+) -> None:
     """Raise HTTP 429 if the caller has exceeded their pattern quota.
 
     Enforces two quota layers for defense-in-depth:
@@ -156,8 +161,13 @@ def _check_quota(memory: Memory, auth_ctx: AuthContext | None, request: Request 
        billing configured). Falls back to the legacy ``max_patterns`` field on
        AuthContext for backward compatibility with deployments that have not run
        migration 008.
+
+    Args:
+        additional: Number of patterns about to be added (e.g. import batch
+            size). The check uses ``current + additional`` so that a single
+            bulk request cannot overshoot the quota.
     """
-    current = memory._storage.count_patterns("patterns/")
+    current = memory._storage.count_patterns("patterns/") + additional
 
     # Billing-aware path
     billing_svc = getattr(request.app.state, "billing_service", None) if request else None
@@ -1026,8 +1036,8 @@ def import_patterns(
     )
     if async_resp is not None:
         return async_resp
-    _check_quota(memory, auth_ctx, request)
     raw_records = [r.model_dump() for r in body.records]
+    _check_quota(memory, auth_ctx, request, additional=len(raw_records))
     imported = memory.import_data(raw_records, overwrite=body.overwrite)
     ip = request.client.host if request.client else "unknown"
     log_event(

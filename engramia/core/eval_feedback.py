@@ -133,7 +133,7 @@ class EvalFeedbackStore:
 
         for p in patterns:
             last_decayed_ts = _parse_iso(p.get("last_decayed", p.get("last_seen", "")))
-            elapsed_weeks = (now - last_decayed_ts) / (7 * 24 * 3600)
+            elapsed_weeks = max(0.0, (now - last_decayed_ts) / (7 * 24 * 3600))
             decayed = p["score"] * (_DECAY_PER_WEEK**elapsed_weeks)
             if decayed >= _MIN_SCORE:
                 p["score"] = round(decayed, 4)

@@ -152,7 +152,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: engramia-secrets
-                  key: ENGRAMIA_DATABASE_URL
+                  key: POSTGRES_PASSWORD
           volumeMounts:
             - name: pgdata
               mountPath: /var/lib/postgresql/data

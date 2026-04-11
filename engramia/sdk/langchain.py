@@ -29,6 +29,12 @@ class EngramiaCallback:
     Automatically learns from chain/tool runs and optionally recalls
     relevant patterns before a chain starts.
 
+    At runtime, ``__init_subclass__`` dynamically injects
+    ``langchain_core.callbacks.BaseCallbackHandler`` as a base class so that
+    LangChain's ``isinstance`` dispatch recognises this handler.  The class
+    is defined without the base in the source so that importing the module
+    never requires ``langchain-core`` to be installed.
+
     Args:
         memory: Memory instance to use for learn/recall.
         auto_learn: If True, call mem.learn() after successful chain runs.
@@ -48,9 +54,16 @@ class EngramiaCallback:
         recall_limit: int = 3,
     ) -> None:
         try:
-            from langchain_core.callbacks import BaseCallbackHandler  # noqa: F401
+            from langchain_core.callbacks import BaseCallbackHandler
         except ImportError:
             raise ImportError(_INSTALL_MSG) from None
+
+        # Dynamically inject BaseCallbackHandler as a base class so that
+        # LangChain's isinstance-based callback dispatch recognises us.
+        if isinstance(BaseCallbackHandler, type) and BaseCallbackHandler not in type(self).__mro__:
+            cls = type(self)
+            cls.__bases__ = (BaseCallbackHandler, *cls.__bases__)
+
         self._memory = memory
         self._auto_learn = auto_learn
         self._auto_recall = auto_recall
