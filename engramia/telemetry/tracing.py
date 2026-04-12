@@ -67,6 +67,21 @@ def init_tracing(
         )
         return
 
+    # M-03: Warn when a plaintext HTTP endpoint is used outside localhost in production.
+    _env = os.environ.get("ENGRAMIA_ENV", "").strip().lower()
+    if _env == "production" and ep.startswith("http://"):
+        from urllib.parse import urlparse
+
+        _host = urlparse(ep).hostname or ""
+        if _host not in ("localhost", "127.0.0.1", "::1"):
+            _log.warning(
+                "SECURITY WARNING: OTel endpoint uses plaintext HTTP in production: %s. "
+                "Telemetry data will be transmitted unencrypted. "
+                "Use https:// or configure gRPC with TLS (OTEL_EXPORTER_OTLP_INSECURE=false) "
+                "for production deployments.",
+                ep,
+            )
+
     resource = Resource.create({"service.name": svc})
     provider = TracerProvider(resource=resource)
     insecure = os.environ.get("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() in ("1", "true", "yes")
