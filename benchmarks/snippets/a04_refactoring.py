@@ -96,7 +96,7 @@ class NotificationService:
 MEDIUM: dict = {
     "eval_score": 5.5,
     "output": "Moved notification methods out of UserController.",
-    "code": '''\
+    "code": """\
 class NotificationService:
     def __init__(self, email_client, sms_client):
         self.email = email_client
@@ -113,18 +113,18 @@ class NotificationService:
             self.send_email(user.email, "Notification", message)
         if user.phone:
             self.send_sms(user.phone, message)
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 3.0,
     "output": "split controller",
-    "code": '''\
+    "code": """\
 # just moved the methods, still tightly coupled
 class NotifHelper:
     def do_notify(self, user_controller, user_id, msg):
         user = user_controller.get_user(user_id)
         user_controller.email_client.send(user.email, msg)
         user_controller.sms_client.send(user.phone, msg)
-''',
+""",
 }

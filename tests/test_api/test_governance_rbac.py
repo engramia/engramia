@@ -67,9 +67,7 @@ def _make_app(
     app.state.memory = mem
     app.state.auth_engine = None  # no DB — governance service layer uses JSON storage
 
-    app.dependency_overrides[require_auth] = make_auth_dep(
-        role=role, tenant_id=tenant_id, project_id=project_id
-    )
+    app.dependency_overrides[require_auth] = make_auth_dep(role=role, tenant_id=tenant_id, project_id=project_id)
     app.include_router(gov_router, prefix="/v1")
     return app
 
@@ -111,22 +109,16 @@ class TestRetentionReadPermission:
 
 class TestRetentionWritePermission:
     def test_reader_cannot_set_retention(self, storage):
-        resp = _client(storage, "reader").put(
-            "/v1/governance/retention", json={"retention_days": 90}
-        )
+        resp = _client(storage, "reader").put("/v1/governance/retention", json={"retention_days": 90})
         assert resp.status_code == 403
 
     def test_editor_cannot_set_retention(self, storage):
-        resp = _client(storage, "editor").put(
-            "/v1/governance/retention", json={"retention_days": 90}
-        )
+        resp = _client(storage, "editor").put("/v1/governance/retention", json={"retention_days": 90})
         assert resp.status_code == 403
 
     def test_admin_gets_501_not_403(self, storage):
         # Admin has governance:write — endpoint returns 501 (no DB engine), not 403
-        resp = _client(storage, "admin").put(
-            "/v1/governance/retention", json={"retention_days": 90}
-        )
+        resp = _client(storage, "admin").put("/v1/governance/retention", json={"retention_days": 90})
         assert resp.status_code == 501  # DB required, not a permission issue
 
 
@@ -193,16 +185,12 @@ class TestProjectDeletePermission:
 
     def test_admin_can_delete_own_project(self, storage):
         # Admin (project_id=proj-a) deletes proj-a → 200
-        resp = _client(storage, "admin", project_id="proj-a").delete(
-            "/v1/governance/projects/proj-a"
-        )
+        resp = _client(storage, "admin", project_id="proj-a").delete("/v1/governance/projects/proj-a")
         assert resp.status_code == 200
 
     def test_admin_cannot_delete_other_project(self, storage):
         """Critical security check: admin scoped to proj-a cannot delete proj-b."""
-        resp = _client(storage, "admin", project_id="proj-a").delete(
-            "/v1/governance/projects/proj-b"
-        )
+        resp = _client(storage, "admin", project_id="proj-a").delete("/v1/governance/projects/proj-b")
         assert resp.status_code == 403
         detail = resp.json()["detail"]
         assert "owner" in detail.lower() or "cross-project" in detail.lower() or "own project" in detail.lower()
@@ -210,16 +198,12 @@ class TestProjectDeletePermission:
     def test_owner_can_delete_any_project(self, storage):
         """Owner role bypasses the cross-project guard."""
         # Owner scoped to proj-a deletes proj-b — must succeed
-        resp = _client(storage, "owner", project_id="proj-a").delete(
-            "/v1/governance/projects/proj-b"
-        )
+        resp = _client(storage, "owner", project_id="proj-a").delete("/v1/governance/projects/proj-b")
         # 200 (project may be empty but deletion succeeds)
         assert resp.status_code == 200
 
     def test_admin_403_error_mentions_role(self, storage):
-        resp = _client(storage, "admin", project_id="proj-a").delete(
-            "/v1/governance/projects/proj-b"
-        )
+        resp = _client(storage, "admin", project_id="proj-a").delete("/v1/governance/projects/proj-b")
         assert resp.status_code == 403
         assert "admin" in resp.json()["detail"].lower() or "owner" in resp.json()["detail"].lower()
 
@@ -232,21 +216,15 @@ class TestProjectDeletePermission:
 
 class TestRetentionApplyPermission:
     def test_reader_cannot_apply_retention(self, storage):
-        resp = _client(storage, "reader").post(
-            "/v1/governance/retention/apply", json={"dry_run": True}
-        )
+        resp = _client(storage, "reader").post("/v1/governance/retention/apply", json={"dry_run": True})
         assert resp.status_code == 403
 
     def test_editor_cannot_apply_retention(self, storage):
-        resp = _client(storage, "editor").post(
-            "/v1/governance/retention/apply", json={"dry_run": True}
-        )
+        resp = _client(storage, "editor").post("/v1/governance/retention/apply", json={"dry_run": True})
         assert resp.status_code == 403
 
     def test_admin_can_apply_retention(self, storage):
-        resp = _client(storage, "admin").post(
-            "/v1/governance/retention/apply", json={"dry_run": True}
-        )
+        resp = _client(storage, "admin").post("/v1/governance/retention/apply", json={"dry_run": True})
         assert resp.status_code == 200
 
 
@@ -272,16 +250,12 @@ class TestTenantDeletePermission:
 
     def test_owner_can_delete_own_tenant(self, storage):
         """Owner of tenant-a can delete tenant-a."""
-        resp = _client(
-            storage, "owner", tenant_id="tenant-a"
-        ).delete("/v1/governance/tenants/tenant-a")
+        resp = _client(storage, "owner", tenant_id="tenant-a").delete("/v1/governance/tenants/tenant-a")
         assert resp.status_code == 200
 
     def test_owner_cannot_delete_foreign_tenant(self, storage):
         """Critical: owner of tenant-a must not be able to delete tenant-b."""
-        resp = _client(
-            storage, "owner", tenant_id="tenant-a"
-        ).delete("/v1/governance/tenants/tenant-b")
+        resp = _client(storage, "owner", tenant_id="tenant-a").delete("/v1/governance/tenants/tenant-b")
         assert resp.status_code == 403
         assert "own tenant" in resp.json()["detail"].lower()
 
@@ -297,9 +271,7 @@ class TestTenantDeletePermission:
                 "timestamp": time.time(),
             },
         )
-        resp = _client(
-            storage, "owner", tenant_id="tenant-a"
-        ).delete("/v1/governance/tenants/tenant-a")
+        resp = _client(storage, "owner", tenant_id="tenant-a").delete("/v1/governance/tenants/tenant-a")
         assert resp.status_code == 200
         data = resp.json()
         # Response must include deletion summary fields

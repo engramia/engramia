@@ -6,6 +6,7 @@ Runs three scenarios (cold / warm / full) against the Engramia Memory API
 using local embeddings (sentence-transformers) and temporary JSON storage.
 No API keys required.
 """
+
 from __future__ import annotations
 
 import logging
@@ -119,9 +120,13 @@ def calibrate(embeddings: LocalEmbeddings) -> CalibrationResult:
 
     logger.info(
         "Calibration: intra=[%.3f, %.3f] cross=[%.3f, %.3f] noise_max=%.3f -> adapt=%.3f noise=%.3f",
-        min_intra, float(np.max(intra_sims)),
-        float(np.min(cross_sims)), max_cross,
-        max_noise, adapt_threshold, noise_threshold,
+        min_intra,
+        float(np.max(intra_sims)),
+        float(np.min(cross_sims)),
+        max_cross,
+        max_noise,
+        adapt_threshold,
+        noise_threshold,
     )
 
     return CalibrationResult(
@@ -208,11 +213,7 @@ class ScenarioResult:
     @property
     def overall_success(self) -> int:
         """Total successful tasks (recall hit + noise rejection)."""
-        return (
-            self.in_domain_recall_hits
-            + self.boundary_hits
-            + self.noise_rejected
-        )
+        return self.in_domain_recall_hits + self.boundary_hits + self.noise_rejected
 
     @property
     def overall_success_rate(self) -> float:
@@ -292,9 +293,7 @@ class BenchmarkRunner:
             storage=JSONStorage(path=tmp_dir),
         )
 
-    def _learn_training_set(
-        self, mem: Memory, training: list[TrainingPattern]
-    ) -> None:
+    def _learn_training_set(self, mem: Memory, training: list[TrainingPattern]) -> None:
         """Populate memory with training patterns."""
         for tp in training:
             mem.learn(
@@ -417,8 +416,11 @@ class BenchmarkRunner:
             result.duration_seconds = time.monotonic() - start
             logger.info(
                 "Scenario '%s' complete: %d/%d success (%.1f%%) in %.1fs",
-                name, result.overall_success, result.total_tasks,
-                result.overall_success_rate * 100, result.duration_seconds,
+                name,
+                result.overall_success,
+                result.total_tasks,
+                result.overall_success_rate * 100,
+                result.duration_seconds,
             )
             return result
 
@@ -435,10 +437,7 @@ class BenchmarkRunner:
     def run_warm(self) -> ScenarioResult:
         """Warm-up — 1 good pattern per domain (12 total)."""
         # Only test with held-out variants (variants 3,4) + boundary + noise
-        held_out = [
-            e for e in self._dataset
-            if e.category != "in_domain" or e.task not in _first_n_variants(3)
-        ]
+        held_out = [e for e in self._dataset if e.category != "in_domain" or e.task not in _first_n_variants(3)]
         return self._run_scenario("warm_up", patterns_per_domain=1, tasks=held_out)
 
     def run_full(self) -> ScenarioResult:

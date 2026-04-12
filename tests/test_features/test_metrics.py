@@ -10,6 +10,7 @@ After N learn() calls and M recall() calls:
 Note: learn() calls record_run(success=True) in MetricsStore.
       recall() does NOT record metrics runs.
 """
+
 from __future__ import annotations
 
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
@@ -50,9 +51,7 @@ def test_metrics_runs_delta(client: TestClient, run_tag: str) -> None:
 
         for i in range(_LEARN_COUNT):
             task = f"[{run_tag}] m1-{i} {tasks[i % len(tasks)]}"
-            key = learn_and_get_key(
-                client, task=task, code=snippet["code"], eval_score=snippet["eval_score"]
-            )
+            key = learn_and_get_key(client, task=task, code=snippet["code"], eval_score=snippet["eval_score"])
             if key:
                 learned_keys.append(key)
 
@@ -60,9 +59,7 @@ def test_metrics_runs_delta(client: TestClient, run_tag: str) -> None:
         runs_delta = after["runs"] - runs_before
         pattern_delta = after["pattern_count"] - patterns_before
 
-        assert runs_delta == _LEARN_COUNT, (
-            f"Expected runs to increase by {_LEARN_COUNT}, got delta={runs_delta}"
-        )
+        assert runs_delta == _LEARN_COUNT, f"Expected runs to increase by {_LEARN_COUNT}, got delta={runs_delta}"
         assert pattern_delta == _LEARN_COUNT, (
             f"Expected pattern_count to increase by {_LEARN_COUNT}, got delta={pattern_delta}"
         )
@@ -73,18 +70,14 @@ def test_metrics_runs_delta(client: TestClient, run_tag: str) -> None:
             client.delete_pattern(k)
 
 
-def test_metrics_recall_does_not_increment_runs(
-    client: TestClient, run_tag: str
-) -> None:
+def test_metrics_recall_does_not_increment_runs(client: TestClient, run_tag: str) -> None:
     """recall() calls do NOT increment metrics.runs."""
     snippet = CLUSTER_SNIPPETS[_CLUSTER]["medium"]
     task = f"[{run_tag}] m2 {CLUSTERS[_CLUSTER][0]}"
     learned_keys: list[str] = []
 
     try:
-        key = learn_and_get_key(
-            client, task=task, code=snippet["code"], eval_score=6.0
-        )
+        key = learn_and_get_key(client, task=task, code=snippet["code"], eval_score=6.0)
         if key:
             learned_keys.append(key)
 

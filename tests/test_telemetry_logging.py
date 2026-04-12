@@ -81,12 +81,16 @@ class TestContextInjectingFormatter:
 class TestConfigureJsonLogging:
     def test_no_op_when_python_json_logger_missing(self, caplog):
         """configure_json_logging() emits a warning and returns cleanly."""
-        with patch.dict(sys.modules, {
-            "pythonjsonlogger": None,
-            "pythonjsonlogger.jsonlogger": None,
-        }):
+        with patch.dict(
+            sys.modules,
+            {
+                "pythonjsonlogger": None,
+                "pythonjsonlogger.jsonlogger": None,
+            },
+        ):
             import engramia.telemetry.logging as mod
             import importlib
+
             importlib.reload(mod)
 
             with caplog.at_level(logging.WARNING):
@@ -97,6 +101,7 @@ class TestConfigureJsonLogging:
     def test_installs_formatter_when_handler_present(self):
         """configure_json_logging() replaces the first handler's formatter."""
         import pytest
+
         pytest.importorskip("pythonjsonlogger", reason="pythonjsonlogger not installed")
 
         from engramia.telemetry.logging import configure_json_logging
@@ -108,6 +113,7 @@ class TestConfigureJsonLogging:
         try:
             configure_json_logging()
             from pythonjsonlogger.jsonlogger import JsonFormatter
+
             assert isinstance(handler.formatter, JsonFormatter)
         finally:
             root.handlers = original_handlers

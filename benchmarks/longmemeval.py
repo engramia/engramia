@@ -34,6 +34,7 @@ References
 Inspired by LongMemEval (Wu et al., 2024) — a benchmark for long-term memory
 in chat assistants — adapted for agentic execution-memory systems.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -210,13 +211,15 @@ def build_single_hop_tasks() -> list[LongMemTask]:
     for domain in DOMAINS:
         for tmpl, _ in templates:
             pid = f"pat_{domain}_good_v1"
-            tasks.append(LongMemTask(
-                task_id=_make_task_id("single_hop_recall", domain, idx),
-                dimension="single_hop_recall",
-                domain=domain,
-                query=tmpl.format(domain=domain.replace("_", " ")),
-                expected_pattern_ids=(pid,),
-            ))
+            tasks.append(
+                LongMemTask(
+                    task_id=_make_task_id("single_hop_recall", domain, idx),
+                    dimension="single_hop_recall",
+                    domain=domain,
+                    query=tmpl.format(domain=domain.replace("_", " ")),
+                    expected_pattern_ids=(pid,),
+                )
+            )
             idx += 1
     return tasks
 
@@ -251,28 +254,32 @@ def build_multi_hop_tasks() -> list[LongMemTask]:
     for idx, ((dom_a, dom_b), query_tmpl) in enumerate(zip(cross_pairs, queries)):
         pid_a = f"pat_{dom_a}_good_v1"
         pid_b = f"pat_{dom_b}_good_v1"
-        tasks.append(LongMemTask(
-            task_id=_make_task_id("multi_hop_reasoning", f"{dom_a}_{dom_b}", idx),
-            dimension="multi_hop_reasoning",
-            domain=f"{dom_a}+{dom_b}",
-            query=query_tmpl.format(a=dom_a.replace("_", " "), b=dom_b.replace("_", " ")),
-            expected_pattern_ids=(pid_a, pid_b),
-            requires_all=True,
-        ))
+        tasks.append(
+            LongMemTask(
+                task_id=_make_task_id("multi_hop_reasoning", f"{dom_a}_{dom_b}", idx),
+                dimension="multi_hop_reasoning",
+                domain=f"{dom_a}+{dom_b}",
+                query=query_tmpl.format(a=dom_a.replace("_", " "), b=dom_b.replace("_", " ")),
+                expected_pattern_ids=(pid_a, pid_b),
+                requires_all=True,
+            )
+        )
     # Fill remainder with paraphrases
     for i in range(len(cross_pairs), 100):
         pair_idx = i % len(cross_pairs)
         dom_a, dom_b = cross_pairs[pair_idx]
         pid_a = f"pat_{dom_a}_good_v1"
         pid_b = f"pat_{dom_b}_good_v1"
-        tasks.append(LongMemTask(
-            task_id=_make_task_id("multi_hop_reasoning", f"para{i}", i),
-            dimension="multi_hop_reasoning",
-            domain=f"{dom_a}+{dom_b}",
-            query=f"Handle {dom_a.replace('_', ' ')} with {dom_b.replace('_', ' ')} constraints (variant {i}).",
-            expected_pattern_ids=(pid_a, pid_b),
-            requires_all=True,
-        ))
+        tasks.append(
+            LongMemTask(
+                task_id=_make_task_id("multi_hop_reasoning", f"para{i}", i),
+                dimension="multi_hop_reasoning",
+                domain=f"{dom_a}+{dom_b}",
+                query=f"Handle {dom_a.replace('_', ' ')} with {dom_b.replace('_', ' ')} constraints (variant {i}).",
+                expected_pattern_ids=(pid_a, pid_b),
+                requires_all=True,
+            )
+        )
     return tasks
 
 
@@ -287,17 +294,19 @@ def build_temporal_tasks() -> list[LongMemTask]:
         # The correct answer is the *most recent* stored pattern for this domain
         pid_recent = f"pat_{domain}_good_v3"
         pid_old = f"pat_{domain}_good_v1"
-        tasks.append(LongMemTask(
-            task_id=_make_task_id("temporal_reasoning", domain, idx),
-            dimension="temporal_reasoning",
-            domain=domain,
-            query=(
-                f"Apply the most recent {domain.replace('_', ' ')} pattern — "
-                f"we updated our approach after the last incident."
-            ),
-            expected_pattern_ids=(pid_recent,),
-            preferred_pattern_id=pid_recent,
-        ))
+        tasks.append(
+            LongMemTask(
+                task_id=_make_task_id("temporal_reasoning", domain, idx),
+                dimension="temporal_reasoning",
+                domain=domain,
+                query=(
+                    f"Apply the most recent {domain.replace('_', ' ')} pattern — "
+                    f"we updated our approach after the last incident."
+                ),
+                expected_pattern_ids=(pid_recent,),
+                preferred_pattern_id=pid_recent,
+            )
+        )
     return tasks
 
 
@@ -307,17 +316,19 @@ def build_knowledge_update_tasks() -> list[LongMemTask]:
     for idx in range(100):
         domain = DOMAINS[idx % len(DOMAINS)]
         pid_new = f"pat_{domain}_good_v3"
-        tasks.append(LongMemTask(
-            task_id=_make_task_id("knowledge_updates", domain, idx),
-            dimension="knowledge_updates",
-            domain=domain,
-            query=(
-                f"Use the updated {domain.replace('_', ' ')} approach — "
-                f"the old pattern was deprecated after the architecture review."
-            ),
-            expected_pattern_ids=(pid_new,),
-            preferred_pattern_id=pid_new,
-        ))
+        tasks.append(
+            LongMemTask(
+                task_id=_make_task_id("knowledge_updates", domain, idx),
+                dimension="knowledge_updates",
+                domain=domain,
+                query=(
+                    f"Use the updated {domain.replace('_', ' ')} approach — "
+                    f"the old pattern was deprecated after the architecture review."
+                ),
+                expected_pattern_ids=(pid_new,),
+                preferred_pattern_id=pid_new,
+            )
+        )
     return tasks
 
 
@@ -347,13 +358,16 @@ def build_absent_tasks() -> list[LongMemTask]:
     ]
     tasks: list[LongMemTask] = []
     for idx in range(80):
-        tasks.append(LongMemTask(
-            task_id=f"absent_{idx:04d}",
-            dimension="absent_memory_detection",
-            domain="noise",
-            query=noise_queries[idx % len(noise_queries)] + (f" (variant {idx // len(noise_queries)})" if idx >= len(noise_queries) else ""),
-            expected_pattern_ids=(),
-        ))
+        tasks.append(
+            LongMemTask(
+                task_id=f"absent_{idx:04d}",
+                dimension="absent_memory_detection",
+                domain="noise",
+                query=noise_queries[idx % len(noise_queries)]
+                + (f" (variant {idx // len(noise_queries)})" if idx >= len(noise_queries) else ""),
+                expected_pattern_ids=(),
+            )
+        )
     return tasks
 
 
@@ -413,9 +427,24 @@ class LongMemEvalRunner:
         }
         code = base_code.get(domain, f"# {domain} pattern")
         return [
-            {"task": f"Write {domain.replace('_', ' ')} code v1", "code": code, "eval_score": 6.2, "pattern_id": f"pat_{domain}_bad_v1"},
-            {"task": f"Write {domain.replace('_', ' ')} code v2", "code": code, "eval_score": 7.8, "pattern_id": f"pat_{domain}_good_v1"},
-            {"task": f"Write {domain.replace('_', ' ')} code v3", "code": code, "eval_score": 9.1, "pattern_id": f"pat_{domain}_good_v3"},
+            {
+                "task": f"Write {domain.replace('_', ' ')} code v1",
+                "code": code,
+                "eval_score": 6.2,
+                "pattern_id": f"pat_{domain}_bad_v1",
+            },
+            {
+                "task": f"Write {domain.replace('_', ' ')} code v2",
+                "code": code,
+                "eval_score": 7.8,
+                "pattern_id": f"pat_{domain}_good_v1",
+            },
+            {
+                "task": f"Write {domain.replace('_', ' ')} code v3",
+                "code": code,
+                "eval_score": 9.1,
+                "pattern_id": f"pat_{domain}_good_v3",
+            },
         ]
 
     # ------------------------------------------------------------------
@@ -430,9 +459,7 @@ class LongMemEvalRunner:
             hit = False
             if matches:
                 top = matches[0]
-                hit = float(top.similarity) >= 0.5 and top.pattern.task.startswith(
-                    task.domain.replace("_", " ")
-                )
+                hit = float(top.similarity) >= 0.5 and top.pattern.task.startswith(task.domain.replace("_", " "))
             if hit:
                 result.correct += 1
             result.task_results.append({"task_id": task.task_id, "hit": hit})
@@ -511,9 +538,7 @@ class LongMemEvalRunner:
             from engramia.providers import JSONStorage  # type: ignore[import]
             from engramia.providers.local_embeddings import LocalEmbeddings  # type: ignore[import]
         except ImportError as exc:
-            raise RuntimeError(
-                "Run 'pip install engramia[local]' to install local embeddings."
-            ) from exc
+            raise RuntimeError("Run 'pip install engramia[local]' to install local embeddings.") from exc
 
         import datetime
 
@@ -556,7 +581,10 @@ class LongMemEvalRunner:
                 result.dimension_results.append(dim_result)
                 logger.info(
                     "  %s: %d/%d (%.1f%%)",
-                    dim_name, dim_result.correct, dim_result.total, dim_result.score * 100,
+                    dim_name,
+                    dim_result.correct,
+                    dim_result.total,
+                    dim_result.score * 100,
                 )
 
         logger.info(
@@ -589,9 +617,11 @@ def print_summary(data: dict[str, Any]) -> None:
     print("=" * 72)
     print("  LongMemEval — Engramia Benchmark Results")
     print("=" * 72)
-    print(f"  Version: {meta.get('engramia_version', 'n/a')}   "
-          f"Embedding: {meta.get('embedding_model', 'n/a')}   "
-          f"Tasks: {meta.get('total_tasks', 0)}")
+    print(
+        f"  Version: {meta.get('engramia_version', 'n/a')}   "
+        f"Embedding: {meta.get('embedding_model', 'n/a')}   "
+        f"Tasks: {meta.get('total_tasks', 0)}"
+    )
     print()
     print(f"  {'Dimension':<30} {'Score':>8}  {'Correct':>10}")
     print(f"  {'-' * 30} {'-' * 8}  {'-' * 10}")
@@ -602,8 +632,7 @@ def print_summary(data: dict[str, Any]) -> None:
         print(f"  {dim:<30} {score_pct:>7.1f}%  {correct:>10}")
     print()
     overall_pct = engramia["overall"] * 100
-    print(f"  {'OVERALL':<30} {overall_pct:>7.1f}%  "
-          f"{engramia['total_correct']}/{engramia['total_tasks']}")
+    print(f"  {'OVERALL':<30} {overall_pct:>7.1f}%  {engramia['total_correct']}/{engramia['total_tasks']}")
     print()
     print("  Comparison:")
     print(f"  {'System':<20} {'Overall':>8}")
@@ -645,7 +674,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write results JSON to FILE instead of stdout.",
     )
     p.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose logging.",
     )

@@ -35,7 +35,7 @@ def _deterministic_embedding(text: str) -> list[float]:
     values = []
     for i in range(EMBEDDING_DIM):
         # Cycle through digest bytes for determinism
-        byte_val = int(digest[(i * 2) % 32:(i * 2) % 32 + 2], 16)
+        byte_val = int(digest[(i * 2) % 32 : (i * 2) % 32 + 2], 16)
         values.append((byte_val / 255.0) * 2 - 1)
     return values
 
@@ -53,18 +53,12 @@ async def chat_completions(request: Request) -> JSONResponse:
 
     # Detect if this is an evaluation request (contains scoring instructions)
     last_content = messages[-1].get("content", "") if messages else ""
-    is_eval = any(
-        kw in last_content.lower()
-        for kw in ("score", "evaluat", "accuracy", "relevance", "overall_score")
-    )
+    is_eval = any(kw in last_content.lower() for kw in ("score", "evaluat", "accuracy", "relevance", "overall_score"))
 
     if is_eval:
         content = EVAL_JSON
     else:
-        content = (
-            "This is a mock LLM response for testing. "
-            "The pattern has been processed successfully."
-        )
+        content = "This is a mock LLM response for testing. The pattern has been processed successfully."
 
     return JSONResponse(
         {
@@ -82,8 +76,7 @@ async def chat_completions(request: Request) -> JSONResponse:
             "usage": {
                 "prompt_tokens": sum(len(m.get("content", "")) // 4 for m in messages),
                 "completion_tokens": len(content) // 4,
-                "total_tokens": sum(len(m.get("content", "")) // 4 for m in messages)
-                + len(content) // 4,
+                "total_tokens": sum(len(m.get("content", "")) // 4 for m in messages) + len(content) // 4,
             },
         }
     )

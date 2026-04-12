@@ -61,7 +61,7 @@ def bulk_upsert(
 MEDIUM: dict = {
     "eval_score": 5.5,
     "output": "Rows inserted.",
-    "code": '''\
+    "code": """\
 def upsert_rows(conn, table, rows, conflict_col="id"):
     cur = conn.cursor()
     for row in rows:
@@ -75,13 +75,13 @@ def upsert_rows(conn, table, rows, conflict_col="id"):
         # BUG: passes values twice (for INSERT + UPDATE) but may not align
         cur.execute(sql, list(row.values()) + [v for k, v in row.items() if k != conflict_col])
     conn.commit()
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 1.5,
     "output": "",
-    "code": '''\
+    "code": """\
 def upsert(conn, table, rows):
     cur = conn.cursor()
     for row in rows:
@@ -95,5 +95,5 @@ def upsert(conn, table, rows):
             # BUG: silently swallows all errors including connection failures
             pass
     conn.commit()
-''',
+""",
 }

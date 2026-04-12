@@ -8,6 +8,7 @@ cap 10.0).  This test verifies the boost accumulates correctly.
 Note: Only testable in local mode (requires direct storage access).
 In remote mode the test verifies reuse_count increases.
 """
+
 from __future__ import annotations
 
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
@@ -60,9 +61,7 @@ def test_reuse_boost_score_delta(
             f"Expected score boost >= {expected_min_boost * 0.8:.2f}, "
             f"got {actual_boost:.2f} (initial={_INITIAL_SCORE}, final={final_score:.2f})"
         )
-        assert final_reuse >= _RECALL_ROUNDS, (
-            f"Expected reuse_count >= {_RECALL_ROUNDS}, got {final_reuse}"
-        )
+        assert final_reuse >= _RECALL_ROUNDS, f"Expected reuse_count >= {_RECALL_ROUNDS}, got {final_reuse}"
 
     finally:
         for key in set(learned_keys):
@@ -79,9 +78,7 @@ def test_reuse_boost_cap(
     learned_keys: list[str] = []
 
     try:
-        key = learn_and_get_key(
-            client, task=task, code=snippet["code"], eval_score=9.5
-        )
+        key = learn_and_get_key(client, task=task, code=snippet["code"], eval_score=9.5)
         if key:
             learned_keys.append(key)
 
@@ -91,9 +88,7 @@ def test_reuse_boost_cap(
 
         final_matches = client.recall(task=task, limit=1, deduplicate=False, eval_weighted=False)
         if final_matches:
-            assert final_matches[0]["pattern"]["success_score"] <= 10.0, (
-                "success_score exceeded 10.0 cap!"
-            )
+            assert final_matches[0]["pattern"]["success_score"] <= 10.0, "success_score exceeded 10.0 cap!"
 
     finally:
         for key in set(learned_keys):

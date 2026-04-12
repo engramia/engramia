@@ -5,6 +5,7 @@
 Each cluster has three quality tiers: good (8.5-9.5), medium (5.5-6.5), bad (2.0-3.5).
 Snippets are deterministic Python strings — no LLM calls required.
 """
+
 from .c01_csv_filter import BAD as C01_BAD
 from .c01_csv_filter import GOOD as C01_GOOD
 from .c01_csv_filter import MEDIUM as C01_MEDIUM

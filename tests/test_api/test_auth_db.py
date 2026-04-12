@@ -138,6 +138,7 @@ class TestRequireAuthDBMode:
         from engramia.api.routes import router
         from engramia.providers.json_storage import JSONStorage
         from tests.conftest import FakeEmbeddings
+
         os.environ.pop("ENGRAMIA_API_KEYS", None)
 
         engine, token, _ = mock_engine_for_key
@@ -165,6 +166,7 @@ class TestRequireAuthDBMode:
         from engramia.api.routes import router
         from engramia.providers.json_storage import JSONStorage
         from tests.conftest import FakeEmbeddings
+
         os.environ.pop("ENGRAMIA_API_KEYS", None)
 
         # Engine returns None (key not found)
@@ -197,6 +199,7 @@ class TestRequireAuthDBMode:
         from engramia.api.routes import router
         from engramia.providers.json_storage import JSONStorage
         from tests.conftest import FakeEmbeddings
+
         os.environ.pop("ENGRAMIA_API_KEYS", None)
 
         with patch("engramia.api.auth._use_db_auth", return_value=True):

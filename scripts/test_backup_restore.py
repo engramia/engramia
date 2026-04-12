@@ -47,9 +47,7 @@ from pathlib import Path
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-PGVECTOR_IMAGE: str = os.environ.get(
-    "ENGRAMIA_BRT_PGIMAGE", "pgvector/pgvector:0.7.4-pg16"
-)
+PGVECTOR_IMAGE: str = os.environ.get("ENGRAMIA_BRT_PGIMAGE", "pgvector/pgvector:0.7.4-pg16")
 SOURCE_PORT: int = int(os.environ.get("ENGRAMIA_BRT_SOURCE_PORT", "15441"))
 TARGET_PORT: int = int(os.environ.get("ENGRAMIA_BRT_TARGET_PORT", "15442"))
 
@@ -118,13 +116,20 @@ def start_container(c: Container) -> None:
     log(f"Starting {c.name} on port {c.port} ...")
     _run(
         [
-            "docker", "run", "-d",
-            "--name", c.name,
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            c.name,
             "--rm",
-            "-e", f"POSTGRES_USER={DB_USER}",
-            "-e", f"POSTGRES_PASSWORD={DB_PASSWORD}",
-            "-e", f"POSTGRES_DB={DB_NAME}",
-            "-p", f"{c.port}:5432",
+            "-e",
+            f"POSTGRES_USER={DB_USER}",
+            "-e",
+            f"POSTGRES_PASSWORD={DB_PASSWORD}",
+            "-e",
+            f"POSTGRES_DB={DB_NAME}",
+            "-p",
+            f"{c.port}:5432",
             PGVECTOR_IMAGE,
         ]
     )
@@ -146,8 +151,7 @@ def wait_ready(c: Container, timeout: int = 90) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         result = _run(
-            ["docker", "exec", "-e", f"PGPASSWORD={DB_PASSWORD}",
-             c.name, "pg_isready", "-U", DB_USER],
+            ["docker", "exec", "-e", f"PGPASSWORD={DB_PASSWORD}", c.name, "pg_isready", "-U", DB_USER],
             check=False,
         )
         if result.returncode == 0:
@@ -161,11 +165,18 @@ def psql_exec(c: Container, sql: str) -> subprocess.CompletedProcess[bytes]:
     """Run a single SQL statement inside the container; raise on error."""
     return _run(
         [
-            "docker", "exec",
-            "-e", f"PGPASSWORD={DB_PASSWORD}",
+            "docker",
+            "exec",
+            "-e",
+            f"PGPASSWORD={DB_PASSWORD}",
             c.name,
-            "psql", "-U", DB_USER, "-d", DB_NAME,
-            "-c", sql,
+            "psql",
+            "-U",
+            DB_USER,
+            "-d",
+            DB_NAME,
+            "-c",
+            sql,
         ]
     )
 
@@ -174,12 +185,20 @@ def psql_value(c: Container, sql: str) -> str:
     """Return a single scalar result from a SQL query (tuples-only, unaligned)."""
     result = _run(
         [
-            "docker", "exec",
-            "-e", f"PGPASSWORD={DB_PASSWORD}",
+            "docker",
+            "exec",
+            "-e",
+            f"PGPASSWORD={DB_PASSWORD}",
             c.name,
-            "psql", "-U", DB_USER, "-d", DB_NAME,
-            "-t", "-A",
-            "-c", sql,
+            "psql",
+            "-U",
+            DB_USER,
+            "-d",
+            DB_NAME,
+            "-t",
+            "-A",
+            "-c",
+            sql,
         ]
     )
     return result.stdout.decode().strip()
@@ -189,12 +208,20 @@ def psql_column(c: Container, sql: str) -> list[str]:
     """Return each output row as a string (tuples-only, unaligned)."""
     result = _run(
         [
-            "docker", "exec",
-            "-e", f"PGPASSWORD={DB_PASSWORD}",
+            "docker",
+            "exec",
+            "-e",
+            f"PGPASSWORD={DB_PASSWORD}",
             c.name,
-            "psql", "-U", DB_USER, "-d", DB_NAME,
-            "-t", "-A",
-            "-c", sql,
+            "psql",
+            "-U",
+            DB_USER,
+            "-d",
+            DB_NAME,
+            "-t",
+            "-A",
+            "-c",
+            sql,
         ]
     )
     return [line for line in result.stdout.decode().splitlines() if line.strip()]
@@ -248,10 +275,16 @@ def create_backup(source: Container, backup_path: Path) -> None:
     log("Creating pg_dump backup ...")
     result = _run(
         [
-            "docker", "exec",
-            "-e", f"PGPASSWORD={DB_PASSWORD}",
+            "docker",
+            "exec",
+            "-e",
+            f"PGPASSWORD={DB_PASSWORD}",
             source.name,
-            "pg_dump", "-U", DB_USER, "--no-password", DB_NAME,
+            "pg_dump",
+            "-U",
+            DB_USER,
+            "--no-password",
+            DB_NAME,
         ]
     )
     with gzip.open(backup_path, "wb") as fh:
@@ -267,11 +300,19 @@ def restore_backup(target: Container, backup_path: Path) -> None:
 
     result = subprocess.run(
         [
-            "docker", "exec", "-i",
-            "-e", f"PGPASSWORD={DB_PASSWORD}",
+            "docker",
+            "exec",
+            "-i",
+            "-e",
+            f"PGPASSWORD={DB_PASSWORD}",
             target.name,
-            "psql", "-U", DB_USER, "-d", DB_NAME,
-            "-v", "ON_ERROR_STOP=1",
+            "psql",
+            "-U",
+            DB_USER,
+            "-d",
+            DB_NAME,
+            "-v",
+            "ON_ERROR_STOP=1",
         ],
         input=sql_bytes,
         capture_output=True,
@@ -312,9 +353,7 @@ def validate(target: Container) -> list[str]:
     # 3. Alembic schema at head revision
     revision = psql_value(target, "SELECT version_num FROM alembic_version;")
     if revision != EXPECTED_ALEMBIC_REVISION:
-        failures.append(
-            f"Alembic revision mismatch: expected {EXPECTED_ALEMBIC_REVISION!r}, got {revision!r}"
-        )
+        failures.append(f"Alembic revision mismatch: expected {EXPECTED_ALEMBIC_REVISION!r}, got {revision!r}")
 
     # 4. Default tenant seeded by migration 003 is present
     default_tenant = psql_value(target, "SELECT COUNT(*) FROM tenants WHERE id = 'default';")
@@ -328,14 +367,11 @@ def validate(target: Container) -> list[str]:
 
     seed_keys_count = psql_value(
         target,
-        f"SELECT COUNT(*) FROM memory_data WHERE key LIKE 'brt-key-%' "
-        f"AND tenant_id = '{SEED_TENANT_ID}';",
+        f"SELECT COUNT(*) FROM memory_data WHERE key LIKE 'brt-key-%' AND tenant_id = '{SEED_TENANT_ID}';",
     )
     expected_key_count = str(len(SEED_KEYS))
     if seed_keys_count != expected_key_count:
-        failures.append(
-            f"Expected {expected_key_count} seed memory_data rows, got {seed_keys_count!r}"
-        )
+        failures.append(f"Expected {expected_key_count} seed memory_data rows, got {seed_keys_count!r}")
 
     # 6. Total tenant count sanity (default + our seed = ≥ 2)
     total_tenants = psql_value(target, "SELECT COUNT(*) FROM tenants;")
@@ -356,14 +392,14 @@ def main() -> int:
     backup_path = tmp_dir / f"brt_{run_id}.sql.gz"
     project_root = Path(__file__).resolve().parent.parent
 
-    log(f"{'='*60}")
+    log(f"{'=' * 60}")
     log(f"Engramia Backup Restore Test  run={run_id}")
     log(f"  image       : {PGVECTOR_IMAGE}")
     log(f"  source port : {SOURCE_PORT}")
     log(f"  target port : {TARGET_PORT}")
     log(f"  project root: {project_root}")
     log(f"  backup path : {backup_path}")
-    log(f"{'='*60}")
+    log(f"{'=' * 60}")
 
     # Verify Docker is available before doing anything
     if shutil.which("docker") is None:

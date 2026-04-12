@@ -96,8 +96,8 @@ class TimingMiddleware(BaseHTTPMiddleware):
             from engramia.telemetry.metrics import observe_request
 
             observe_request(method, _normalise_path(path), status, duration_s)
-        except Exception:
-            pass
+        except (AttributeError, KeyError) as exc:
+            _log.debug("Span recording error: %s", exc)
 
         return response
 

@@ -10,6 +10,7 @@ For each boundary task:
 
 This validates that the embedding space captures multi-domain intent.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -53,20 +54,12 @@ def test_boundary_task_matches_both_clusters(
                     cluster_keys[cid].append(key)
 
         # Recall with boundary task
-        matches = client.recall(
-            task=boundary_task, limit=10, deduplicate=False, eval_weighted=False
-        )
+        matches = client.recall(task=boundary_task, limit=10, deduplicate=False, eval_weighted=False)
 
         # Check which clusters appear in top results
         min_sim = _MIN_RELEVANT_SIM
-        matched_a = any(
-            m["pattern_key"] in cluster_keys[cluster_a] and m["similarity"] >= min_sim
-            for m in matches
-        )
-        matched_b = any(
-            m["pattern_key"] in cluster_keys[cluster_b] and m["similarity"] >= min_sim
-            for m in matches
-        )
+        matched_a = any(m["pattern_key"] in cluster_keys[cluster_a] and m["similarity"] >= min_sim for m in matches)
+        matched_b = any(m["pattern_key"] in cluster_keys[cluster_b] and m["similarity"] >= min_sim for m in matches)
 
         passed = matched_a or matched_b
         quality_tracker.record_boundary(boundary_task, matched_a, matched_b, passed)

@@ -32,6 +32,7 @@ embeddings = LocalEmbeddings(model_name="all-MiniLM-L6-v2")
 llm = None
 if os.getenv("ANTHROPIC_API_KEY"):
     from engramia.providers.anthropic import AnthropicProvider
+
     llm = AnthropicProvider(model="claude-sonnet-4-6")
     print("Using Anthropic LLM for evaluate/compose")
 else:
@@ -42,7 +43,7 @@ else:
 # ---------------------------------------------------------------------------
 mem = Memory(
     llm=llm,
-    embeddings=embeddings,   # 384-dim local vectors
+    embeddings=embeddings,  # 384-dim local vectors
     storage=JSONStorage(path="./engramia_data_local"),
 )
 

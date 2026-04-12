@@ -159,9 +159,7 @@ class TestCustomerPortal:
     def test_no_customer_error_does_not_leak_details(self):
         """RuntimeError from service must not propagate internal message."""
         svc = MagicMock()
-        svc.create_portal_url.side_effect = RuntimeError(
-            "Tenant t1 has no Stripe customer: cus_xxx was deleted"
-        )
+        svc.create_portal_url.side_effect = RuntimeError("Tenant t1 has no Stripe customer: cus_xxx was deleted")
         client = TestClient(_make_app(billing_service=svc))
         resp = client.get("/v1/billing/portal", params={"return_url": "https://return"})
         assert resp.status_code == 400

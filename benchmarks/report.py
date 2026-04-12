@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Marek Cermak
 """Benchmark report — terminal output and JSON persistence."""
+
 from __future__ import annotations
 
 import json
@@ -59,24 +60,36 @@ def print_scenario(result: ScenarioResult) -> None:
 
     # In-domain
     print(f"  In-domain ({n_in} tasks):")
-    print(f"    Precision@1 (correct domain in top-1):      "
-          f"{d['in_domain']['precision_at_1']}/{n_in} ({_pct(d['in_domain']['precision_at_1'], n_in)})")
-    print(f"    Recall hit (+ sim >= {thresh:.2f}):              "
-          f"{d['in_domain']['recall_hits']}/{n_in} ({_pct(d['in_domain']['recall_hits'], n_in)})")
-    print(f"    Quality rank (hit + eval >= 7.0):            "
-          f"{d['in_domain']['quality_hits']}/{n_in} ({_pct(d['in_domain']['quality_hits'], n_in)})")
+    print(
+        f"    Precision@1 (correct domain in top-1):      "
+        f"{d['in_domain']['precision_at_1']}/{n_in} ({_pct(d['in_domain']['precision_at_1'], n_in)})"
+    )
+    print(
+        f"    Recall hit (+ sim >= {thresh:.2f}):              "
+        f"{d['in_domain']['recall_hits']}/{n_in} ({_pct(d['in_domain']['recall_hits'], n_in)})"
+    )
+    print(
+        f"    Quality rank (hit + eval >= 7.0):            "
+        f"{d['in_domain']['quality_hits']}/{n_in} ({_pct(d['in_domain']['quality_hits'], n_in)})"
+    )
 
     # Boundary
     print(f"  Boundary ({n_bnd} tasks):")
-    print(f"    Precision@1 (expected domain in top-1):      "
-          f"{d['boundary']['precision_at_1']}/{n_bnd} ({_pct(d['boundary']['precision_at_1'], n_bnd)})")
-    print(f"    Recall hit (+ sim >= {thresh:.2f}):              "
-          f"{d['boundary']['hits']}/{n_bnd} ({_pct(d['boundary']['hits'], n_bnd)})")
+    print(
+        f"    Precision@1 (expected domain in top-1):      "
+        f"{d['boundary']['precision_at_1']}/{n_bnd} ({_pct(d['boundary']['precision_at_1'], n_bnd)})"
+    )
+    print(
+        f"    Recall hit (+ sim >= {thresh:.2f}):              "
+        f"{d['boundary']['hits']}/{n_bnd} ({_pct(d['boundary']['hits'], n_bnd)})"
+    )
 
     # Noise
     print(f"  Noise ({n_noise} tasks):")
-    print(f"    Correctly rejected:                          "
-          f"{d['noise']['rejected']}/{n_noise} ({_pct(d['noise']['rejected'], n_noise)})")
+    print(
+        f"    Correctly rejected:                          "
+        f"{d['noise']['rejected']}/{n_noise} ({_pct(d['noise']['rejected'], n_noise)})"
+    )
 
     # Overall
     print(f"  {'':->54}")
@@ -98,17 +111,19 @@ def print_summary(results: list[ScenarioResult]) -> None:
     print("  BENCHMARK SUMMARY")
     print("=" * 72)
     print(f"  {'Scenario':<18} {'Patterns':>8} {'Success':>10} {'Rate':>8} {'P@1':>8} {'Time':>8}")
-    print(f"  {'-'*18} {'-'*8} {'-'*10} {'-'*8} {'-'*8} {'-'*8}")
+    print(f"  {'-' * 18} {'-' * 8} {'-' * 10} {'-' * 8} {'-' * 8} {'-' * 8}")
     for r in results:
         # P@1 = precision at 1 across in-domain + boundary (ignoring threshold)
         p1_total = len(r.in_domain_results) + len(r.boundary_results)
         p1_hits = r.in_domain_precision_at_1 + r.boundary_precision
         p1_rate = f"{p1_hits / p1_total * 100:.1f}%" if p1_total > 0 else "—"
-        print(f"  {r.name:<18} {r.training_patterns:>8} "
-              f"{r.overall_success:>6}/{r.total_tasks:<3} "
-              f"{r.overall_success_rate * 100:>7.1f}% "
-              f"{p1_rate:>8} "
-              f"{r.duration_seconds:>7.1f}s")
+        print(
+            f"  {r.name:<18} {r.training_patterns:>8} "
+            f"{r.overall_success:>6}/{r.total_tasks:<3} "
+            f"{r.overall_success_rate * 100:>7.1f}% "
+            f"{p1_rate:>8} "
+            f"{r.duration_seconds:>7.1f}s"
+        )
     print("=" * 72)
 
 
@@ -119,12 +134,12 @@ def print_summary(results: list[ScenarioResult]) -> None:
 
 def _git_info() -> dict[str, str]:
     info = {}
-    for key, cmd in [("commit", ["git", "rev-parse", "--short", "HEAD"]),
-                     ("branch", ["git", "rev-parse", "--abbrev-ref", "HEAD"])]:
+    for key, cmd in [
+        ("commit", ["git", "rev-parse", "--short", "HEAD"]),
+        ("branch", ["git", "rev-parse", "--abbrev-ref", "HEAD"]),
+    ]:
         try:
-            info[key] = subprocess.check_output(
-                cmd, stderr=subprocess.DEVNULL
-            ).decode().strip()
+            info[key] = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
         except Exception:
             info[key] = "unknown"
     return info

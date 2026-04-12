@@ -132,7 +132,8 @@ class ROICollector:
         for item in raw:
             try:
                 e = ROIEvent.model_validate(item)
-            except Exception:
+            except Exception as exc:
+                _log.warning("Skipping malformed ROI event: %s", exc)
                 continue
             if since_ts is not None and e.ts < since_ts:
                 continue

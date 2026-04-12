@@ -80,7 +80,7 @@ async def register_user(
 MEDIUM: dict = {
     "eval_score": 5.8,
     "output": "Register endpoint created.",
-    "code": '''\
+    "code": """\
 from fastapi import APIRouter
 from pydantic import BaseModel
 import hashlib
@@ -97,13 +97,13 @@ async def register(req: RegisterReq, db):
     user = {"email": req.email, "password": hashed}
     db.insert(user)
     return {"status": "ok", "email": req.email}
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "error: incomplete",
-    "code": '''\
+    "code": """\
 from fastapi import APIRouter
 
 router = APIRouter()
@@ -114,5 +114,5 @@ def register(data):
     user = {"email": data["email"], "pass": data["password"]}
     # save to db somehow
     return user
-''',
+""",
 }

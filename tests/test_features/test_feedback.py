@@ -12,6 +12,7 @@ Tests:
 Note: feedback storage is shared (not namespaced by run_id).
 Tests use distinctive phrases to avoid collision with real production data.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -47,9 +48,7 @@ def test_single_feedback_not_surfaced(client: TestClient) -> None:
         # Remote: we can't inject feedback directly without /evaluate
         pytest.skip("Cannot inject feedback directly in remote mode")
 
-    assert unique not in feedback, (
-        "Feedback with count=1 was surfaced in get_feedback() — should require count>=2"
-    )
+    assert unique not in feedback, "Feedback with count=1 was surfaced in get_feedback() — should require count>=2"
 
 
 def test_repeated_feedback_surfaces(client: TestClient) -> None:
@@ -65,10 +64,7 @@ def test_repeated_feedback_surfaces(client: TestClient) -> None:
 
     feedback = client.get_feedback(limit=20)
     found = any("RQ_TEST" in f and "missing error handling" in f for f in feedback)
-    assert found, (
-        f"Repeated feedback (count=3) not found in get_feedback().\n"
-        f"Returned: {feedback[:5]}"
-    )
+    assert found, f"Repeated feedback (count=3) not found in get_feedback().\nReturned: {feedback[:5]}"
 
 
 def test_feedback_decay_reduces_score(client: TestClient) -> None:
@@ -84,10 +80,7 @@ def test_feedback_decay_reduces_score(client: TestClient) -> None:
 
     # Get raw score before decay
     raw_before = store._load_raw()
-    rq_entries_before = [
-        p for p in raw_before
-        if "RQ_TEST" in p.get("pattern", "") and p.get("count", 0) >= 2
-    ]
+    rq_entries_before = [p for p in raw_before if "RQ_TEST" in p.get("pattern", "") and p.get("count", 0) >= 2]
     if not rq_entries_before:
         pytest.skip("No suitable feedback entries to test decay")
 
@@ -96,30 +89,25 @@ def test_feedback_decay_reduces_score(client: TestClient) -> None:
     # Run decay — patches last_decayed to force decay calculation
     import datetime
     import time
+
     _ONE_WEEK = 7 * 24 * 3600
     raw_entries = store._load_raw()
     for p in raw_entries:
         if "RQ_TEST" in p.get("pattern", ""):
             # Make it appear 2 weeks old
             old_ts = time.time() - 2 * _ONE_WEEK
-            p["last_decayed"] = datetime.datetime.fromtimestamp(
-                old_ts, tz=datetime.UTC
-            ).strftime("%Y-%m-%dT%H:%M:%S")
+            p["last_decayed"] = datetime.datetime.fromtimestamp(old_ts, tz=datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S")
     store._storage.save(store._key(), raw_entries)
 
     client.run_feedback_decay()
 
     raw_after = store._load_raw()
-    rq_entries_after = [
-        p for p in raw_after
-        if "RQ_TEST" in p.get("pattern", "") and p.get("count", 0) >= 2
-    ]
+    rq_entries_after = [p for p in raw_after if "RQ_TEST" in p.get("pattern", "") and p.get("count", 0) >= 2]
 
     if rq_entries_after:
         score_after = rq_entries_after[0]["score"]
         assert score_after < score_before, (
-            f"Feedback score did not decrease after decay: "
-            f"before={score_before:.4f}, after={score_after:.4f}"
+            f"Feedback score did not decrease after decay: before={score_before:.4f}, after={score_after:.4f}"
         )
 
 
@@ -132,6 +120,4 @@ def test_oneoff_feedback_not_surfaced(client: TestClient) -> None:
     store.record(_FEEDBACK_ONEOFF)
 
     feedback = client.get_feedback(limit=20)
-    assert _FEEDBACK_ONEOFF not in feedback, (
-        "One-off feedback was surfaced — get_feedback() should require count>=2"
-    )
+    assert _FEEDBACK_ONEOFF not in feedback, "One-off feedback was surfaced — get_feedback() should require count>=2"

@@ -46,7 +46,7 @@ def aggregate_csv_by_category(
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "{'electronics': 4200.0, 'clothing': 1850.5}",
-    "code": '''\
+    "code": """\
 import csv
 from collections import defaultdict
 
@@ -57,13 +57,13 @@ def group_sum(filepath, group_col, sum_col):
         for row in reader:
             totals[row[group_col]] += float(row[sum_col])
     return dict(totals)
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.0,
     "output": "",
-    "code": '''\
+    "code": """\
 def aggregate(file, cat_col, amt_col):
     lines = open(file).readlines()
     header = lines[0].strip().split(",")
@@ -83,5 +83,5 @@ def aggregate(file, cat_col, amt_col):
         if not found:
             result[cat] = amt
     return result
-''',
+""",
 }

@@ -22,6 +22,7 @@ class TestBuildMetricsApp:
     def test_raises_import_error_without_prometheus_client(self):
         with patch.dict("sys.modules", {"prometheus_client": None}):
             import engramia.api.prom_metrics as mod
+
             importlib.reload(mod)
             with pytest.raises(ImportError):
                 mod.build_metrics_app(_make_mem())
@@ -59,9 +60,7 @@ class TestBuildMetricsApp:
         from engramia.api.prom_metrics import build_metrics_app
 
         broken_mem = MagicMock()
-        type(broken_mem).metrics = property(
-            lambda self: (_ for _ in ()).throw(RuntimeError("storage offline"))
-        )
+        type(broken_mem).metrics = property(lambda self: (_ for _ in ()).throw(RuntimeError("storage offline")))
 
         # build_metrics_app should return a callable without raising
         app = build_metrics_app(broken_mem)

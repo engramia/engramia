@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Marek Čermák
 """Tests for EngramiaBridge — agent factory pre/post-run hooks."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -10,6 +11,7 @@ from engramia.sdk.bridge import EngramiaBridge, _format_matches
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_match(task="Parse CSV", score=8.5, sim=0.90, code="import csv"):
     """Build a match dict in the shape EngramiaWebhook returns."""
@@ -40,6 +42,7 @@ def _make_match_obj(task="Parse CSV", score=8.5, sim=0.90, code="import csv"):
 # ---------------------------------------------------------------------------
 # _format_matches
 # ---------------------------------------------------------------------------
+
 
 class TestFormatMatches:
     def test_empty_returns_empty_string(self):
@@ -77,6 +80,7 @@ class TestFormatMatches:
 # ---------------------------------------------------------------------------
 # EngramiaBridge — REST mode (api_url set)
 # ---------------------------------------------------------------------------
+
 
 class TestBridgeRestMode:
     """Bridge selects REST mode when api_url is provided."""
@@ -126,9 +130,7 @@ class TestBridgeRestMode:
         bridge._client = mock_client
 
         bridge.learn_run(task="Parse CSV", code="import csv", output="ok", eval_score=8.0)
-        mock_client.learn.assert_called_once_with(
-            task="Parse CSV", code="import csv", eval_score=8.0, output="ok"
-        )
+        mock_client.learn.assert_called_once_with(task="Parse CSV", code="import csv", eval_score=8.0, output="ok")
 
     def test_learn_run_skips_below_min_score(self):
         bridge = self._bridge(min_score_to_learn=7.0)
@@ -209,6 +211,7 @@ class TestBridgeRestMode:
 # ---------------------------------------------------------------------------
 # EngramiaBridge — wrap decorator
 # ---------------------------------------------------------------------------
+
 
 class TestBridgeWrapDecorator:
     def _bridge_with_mock_client(self, **kwargs) -> tuple[EngramiaBridge, MagicMock]:
@@ -296,6 +299,7 @@ class TestBridgeWrapDecorator:
 # ---------------------------------------------------------------------------
 # EngramiaBridge — mode selection (lazy client init)
 # ---------------------------------------------------------------------------
+
 
 class TestBridgeModeSelection:
     def test_rest_mode_when_api_url_provided(self):

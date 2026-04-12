@@ -63,7 +63,7 @@ def load_merged_config(
 MEDIUM: dict = {
     "eval_score": 5.5,
     "output": "Merged config loaded.",
-    "code": '''\
+    "code": """\
 import os
 import yaml
 
@@ -79,13 +79,13 @@ def merge_configs(base_path, override_path=None):
     for k, v in os.environ.items():
         config[k.lower()] = v
     return config
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.0,
     "output": "",
-    "code": '''\
+    "code": """\
 import yaml
 import os
 
@@ -97,5 +97,5 @@ def load_config(base, override=None):
         config = extra  # BUG: replaces base entirely instead of merging
     # BUG: ignores env vars entirely
     return config
-''',
+""",
 }
