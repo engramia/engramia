@@ -35,7 +35,8 @@ jobs:
         run: mypy engramia/ --ignore-missing-imports
 
       - name: Tests
-        run: pytest -m "not postgres and not local_embeddings and not concurrent" --cov=engramia --cov-report=xml --cov-fail-under=80 --junitxml=test-results.xml
+        # Subset coverage (no postgres/embeddings) — full coverage enforced in test-full job
+        run: pytest -m "not postgres and not local_embeddings and not concurrent" --cov=engramia --cov-report=xml --cov-fail-under=60 --junitxml=test-results.xml
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
@@ -52,6 +53,41 @@ jobs:
         with:
           name: test-results
           path: test-results.xml
+
+  test-full:
+    name: Full Test Suite (with Postgres)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: engramia_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -e ".[dev,openai,api,cli,postgres]"
+      - name: Run full test suite
+        run: pytest --cov=engramia --cov-fail-under=80 --cov-report=xml --junitxml=test-results-full.xml
+        env:
+          ENGRAMIA_TEST_DB_URL: postgresql://postgres:test@localhost:5432/engramia_test
+          ENGRAMIA_STORAGE: postgres
+      - name: Upload full coverage
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-full
+          path: coverage.xml
 
   version-consistency:
     name: Version consistency
