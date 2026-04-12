@@ -525,6 +525,8 @@ def create_app() -> FastAPI:
                             media_type="text/plain",
                         )
                         await resp(scope, receive, send)
+                        return
+                    await metrics_app(scope, receive, send)
 
                 app.mount("/metrics", _blocked_metrics)
         except ImportError:
