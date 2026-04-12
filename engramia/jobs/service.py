@@ -17,6 +17,7 @@ import uuid
 from engramia._context import get_scope, reset_scope, set_scope
 from engramia.jobs.dispatch import dispatch_job
 from engramia.jobs.models import JobInfo, JobOperation, JobStatus, JobSubmitResult
+from engramia.telemetry import metrics as _metrics
 from engramia.telemetry.context import get_request_id, reset_request_id, set_request_id
 from engramia.types import Scope
 
@@ -124,6 +125,7 @@ class JobService:
             }
 
         _log.info("Job %s submitted: operation=%s, scope=%s/%s", job_id, operation, scope.tenant_id, scope.project_id)
+        _metrics.inc_job_submitted(operation)
         return JobSubmitResult(job_id=job_id, status=JobStatus.PENDING)
 
     def get(self, job_id: str, scope: Scope | None = None) -> JobInfo | None:
@@ -291,6 +293,7 @@ class JobService:
             job["result"] = result
             job["completed_at"] = now
             _log.info("Job %s completed: operation=%s", job["id"], job["operation"])
+            _metrics.inc_job_completed(job["operation"], "completed")
         except Exception as exc:
             now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             _log.warning("Job %s failed (attempt %d): %s", job["id"], job["attempts"], exc)
@@ -298,6 +301,7 @@ class JobService:
                 job["status"] = JobStatus.FAILED
                 job["error"] = f"{type(exc).__name__}: {exc}"
                 job["completed_at"] = now
+                _metrics.inc_job_completed(job["operation"], "failed")
             else:
                 # Return to pending with backoff
                 job["status"] = JobStatus.PENDING
@@ -494,6 +498,7 @@ class JobService:
                     {"id": job_dict["id"], "result": result},
                 )
             _log.info("Job %s completed: operation=%s", job_dict["id"], job_dict["operation"])
+            _metrics.inc_job_completed(job_dict["operation"], "completed")
         except Exception as exc:
             _log.warning(
                 "Job %s failed (attempt %d): %s",
@@ -510,6 +515,7 @@ class JobService:
                 tb,
             )
             if job_dict["attempts"] >= job_dict["max_attempts"]:
+                _metrics.inc_job_completed(job_dict["operation"], "failed")
                 # Store only a sanitized public error message in the DB.
                 public_error = f"{type(exc).__name__}: {exc}"
                 with self._engine.begin() as conn:

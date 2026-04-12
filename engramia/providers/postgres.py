@@ -22,9 +22,11 @@ without any application-level changes to the Memory API.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from engramia.providers.base import StorageBackend
+from engramia.telemetry import metrics as _metrics
 
 _log = logging.getLogger(__name__)
 
@@ -84,6 +86,7 @@ class PostgresStorage(StorageBackend):
             pool_size=pool_size,
             max_overflow=10,
             pool_pre_ping=True,  # detect stale connections
+            pool_recycle=1800,  # recycle connections after 30 min to avoid stale TCP behind firewalls
         )
         self._text = text  # store reference for use in methods
         _log.info("PostgresStorage connected to %s", _redact_url(url))
@@ -104,17 +107,20 @@ class PostgresStorage(StorageBackend):
     # ------------------------------------------------------------------
 
     def load(self, key: str) -> dict[str, Any] | None:
+        t0 = time.perf_counter()
         sp = self._scope_params()
         with self._engine.connect() as conn:
             row = conn.execute(
                 self._text("SELECT data FROM memory_data WHERE key = :key AND tenant_id = :tid AND project_id = :pid"),
                 {"key": key, **sp},
             ).fetchone()
+        _metrics.observe_storage("postgres", "load", time.perf_counter() - t0)
         return row[0] if row else None  # psycopg2 deserialises JSONB to dict/list directly
 
     def save(self, key: str, data: dict[str, Any] | list[Any]) -> None:
         import json
 
+        t0 = time.perf_counter()
         sp = self._scope_params()
         with self._engine.begin() as conn:
             conn.execute(
@@ -129,6 +135,7 @@ class PostgresStorage(StorageBackend):
                 ),
                 {"key": key, "data": json.dumps(data), **sp},
             )
+        _metrics.observe_storage("postgres", "save", time.perf_counter() - t0)
 
     def list_keys(self, prefix: str = "") -> list[str]:
         sp = self._scope_params()

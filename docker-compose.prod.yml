@@ -37,7 +37,7 @@ services:
           memory: 64M
 
   dashboard:
-    image: engramia/dashboard:latest
+    image: engramia/dashboard:${IMAGE_TAG:?IMAGE_TAG must be set}
     restart: unless-stopped
     environment:
       - NEXTAUTH_URL=${DASHBOARD_URL:-https://app.engramia.dev}

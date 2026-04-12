@@ -101,6 +101,7 @@ class TestOpenAIEmbeddings:
     def _make_embeddings(self) -> OpenAIEmbeddings:
         emb = OpenAIEmbeddings.__new__(OpenAIEmbeddings)
         emb._model = "text-embedding-3-small"
+        emb._max_retries = 3
         mock_client = MagicMock()
         mock_client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[0.1, 0.2, 0.3])])
         emb._client = mock_client

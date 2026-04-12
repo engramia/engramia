@@ -231,6 +231,32 @@ def _check_register_rate(ip: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Rate limiting: /auth/login — max 10 requests/minute per IP
+# ---------------------------------------------------------------------------
+
+_login_rate: collections.OrderedDict[tuple[str, int], int] = collections.OrderedDict()
+_login_rate_lock = threading.Lock()
+_LOGIN_RATE_LIMIT = 10
+_LOGIN_RATE_WINDOW = 60  # seconds
+
+
+def _check_login_rate(ip: str) -> None:
+    window = int(time.time()) // _LOGIN_RATE_WINDOW
+    key = (ip, window)
+    with _login_rate_lock:
+        count = _login_rate.get(key, 0) + 1
+        _login_rate[key] = count
+        stale = [(h, w) for h, w in list(_login_rate) if w < window - 1]
+        for sk in stale:
+            _login_rate.pop(sk, None)
+    if count > _LOGIN_RATE_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again in a minute.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # DB helpers
 # ---------------------------------------------------------------------------
 
@@ -554,6 +580,7 @@ def login(body: LoginRequest, request: Request) -> LoginResponse:
 
     engine = _require_engine(request)
     ip = request.client.host if request.client else "unknown"
+    _check_login_rate(ip)
     email = body.email.lower()
 
     with engine.connect() as conn:

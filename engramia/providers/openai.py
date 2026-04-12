@@ -100,7 +100,12 @@ class OpenAIEmbeddings(EmbeddingProvider):
             Produces 1536-dimensional vectors.
     """
 
-    def __init__(self, model: str = "text-embedding-3-small", timeout: float = 15.0) -> None:
+    def __init__(
+        self,
+        model: str = "text-embedding-3-small",
+        timeout: float = 15.0,
+        max_retries: int = 3,
+    ) -> None:
         try:
             from openai import OpenAI
 
@@ -108,14 +113,29 @@ class OpenAIEmbeddings(EmbeddingProvider):
         except ImportError:
             raise ImportError(_OPENAI_INSTALL_MSG) from None
         self._model = model
+        self._max_retries = max_retries
+
+    def _call_with_retry(self, input_data: str | list[str]) -> Any:
+        """Call the embeddings API with exponential backoff on transient errors."""
+        from openai import AuthenticationError, BadRequestError, PermissionDeniedError
+
+        last_exc: Exception | None = None
+        for attempt in range(self._max_retries):
+            try:
+                return self._client.embeddings.create(model=self._model, input=input_data)
+            except (AuthenticationError, BadRequestError, PermissionDeniedError):
+                raise
+            except Exception as exc:
+                last_exc = exc
+                if attempt < self._max_retries - 1:
+                    _log.warning("OpenAI embedding failed (attempt %d/%d): %s", attempt + 1, self._max_retries, exc)
+                    time.sleep(2**attempt + random.uniform(0, 1))
+        raise last_exc or RuntimeError(f"All {self._max_retries} embedding retries exhausted")
 
     @_tracing.traced("embedding.embed", {"embedding.provider": "openai"})
     def embed(self, text: str) -> list[float]:
         t0 = time.perf_counter()
-        response = self._client.embeddings.create(
-            model=self._model,
-            input=text,
-        )
+        response = self._call_with_retry(text)
         _metrics.observe_embedding("openai", time.perf_counter() - t0)
         return response.data[0].embedding
 
@@ -129,10 +149,7 @@ class OpenAIEmbeddings(EmbeddingProvider):
         if not texts:
             return []
         t0 = time.perf_counter()
-        response = self._client.embeddings.create(
-            model=self._model,
-            input=texts,
-        )
+        response = self._call_with_retry(texts)
         _metrics.observe_embedding("openai", time.perf_counter() - t0)
         # OpenAI guarantees results are in the same order as the input list.
         return [item.embedding for item in response.data]
