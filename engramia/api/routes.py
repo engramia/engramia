@@ -811,16 +811,16 @@ def get_audit_log(
 
     with engine.connect() as conn:
         total_row = conn.execute(
-            text(f"SELECT COUNT(*) FROM audit_log WHERE {where}"),
+            text("SELECT COUNT(*) FROM audit_log WHERE " + where),
             params,
         ).fetchone()
         total = int(total_row[0]) if total_row else 0
 
         rows = conn.execute(
             text(
-                f"SELECT created_at, action, key_id, resource_type, resource_id, ip_address, detail "
-                f"FROM audit_log WHERE {where} "
-                f"ORDER BY created_at DESC, id DESC LIMIT :limit"
+                "SELECT created_at, action, key_id, resource_type, resource_id, ip_address, detail "
+                "FROM audit_log WHERE " + where + " "
+                "ORDER BY created_at DESC, id DESC LIMIT :limit"
             ),
             {**params, "limit": limit},
         ).fetchall()
