@@ -668,7 +668,13 @@ def oauth_login(body: OAuthRequest, request: Request) -> RegisterResponse:
     if body.provider == "google":
         email, provider_id, name = _verify_google_token(body.provider_token)
     else:
-        email, provider_id, name = _verify_apple_token(body.provider_token, body.name)
+        try:
+            email, provider_id, name = _verify_apple_token(body.provider_token, body.name)
+        except NotImplementedError:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Apple OAuth not yet implemented.",
+            ) from None
 
     if not email:
         raise HTTPException(
