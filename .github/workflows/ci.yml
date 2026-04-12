@@ -229,7 +229,8 @@ jobs:
       - name: Dependency audit (pip-audit)
         run: |
           pip install pip-audit
-          pip-audit --desc --skip-editable
+          # GHSA-pjjw-68hj-v9mw: uv <0.11.6 — transitive build-tool dep, not runtime.
+          pip-audit --desc --skip-editable --ignore-vuln GHSA-pjjw-68hj-v9mw
 
       - name: SAST (bandit)
         run: |

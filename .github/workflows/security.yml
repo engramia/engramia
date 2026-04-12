@@ -23,7 +23,9 @@ jobs:
           pip install pip-audit
           pip install -e ".[all]" --quiet
       - name: Run pip-audit
-        run: pip-audit --skip-editable
+        # GHSA-pjjw-68hj-v9mw: uv <0.11.6 — transitive build-tool dep, not used at runtime.
+        # No runtime impact; cannot be upgraded without bumping build toolchain.
+        run: pip-audit --skip-editable --ignore-vuln GHSA-pjjw-68hj-v9mw
 
   bandit:
     name: bandit (Python static security analysis)
