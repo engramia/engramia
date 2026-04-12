@@ -8,6 +8,20 @@
 
 ---
 
+## Deployment Environments
+
+Engramia uses a three-tier deployment model:
+
+| Environment | Purpose | URL |
+|-------------|---------|-----|
+| **Local dev** | Developer workstation; JSON or Postgres storage, no auth required | `http://localhost:8000` |
+| **Hetzner staging (UAT)** | Pre-production verification; mirrors PROD config; used for UAT and release candidate testing | internal staging URL |
+| **Hetzner PROD** | Live production environment | `https://api.engramia.dev` |
+
+Set `ENGRAMIA_ENVIRONMENT` to `local`, `staging`, or `production` to match the tier. The application enforces that `ENGRAMIA_AUTH_MODE=dev` is only permitted in `local` / `development` environments.
+
+---
+
 ## Docker
 
 ### JSON storage (development)
@@ -501,7 +515,7 @@ Secrets are passed via environment variables loaded from `.env` files by Docker 
 **Best practices for the current setup:**
 
 1. Never commit `.env` to git (`.gitignore` already excludes it)
-2. Use separate `.env` files per environment (dev, staging, prod)
+2. Use separate `.env` files per environment (local dev, Hetzner staging (UAT), Hetzner PROD)
 3. Restrict file permissions: `chmod 600 .env`
 4. Unset `ENGRAMIA_BOOTSTRAP_TOKEN` after initial key creation
 5. Rotate API keys periodically via `POST /v1/keys/{id}/rotate`
