@@ -92,6 +92,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     LLM-intensive paths are rate-limited more aggressively on the IP bucket.
     The key bucket applies a single total limit across all paths.
 
+    **Multi-worker note (M-06):** This limiter uses in-memory storage. With N
+    uvicorn/gunicorn workers the effective limit is Nx the configured value
+    because each worker maintains an independent counter. For accurate limiting
+    across multiple workers, use a shared Redis backend.
+
     Args:
         default_limit: Max requests per minute per IP for regular paths.
         expensive_limit: Max requests per minute per IP for LLM-intensive paths.
@@ -116,6 +121,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # (client_ip, path, window_minute) | ("key", token_hash, window_minute) -> request_count
         self._counts: dict[tuple, int] = {}
         self._last_gc = time.time()
+
+        # M-06: Warn when multiple workers are detected — in-memory counters are
+        # not shared across processes, so the effective limit is workers x limit.
+        _workers = int(
+            os.environ.get("WEB_CONCURRENCY", os.environ.get("UVICORN_WORKERS", "1"))
+        )
+        if _workers > 1:
+            _log.warning(
+                "SECURITY: RateLimitMiddleware uses in-memory storage with %d workers. "
+                "Effective rate limit is %dx the configured value (%d req/min becomes ~%d). "
+                "Set WEB_CONCURRENCY=1 or use a shared Redis backend for accurate limiting.",
+                _workers,
+                _workers,
+                default_limit,
+                default_limit * _workers,
+            )
 
     def _get_limit(self, path: str) -> int:
         for fragment in self._EXPENSIVE_PATH_FRAGMENTS:
