@@ -34,23 +34,21 @@ class TestSdk:
             return builtins.__import__(name, *args, **kwargs)
 
         client._stripe = None  # force re-init
-        with patch("builtins.__import__", side_effect=_block_import):
-            with pytest.raises(RuntimeError, match="stripe SDK not installed"):
-                client._sdk()
+        with patch("builtins.__import__", side_effect=_block_import), pytest.raises(RuntimeError, match="stripe SDK not installed"):
+            client._sdk()
 
     def test_missing_secret_key_raises_runtime_error(self):
         client = StripeClient(secret_key="", webhook_secret="whsec")
         stripe_mock = MagicMock()
-        with patch.dict("sys.modules", {"stripe": stripe_mock}):
-            with pytest.raises(RuntimeError, match="STRIPE_SECRET_KEY"):
-                client._sdk()
+        with patch.dict("sys.modules", {"stripe": stripe_mock}), pytest.raises(RuntimeError, match="STRIPE_SECRET_KEY"):
+            client._sdk()
 
     def test_sdk_sets_api_key(self):
         stripe_mock = MagicMock()
         client = StripeClient(secret_key="sk-test-key", webhook_secret="whsec")
         with patch.dict("sys.modules", {"stripe": stripe_mock}):
             client._stripe = None
-            result = client._sdk()
+            client._sdk()
         assert stripe_mock.api_key == "sk-test-key"
 
     def test_sdk_cached_after_first_call(self):
@@ -245,3 +243,97 @@ class TestCreateInvoiceItem:
         )
         params = stripe_mock.InvoiceItem.create.call_args[1]
         assert "subscription" not in params
+
+
+# ---------------------------------------------------------------------------
+# Network and Stripe error paths
+# ---------------------------------------------------------------------------
+
+
+class TestNetworkErrors:
+    """Verify that network/Stripe errors propagate correctly from each client method."""
+
+    def _client(self):
+        client = StripeClient(secret_key="sk-test", webhook_secret="whsec")
+        stripe_mock = MagicMock()
+        client._stripe = stripe_mock
+        return client, stripe_mock
+
+    def test_connection_error_during_checkout_propagates(self):
+        client, stripe_mock = self._client()
+        stripe_mock.checkout.Session.create.side_effect = ConnectionError("Network unreachable")
+        with pytest.raises(ConnectionError):
+            client.create_checkout_session("cus_x", "price_x", "https://ok", "https://cancel")
+
+    def test_timeout_error_during_checkout_propagates(self):
+        client, stripe_mock = self._client()
+        stripe_mock.checkout.Session.create.side_effect = TimeoutError("Request timed out")
+        with pytest.raises(TimeoutError):
+            client.create_checkout_session("cus_x", "price_x", "https://ok", "https://cancel")
+
+    def test_connection_error_during_create_customer_propagates(self):
+        client, stripe_mock = self._client()
+        stripe_mock.Customer.create.side_effect = ConnectionError("Network unreachable")
+        with pytest.raises(ConnectionError):
+            client.create_customer(tenant_id="t1")
+
+    def test_stripe_rate_limit_error_during_invoice_item_propagates(self):
+        """429 rate-limit errors must propagate so the caller can retry."""
+        client, stripe_mock = self._client()
+
+        class FakeRateLimitError(Exception):
+            http_status = 429
+
+        stripe_mock.error = MagicMock()
+        stripe_mock.error.RateLimitError = FakeRateLimitError
+        stripe_mock.InvoiceItem.create.side_effect = FakeRateLimitError("Too many requests")
+        with pytest.raises(FakeRateLimitError):
+            client.create_invoice_item("cus_x", 500, "Overage")
+
+    def test_card_decline_during_portal_session_propagates(self):
+        """Stripe CardError must propagate so the API layer can surface it."""
+        client, stripe_mock = self._client()
+
+        class FakeCardError(Exception):
+            pass
+
+        stripe_mock.error = MagicMock()
+        stripe_mock.error.CardError = FakeCardError
+        stripe_mock.billing_portal.Session.create.side_effect = FakeCardError("Card declined")
+        with pytest.raises(FakeCardError):
+            client.create_customer_portal_session("cus_x", "https://return")
+
+    def test_create_customer_returns_customer_id(self):
+        """Happy path: create_customer returns the new customer's ID."""
+        client, stripe_mock = self._client()
+        fake_customer = MagicMock()
+        fake_customer.id = "cus_brand_new"
+        stripe_mock.Customer.create.return_value = fake_customer
+
+        result = client.create_customer(tenant_id="tenant-new", email="new@example.com")
+        assert result == "cus_brand_new"
+        params = stripe_mock.Customer.create.call_args[1]
+        assert params["metadata"]["tenant_id"] == "tenant-new"
+        assert params["email"] == "new@example.com"
+
+    def test_create_customer_no_email_omits_email_param(self):
+        """create_customer without email must not pass email to Stripe."""
+        client, stripe_mock = self._client()
+        fake_customer = MagicMock()
+        fake_customer.id = "cus_no_email"
+        stripe_mock.Customer.create.return_value = fake_customer
+
+        client.create_customer(tenant_id="t1", email=None)
+        params = stripe_mock.Customer.create.call_args[1]
+        assert "email" not in params
+
+    def test_stripe_error_during_checkout_propagates(self):
+        """Generic StripeError during checkout must not be silently swallowed."""
+        client, stripe_mock = self._client()
+
+        class FakeStripeError(Exception):
+            pass
+
+        stripe_mock.checkout.Session.create.side_effect = FakeStripeError("Stripe error")
+        with pytest.raises(FakeStripeError):
+            client.create_checkout_session("cus_x", "price_x", "https://ok", "https://cancel")

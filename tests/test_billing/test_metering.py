@@ -177,7 +177,6 @@ class TestGetCount:
         engine, _ = _engine_connect(fetchone_return=(0,))
         result = _meter(engine).get_count("t1", "eval_runs")
         assert result == 0
-        assert result is not None
 
 
 # ---------------------------------------------------------------------------
@@ -263,9 +262,13 @@ class TestCurrentPeriod:
         assert isinstance(year, int)
         assert isinstance(month, int)
 
-    def test_month_in_valid_range(self):
-        _, month = UsageMeter._current_period()
-        assert 1 <= month <= 12
+    def test_month_equals_current_month(self):
+        fixed = datetime.datetime(2026, 4, 12, tzinfo=datetime.UTC)
+        with patch("engramia.billing.metering.datetime") as mock_dt:
+            mock_dt.datetime.now.return_value = fixed
+            mock_dt.UTC = datetime.UTC
+            _, month = UsageMeter._current_period()
+        assert month == 4  # April 2026
 
     def test_december_monkeypatch(self):
         fixed = datetime.datetime(2026, 12, 20, tzinfo=datetime.UTC)
@@ -275,3 +278,68 @@ class TestCurrentPeriod:
             year, month = UsageMeter._current_period()
         assert year == 2026
         assert month == 12
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage — new-tenant, atomic SQL, high-count scenarios
+# ---------------------------------------------------------------------------
+
+
+class TestIncrementAdditional:
+    def test_increment_returns_large_count(self):
+        """Increment must return whatever the DB RETURNING clause gives — no cap."""
+        engine, _ = _engine_begin(fetchone_return=(999_999,))
+        result = _meter(engine).increment("t1", "eval_runs")
+        assert result == 999_999
+
+    def test_upsert_sql_contains_on_conflict(self):
+        """Atomic UPSERT requires ON CONFLICT DO UPDATE in the SQL."""
+        engine, conn = _engine_begin(fetchone_return=(1,))
+        _meter(engine).increment("t1", "eval_runs")
+        sql = conn.execute.call_args[0][0].text
+        assert "ON CONFLICT" in sql.upper()
+
+    def test_increment_sql_uses_returning(self):
+        """Increment must use RETURNING to get the new value atomically."""
+        engine, conn = _engine_begin(fetchone_return=(5,))
+        _meter(engine).increment("t1", "eval_runs")
+        sql = conn.execute.call_args[0][0].text
+        assert "RETURNING" in sql.upper()
+
+    def test_increment_first_call_returns_one(self):
+        """First increment for a tenant (no prior row) must return 1."""
+        engine, _ = _engine_begin(fetchone_return=(1,))
+        result = _meter(engine).increment("brand-new-tenant", "eval_runs")
+        assert result == 1
+
+
+class TestGetCountAdditional:
+    def test_new_tenant_no_row_returns_zero(self):
+        """get_count for a tenant with no usage row must return 0, not raise."""
+        engine, _ = _engine_connect(fetchone_return=None)
+        result = _meter(engine).get_count("brand-new-tenant", "eval_runs")
+        assert result == 0
+
+    def test_get_count_uses_connect_not_begin(self):
+        """get_count is read-only and must use connect(), not begin()."""
+        engine, _ = _engine_connect(fetchone_return=(10,))
+        _meter(engine).get_count("t1", "eval_runs")
+        engine.connect.assert_called_once()
+        engine.begin.assert_not_called()
+
+    def test_get_count_passes_tenant_and_metric_params(self):
+        """SQL params must include tid and metric for correct row selection."""
+        engine, conn = _engine_connect(fetchone_return=(7,))
+        _meter(engine).get_count("acme-corp", "eval_runs")
+        params = conn.execute.call_args[0][1]
+        assert params["tid"] == "acme-corp"
+        assert params["metric"] == "eval_runs"
+
+    def test_get_count_for_explicit_past_period(self):
+        """Explicit year/month params are forwarded to the query."""
+        engine, conn = _engine_connect(fetchone_return=(42,))
+        result = _meter(engine).get_count("t1", "eval_runs", year=2025, month=11)
+        assert result == 42
+        params = conn.execute.call_args[0][1]
+        assert params["year"] == 2025
+        assert params["month"] == 11

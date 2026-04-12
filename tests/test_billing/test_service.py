@@ -206,11 +206,13 @@ class TestEnforcement:
 
     def test_check_eval_runs_calls_enforcer(self):
         svc = _billing_service(engine=None)
-        with patch.object(svc._enforcer, "check_eval_runs") as mock_check:
-            with patch.object(svc, "get_subscription", return_value=BillingSubscription.sandbox_default("t1")):
-                with patch.object(svc, "get_overage_settings", return_value=None):
-                    svc._engine = MagicMock()  # trick: make engine truthy
-                    svc.check_eval_runs("t1")
+        with (
+            patch.object(svc._enforcer, "check_eval_runs") as mock_check,
+            patch.object(svc, "get_subscription", return_value=BillingSubscription.sandbox_default("t1")),
+            patch.object(svc, "get_overage_settings", return_value=None),
+        ):
+            svc._engine = MagicMock()  # trick: make engine truthy
+            svc.check_eval_runs("t1")
         mock_check.assert_called_once()
 
 
@@ -606,3 +608,149 @@ class TestDunningStatusTracking:
         sub = svc.get_subscription("t1")
         assert sub.status == "past_due"
         assert sub.past_due_since == past_due_ts
+
+
+# ---------------------------------------------------------------------------
+# Subscription lifecycle edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestSubscriptionLifecycleEdgeCases:
+    """Edge cases for subscription lifecycle and dunning state machine."""
+
+    def _sub_data(self, status="active", plan_tier="pro"):
+        return {
+            "customer": "cus_lifecycle",
+            "id": "sub_lifecycle",
+            "status": status,
+            "items": {"data": [{"plan": {"interval": "month"}}]},
+            "current_period_end": 1900000000,
+            "metadata": {"plan_tier": plan_tier},
+        }
+
+    def test_upgrade_while_in_dunning_calls_upsert(self):
+        """subscription.updated must upsert even when current status is past_due."""
+        stripe = MagicMock()
+        event = {
+            "id": "evt_upgrade_dunning",
+            "type": "customer.subscription.updated",
+            "data": {"object": self._sub_data(status="active", plan_tier="team")},
+        }
+        stripe.construct_webhook_event.return_value = event
+        svc = _billing_service(engine=None, stripe_client=stripe)
+
+        with patch.object(svc, "_upsert_subscription") as mock_upsert:
+            result = svc.handle_webhook_event(b"{}", "sig")
+
+        mock_upsert.assert_called_once()
+        assert result == "customer.subscription.updated"
+
+    def test_double_cancel_second_downgrade_still_executes(self):
+        """subscription.deleted is idempotent — calling _downgrade_to_sandbox twice is safe."""
+        engine, conn = _engine_begin()
+        svc = _billing_service(engine=engine)
+        svc._downgrade_to_sandbox("cus_x")
+        svc._downgrade_to_sandbox("cus_x")
+        # Both calls must have issued DB updates
+        assert conn.execute.call_count == 2
+
+    def test_reactivate_after_past_due_clears_dunning_clock(self):
+        """invoice.paid after past_due must call _set_status_by_customer with 'active',
+        which clears past_due_since in the DB."""
+        stripe = MagicMock()
+        event = {
+            "id": "evt_reactivate",
+            "type": "invoice.paid",
+            "data": {"object": {"customer": "cus_dunning"}},
+        }
+        stripe.construct_webhook_event.return_value = event
+        svc = _billing_service(engine=None, stripe_client=stripe)
+
+        with patch.object(svc, "_set_status_by_customer") as mock_status:
+            svc.handle_webhook_event(b"{}", "sig")
+
+        mock_status.assert_called_once_with("cus_dunning", "active")
+
+    def test_cancel_then_reactivate_via_new_subscription(self):
+        """After cancel (subscription.deleted), a new subscription.created re-upserts."""
+        stripe = MagicMock()
+        cancel_event = {
+            "id": "evt_cancel",
+            "type": "customer.subscription.deleted",
+            "data": {"object": {"customer": "cus_x"}},
+        }
+        create_event = {
+            "id": "evt_create_new",
+            "type": "customer.subscription.created",
+            "data": {"object": self._sub_data(status="active", plan_tier="pro")},
+        }
+        stripe.construct_webhook_event.side_effect = [cancel_event, create_event]
+        svc = _billing_service(engine=None, stripe_client=stripe)
+
+        with (
+            patch.object(svc, "_downgrade_to_sandbox") as mock_down,
+            patch.object(svc, "_upsert_subscription") as mock_upsert,
+        ):
+            svc.handle_webhook_event(b"{}", "sig_cancel")
+            svc.handle_webhook_event(b"{}", "sig_create")
+
+        mock_down.assert_called_once_with("cus_x")
+        mock_upsert.assert_called_once()
+
+    def test_invoice_payment_failed_logs_attempt_count(self):
+        """invoice.payment_failed must set past_due status regardless of attempt_count."""
+        stripe = MagicMock()
+        event = {
+            "id": "evt_fail_attempt2",
+            "type": "invoice.payment_failed",
+            "data": {"object": {"customer": "cus_retry", "attempt_count": 3}},
+        }
+        stripe.construct_webhook_event.return_value = event
+        svc = _billing_service(engine=None, stripe_client=stripe)
+
+        with patch.object(svc, "_set_status_by_customer") as mock_status:
+            result = svc.handle_webhook_event(b"{}", "sig")
+
+        mock_status.assert_called_once_with("cus_retry", "past_due")
+        assert result == "invoice.payment_failed"
+
+    def test_invoice_created_without_customer_id_skips_overage(self):
+        """invoice.created with no customer field must not call _report_overage_for_customer."""
+        stripe = MagicMock()
+        event = {
+            "id": "evt_invoice_no_cust",
+            "type": "invoice.created",
+            "data": {"object": {}},  # no "customer" key
+        }
+        stripe.construct_webhook_event.return_value = event
+        svc = _billing_service(engine=None, stripe_client=stripe)
+
+        with patch.object(svc, "_report_overage_for_customer") as mock_overage:
+            svc.handle_webhook_event(b"{}", "sig")
+
+        mock_overage.assert_not_called()
+
+    def test_upsert_subscription_db_error_does_not_propagate(self):
+        """DB error in _upsert_subscription must be swallowed (logged, not raised)."""
+        engine = MagicMock()
+        engine.connect.return_value.__enter__ = lambda s: MagicMock(execute=MagicMock(return_value=MagicMock(fetchone=MagicMock(return_value=("t1",)))))
+        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+        engine.begin.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
+        svc = _billing_service(engine=engine)
+        sub_data = {
+            "customer": "cus_x",
+            "id": "sub_x",
+            "status": "active",
+            "items": {"data": [{"plan": {"interval": "month"}}]},
+            "current_period_end": 1900000000,
+            "metadata": {"plan_tier": "pro"},
+        }
+        # Must not raise even when DB fails
+        svc._upsert_subscription(sub_data)
+
+    def test_downgrade_to_sandbox_db_error_does_not_propagate(self):
+        """DB error in _downgrade_to_sandbox must be swallowed (logged, not raised)."""
+        engine = MagicMock()
+        engine.begin.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
+        svc = _billing_service(engine=engine)
+        svc._downgrade_to_sandbox("cus_x")  # must not raise

@@ -93,7 +93,8 @@ class TestSecretPatternRedactor:
 
     def test_detects_token_assignment(self):
         findings = self.hook.scan('token = "abcdef123456"')
-        assert len(findings) > 0
+        assert len(findings) == 1
+        assert findings[0].kind == "credential_assignment"
 
     def test_redacts_secret(self):
         result = self.hook.redact("api_key = supersecretvalue")
@@ -116,7 +117,7 @@ class TestRedactionPipeline:
         _, email_findings = pipeline.process({"code": "contact: admin@example.com"})
         _, secret_findings = pipeline.process({"code": "api_key = supersecretvalue123"})
         assert any(f.kind == "email" for f in email_findings), "default pipeline must detect email addresses"
-        assert len(secret_findings) > 0, "default pipeline must detect secret/credential patterns"
+        assert any(f.kind == "credential_assignment" for f in secret_findings), "default pipeline must detect secret/credential patterns"
 
     def test_empty_pipeline_is_noop(self):
         pipeline = RedactionPipeline.empty()
@@ -512,7 +513,7 @@ class TestPostgresStorageGovernance:
 
             storage._text = _text
 
-            count = storage.delete_scope("tenant1", "project1")
+            storage.delete_scope("tenant1", "project1")
             assert conn.execute.called
 
 
