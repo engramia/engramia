@@ -17,7 +17,7 @@ P0-3 — GET /v1/billing/status
   - correct pattern_count forwarded to get_status()
 """
 
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI

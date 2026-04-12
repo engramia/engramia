@@ -11,6 +11,7 @@ Design constraints:
 - 15 noise tasks: completely unrelated to any cluster.
 - 8 boundary tasks: straddle two clusters.
 """
+
 from engramia._util import jaccard
 
 # ---------------------------------------------------------------------------
@@ -168,8 +169,7 @@ def validate_jaccard_diversity(threshold: float = 0.7) -> list[str]:
                 sim = jaccard(a, b)
                 if sim >= threshold:
                     warnings.append(
-                        f"{cluster_id} variants {i}↔{j}: Jaccard={sim:.3f} >= {threshold} "
-                        f"('{a[:40]}…' / '{b[:40]}…')"
+                        f"{cluster_id} variants {i}↔{j}: Jaccard={sim:.3f} >= {threshold} ('{a[:40]}…' / '{b[:40]}…')"
                     )
     return warnings
 

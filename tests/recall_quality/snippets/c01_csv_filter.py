@@ -49,7 +49,7 @@ def filter_csv_rows(
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "Filtered 42 rows.",
-    "code": '''\
+    "code": """\
 import csv
 
 def filter_rows(filepath, col, val):
@@ -60,13 +60,13 @@ def filter_rows(filepath, col, val):
             if row[col] == val:
                 results.append(row)
     return results
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "",
-    "code": '''\
+    "code": """\
 def filter(file, col, val):
     f = open(file)
     lines = f.readlines()
@@ -79,5 +79,5 @@ def filter(file, col, val):
         if parts[header.index(col)] == val:
             out.append(parts)
     return out
-''',
+""",
 }

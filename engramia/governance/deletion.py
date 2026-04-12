@@ -19,6 +19,8 @@ import logging
 import time
 from dataclasses import dataclass
 
+from sqlalchemy import text
+
 _log = logging.getLogger(__name__)
 
 
@@ -91,8 +93,6 @@ class ScopedDeletion:
             return result
 
         try:
-            from sqlalchemy import text
-
             with self._engine.begin() as conn:
                 # Jobs
                 r = conn.execute(
@@ -156,8 +156,6 @@ class ScopedDeletion:
         project_ids: list[str] = []
         if self._engine is not None:
             try:
-                from sqlalchemy import text
-
                 with self._engine.connect() as conn:
                     rows = conn.execute(
                         text("SELECT id FROM projects WHERE tenant_id = :tid AND deleted_at IS NULL"),
@@ -178,8 +176,6 @@ class ScopedDeletion:
         # Soft-delete the tenant itself
         if self._engine is not None:
             try:
-                from sqlalchemy import text
-
                 with self._engine.begin() as conn:
                     conn.execute(
                         text("UPDATE tenants SET deleted_at = :now WHERE id = :tid AND deleted_at IS NULL"),

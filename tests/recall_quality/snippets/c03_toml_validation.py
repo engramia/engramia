@@ -46,7 +46,7 @@ def load_and_validate_toml(
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "Config loaded.",
-    "code": '''\
+    "code": """\
 import tomllib
 
 def validate_config(path, required_keys):
@@ -56,13 +56,13 @@ def validate_config(path, required_keys):
         if key not in config:
             raise KeyError(f"Missing key: {key}")
     return config
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "",
-    "code": '''\
+    "code": """\
 import re
 
 def check_toml(path, keys):
@@ -75,5 +75,5 @@ def check_toml(path, keys):
             raise Exception(f"key {key} not found")
         result[key] = match.group(1).strip()
     return result
-''',
+""",
 }

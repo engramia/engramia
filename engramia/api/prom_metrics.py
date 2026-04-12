@@ -12,11 +12,12 @@ Usage (in app.py)::
 """
 
 import logging
+from typing import Any
 
 _log = logging.getLogger(__name__)
 
 
-def build_metrics_app(memory):
+def build_metrics_app(memory: Any) -> Any:
     """Return an ASGI app that serves Prometheus metrics.
 
     Registers a custom CollectorRegistry with Engramia Gauges that are

@@ -39,6 +39,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Literal
 
+from sqlalchemy import text
+
 _log = logging.getLogger(__name__)
 
 DSRType = Literal["access", "erasure", "portability", "rectification"]
@@ -305,7 +307,6 @@ class DSRTracker:
         self._db_upsert(req)
 
     def _db_upsert(self, req: DSRRequest) -> None:
-        from sqlalchemy import text
 
         try:
             with self._engine.begin() as conn:
@@ -340,7 +341,6 @@ class DSRTracker:
             raise
 
     def _db_get(self, dsr_id: str) -> DSRRequest | None:
-        from sqlalchemy import text
 
         try:
             with self._engine.connect() as conn:
@@ -360,7 +360,6 @@ class DSRTracker:
         return self._row_to_dsr(row)
 
     def _db_list(self, tenant_id: str, status: DSRStatus | None, limit: int) -> list[DSRRequest]:
-        from sqlalchemy import text
 
         filters = "WHERE tenant_id = :tenant_id"
         params: dict = {"tenant_id": tenant_id, "limit": limit}

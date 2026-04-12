@@ -6,6 +6,7 @@ Learn 3 tasks with Jaccard > 0.7 (same wording, slight variation).
 - deduplicate=True  → only 1 result (highest score wins)
 - deduplicate=False → all 3 results present
 """
+
 from __future__ import annotations
 
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
@@ -44,21 +45,16 @@ def test_deduplication_collapses_similar_tasks(
                 learned_keys.append(key)
 
         query = f"[{run_tag}] {_HIGH_JACCARD_TASKS[0]}"
-        matches_dedup = client.recall(
-            task=query, limit=5, deduplicate=True, eval_weighted=False
-        )
+        matches_dedup = client.recall(task=query, limit=5, deduplicate=True, eval_weighted=False)
 
         # With dedup, only 1 result should survive (all 3 are Jaccard-similar)
-        assert len(matches_dedup) <= 2, (
-            f"Expected ≤2 matches with deduplicate=True, got {len(matches_dedup)}"
-        )
+        assert len(matches_dedup) <= 2, f"Expected ≤2 matches with deduplicate=True, got {len(matches_dedup)}"
 
         if len(matches_dedup) == 1:
             # The surviving pattern should have the highest score
             best_score = matches_dedup[0]["pattern"]["success_score"]
             assert best_score >= max(_SCORES) - 0.5, (
-                f"Dedup kept pattern with score {best_score:.1f}, "
-                f"expected highest score ~{max(_SCORES)}"
+                f"Dedup kept pattern with score {best_score:.1f}, expected highest score ~{max(_SCORES)}"
             )
 
     finally:
@@ -87,14 +83,10 @@ def test_no_deduplication_returns_all(
                 learned_keys.append(key)
 
         query = f"[{run_tag}] {_HIGH_JACCARD_TASKS[0]}"
-        matches_raw = client.recall(
-            task=query, limit=5, deduplicate=False, eval_weighted=False
-        )
+        matches_raw = client.recall(task=query, limit=5, deduplicate=False, eval_weighted=False)
 
         # Without dedup, all 3 should appear
-        assert len(matches_raw) >= 3, (
-            f"Expected ≥3 matches with deduplicate=False, got {len(matches_raw)}"
-        )
+        assert len(matches_raw) >= 3, f"Expected ≥3 matches with deduplicate=False, got {len(matches_raw)}"
 
     finally:
         for key in set(learned_keys):

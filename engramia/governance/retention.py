@@ -19,6 +19,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 
+from sqlalchemy import text
+
 from engramia._context import get_scope
 from engramia._util import PATTERNS_PREFIX
 
@@ -82,8 +84,6 @@ class RetentionManager:
             return self._default_days
 
         try:
-            from sqlalchemy import text
-
             with self._engine.connect() as conn:
                 row = conn.execute(
                     text(
@@ -118,8 +118,6 @@ class RetentionManager:
             _log.warning("RetentionManager: no DB engine — cannot persist policy")
             return
         try:
-            from sqlalchemy import text
-
             with self._engine.begin() as conn:
                 conn.execute(
                     text("UPDATE projects SET retention_days = :days WHERE id = :pid AND tenant_id = :tid"),
@@ -140,8 +138,6 @@ class RetentionManager:
             _log.warning("RetentionManager: no DB engine — cannot persist policy")
             return
         try:
-            from sqlalchemy import text
-
             with self._engine.begin() as conn:
                 conn.execute(
                     text("UPDATE tenants SET retention_days = :days WHERE id = :tid"),
@@ -178,8 +174,6 @@ class RetentionManager:
         """Fast purge using the expires_at column."""
         now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         try:
-            from sqlalchemy import text
-
             with self._engine.connect() as conn:
                 rows = conn.execute(
                     text(

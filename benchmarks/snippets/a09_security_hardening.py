@@ -117,7 +117,7 @@ def sanitize_input(value: str) -> str:
 MEDIUM: dict = {
     "eval_score": 5.5,
     "output": "Added basic rate limiting to login endpoint.",
-    "code": '''\
+    "code": """\
 from collections import defaultdict
 import time
 from fastapi import HTTPException
@@ -130,13 +130,13 @@ def check_rate_limit(ip, max_attempts=5, window=60):
     if len(_attempts[ip]) >= max_attempts:
         raise HTTPException(status_code=429, detail="Too many attempts")
     _attempts[ip].append(now)
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.2,
     "output": "added security",
-    "code": '''\
+    "code": """\
 from fastapi import Request
 
 async def security_check(request: Request, call_next):
@@ -144,5 +144,5 @@ async def security_check(request: Request, call_next):
     if "script" in str(request.url):
         return Response("blocked", status_code=400)
     return await call_next(request)
-''',
+""",
 }

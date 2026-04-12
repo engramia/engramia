@@ -107,6 +107,7 @@ class TestMakeEmbeddings:
         """ENGRAMIA_EMBEDDING_MODEL=none → returns None (semantic search disabled)."""
         monkeypatch.setenv("ENGRAMIA_EMBEDDING_MODEL", "none")
         from engramia._factory import make_embeddings
+
         result = make_embeddings()
         assert result is None
 
@@ -115,6 +116,7 @@ class TestMakeEmbeddings:
         monkeypatch.delenv("ENGRAMIA_EMBEDDING_MODEL", raising=False)
         with patch.dict(sys.modules, {"engramia.providers.openai": None}):
             from engramia._factory import make_embeddings
+
             result = make_embeddings()
         assert result is None
 

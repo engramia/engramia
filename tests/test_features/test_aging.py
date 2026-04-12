@@ -17,6 +17,7 @@ Test cases:
   4. Reuse-boosted pattern (score near 10) old timestamp
      → slower to decay               → survives longer
 """
+
 from __future__ import annotations
 
 import time
@@ -46,7 +47,6 @@ def _patch_timestamp(client: TestClient, pattern_key: str, weeks_ago: int) -> No
     reason="D8 aging requires direct storage access — local mode only",
 )
 class TestPatternAging:
-
     def test_low_score_old_pattern_pruned(self, client: TestClient, run_tag: str) -> None:
         """A pattern with low score and old timestamp is pruned by run_aging()."""
         task = f"[{run_tag}] aging-prune {CLUSTERS[_CLUSTER][0]}"
@@ -69,9 +69,7 @@ class TestPatternAging:
             # Pattern should be gone
             matches = client.recall(task=task, limit=1, deduplicate=False, eval_weighted=False)
             pattern_still_there = any(m["pattern_key"] == key for m in matches)
-            assert not pattern_still_there, (
-                "Pattern with score 0.15 at 104 weeks old was NOT pruned"
-            )
+            assert not pattern_still_there, "Pattern with score 0.15 at 104 weeks old was NOT pruned"
             if key in learned_keys:
                 learned_keys.remove(key)  # Already deleted by aging
 
@@ -79,9 +77,7 @@ class TestPatternAging:
             for k in set(learned_keys):
                 client.delete_pattern(k)
 
-    def test_high_score_old_pattern_survives(
-        self, client: TestClient, run_tag: str
-    ) -> None:
+    def test_high_score_old_pattern_survives(self, client: TestClient, run_tag: str) -> None:
         """A pattern with high score survives aging even at 52 weeks old."""
         task = f"[{run_tag}] aging-survive {CLUSTERS[_CLUSTER][1]}"
         snippet = CLUSTER_SNIPPETS[_CLUSTER]["good"]
@@ -100,9 +96,7 @@ class TestPatternAging:
 
             matches = client.recall(task=task, limit=3, deduplicate=False, eval_weighted=False)
             pattern_survived = any(m["pattern_key"] == key for m in matches)
-            assert pattern_survived, (
-                "Pattern with score 9.0 at 52 weeks old was unexpectedly pruned"
-            )
+            assert pattern_survived, "Pattern with score 9.0 at 52 weeks old was unexpectedly pruned"
 
         finally:
             for k in set(learned_keys):
@@ -156,8 +150,7 @@ class TestPatternAging:
             if surviving:
                 final_score = surviving[0]["pattern"]["success_score"]
                 assert final_score < initial_score, (
-                    f"Score did not decrease after aging: "
-                    f"initial={initial_score:.4f}, after={final_score:.4f}"
+                    f"Score did not decrease after aging: initial={initial_score:.4f}, after={final_score:.4f}"
                 )
 
         finally:

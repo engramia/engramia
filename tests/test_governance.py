@@ -20,16 +20,13 @@ import pytest
 from engramia.governance.deletion import DeletionResult, ScopedDeletion
 from engramia.governance.export import DataExporter
 from engramia.governance.redaction import (
-    Finding,
     RedactionPipeline,
     RegexRedactor,
     SecretPatternRedactor,
 )
-from engramia.governance.retention import PurgeResult, RetentionManager, compute_expiry_iso
+from engramia.governance.retention import RetentionManager, compute_expiry_iso
 from engramia.memory import Memory
-from engramia.providers.json_storage import JSONStorage
 from engramia.types import DataClassification
-
 
 # ---------------------------------------------------------------------------
 # DataClassification
@@ -118,12 +115,8 @@ class TestRedactionPipeline:
         pipeline = RedactionPipeline.default()
         _, email_findings = pipeline.process({"code": "contact: admin@example.com"})
         _, secret_findings = pipeline.process({"code": "api_key = supersecretvalue123"})
-        assert any(f.kind == "email" for f in email_findings), (
-            "default pipeline must detect email addresses"
-        )
-        assert len(secret_findings) > 0, (
-            "default pipeline must detect secret/credential patterns"
-        )
+        assert any(f.kind == "email" for f in email_findings), "default pipeline must detect email addresses"
+        assert len(secret_findings) > 0, "default pipeline must detect secret/credential patterns"
 
     def test_empty_pipeline_is_noop(self):
         pipeline = RedactionPipeline.empty()
@@ -144,7 +137,7 @@ class TestRedactionPipeline:
         pipeline = RedactionPipeline.default()
         original = "contact me@test.com"
         data = {"code": original}
-        clean, _ = pipeline.process(data)
+        _, _ = pipeline.process(data)
         assert data["code"] == original  # original not mutated
 
     def test_finding_has_field_name(self):
@@ -162,7 +155,7 @@ class TestRedactionPipeline:
     def test_non_string_values_pass_through(self):
         pipeline = RedactionPipeline.default()
         data = {"code": "x=1", "score": 9.5, "tags": ["a", "b"]}
-        clean, findings = pipeline.process(data)
+        clean, _findings = pipeline.process(data)
         assert clean["score"] == 9.5
         assert clean["tags"] == ["a", "b"]
 
@@ -359,8 +352,16 @@ class TestRetentionManager:
     def test_apply_dry_run_does_not_delete(self, storage):
         # Store a pattern with an old timestamp
         key = "patterns/old_abc_1000000000000"
-        storage.save(key, {"task": "old task", "design": {}, "success_score": 5.0,
-                           "reuse_count": 0, "timestamp": time.time() - 400 * 86400})
+        storage.save(
+            key,
+            {
+                "task": "old task",
+                "design": {},
+                "success_score": 5.0,
+                "reuse_count": 0,
+                "timestamp": time.time() - 400 * 86400,
+            },
+        )
 
         manager = RetentionManager(engine=None, default_retention_days=30)
         result = manager.apply(storage, dry_run=True)
@@ -372,8 +373,16 @@ class TestRetentionManager:
 
     def test_apply_deletes_expired_patterns(self, storage):
         key = "patterns/old_xyz_1000000000001"
-        storage.save(key, {"task": "expired task", "design": {}, "success_score": 5.0,
-                           "reuse_count": 0, "timestamp": time.time() - 400 * 86400})
+        storage.save(
+            key,
+            {
+                "task": "expired task",
+                "design": {},
+                "success_score": 5.0,
+                "reuse_count": 0,
+                "timestamp": time.time() - 400 * 86400,
+            },
+        )
 
         manager = RetentionManager(engine=None, default_retention_days=30)
         result = manager.apply(storage, dry_run=False)
@@ -384,8 +393,9 @@ class TestRetentionManager:
 
     def test_apply_keeps_fresh_patterns(self, storage):
         key = "patterns/fresh_abc_1000000000002"
-        storage.save(key, {"task": "fresh task", "design": {}, "success_score": 8.0,
-                           "reuse_count": 0, "timestamp": time.time()})
+        storage.save(
+            key, {"task": "fresh task", "design": {}, "success_score": 8.0, "reuse_count": 0, "timestamp": time.time()}
+        )
 
         manager = RetentionManager(engine=None, default_retention_days=30)
         result = manager.apply(storage, dry_run=False)
@@ -435,18 +445,21 @@ class TestPostgresStorageGovernance:
 
     def test_save_pattern_meta_calls_update(self, mock_engine, tmp_path):
         engine, conn = mock_engine
-        from engramia.providers.postgres import PostgresStorage
         from unittest.mock import patch
+
+        from engramia.providers.postgres import PostgresStorage
 
         with patch("engramia.providers.postgres.PostgresStorage.__init__", lambda *a, **kw: None):
             storage = PostgresStorage.__new__(PostgresStorage)
             storage._engine = engine
             from sqlalchemy import text as _text
+
             storage._text = _text
             storage._embedding_dim = 1536
 
             with patch("engramia._context.get_scope") as mock_scope:
                 from engramia.types import Scope
+
                 mock_scope.return_value = Scope()
                 storage.save_pattern_meta(
                     "patterns/test_001",
@@ -464,17 +477,20 @@ class TestPostgresStorageGovernance:
         engine, conn = mock_engine
         conn.execute.side_effect = Exception("DB error")
 
-        from engramia.providers.postgres import PostgresStorage
         from unittest.mock import patch
+
+        from engramia.providers.postgres import PostgresStorage
 
         with patch("engramia.providers.postgres.PostgresStorage.__init__", lambda *a, **kw: None):
             storage = PostgresStorage.__new__(PostgresStorage)
             storage._engine = engine
             from sqlalchemy import text as _text
+
             storage._text = _text
 
             with patch("engramia._context.get_scope") as mock_scope:
                 from engramia.types import Scope
+
                 mock_scope.return_value = Scope()
                 # Should not raise — exception is logged and swallowed
                 storage.save_pattern_meta("patterns/fail_001")
@@ -485,13 +501,15 @@ class TestPostgresStorageGovernance:
         r.rowcount = 5
         conn.execute.return_value = r
 
-        from engramia.providers.postgres import PostgresStorage
         from unittest.mock import patch
+
+        from engramia.providers.postgres import PostgresStorage
 
         with patch("engramia.providers.postgres.PostgresStorage.__init__", lambda *a, **kw: None):
             storage = PostgresStorage.__new__(PostgresStorage)
             storage._engine = engine
             from sqlalchemy import text as _text
+
             storage._text = _text
 
             count = storage.delete_scope("tenant1", "project1")
@@ -508,10 +526,16 @@ class TestGovernanceJobDispatch:
         from engramia.jobs.dispatch import dispatch_job
 
         mem = Memory(embeddings=fake_embeddings, storage=storage)
-        storage.save("patterns/jd_old_001", {
-            "task": "jd old", "design": {}, "success_score": 4.0,
-            "reuse_count": 0, "timestamp": time.time() - 400 * 86400,
-        })
+        storage.save(
+            "patterns/jd_old_001",
+            {
+                "task": "jd old",
+                "design": {},
+                "success_score": 4.0,
+                "reuse_count": 0,
+                "timestamp": time.time() - 400 * 86400,
+            },
+        )
         result = dispatch_job(mem, "retention_cleanup", {"dry_run": True})
         assert "purged_count" in result
         assert "dry_run" in result
@@ -547,10 +571,16 @@ class TestScopedDeletion:
     def test_delete_project_removes_storage_data(self, storage):
         # Store some keys
         for i in range(3):
-            storage.save(f"patterns/key{i}_1000", {
-                "task": f"task {i}", "design": {}, "success_score": 7.0,
-                "reuse_count": 0, "timestamp": time.time(),
-            })
+            storage.save(
+                f"patterns/key{i}_1000",
+                {
+                    "task": f"task {i}",
+                    "design": {},
+                    "success_score": 7.0,
+                    "reuse_count": 0,
+                    "timestamp": time.time(),
+                },
+            )
 
         deletion = ScopedDeletion(engine=None)
         result = deletion.delete_project(storage, tenant_id="default", project_id="default")
@@ -577,10 +607,16 @@ class TestScopedDeletion:
 class TestDataExporter:
     def test_stream_returns_all_patterns(self, storage):
         for i in range(3):
-            storage.save(f"patterns/exp{i}_1000", {
-                "task": f"task {i}", "design": {"code": "pass"},
-                "success_score": 7.0, "reuse_count": 0, "timestamp": time.time(),
-            })
+            storage.save(
+                f"patterns/exp{i}_1000",
+                {
+                    "task": f"task {i}",
+                    "design": {"code": "pass"},
+                    "success_score": 7.0,
+                    "reuse_count": 0,
+                    "timestamp": time.time(),
+                },
+            )
 
         exporter = DataExporter()
         records = list(exporter.stream(storage))
@@ -593,10 +629,16 @@ class TestDataExporter:
 
     def test_stream_excludes_non_pattern_keys(self, storage):
         storage.save("metrics/total", {"runs": 1})
-        storage.save("patterns/real_001", {
-            "task": "real", "design": {}, "success_score": 7.0,
-            "reuse_count": 0, "timestamp": time.time(),
-        })
+        storage.save(
+            "patterns/real_001",
+            {
+                "task": "real",
+                "design": {},
+                "success_score": 7.0,
+                "reuse_count": 0,
+                "timestamp": time.time(),
+            },
+        )
 
         exporter = DataExporter()
         records = list(exporter.stream(storage))
@@ -682,7 +724,6 @@ class TestGovernanceAPI:
         app.state.auth_engine = None
 
         # Override require_auth to be a no-op in tests
-        from fastapi import Depends
         app.dependency_overrides[require_auth] = lambda: None
 
         app.include_router(gov_router, prefix="/v1")
@@ -707,10 +748,16 @@ class TestGovernanceAPI:
 
     def test_apply_retention_dry_run(self, client, storage):
         # Add an expired pattern
-        storage.save("patterns/expired_001", {
-            "task": "old task", "design": {}, "success_score": 5.0,
-            "reuse_count": 0, "timestamp": time.time() - 400 * 86400,
-        })
+        storage.save(
+            "patterns/expired_001",
+            {
+                "task": "old task",
+                "design": {},
+                "success_score": 5.0,
+                "reuse_count": 0,
+                "timestamp": time.time() - 400 * 86400,
+            },
+        )
         resp = client.post("/v1/governance/retention/apply", json={"dry_run": True})
         assert resp.status_code == 200
         data = resp.json()
@@ -762,10 +809,16 @@ class TestGovernanceAPI:
         assert resp.status_code == 404
 
     def test_delete_project_wipes_data(self, client, storage):
-        storage.save("patterns/del_test_001", {
-            "task": "del task", "design": {}, "success_score": 5.0,
-            "reuse_count": 0, "timestamp": time.time(),
-        })
+        storage.save(
+            "patterns/del_test_001",
+            {
+                "task": "del task",
+                "design": {},
+                "success_score": 5.0,
+                "reuse_count": 0,
+                "timestamp": time.time(),
+            },
+        )
         resp = client.delete("/v1/governance/projects/default")
         assert resp.status_code == 200
         data = resp.json()
@@ -776,10 +829,16 @@ class TestGovernanceAPI:
         assert resp.status_code == 422
 
     def test_apply_retention_without_dry_run(self, client, storage):
-        storage.save("patterns/ret_apply_001", {
-            "task": "apply task", "design": {}, "success_score": 5.0,
-            "reuse_count": 0, "timestamp": time.time() - 400 * 86400,
-        })
+        storage.save(
+            "patterns/ret_apply_001",
+            {
+                "task": "apply task",
+                "design": {},
+                "success_score": 5.0,
+                "reuse_count": 0,
+                "timestamp": time.time() - 400 * 86400,
+            },
+        )
         resp = client.post("/v1/governance/retention/apply", json={"dry_run": False})
         assert resp.status_code == 200
         data = resp.json()
@@ -817,15 +876,21 @@ class TestScopedDeletionWithMockEngine:
         conn.execute.return_value = r
 
         for i in range(2):
-            storage.save(f"patterns/mockdel_{i}", {
-                "task": f"t{i}", "design": {}, "success_score": 5.0,
-                "reuse_count": 0, "timestamp": time.time(),
-            })
+            storage.save(
+                f"patterns/mockdel_{i}",
+                {
+                    "task": f"t{i}",
+                    "design": {},
+                    "success_score": 5.0,
+                    "reuse_count": 0,
+                    "timestamp": time.time(),
+                },
+            )
 
         deletion = ScopedDeletion(engine=engine)
         result = deletion.delete_project(storage, tenant_id="default", project_id="default")
         assert result.patterns_deleted >= 2
-        assert result.jobs_deleted == 2   # from mock rowcount
+        assert result.jobs_deleted == 2  # from mock rowcount
         assert conn.execute.called
 
     def test_delete_tenant_with_mock_engine(self, storage, mock_engine):
@@ -844,11 +909,11 @@ class TestScopedDeletionWithMockEngine:
         # Side effect order: connect() → execute (SELECT projects) / begin() calls for delete_project + soft-delete tenant
         conn.execute.side_effect = [
             listing_result,  # SELECT projects (connect ctx)
-            r,               # DELETE jobs
-            r,               # UPDATE api_keys
-            r,               # UPDATE audit_log
-            r,               # UPDATE projects soft-delete
-            r,               # UPDATE tenants soft-delete
+            r,  # DELETE jobs
+            r,  # UPDATE api_keys
+            r,  # UPDATE audit_log
+            r,  # UPDATE projects soft-delete
+            r,  # UPDATE tenants soft-delete
         ]
 
         deletion = ScopedDeletion(engine=engine)
@@ -974,20 +1039,32 @@ class TestRetentionManagerEdgeCases:
 
     def test_apply_skips_pattern_with_zero_timestamp(self, storage):
         # timestamp=0 should be ignored (not treated as very old)
-        storage.save("patterns/zero_ts_001", {
-            "task": "zero ts", "design": {}, "success_score": 5.0,
-            "reuse_count": 0, "timestamp": 0,
-        })
+        storage.save(
+            "patterns/zero_ts_001",
+            {
+                "task": "zero ts",
+                "design": {},
+                "success_score": 5.0,
+                "reuse_count": 0,
+                "timestamp": 0,
+            },
+        )
         manager = RetentionManager(engine=None, default_retention_days=30)
         result = manager.apply(storage, dry_run=False)
         assert result.purged_count == 0
 
     def test_apply_dry_run_returns_correct_keys(self, storage):
         for i in range(3):
-            storage.save(f"patterns/dry_{i}", {
-                "task": f"dry task {i}", "design": {}, "success_score": 5.0,
-                "reuse_count": 0, "timestamp": time.time() - 400 * 86400,
-            })
+            storage.save(
+                f"patterns/dry_{i}",
+                {
+                    "task": f"dry task {i}",
+                    "design": {},
+                    "success_score": 5.0,
+                    "reuse_count": 0,
+                    "timestamp": time.time() - 400 * 86400,
+                },
+            )
         manager = RetentionManager(engine=None, default_retention_days=30)
         result = manager.apply(storage, dry_run=True)
         assert len(result.purged_keys) == 3
@@ -1036,10 +1113,16 @@ class TestDataExporterEdgeCases:
     def test_stream_with_classification_filter_no_engine(self, storage):
         # Without engine, all records are returned regardless of filter
         for i in range(2):
-            storage.save(f"patterns/flt_{i}", {
-                "task": f"task {i}", "design": {"code": "pass"},
-                "success_score": 7.0, "reuse_count": 0, "timestamp": time.time(),
-            })
+            storage.save(
+                f"patterns/flt_{i}",
+                {
+                    "task": f"task {i}",
+                    "design": {"code": "pass"},
+                    "success_score": 7.0,
+                    "reuse_count": 0,
+                    "timestamp": time.time(),
+                },
+            )
         exporter = DataExporter()
         # With no engine, classification_filter applies as "show all" fallback
         records = list(exporter.stream(storage, classification_filter=["public"], engine=None))
@@ -1047,10 +1130,16 @@ class TestDataExporterEdgeCases:
         assert len(records) == 2
 
     def test_stream_record_structure(self, storage):
-        storage.save("patterns/struct_001", {
-            "task": "struct task", "design": {"code": "x=1"},
-            "success_score": 8.0, "reuse_count": 0, "timestamp": time.time(),
-        })
+        storage.save(
+            "patterns/struct_001",
+            {
+                "task": "struct task",
+                "design": {"code": "x=1"},
+                "success_score": 8.0,
+                "reuse_count": 0,
+                "timestamp": time.time(),
+            },
+        )
         exporter = DataExporter()
         records = list(exporter.stream(storage))
         assert len(records) == 1
@@ -1060,10 +1149,16 @@ class TestDataExporterEdgeCases:
         assert r["data"]["task"] == "struct task"
 
     def test_stream_no_meta_when_no_engine(self, storage):
-        storage.save("patterns/noMeta_001", {
-            "task": "no meta", "design": {"code": "pass"},
-            "success_score": 6.0, "reuse_count": 0, "timestamp": time.time(),
-        })
+        storage.save(
+            "patterns/noMeta_001",
+            {
+                "task": "no meta",
+                "design": {"code": "pass"},
+                "success_score": 6.0,
+                "reuse_count": 0,
+                "timestamp": time.time(),
+            },
+        )
         exporter = DataExporter()
         records = list(exporter.stream(storage, engine=None))
         assert len(records) == 1
@@ -1072,10 +1167,16 @@ class TestDataExporterEdgeCases:
 
     def test_stream_skips_deleted_keys(self, storage):
         # If a key disappears between list and load, it should be skipped gracefully
-        storage.save("patterns/skip_001", {
-            "task": "skip task", "design": {}, "success_score": 5.0,
-            "reuse_count": 0, "timestamp": time.time(),
-        })
+        storage.save(
+            "patterns/skip_001",
+            {
+                "task": "skip task",
+                "design": {},
+                "success_score": 5.0,
+                "reuse_count": 0,
+                "timestamp": time.time(),
+            },
+        )
         exporter = DataExporter()
         # Delete before iterating (can happen in concurrent scenarios)
         # Just verify it streams correctly without deletion
@@ -1092,10 +1193,16 @@ class TestLifecycleJobs:
     def test_cleanup_expired_patterns(self, storage, fake_embeddings):
         mem = Memory(embeddings=fake_embeddings, storage=storage)
         # Add expired pattern manually
-        storage.save("patterns/lifecycle_old_001", {
-            "task": "old", "design": {}, "success_score": 5.0,
-            "reuse_count": 0, "timestamp": time.time() - 400 * 86400,
-        })
+        storage.save(
+            "patterns/lifecycle_old_001",
+            {
+                "task": "old",
+                "design": {},
+                "success_score": 5.0,
+                "reuse_count": 0,
+                "timestamp": time.time() - 400 * 86400,
+            },
+        )
         from engramia.governance.lifecycle import cleanup_expired_patterns
 
         result = cleanup_expired_patterns(mem, {"dry_run": False})
@@ -1105,10 +1212,16 @@ class TestLifecycleJobs:
 
     def test_cleanup_expired_patterns_dry_run(self, storage, fake_embeddings):
         mem = Memory(embeddings=fake_embeddings, storage=storage)
-        storage.save("patterns/lifecycle_old_002", {
-            "task": "old2", "design": {}, "success_score": 5.0,
-            "reuse_count": 0, "timestamp": time.time() - 400 * 86400,
-        })
+        storage.save(
+            "patterns/lifecycle_old_002",
+            {
+                "task": "old2",
+                "design": {},
+                "success_score": 5.0,
+                "reuse_count": 0,
+                "timestamp": time.time() - 400 * 86400,
+            },
+        )
         from engramia.governance.lifecycle import cleanup_expired_patterns
 
         result = cleanup_expired_patterns(mem, {"dry_run": True})
@@ -1183,6 +1296,7 @@ class TestLifecycleJobsMockEngine:
             assert result["dry_run"] is False
         finally:
             from engramia._context import reset_scope
+
             reset_scope(token)
 
     def test_compact_audit_log_dry_run(self, storage, fake_embeddings):
@@ -1208,6 +1322,7 @@ class TestLifecycleJobsMockEngine:
             assert result["deleted_count"] == 5
         finally:
             from engramia._context import reset_scope
+
             reset_scope(token)
 
     def test_cleanup_old_jobs_with_engine(self, storage, fake_embeddings):
@@ -1233,6 +1348,7 @@ class TestLifecycleJobsMockEngine:
             assert result["dry_run"] is False
         finally:
             from engramia._context import reset_scope
+
             reset_scope(token)
 
     def test_cleanup_old_jobs_dry_run(self, storage, fake_embeddings):
@@ -1258,6 +1374,7 @@ class TestLifecycleJobsMockEngine:
             assert result["deleted_count"] == 4
         finally:
             from engramia._context import reset_scope
+
             reset_scope(token)
 
 
@@ -1368,6 +1485,7 @@ class TestRetentionManagerMockEngine:
             assert result.dry_run is True
         finally:
             from engramia._context import reset_scope
+
             reset_scope(token)
 
     def test_apply_postgres_non_dry_run(self, storage, fake_embeddings):
@@ -1396,6 +1514,7 @@ class TestRetentionManagerMockEngine:
             assert result.dry_run is False
         finally:
             from engramia._context import reset_scope
+
             reset_scope(token)
 
 
@@ -1500,18 +1619,21 @@ class TestDataExporterMockEngine:
 class TestScrubValue:
     def test_dict_pii_key_replaced(self):
         from engramia.governance.audit_scrubber import _scrub_value
+
         result = _scrub_value({"email": "user@example.com", "action": "login"})
         assert result["email"] == "[REDACTED]"
         assert result["action"] == "login"
 
     def test_nested_dict_scrubbed(self):
         from engramia.governance.audit_scrubber import _scrub_value
+
         result = _scrub_value({"outer": {"email": "x@y.com", "safe": "ok"}})
         assert result["outer"]["email"] == "[REDACTED]"
         assert result["outer"]["safe"] == "ok"
 
     def test_list_elements_scrubbed(self):
         from engramia.governance.audit_scrubber import _scrub_value
+
         result = _scrub_value(["user@example.com", "no email here", 42])
         assert result[0] == "[REDACTED]"
         assert result[1] == "no email here"
@@ -1519,18 +1641,21 @@ class TestScrubValue:
 
     def test_string_email_replaced(self):
         from engramia.governance.audit_scrubber import _scrub_value
+
         result = _scrub_value("Contact user@example.com for details")
         assert "[REDACTED]" in result
         assert "user@example.com" not in result
 
     def test_string_ip_replaced(self):
         from engramia.governance.audit_scrubber import _scrub_value
+
         result = _scrub_value("Request from 192.168.1.1 was logged")
         assert "[REDACTED]" in result
         assert "192.168.1.1" not in result
 
     def test_non_string_scalar_unchanged(self):
         from engramia.governance.audit_scrubber import _scrub_value
+
         assert _scrub_value(42) == 42
         assert _scrub_value(3.14) == 3.14
         assert _scrub_value(None) is None
@@ -1540,6 +1665,7 @@ class TestScrubValue:
 class TestAuditScrubber:
     def _make_engine(self, rows):
         from unittest.mock import MagicMock
+
         engine = MagicMock()
         result = MagicMock()
         result.fetchall.return_value = rows
@@ -1553,6 +1679,7 @@ class TestAuditScrubber:
 
     def test_no_rows_returns_zero(self):
         from engramia.governance.audit_scrubber import AuditScrubber
+
         engine, _ = self._make_engine([])
         scrubber = AuditScrubber(engine=engine)
         result = scrubber.scrub(older_than_days=90)
@@ -1562,17 +1689,19 @@ class TestAuditScrubber:
 
     def test_row_with_pii_is_scrubbed(self):
         from engramia.governance.audit_scrubber import AuditScrubber
+
         row = (1, "192.168.1.1", {"email": "user@example.com", "action": "login"})
-        engine, conn = self._make_engine([row])
+        engine, _conn = self._make_engine([row])
         scrubber = AuditScrubber(engine=engine)
         result = scrubber.scrub(older_than_days=90)
         assert result.rows_scrubbed == 1
-        conn.execute.assert_called()
+        _conn.execute.assert_called()
 
     def test_dry_run_counts_but_no_update(self):
         from engramia.governance.audit_scrubber import AuditScrubber
+
         row = (2, "10.0.0.1", {"email": "a@b.com"})
-        engine, conn = self._make_engine([row])
+        engine, _conn = self._make_engine([row])
         scrubber = AuditScrubber(engine=engine)
         result = scrubber.scrub(older_than_days=30, dry_run=True)
         assert result.rows_scrubbed == 1
@@ -1582,18 +1711,18 @@ class TestAuditScrubber:
 
     def test_already_redacted_row_skipped(self):
         from engramia.governance.audit_scrubber import AuditScrubber
+
         row = (3, "[REDACTED]", {"email": "[REDACTED]", "action": "login"})
-        engine, conn = self._make_engine([row])
+        engine, _conn = self._make_engine([row])
         scrubber = AuditScrubber(engine=engine)
         result = scrubber.scrub(older_than_days=90)
         assert result.rows_scrubbed == 0
 
     def test_row_with_none_detail_and_ip_scrubbed(self):
         from engramia.governance.audit_scrubber import AuditScrubber
+
         row = (4, "10.0.0.1", None)
-        engine, conn = self._make_engine([row])
+        engine, _conn = self._make_engine([row])
         scrubber = AuditScrubber(engine=engine)
         result = scrubber.scrub(older_than_days=90)
         assert result.rows_scrubbed == 1
-
-

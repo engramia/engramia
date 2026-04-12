@@ -37,7 +37,7 @@ def pg_engine():
 
     with PostgresContainer("pgvector/pgvector:pg16") as postgres:
         url = postgres.get_connection_url()
-        from sqlalchemy import create_engine, text
+        from sqlalchemy import create_engine
 
         engine = create_engine(url, pool_pre_ping=True)
         _bootstrap_schema(engine)
@@ -50,7 +50,8 @@ def _bootstrap_schema(engine) -> None:
 
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS memory_data (
                 key             TEXT        NOT NULL,
                 tenant_id       TEXT        NOT NULL DEFAULT '',
@@ -65,8 +66,10 @@ def _bootstrap_schema(engine) -> None:
                 expires_at      TEXT,
                 PRIMARY KEY (key)
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS memory_embeddings (
                 key         TEXT        NOT NULL,
                 tenant_id   TEXT        NOT NULL DEFAULT '',
@@ -74,26 +77,31 @@ def _bootstrap_schema(engine) -> None:
                 embedding   vector(4),
                 PRIMARY KEY (key)
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE INDEX IF NOT EXISTS idx_mem_data_scope
             ON memory_data (tenant_id, project_id)
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE INDEX IF NOT EXISTS idx_mem_emb_scope
             ON memory_embeddings (tenant_id, project_id)
-        """))
+        """)
+        )
 
 
 @pytest.fixture
 def storage(pg_engine):
     """Fresh PostgresStorage pointing at the test container, default scope."""
+    # Wipe all rows between tests so they are independent
+    from sqlalchemy import text
+
     from engramia._context import reset_scope, set_scope
     from engramia.providers.postgres import PostgresStorage
     from engramia.types import Scope
-
-    # Wipe all rows between tests so they are independent
-    from sqlalchemy import text
 
     with pg_engine.begin() as conn:
         conn.execute(text("TRUNCATE memory_data, memory_embeddings"))
@@ -112,8 +120,9 @@ def storage(pg_engine):
 
 def _scoped_storage(pg_engine, tenant: str, project: str):
     """Return a PostgresStorage instance with a specific scope active."""
-    from engramia.providers.postgres import PostgresStorage
     from sqlalchemy import text as _text
+
+    from engramia.providers.postgres import PostgresStorage
 
     store = PostgresStorage.__new__(PostgresStorage)
     store._embedding_dim = 4

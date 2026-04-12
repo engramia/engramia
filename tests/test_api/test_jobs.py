@@ -103,7 +103,9 @@ class TestJobServiceSubmit:
 
     def test_submit_all_operations(self, job_service):
         for op in JobOperation:
-            result = job_service.submit(op.value, {"task": "t", "code": "c", "role": "r", "current_prompt": "p", "records": []})
+            result = job_service.submit(
+                op.value, {"task": "t", "code": "c", "role": "r", "current_prompt": "p", "records": []}
+            )
             assert result.status == JobStatus.PENDING
 
 

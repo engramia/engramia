@@ -20,9 +20,10 @@ Fixture pattern copied from test_telemetry.py which is the only other file
 that correctly uses create_app().
 """
 
+from unittest.mock import MagicMock
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
 
 import engramia._factory as factory
 

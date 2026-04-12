@@ -26,7 +26,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Corrected MCP stubs
 #
@@ -89,11 +88,12 @@ for _name, _mod in [
 
 sys.modules.pop("engramia.mcp.server", None)  # force fresh import below
 
-from engramia.mcp.server import _dispatch  # noqa: E402
-from engramia.mcp.server import _get_mem  # noqa: E402
-from engramia.mcp.server import call_tool, list_tools  # noqa: E402
 import engramia.mcp.server as _server_mod  # noqa: E402
-
+from engramia.mcp.server import (  # noqa: E402
+    _get_mem,
+    call_tool,
+    list_tools,
+)
 
 # ---------------------------------------------------------------------------
 # Helper replacements for MagicMock stubs — allow attribute inspection

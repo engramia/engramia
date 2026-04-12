@@ -13,6 +13,7 @@ import logging
 import time
 import traceback
 import uuid
+from typing import Any
 
 from engramia._context import get_scope, reset_scope, set_scope
 from engramia.jobs.dispatch import dispatch_job
@@ -65,7 +66,7 @@ class JobService:
     concurrent worker safety. In JSON/memory mode, uses a simple dict.
     """
 
-    def __init__(self, engine=None, memory=None):
+    def __init__(self, engine: Any | None = None, memory: Any | None = None) -> None:
         """Initialize the job service.
 
         Args:

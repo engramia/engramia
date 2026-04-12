@@ -6,7 +6,6 @@ Uses a mock SQLAlchemy engine; no real PostgreSQL required.
 """
 
 import hashlib
-import os
 from unittest.mock import MagicMock
 
 import pytest
@@ -36,7 +35,7 @@ class TestGenerateKey:
 
     def test_prefix_shown_in_display(self):
         full_key, prefix, _ = _generate_key()
-        suffix = full_key[len("engramia_sk_"):]
+        suffix = full_key[len("engramia_sk_") :]
         assert prefix.startswith(f"engramia_sk_{suffix[:8]}")
 
     def test_keys_are_unique(self):
@@ -225,8 +224,19 @@ class TestListKeys:
     def test_list_returns_keys_with_fields(self):
         mock_conn = MagicMock()
         mock_conn.execute.return_value.fetchall.return_value = [
-            ("key-id-1", "CI Key", "engramia_sk_abc12345...", "editor",
-             "default", "default", 100, "2026-01-01T00:00:00", None, None, None),
+            (
+                "key-id-1",
+                "CI Key",
+                "engramia_sk_abc12345...",
+                "editor",
+                "default",
+                "default",
+                100,
+                "2026-01-01T00:00:00",
+                None,
+                None,
+                None,
+            ),
         ]
         engine = MagicMock()
         engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)

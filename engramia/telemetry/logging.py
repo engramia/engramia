@@ -30,7 +30,7 @@ class _ContextInjectingFormatter(logging.Formatter):
             from engramia.telemetry.context import get_request_id
 
             record.__dict__.setdefault("request_id", get_request_id() or "")
-        except Exception:
+        except (ImportError, KeyError, AttributeError):
             record.__dict__.setdefault("request_id", "")
 
         # Inject OTEL trace/span IDs
@@ -45,7 +45,7 @@ class _ContextInjectingFormatter(logging.Formatter):
             else:
                 record.__dict__.setdefault("trace_id", "")
                 record.__dict__.setdefault("span_id", "")
-        except Exception:
+        except (ImportError, KeyError, AttributeError):
             record.__dict__.setdefault("trace_id", "")
             record.__dict__.setdefault("span_id", "")
 
@@ -56,7 +56,7 @@ class _ContextInjectingFormatter(logging.Formatter):
             scope = get_scope()
             record.__dict__.setdefault("tenant_id", scope.tenant_id)
             record.__dict__.setdefault("project_id", scope.project_id)
-        except Exception:
+        except (ImportError, KeyError, AttributeError):
             record.__dict__.setdefault("tenant_id", "")
             record.__dict__.setdefault("project_id", "")
 

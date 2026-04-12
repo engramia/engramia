@@ -36,19 +36,26 @@ _mcp_server_stdio = ModuleType("mcp.server.stdio")
 _mcp_server_models = ModuleType("mcp.server.models")
 _mcp_types = ModuleType("mcp.types")
 
+
 def _noop_decorator(*a, **kw):
     """No-op decorator that returns the function unchanged."""
+
     def _inner(fn):
         return fn
+
     return _inner
+
 
 class _FakeServer:
     def __init__(self, *a, **kw):
         pass
+
     def list_tools(self):
         return _noop_decorator
+
     def call_tool(self):
         return _noop_decorator
+
 
 _mcp_server.Server = _FakeServer
 _mcp_server_models.InitializationOptions = MagicMock
@@ -65,7 +72,6 @@ for name, mod in [
     sys.modules.setdefault(name, mod)
 
 from engramia.mcp.server import _dispatch  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -97,8 +103,12 @@ def mem():
 
     # evaluate()
     score = EvalScore(
-        task_alignment=8, code_quality=7, workspace_usage=8,
-        robustness=6, overall=7.5, feedback="Add error handling.",
+        task_alignment=8,
+        code_quality=7,
+        workspace_usage=8,
+        robustness=6,
+        overall=7.5,
+        feedback="Add error handling.",
     )
     m.evaluate.return_value = EvalResult(
         scores=[score],
@@ -128,15 +138,20 @@ def mem():
     )
 
     # get_feedback()
-    m.get_feedback.return_value = [
-        {"pattern": "Add error handling", "count": 3, "score": 2.1}
-    ]
+    m.get_feedback.return_value = [{"pattern": "Add error handling", "count": 3, "score": 2.1}]
 
     # metrics (property)
-    type(m).metrics = PropertyMock(return_value=Metrics(
-        runs=10, success=8, failures=2, pipeline_reuse=3,
-        success_rate=0.8, pattern_count=5, avg_eval_score=7.2,
-    ))
+    type(m).metrics = PropertyMock(
+        return_value=Metrics(
+            runs=10,
+            success=8,
+            failures=2,
+            pipeline_reuse=3,
+            success_rate=0.8,
+            pattern_count=5,
+            avg_eval_score=7.2,
+        )
+    )
 
     # run_aging()
     m.run_aging.return_value = 2
@@ -151,29 +166,57 @@ def mem():
 
 class TestLearnDispatch:
     def test_learn_calls_memory_with_correct_args(self, mem):
-        _dispatch(mem, "engramia_learn", {
-            "task": "Parse CSV", "code": "import csv", "eval_score": "8.5",
-        })
+        _dispatch(
+            mem,
+            "engramia_learn",
+            {
+                "task": "Parse CSV",
+                "code": "import csv",
+                "eval_score": "8.5",
+            },
+        )
         mem.learn.assert_called_once_with(
-            task="Parse CSV", code="import csv", eval_score=8.5, output=None,
+            task="Parse CSV",
+            code="import csv",
+            eval_score=8.5,
+            output=None,
         )
 
     def test_learn_returns_stored_and_count(self, mem):
-        result = _dispatch(mem, "engramia_learn", {
-            "task": "T", "code": "C", "eval_score": 7.0,
-        })
+        result = _dispatch(
+            mem,
+            "engramia_learn",
+            {
+                "task": "T",
+                "code": "C",
+                "eval_score": 7.0,
+            },
+        )
         assert result == {"stored": True, "pattern_count": 5}
 
     def test_learn_passes_optional_output(self, mem):
-        _dispatch(mem, "engramia_learn", {
-            "task": "T", "code": "C", "eval_score": 7.0, "output": "stdout data",
-        })
+        _dispatch(
+            mem,
+            "engramia_learn",
+            {
+                "task": "T",
+                "code": "C",
+                "eval_score": 7.0,
+                "output": "stdout data",
+            },
+        )
         assert mem.learn.call_args.kwargs["output"] == "stdout data"
 
     def test_learn_coerces_eval_score_to_float(self, mem):
-        _dispatch(mem, "engramia_learn", {
-            "task": "T", "code": "C", "eval_score": "9",
-        })
+        _dispatch(
+            mem,
+            "engramia_learn",
+            {
+                "task": "T",
+                "code": "C",
+                "eval_score": "9",
+            },
+        )
         assert mem.learn.call_args.kwargs["eval_score"] == 9.0
 
 
@@ -220,9 +263,15 @@ class TestEvaluateDispatch:
         mem.evaluate.assert_called_once_with(task="T", code="C", output=None, num_evals=3)
 
     def test_evaluate_passes_custom_num_evals(self, mem):
-        _dispatch(mem, "engramia_evaluate", {
-            "task": "T", "code": "C", "num_evals": "5",
-        })
+        _dispatch(
+            mem,
+            "engramia_evaluate",
+            {
+                "task": "T",
+                "code": "C",
+                "num_evals": "5",
+            },
+        )
         assert mem.evaluate.call_args.kwargs["num_evals"] == 5
 
     def test_evaluate_returns_expected_fields(self, mem):

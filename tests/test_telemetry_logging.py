@@ -20,8 +20,8 @@ class TestContextInjectingFormatter:
         )
 
     def test_injects_request_id_field(self):
-        from engramia.telemetry.logging import _ContextInjectingFormatter
         from engramia.telemetry.context import reset_request_id, set_request_id
+        from engramia.telemetry.logging import _ContextInjectingFormatter
 
         fmt = _ContextInjectingFormatter("%(message)s")
         token = set_request_id("req-abc")
@@ -34,7 +34,6 @@ class TestContextInjectingFormatter:
 
     def test_injects_empty_request_id_when_unset(self):
         from engramia.telemetry.logging import _ContextInjectingFormatter
-        from engramia.telemetry.context import get_request_id
 
         fmt = _ContextInjectingFormatter("%(message)s")
         record = self._make_record()
@@ -42,8 +41,8 @@ class TestContextInjectingFormatter:
         assert record.__dict__.get("request_id") == ""
 
     def test_injects_tenant_and_project_from_scope(self):
-        from engramia.telemetry.logging import _ContextInjectingFormatter
         from engramia._context import reset_scope, set_scope
+        from engramia.telemetry.logging import _ContextInjectingFormatter
         from engramia.types import Scope
 
         fmt = _ContextInjectingFormatter("%(message)s")
@@ -81,12 +80,17 @@ class TestContextInjectingFormatter:
 class TestConfigureJsonLogging:
     def test_no_op_when_python_json_logger_missing(self, caplog):
         """configure_json_logging() emits a warning and returns cleanly."""
-        with patch.dict(sys.modules, {
-            "pythonjsonlogger": None,
-            "pythonjsonlogger.jsonlogger": None,
-        }):
-            import engramia.telemetry.logging as mod
+        with patch.dict(
+            sys.modules,
+            {
+                "pythonjsonlogger": None,
+                "pythonjsonlogger.jsonlogger": None,
+            },
+        ):
             import importlib
+
+            import engramia.telemetry.logging as mod
+
             importlib.reload(mod)
 
             with caplog.at_level(logging.WARNING):
@@ -97,6 +101,7 @@ class TestConfigureJsonLogging:
     def test_installs_formatter_when_handler_present(self):
         """configure_json_logging() replaces the first handler's formatter."""
         import pytest
+
         pytest.importorskip("pythonjsonlogger", reason="pythonjsonlogger not installed")
 
         from engramia.telemetry.logging import configure_json_logging
@@ -108,6 +113,7 @@ class TestConfigureJsonLogging:
         try:
             configure_json_logging()
             from pythonjsonlogger.jsonlogger import JsonFormatter
+
             assert isinstance(handler.formatter, JsonFormatter)
         finally:
             root.handlers = original_handlers

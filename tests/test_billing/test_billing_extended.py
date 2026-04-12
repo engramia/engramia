@@ -28,15 +28,14 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 import sqlalchemy.exc
 
+from engramia.billing.metering import UsageMeter
 from engramia.billing.models import (
     METRIC_EVAL_RUNS,
     BillingSubscription,
     OverageSettings,
 )
-from engramia.billing.metering import UsageMeter
 from engramia.billing.service import BillingService
 
 pytestmark = pytest.mark.integration
@@ -213,7 +212,7 @@ class TestHandleWebhookDuplication:
 
         assert result == "invoice.paid"
         mock_status.assert_not_called()  # No processing for duplicates
-        mock_mark.assert_not_called()   # Idempotency record not re-written
+        mock_mark.assert_not_called()  # Idempotency record not re-written
 
     def test_fresh_event_processes_and_marks(self):
         """A new event (not yet processed) must be handled and then marked."""
@@ -230,7 +229,9 @@ class TestHandleWebhookDuplication:
     def test_duplicate_subscription_created_does_not_upsert(self):
         """A duplicate customer.subscription.created event must not call _upsert_subscription."""
         data = {
-            "customer": "cus_x", "id": "sub_x", "status": "active",
+            "customer": "cus_x",
+            "id": "sub_x",
+            "status": "active",
             "items": {"data": [{"plan": {"interval": "month"}}]},
             "current_period_end": 1900000000,
             "metadata": {"plan_tier": "pro"},
@@ -386,8 +387,8 @@ class TestReportOverageHappyPath:
 
         kwargs = stripe.create_invoice_item.call_args[1]
         desc = kwargs["description"]
-        assert "1000" in desc   # excess runs
-        assert "2" in desc      # number of units (1000 // 500)
+        assert "1000" in desc  # excess runs
+        assert "2" in desc  # number of units (1000 // 500)
 
 
 # ---------------------------------------------------------------------------

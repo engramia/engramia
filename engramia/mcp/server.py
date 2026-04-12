@@ -63,119 +63,131 @@ def _get_mem() -> Memory:
 # Tool definitions
 # ---------------------------------------------------------------------------
 
+_TOOL_LEARN = types.Tool(
+    name="engramia_learn",
+    description=(
+        "Record a successful agent run so Engramia can store it as a reusable pattern. "
+        "Stores the task, code, and eval score."
+    ),
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "task": {"type": "string", "description": "Natural language task description."},
+            "code": {"type": "string", "description": "Agent source code / solution."},
+            "eval_score": {
+                "type": "number",
+                "description": "Quality score 0-10.",
+                "minimum": 0,
+                "maximum": 10,
+            },
+            "output": {"type": "string", "description": "Captured stdout (optional)."},
+        },
+        "required": ["task", "code", "eval_score"],
+    },
+)
+
+_TOOL_RECALL = types.Tool(
+    name="engramia_recall",
+    description=("Find stored patterns most relevant to a new task using semantic search with eval-score weighting."),
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "task": {"type": "string", "description": "Task to find relevant patterns for."},
+            "limit": {
+                "type": "integer",
+                "description": "Max results (1-50).",
+                "minimum": 1,
+                "maximum": 50,
+                "default": 5,
+            },
+        },
+        "required": ["task"],
+    },
+)
+
+_TOOL_EVALUATE = types.Tool(
+    name="engramia_evaluate",
+    description=("Run N independent LLM evaluations on an agent run and return median score, variance, and feedback."),
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "task": {"type": "string"},
+            "code": {"type": "string"},
+            "output": {"type": "string", "description": "Captured stdout (optional)."},
+            "num_evals": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 3,
+            },
+        },
+        "required": ["task", "code"],
+    },
+)
+
+_TOOL_COMPOSE = types.Tool(
+    name="engramia_compose",
+    description=(
+        "[Experimental] Decompose a high-level task into a validated multi-agent pipeline. "
+        "Each stage is matched against stored patterns."
+    ),
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "task": {"type": "string", "description": "High-level task to decompose."},
+        },
+        "required": ["task"],
+    },
+)
+
+_TOOL_FEEDBACK = types.Tool(
+    name="engramia_feedback",
+    description="Return top recurring quality issues suitable for injection into agent prompts.",
+    inputSchema={
+        "type": "object",
+        "properties": {
+            "task_type": {
+                "type": "string",
+                "description": "Filter by task type prefix (optional).",
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20,
+                "default": 4,
+            },
+        },
+    },
+)
+
+_TOOL_METRICS = types.Tool(
+    name="engramia_metrics",
+    description="Return aggregate Engramia statistics: runs, success rate, pattern count, reuse rate.",
+    inputSchema={"type": "object", "properties": {}},
+)
+
+_TOOL_AGING = types.Tool(
+    name="engramia_aging",
+    description=(
+        "Apply time-based decay to all stored patterns (2%/week) and prune those below the minimum threshold."
+    ),
+    inputSchema={"type": "object", "properties": {}},
+)
+
+_ALL_TOOLS: list[types.Tool] = [
+    _TOOL_LEARN,
+    _TOOL_RECALL,
+    _TOOL_EVALUATE,
+    _TOOL_COMPOSE,
+    _TOOL_FEEDBACK,
+    _TOOL_METRICS,
+    _TOOL_AGING,
+]
+
 
 @server.list_tools()
 async def list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="engramia_learn",
-            description=(
-                "Record a successful agent run so Engramia can store it as a reusable pattern. "
-                "Stores the task, code, and eval score."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "task": {"type": "string", "description": "Natural language task description."},
-                    "code": {"type": "string", "description": "Agent source code / solution."},
-                    "eval_score": {
-                        "type": "number",
-                        "description": "Quality score 0-10.",
-                        "minimum": 0,
-                        "maximum": 10,
-                    },
-                    "output": {"type": "string", "description": "Captured stdout (optional)."},
-                },
-                "required": ["task", "code", "eval_score"],
-            },
-        ),
-        types.Tool(
-            name="engramia_recall",
-            description=(
-                "Find stored patterns most relevant to a new task using semantic search with eval-score weighting."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "task": {"type": "string", "description": "Task to find relevant patterns for."},
-                    "limit": {
-                        "type": "integer",
-                        "description": "Max results (1-50).",
-                        "minimum": 1,
-                        "maximum": 50,
-                        "default": 5,
-                    },
-                },
-                "required": ["task"],
-            },
-        ),
-        types.Tool(
-            name="engramia_evaluate",
-            description=(
-                "Run N independent LLM evaluations on an agent run and return median score, variance, and feedback."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "task": {"type": "string"},
-                    "code": {"type": "string"},
-                    "output": {"type": "string", "description": "Captured stdout (optional)."},
-                    "num_evals": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 10,
-                        "default": 3,
-                    },
-                },
-                "required": ["task", "code"],
-            },
-        ),
-        types.Tool(
-            name="engramia_compose",
-            description=(
-                "[Experimental] Decompose a high-level task into a validated multi-agent pipeline. "
-                "Each stage is matched against stored patterns."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "task": {"type": "string", "description": "High-level task to decompose."},
-                },
-                "required": ["task"],
-            },
-        ),
-        types.Tool(
-            name="engramia_feedback",
-            description=("Return top recurring quality issues suitable for injection into agent prompts."),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "task_type": {
-                        "type": "string",
-                        "description": "Filter by task type prefix (optional).",
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 20,
-                        "default": 4,
-                    },
-                },
-            },
-        ),
-        types.Tool(
-            name="engramia_metrics",
-            description="Return aggregate Engramia statistics: runs, success rate, pattern count, reuse rate.",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-        types.Tool(
-            name="engramia_aging",
-            description=(
-                "Apply time-based decay to all stored patterns (2%/week) and prune those below the minimum threshold."
-            ),
-            inputSchema={"type": "object", "properties": {}},
-        ),
-    ]
+    return _ALL_TOOLS
 
 
 # ---------------------------------------------------------------------------

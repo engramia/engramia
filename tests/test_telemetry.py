@@ -2,14 +2,12 @@
 # Copyright (c) 2026 Marek Čermák
 """Tests for engramia/telemetry — Phase 5.5."""
 
-import time
 import uuid
 
 import pytest
 from starlette.testclient import TestClient
 
 from engramia.telemetry.context import get_request_id, reset_request_id, set_request_id
-
 
 # ---------------------------------------------------------------------------
 # telemetry/context

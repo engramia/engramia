@@ -11,7 +11,7 @@ Run:
 import asyncio
 
 from engramia import Memory
-from engramia.providers import OpenAIEmbeddings, OpenAIProvider, JSONStorage
+from engramia.providers import JSONStorage, OpenAIEmbeddings, OpenAIProvider
 from engramia.sdk.anthropic_agents import engramia_query
 
 # 1. Setup Memory

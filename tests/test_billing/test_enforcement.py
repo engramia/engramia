@@ -16,11 +16,8 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-import datetime
-
 from engramia.billing.enforcement import LimitEnforcer, _next_period_start
 from engramia.billing.models import BillingSubscription, OverageSettings
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -89,16 +86,12 @@ class TestCheckEvalRuns:
 
     def test_overage_disabled_at_limit_raises(self):
         with pytest.raises(HTTPException) as exc_info:
-            _enforcer(500).check_eval_runs(
-                "t1", _sub(eval_runs_limit=500), _overage(enabled=False)
-            )
+            _enforcer(500).check_eval_runs("t1", _sub(eval_runs_limit=500), _overage(enabled=False))
         assert exc_info.value.status_code == 429
 
     def test_overage_enabled_no_cap_allows_over_limit(self):
         # Overage enabled, no budget cap → always allow
-        _enforcer(600).check_eval_runs(
-            "t1", _sub(eval_runs_limit=500), _overage(enabled=True, budget_cap_cents=None)
-        )
+        _enforcer(600).check_eval_runs("t1", _sub(eval_runs_limit=500), _overage(enabled=True, budget_cap_cents=None))
 
     def test_overage_within_budget_cap_allows(self):
         # count=550, limit=500 → excess=50 → excess_units = 50//500 = 0
@@ -171,9 +164,7 @@ class TestCheckPatterns:
 
     def test_at_limit_raises_429(self):
         with pytest.raises(HTTPException) as exc_info:
-            self._enf.check_patterns(
-                5_000, _sub(eval_runs_limit=None, patterns_limit=5_000)
-            )
+            self._enf.check_patterns(5_000, _sub(eval_runs_limit=None, patterns_limit=5_000))
         assert exc_info.value.status_code == 429
         detail = exc_info.value.detail
         assert detail["error"] == "quota_exceeded"
@@ -183,21 +174,15 @@ class TestCheckPatterns:
 
     def test_over_limit_raises_429(self):
         with pytest.raises(HTTPException) as exc_info:
-            self._enf.check_patterns(
-                6_000, _sub(eval_runs_limit=None, patterns_limit=5_000)
-            )
+            self._enf.check_patterns(6_000, _sub(eval_runs_limit=None, patterns_limit=5_000))
         assert exc_info.value.status_code == 429
 
     def test_unlimited_no_raise(self):
-        self._enf.check_patterns(
-            9_999_999, _sub(eval_runs_limit=None, patterns_limit=None)
-        )
+        self._enf.check_patterns(9_999_999, _sub(eval_runs_limit=None, patterns_limit=None))
 
     def test_error_detail_contains_reset_date(self):
         with pytest.raises(HTTPException) as exc_info:
-            self._enf.check_patterns(
-                5_001, _sub(eval_runs_limit=None, patterns_limit=5_000)
-            )
+            self._enf.check_patterns(5_001, _sub(eval_runs_limit=None, patterns_limit=5_000))
         assert "reset_date" in exc_info.value.detail
 
 

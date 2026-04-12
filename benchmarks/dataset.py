@@ -10,14 +10,13 @@ The dataset mirrors the Agent Factory V2 workload distribution:
 Each domain has 5 task variants (semantically similar, lexically diverse, Jaccard < 0.7)
 and 3 code quality tiers (good / medium / bad).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any
 
 from engramia._util import jaccard
-
 
 # ---------------------------------------------------------------------------
 # Domain definitions — 12 realistic agent use-case clusters
@@ -130,7 +129,11 @@ BOUNDARY_TASKS: list[tuple[str, str, str]] = [
     ("Write integration tests for the Terraform-provisioned infrastructure using localstack", "A03", "A07"),
     ("Refactor the search endpoint caching layer and document the new cache invalidation API", "A04", "A10"),
     ("Debug why the registration endpoint rate limiter triggers false positives behind a load balancer", "A02", "A09"),
-    ("Create a data pipeline that extracts API documentation from code annotations and generates OpenAPI", "A05", "A10"),
+    (
+        "Create a data pipeline that extracts API documentation from code annotations and generates OpenAPI",
+        "A05",
+        "A10",
+    ),
     ("Write a migration to add performance monitoring tables for tracking endpoint latency metrics", "A08", "A11"),
     ("Implement a code generation tool that scaffolds CRUD endpoints from database schema definitions", "A01", "A08"),
     ("Build infrastructure for running the ETL pipeline on a scheduled cron with monitoring alerts", "A07", "A05"),
@@ -205,6 +208,7 @@ def get_snippets(domain_id: str) -> dict[str, dict]:
 # Dataset entries
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class TaskEntry:
     """Single benchmark task with ground truth label."""
@@ -232,12 +236,14 @@ def build_dataset() -> list[TaskEntry]:
     # --- In-domain: 5 variants per domain = 60 base tasks ---
     for domain_id, variants in DOMAINS.items():
         for variant in variants:
-            entries.append(TaskEntry(
-                task=variant,
-                domain_id=domain_id,
-                category="in_domain",
-                expected_domains=(domain_id,),
-            ))
+            entries.append(
+                TaskEntry(
+                    task=variant,
+                    domain_id=domain_id,
+                    category="in_domain",
+                    expected_domains=(domain_id,),
+                )
+            )
 
     # --- In-domain paraphrases: expand to ~210 total ---
     # Generate by prepending context prefixes to existing variants
@@ -259,33 +265,39 @@ def build_dataset() -> list[TaskEntry]:
             for i in range(min(3, target_paraphrases - paraphrase_count)):
                 prefix = _PREFIXES[(prefix_idx * 3 + i) % len(_PREFIXES)]
                 paraphrased = prefix + variant[0].lower() + variant[1:]
-                entries.append(TaskEntry(
-                    task=paraphrased,
-                    domain_id=domain_id,
-                    category="in_domain",
-                    expected_domains=(domain_id,),
-                ))
+                entries.append(
+                    TaskEntry(
+                        task=paraphrased,
+                        domain_id=domain_id,
+                        category="in_domain",
+                        expected_domains=(domain_id,),
+                    )
+                )
                 paraphrase_count += 1
             if paraphrase_count >= target_paraphrases:
                 break
 
     # --- Boundary tasks: 30 cross-domain ---
     for task, domain_a, domain_b in BOUNDARY_TASKS:
-        entries.append(TaskEntry(
-            task=task,
-            domain_id="boundary",
-            category="boundary",
-            expected_domains=(domain_a, domain_b),
-        ))
+        entries.append(
+            TaskEntry(
+                task=task,
+                domain_id="boundary",
+                category="boundary",
+                expected_domains=(domain_a, domain_b),
+            )
+        )
 
     # --- Noise tasks: 14 ---
     for task in NOISE_TASKS:
-        entries.append(TaskEntry(
-            task=task,
-            domain_id="noise",
-            category="noise",
-            expected_domains=(),
-        ))
+        entries.append(
+            TaskEntry(
+                task=task,
+                domain_id="noise",
+                category="noise",
+                expected_domains=(),
+            )
+        )
 
     return entries
 
@@ -293,6 +305,7 @@ def build_dataset() -> list[TaskEntry]:
 # ---------------------------------------------------------------------------
 # Training set builder
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class TrainingPattern:
@@ -326,14 +339,16 @@ def build_training_set(patterns_per_domain: int = 3) -> list[TrainingPattern]:
             # (held-out variants 3,4 are for testing)
             tier_idx = tiers.index(tier)
             task_variant = variants[tier_idx]  # variant 0=good, 1=medium, 2=bad
-            training.append(TrainingPattern(
-                task=task_variant,
-                code=snippet["code"],
-                eval_score=snippet["eval_score"],
-                output=snippet.get("output", ""),
-                domain_id=domain_id,
-                quality_tier=tier,
-            ))
+            training.append(
+                TrainingPattern(
+                    task=task_variant,
+                    code=snippet["code"],
+                    eval_score=snippet["eval_score"],
+                    output=snippet.get("output", ""),
+                    domain_id=domain_id,
+                    quality_tier=tier,
+                )
+            )
 
     return training
 
@@ -341,6 +356,7 @@ def build_training_set(patterns_per_domain: int = 3) -> list[TrainingPattern]:
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
+
 
 def validate_dataset() -> list[str]:
     """Validate dataset integrity. Returns list of warnings (empty = OK)."""
@@ -355,8 +371,7 @@ def validate_dataset() -> list[str]:
                 sim = jaccard(a, b)
                 if sim >= 0.7:
                     warnings.append(
-                        f"{domain_id} variants {i}<->{j}: Jaccard={sim:.3f} >= 0.7 "
-                        f"('{a[:40]}...' / '{b[:40]}...')"
+                        f"{domain_id} variants {i}<->{j}: Jaccard={sim:.3f} >= 0.7 ('{a[:40]}...' / '{b[:40]}...')"
                     )
 
     # Check dataset size

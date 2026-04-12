@@ -28,7 +28,7 @@ import logging
 import os
 import threading
 import time
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -47,7 +47,7 @@ class MaintenanceModeMiddleware(BaseHTTPMiddleware):
 
     _HEALTH_PATHS: ClassVar[set[str]] = {"/v1/health", "/v1/health/deep"}
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
         if (
             os.environ.get("ENGRAMIA_MAINTENANCE", "").lower() in ("1", "true", "yes")
             and request.url.path not in self._HEALTH_PATHS
@@ -67,7 +67,7 @@ class MaintenanceModeMiddleware(BaseHTTPMiddleware):
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add defensive security headers to every response."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -108,7 +108,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: Any,
         default_limit: int = 60,
         expensive_limit: int = 10,
         key_limit: int = 120,
@@ -124,9 +124,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # M-06: Warn when multiple workers are detected — in-memory counters are
         # not shared across processes, so the effective limit is workers x limit.
-        _workers = int(
-            os.environ.get("WEB_CONCURRENCY", os.environ.get("UVICORN_WORKERS", "1"))
-        )
+        _workers = int(os.environ.get("WEB_CONCURRENCY", os.environ.get("UVICORN_WORKERS", "1")))
         if _workers > 1:
             _log.warning(
                 "SECURITY: RateLimitMiddleware uses in-memory storage with %d workers. "
@@ -149,7 +147,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         cutoff = int(time.time() / 60) - 1
         self._counts = {k: v for k, v in self._counts.items() if k[2] >= cutoff}
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
         ip = request.client.host if request.client else "unknown"
         path = request.url.path
         window = int(time.time() / 60)
@@ -232,11 +230,11 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
 
     _DEFAULT_MAX = 1 * 1024 * 1024  # 1 MB
 
-    def __init__(self, app, max_body_size: int = _DEFAULT_MAX) -> None:
+    def __init__(self, app: Any, max_body_size: int = _DEFAULT_MAX) -> None:
         super().__init__(app)
         self._max = max_body_size
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
         cl = request.headers.get("Content-Length")
         if cl:
             try:

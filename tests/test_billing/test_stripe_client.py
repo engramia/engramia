@@ -14,7 +14,6 @@ import pytest
 
 from engramia.billing.stripe_client import StripeClient
 
-
 pytestmark = pytest.mark.integration
 
 
@@ -31,6 +30,7 @@ class TestSdk:
             if name == "stripe":
                 raise ImportError("No module named 'stripe'")
             import builtins
+
             return builtins.__import__(name, *args, **kwargs)
 
         client._stripe = None  # force re-init

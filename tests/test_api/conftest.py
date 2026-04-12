@@ -9,6 +9,7 @@ Provides:
                                        test so analytics dependency_overrides don't
                                        bleed across test boundaries
 """
+
 import json
 from unittest.mock import MagicMock
 

@@ -51,7 +51,7 @@ async def fetch_all(
 MEDIUM: dict = {
     "eval_score": 5.5,
     "output": "Fetched all URLs.",
-    "code": '''\
+    "code": """\
 import asyncio
 import urllib.request
 
@@ -63,13 +63,13 @@ async def fetch_all(urls):
             return resp.read()
 
     return await asyncio.gather(*[fetch(u) for u in urls])
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.0,
     "output": "",
-    "code": '''\
+    "code": """\
 import threading
 import urllib.request
 
@@ -87,5 +87,5 @@ def fetch_all(urls):
     for t in threads:
         t.join()
     return results
-''',
+""",
 }

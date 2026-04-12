@@ -11,6 +11,7 @@ The ``local_embeddings`` mark is applied automatically via
 
     pytest -m "not local_embeddings"
 """
+
 from __future__ import annotations
 
 import os

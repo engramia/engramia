@@ -8,6 +8,7 @@ Context length (total chars of matched code) should be non-decreasing.
 Note: NOT strictly monotonic — deduplication may suppress a new pattern
 if it's too similar to an existing higher-scored one.
 """
+
 from __future__ import annotations
 
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
@@ -47,9 +48,7 @@ def test_context_grows_with_more_patterns(
 
             # Recall with a stable query (variant 0 semantics)
             query = f"[{run_tag}] wc-query {tasks[0]}"
-            matches = client.recall(
-                task=query, limit=5, deduplicate=False, eval_weighted=False
-            )
+            matches = client.recall(task=query, limit=5, deduplicate=False, eval_weighted=False)
             context_lens.append(_context_len(matches))
 
         assert len(context_lens) >= 2, "Need at least 2 rounds to check growth"
@@ -60,16 +59,11 @@ def test_context_grows_with_more_patterns(
             for i in range(len(context_lens) - 1)
             if context_lens[i + 1] < context_lens[i]
         ]
-        assert not violations, (
-            f"Context length decreased in rounds: {violations}\n"
-            f"Full trajectory: {context_lens}"
-        )
+        assert not violations, f"Context length decreased in rounds: {violations}\nFull trajectory: {context_lens}"
 
         # At least one growth event expected over 5 rounds
         assert context_lens[-1] > 0, "Context never grew — no patterns were recalled"
-        assert max(context_lens) > min(context_lens), (
-            f"Context never increased over {_ROUNDS} rounds: {context_lens}"
-        )
+        assert max(context_lens) > min(context_lens), f"Context never increased over {_ROUNDS} rounds: {context_lens}"
 
     finally:
         for key in set(learned_keys):

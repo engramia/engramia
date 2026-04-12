@@ -8,12 +8,8 @@ Uses the in-memory fallback (engine=None) so no database is needed.
 from __future__ import annotations
 
 import datetime
-from unittest.mock import patch
-
-import pytest
 
 from engramia.governance.dsr import DSRRequest, DSRTracker
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -23,6 +19,7 @@ from engramia.governance.dsr import DSRRequest, DSRTracker
 def _tracker() -> DSRTracker:
     """Fresh DSRTracker with isolated in-memory store per test."""
     import engramia.governance.dsr as dsr_module
+
     dsr_module._mem_store.clear()
     return DSRTracker(engine=None)
 
@@ -44,6 +41,7 @@ class TestCreate:
 
     def test_id_is_uuid(self):
         import uuid
+
         tracker = _tracker()
         req = tracker.create("t1", "access", "a@b.com")
         uuid.UUID(req.id)  # raises if not valid UUID
@@ -213,6 +211,7 @@ class TestOverdue:
         req2 = tracker.create("t1", "erasure", "b@b.com")
         # Make req1 overdue
         import engramia.governance.dsr as dsr_module
+
         dsr_module._mem_store[req1.id].due_at = (
             datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=1)
         ).isoformat()
@@ -240,6 +239,7 @@ class TestOverdue:
         # Set due_at to 3 days in the future (within DEADLINE_WARN_DAYS=7)
         soon = (datetime.datetime.now(tz=datetime.UTC) + datetime.timedelta(days=3)).isoformat()
         import engramia.governance.dsr as dsr_module
+
         dsr_module._mem_store[req.id].due_at = soon
         result = tracker.list_requests("t1")
         assert len(result) == 1
@@ -273,6 +273,7 @@ class TestPendingCount:
         tracker = _tracker()
         req = tracker.create("t1", "access", "a@b.com")
         import engramia.governance.dsr as dsr_module
+
         dsr_module._mem_store[req.id].due_at = (
             datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=1)
         ).isoformat()

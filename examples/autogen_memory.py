@@ -14,7 +14,7 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 from engramia import Memory
-from engramia.providers import OpenAIEmbeddings, OpenAIProvider, JSONStorage
+from engramia.providers import JSONStorage, OpenAIEmbeddings, OpenAIProvider
 from engramia.sdk.autogen import EngramiaMemory, learn_from_result
 
 # 1. Setup Memory

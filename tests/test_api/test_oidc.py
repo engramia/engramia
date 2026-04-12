@@ -65,8 +65,10 @@ class TestOidcAuthUnit:
         claims = _claims(engramia_tenant="default")
 
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
-                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"}),
+            patch.dict(
+                os.environ,
+                {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com", "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"},
+            ),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
@@ -114,8 +116,10 @@ class TestOidcAuthUnit:
         claims = _claims(engramia_role="superuser", engramia_tenant="default")
 
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
-                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"}),
+            patch.dict(
+                os.environ,
+                {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com", "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"},
+            ),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
@@ -133,8 +137,10 @@ class TestOidcAuthUnit:
         claims["engramia_tenant"] = "default"
 
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
-                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"}),
+            patch.dict(
+                os.environ,
+                {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com", "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"},
+            ),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
@@ -187,11 +193,15 @@ class TestOidcAuthUnit:
         req = _mock_request()
 
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
-                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"}),
+            patch.dict(
+                os.environ,
+                {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com", "ENGRAMIA_OIDC_TENANT_CLAIM": "engramia_tenant"},
+            ),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_TENANT_CLAIM", "engramia_tenant"),
-            patch.object(oidc_module, "_decode_jwt", side_effect=HTTPException(status_code=401, detail="Token expired.")),
+            patch.object(
+                oidc_module, "_decode_jwt", side_effect=HTTPException(status_code=401, detail="Token expired.")
+            ),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 oidc_auth(req, "expired.jwt.token")
@@ -229,6 +239,7 @@ class TestDecodeJwtUnit:
     def test_pyjwt_not_installed_raises_runtime_error(self):
         """ImportError for pyjwt → RuntimeError with install hint."""
         import builtins
+
         real_import = builtins.__import__
 
         def _block_jwt(name, *args, **kwargs):
@@ -276,8 +287,9 @@ def _sign_jwt(private_pem: bytes, claims: dict, kid: str = "test-key-1") -> str:
 
 def _jwk_from_public_pem(public_pem: bytes, kid: str = "test-key-1") -> dict:
     """Build a minimal JWK dict from a PEM public key (for cache injection)."""
+    import base64
+
     from cryptography.hazmat.primitives.serialization import load_pem_public_key
-    import base64, struct
 
     pub = load_pem_public_key(public_pem)
     pub_numbers = pub.public_key().public_numbers() if hasattr(pub, "public_key") else pub.public_numbers()
@@ -286,13 +298,21 @@ def _jwk_from_public_pem(public_pem: bytes, kid: str = "test-key-1") -> dict:
         byte_length = (n.bit_length() + 7) // 8
         return base64.urlsafe_b64encode(n.to_bytes(byte_length, "big")).rstrip(b"=").decode()
 
-    return {"kty": "RSA", "kid": kid, "alg": "RS256", "use": "sig", "n": _b64url(pub_numbers.n), "e": _b64url(pub_numbers.e)}
+    return {
+        "kty": "RSA",
+        "kid": kid,
+        "alg": "RS256",
+        "use": "sig",
+        "n": _b64url(pub_numbers.n),
+        "e": _b64url(pub_numbers.e),
+    }
 
 
 @pytest.mark.oidc_crypto
 def test_valid_signed_jwt_accepted(rsa_key_pair):
     """A JWT signed with a known RSA key is accepted and AuthContext is set."""
     import time
+
     jwt = pytest.importorskip("jwt")
 
     private_pem, public_pem = rsa_key_pair
@@ -337,6 +357,7 @@ def test_valid_signed_jwt_accepted(rsa_key_pair):
 def test_expired_jwt_raises_401(rsa_key_pair):
     """An expired JWT is rejected with 401."""
     import time
+
     jwt = pytest.importorskip("jwt")
 
     private_pem, public_pem = rsa_key_pair
@@ -367,9 +388,9 @@ def test_expired_jwt_raises_401(rsa_key_pair):
         patch.object(oidc_module, "_jwks_cache", {kid: jwk}),
         patch.object(oidc_module, "_jwks_fetched_at", float("inf")),
         patch.object(oidc_module, "set_scope"),
+        pytest.raises(HTTPException) as exc_info,
     ):
-        with pytest.raises(HTTPException) as exc_info:
-            oidc_auth(req, token)
+        oidc_auth(req, token)
 
     assert exc_info.value.status_code == 401
 
@@ -378,6 +399,7 @@ def test_expired_jwt_raises_401(rsa_key_pair):
 def test_unknown_kid_raises_401(rsa_key_pair):
     """JWT signed with a key whose kid is not in the JWKS cache → 401."""
     import time
+
     jwt = pytest.importorskip("jwt")
 
     private_pem, _ = rsa_key_pair
@@ -429,6 +451,7 @@ class TestJwksHelpers:
 
     def test_fetch_jwks_raw_network_error_raises_runtime(self):
         import urllib.error
+
         with (
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")),
@@ -448,6 +471,7 @@ class TestJwksHelpers:
 
     def test_refresh_jwks_skips_when_fresh(self):
         import time
+
         with (
             patch.object(oidc_module, "_fetch_jwks_raw") as mock_fetch,
             patch.object(oidc_module, "_jwks_cache", {"k1": {}}),
@@ -511,9 +535,9 @@ class TestDecodeJwtAlgorithmAllowlist:
         with (
             patch.dict("sys.modules", {"jwt": fake_jwt, "jwt.algorithms": fake_alg_module}),
             patch.object(oidc_module, "_get_jwk", return_value=None),
+            pytest.raises(HTTPException) as exc_info,
         ):
-            with pytest.raises(HTTPException) as exc_info:
-                oidc_module._decode_jwt("rs256.token")
+            oidc_module._decode_jwt("rs256.token")
         assert exc_info.value.status_code == 401
         assert "signing key" in exc_info.value.detail.lower()
 
@@ -537,8 +561,9 @@ class TestOidcAuthTenantProjectClaims:
         req = _mock_request()
         claims = _claims()  # no 'org' claim
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
-                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "org"}),
+            patch.dict(
+                os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com", "ENGRAMIA_OIDC_TENANT_CLAIM": "org"}
+            ),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_TENANT_CLAIM", "org"),
             patch.object(oidc_module, "_decode_jwt", return_value=claims),
@@ -553,8 +578,9 @@ class TestOidcAuthTenantProjectClaims:
         req = _mock_request()
         claims = _claims(org="acme")  # has tenant claim, no project claim
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
-                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "org"}),
+            patch.dict(
+                os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com", "ENGRAMIA_OIDC_TENANT_CLAIM": "org"}
+            ),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_TENANT_CLAIM", "org"),
             patch.object(oidc_module, "_PROJECT_CLAIM", "proj"),
@@ -581,8 +607,9 @@ class TestOidcAuthTenantProjectClaims:
         req = _mock_request()
         claims = _claims(proj="backend", org="acme")  # has both tenant and project claims
         with (
-            patch.dict(os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com",
-                                    "ENGRAMIA_OIDC_TENANT_CLAIM": "org"}),
+            patch.dict(
+                os.environ, {"ENGRAMIA_OIDC_ISSUER": "https://idp.example.com", "ENGRAMIA_OIDC_TENANT_CLAIM": "org"}
+            ),
             patch.object(oidc_module, "_ISSUER", "https://idp.example.com"),
             patch.object(oidc_module, "_TENANT_CLAIM", "org"),
             patch.object(oidc_module, "_PROJECT_CLAIM", "proj"),

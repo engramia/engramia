@@ -82,9 +82,7 @@ def _table_names(engine) -> set[str]:
     from sqlalchemy import text
 
     with engine.connect() as conn:
-        rows = conn.execute(
-            text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
-        ).fetchall()
+        rows = conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")).fetchall()
     return {row[0] for row in rows}
 
 
@@ -189,9 +187,7 @@ class TestMigrationForwardBackward:
         engine = _get_engine(pg_url)
         try:
             with engine.connect() as conn:
-                row = conn.execute(
-                    text("SELECT version_num FROM alembic_version")
-                ).fetchone()
+                row = conn.execute(text("SELECT version_num FROM alembic_version")).fetchone()
             version = row[0] if row else None
         finally:
             engine.dispose()
@@ -221,17 +217,16 @@ class TestMigrationForwardBackward:
                 )
 
             # Second INSERT with same tenant_id must violate the UNIQUE constraint
-            with engine.begin() as conn:
-                with pytest.raises(IntegrityError):
-                    conn.execute(
-                        text(
-                            "INSERT INTO billing_subscriptions "
-                            "(id, tenant_id, plan_tier, billing_interval, status, "
-                            " eval_runs_limit, patterns_limit, projects_limit) "
-                            "VALUES ('mig-test-2', 'tenant-unique-test', "
-                            "'pro', 'month', 'active', 3000, 50000, 3)"
-                        )
+            with engine.begin() as conn, pytest.raises(IntegrityError):
+                conn.execute(
+                    text(
+                        "INSERT INTO billing_subscriptions "
+                        "(id, tenant_id, plan_tier, billing_interval, status, "
+                        " eval_runs_limit, patterns_limit, projects_limit) "
+                        "VALUES ('mig-test-2', 'tenant-unique-test', "
+                        "'pro', 'month', 'active', 3000, 50000, 3)"
                     )
+                )
         finally:
             engine.dispose()
 
@@ -251,12 +246,7 @@ class TestTransactionIsolation:
         engine = _get_engine(pg_url)
         try:
             with engine.begin() as setup:
-                setup.execute(
-                    text(
-                        "CREATE TABLE IF NOT EXISTS _txn_isolation_test "
-                        "(id TEXT PRIMARY KEY, val TEXT)"
-                    )
-                )
+                setup.execute(text("CREATE TABLE IF NOT EXISTS _txn_isolation_test (id TEXT PRIMARY KEY, val TEXT)"))
 
             row_id = "uncommitted-row"
             with engine.begin() as conn_a:
@@ -293,12 +283,7 @@ class TestTransactionIsolation:
         row_id = "committed-row"
         try:
             with engine.begin() as setup:
-                setup.execute(
-                    text(
-                        "CREATE TABLE IF NOT EXISTS _txn_commit_test "
-                        "(id TEXT PRIMARY KEY, val TEXT)"
-                    )
-                )
+                setup.execute(text("CREATE TABLE IF NOT EXISTS _txn_commit_test (id TEXT PRIMARY KEY, val TEXT)"))
 
             with engine.begin() as conn:
                 conn.execute(
@@ -327,12 +312,7 @@ class TestTransactionIsolation:
         row_id = "stable-row"
         try:
             with engine.begin() as setup:
-                setup.execute(
-                    text(
-                        "CREATE TABLE IF NOT EXISTS _txn_rollback_test "
-                        "(id TEXT PRIMARY KEY, val TEXT)"
-                    )
-                )
+                setup.execute(text("CREATE TABLE IF NOT EXISTS _txn_rollback_test (id TEXT PRIMARY KEY, val TEXT)"))
                 setup.execute(
                     text("INSERT INTO _txn_rollback_test (id, val) VALUES (:id, 'original')"),
                     {"id": row_id},

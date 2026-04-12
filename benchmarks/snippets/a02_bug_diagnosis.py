@@ -79,24 +79,24 @@ def fix_payment_webhook_handler(app):
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "Fixed the 422 by adding a check for missing currency.",
-    "code": '''\
+    "code": """\
 def fix_webhook(payload):
     if "currency" not in payload:
         payload["currency"] = payload.get("payment_intent", {}).get("currency", "USD")
     if "amount" not in payload:
         payload["amount"] = payload.get("payment_intent", {}).get("amount", 0)
     return payload
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.8,
     "output": "added try except",
-    "code": '''\
+    "code": """\
 def handle_webhook(data):
     try:
         process_payment(data["currency"], data["amount"])
     except:
         pass  # ignore errors for now
-''',
+""",
 }

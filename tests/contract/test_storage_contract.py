@@ -121,8 +121,8 @@ class TestEmbeddingContract:
 
     def _unit_vec(self, seed: int) -> list[float]:
         """Generate a deterministic unit vector."""
-        import hashlib
         import numpy as np
+
         rng = np.random.RandomState(seed)
         vec = rng.randn(self.DIM).astype(np.float32)
         return (vec / np.linalg.norm(vec)).tolist()

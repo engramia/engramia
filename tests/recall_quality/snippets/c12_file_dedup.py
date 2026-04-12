@@ -59,7 +59,7 @@ def deduplicate_directory(
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "Deleted 87 duplicates.",
-    "code": '''\
+    "code": """\
 import hashlib
 import os
 
@@ -77,13 +77,13 @@ def dedup(directory):
             else:
                 seen[digest] = full
     return deleted
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.0,
     "output": "",
-    "code": '''\
+    "code": """\
 import os
 
 def remove_duplicates(folder):
@@ -98,5 +98,5 @@ def remove_duplicates(folder):
             if open(files[i], "rb").read() == open(files[j], "rb").read():
                 os.remove(files[j])
                 # BUG: modifies list while iterating (index shifts)
-''',
+""",
 }

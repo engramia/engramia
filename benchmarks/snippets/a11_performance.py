@@ -136,7 +136,7 @@ async def search_products(
 MEDIUM: dict = {
     "eval_score": 5.8,
     "output": "Added eager loading to search query.",
-    "code": '''\
+    "code": """\
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
@@ -150,13 +150,13 @@ async def search_products(db, query, limit=20):
     result = await db.execute(stmt)
     return [{"id": p.id, "name": p.name, "category": p.category.name}
             for p in result.scalars().all()]
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.8,
     "output": "search works",
-    "code": '''\
+    "code": """\
 async def search(db, q):
     products = db.query(Product).filter(Product.name.like(f"%{q}%")).all()
     results = []
@@ -164,5 +164,5 @@ async def search(db, q):
         cat = db.query(Category).get(p.category_id)  # N+1 query
         results.append({"name": p.name, "category": cat.name})
     return results
-''',
+""",
 }

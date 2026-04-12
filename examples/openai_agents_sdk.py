@@ -13,7 +13,7 @@ import asyncio
 from agents import Agent, Runner
 
 from engramia import Memory
-from engramia.providers import OpenAIEmbeddings, OpenAIProvider, JSONStorage
+from engramia.providers import JSONStorage, OpenAIEmbeddings, OpenAIProvider
 from engramia.sdk.openai_agents import EngramiaRunHooks, engramia_instructions
 
 # 1. Setup Memory
@@ -31,6 +31,7 @@ agent = Agent(
         base="You are a senior Python developer. Write clean, tested code.",
     ),
 )
+
 
 # 3. Run with auto-learn hooks
 async def main():

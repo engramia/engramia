@@ -5,6 +5,7 @@
 For each cluster: learn variants A-D, recall with variant E (held-out).
 Assert top-1 similarity >= calibrated intra_threshold.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -47,9 +48,7 @@ def test_intra_cluster_recall_precision(
         query = f"[{run_tag}] {tasks[4]}"
         matches = client.recall(task=query, limit=4, deduplicate=False, eval_weighted=False)
 
-        assert matches, (
-            f"Cluster {cluster_id}: recall returned no matches for query: '{tasks[4][:60]}'"
-        )
+        assert matches, f"Cluster {cluster_id}: recall returned no matches for query: '{tasks[4][:60]}'"
 
         top_sim = matches[0]["similarity"]
         threshold = thresholds.get("intra_threshold", 0.55)

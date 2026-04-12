@@ -58,7 +58,7 @@ def get_with_retry(
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "Response received.",
-    "code": '''\
+    "code": """\
 import time
 import urllib.request
 import urllib.error
@@ -73,18 +73,18 @@ def fetch_with_retry(url, max_retries=3):
                 raise
             time.sleep(1)
     return None
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.0,
     "output": "",
-    "code": '''\
+    "code": """\
 import requests
 
 def get_url(url):
     # BAD: no timeout, no retry, requests not in stdlib
     response = requests.get(url)
     return response.text
-''',
+""",
 }

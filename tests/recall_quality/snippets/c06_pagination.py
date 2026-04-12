@@ -54,7 +54,7 @@ def paginated_fetch(
 MEDIUM: dict = {
     "eval_score": 5.5,
     "output": "Fetched all pages.",
-    "code": '''\
+    "code": """\
 import json
 import urllib.request
 
@@ -70,13 +70,13 @@ def fetch_all_pages(url):
         if not cursor:
             break
     return all_items
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "",
-    "code": '''\
+    "code": """\
 import json
 import urllib.request
 
@@ -89,5 +89,5 @@ def fetch_page(url, cursor=None, results=None):
     results.extend(data["items"])
     # BUG: will raise KeyError if "next_cursor" not present
     return fetch_page(url, data["next_cursor"], results)
-''',
+""",
 }

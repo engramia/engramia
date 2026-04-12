@@ -206,46 +206,13 @@ def _recover_orphaned_jobs(engine) -> None:
         _log.warning("Crash recovery query failed (non-fatal): %s", exc)
 
 
-def create_app() -> FastAPI:
-    """Create and configure the FastAPI application.
+def _register_middleware(app: FastAPI) -> None:
+    """Register all security and telemetry middleware.
 
-    Called once at startup. The Memory singleton is stored on ``app.state.memory``
-    and the auth engine (when DB auth is configured) on ``app.state.auth_engine``.
-
-    All core routes are mounted under ``/v1``.
-    Key management routes are mounted under ``/v1/keys``.
+    Order matters: middleware is applied LIFO (last added = outermost).
+    Stack (outermost → innermost):
+      CORS → RequestID → Timing → SecurityHeaders → BodySize → RateLimit → routes
     """
-    # ------------------------------------------------------------------
-    # Telemetry (Phase 5.5) — must be first so logging is structured
-    # from the very first line of startup output.
-    # ------------------------------------------------------------------
-    from engramia.telemetry import setup_telemetry
-
-    setup_telemetry()
-
-    # Swagger UI and OpenAPI schema are only exposed in dev/staging environments.
-    # In production (default when ENGRAMIA_ENV is unset), these endpoints return 404
-    # to reduce attack surface and avoid leaking API schema to the public internet.
-    _is_dev = os.getenv("ENGRAMIA_ENV", "prod").lower() in ("dev", "development", "local", "staging")
-
-    app = FastAPI(
-        title="Engramia API",
-        description=(
-            "Reusable execution memory and evaluation infrastructure for AI agent frameworks. "
-            "Provides learn, recall, evaluate, compose, and feedback endpoints."
-        ),
-        version=__version__,
-        docs_url="/docs" if _is_dev else None,
-        redoc_url="/redoc" if _is_dev else None,
-        openapi_url="/openapi.json" if _is_dev else None,
-    )
-
-    # ------------------------------------------------------------------
-    # Security middleware
-    # Order matters: middleware is applied LIFO (last added = outermost).
-    # Stack (outermost → innermost):
-    #   CORS → RequestID → Timing → SecurityHeaders → BodySize → RateLimit → routes
-    # ------------------------------------------------------------------
     from engramia.api.middleware import (
         BodySizeLimitMiddleware,
         MaintenanceModeMiddleware,
@@ -283,15 +250,15 @@ def create_app() -> FastAPI:
         key_limit=rate_per_key,
     )
 
-    # ------------------------------------------------------------------
-    # Error handlers — structured error responses
-    #
-    # All API errors return a JSON body conforming to ErrorResponse:
-    #   error_code    — machine-readable string enum (e.g. "UNAUTHORIZED")
-    #   detail        — human-readable description
-    #   error_context — optional dict with structured context (limits, etc.)
-    # ------------------------------------------------------------------
 
+def _register_exception_handlers(app: FastAPI) -> None:
+    """Register structured error response handlers for all domain exceptions.
+
+    All API errors return a JSON body conforming to ErrorResponse:
+      error_code    — machine-readable string enum (e.g. "UNAUTHORIZED")
+      detail        — human-readable description
+      error_context — optional dict with structured context (limits, etc.)
+    """
     _QUOTA_INNER_ERRORS = frozenset(
         {
             "quota_exceeded",
@@ -352,11 +319,6 @@ def create_app() -> FastAPI:
             content={"error_code": ErrorCode.VALIDATION_ERROR, "detail": "Validation error in request."},
         )
 
-    # ------------------------------------------------------------------
-    # EngramiaError subclass handlers — catch domain exceptions that
-    # escape route handlers and map them to structured HTTP responses.
-    # ------------------------------------------------------------------
-
     @app.exception_handler(ProviderError)
     async def provider_error_handler(request: Request, exc: ProviderError) -> JSONResponse:
         _log.warning("ProviderError in request %s %s: %s", request.method, request.url.path, exc)
@@ -399,6 +361,138 @@ def create_app() -> FastAPI:
             status_code=500,
             content={"error_code": ErrorCode.INTERNAL_ERROR, "detail": "An internal error occurred."},
         )
+
+
+def _register_routers(app: FastAPI, storage) -> None:
+    """Mount all API routers and static files onto the app."""
+    # Cloud auth routes (no /v1 prefix — web registration flow)
+    app.include_router(cloud_auth_router, prefix="/auth", tags=["Cloud Auth"])
+
+    # API v1 routes
+    app.include_router(meta_router, prefix="/v1")
+    app.include_router(router, prefix="/v1")
+    app.include_router(keys_router, prefix="/v1")
+    app.include_router(jobs_router, prefix="/v1")
+    app.include_router(governance_router, prefix="/v1")
+    app.include_router(analytics_router, prefix="/v1")
+    app.include_router(billing_router, prefix="/v1")
+
+    # ------------------------------------------------------------------
+    # Prometheus /metrics endpoint (opt-in via ENGRAMIA_METRICS=true)
+    # Exposes Python process metrics + custom Engramia Gauges:
+    #   engramia_pattern_count, engramia_avg_eval_score,
+    #   engramia_total_runs, engramia_success_rate, engramia_reuse_rate
+    # ------------------------------------------------------------------
+    if os.environ.get("ENGRAMIA_METRICS", "false").lower() == "true":
+        try:
+            from engramia.api.prom_metrics import build_metrics_app
+
+            metrics_app = build_metrics_app(app.state.memory)
+
+            # Wrap the metrics ASGI app with a lightweight token guard.
+            # Set ENGRAMIA_METRICS_TOKEN to require a Bearer token on /metrics.
+            # Without a token configured, /metrics is only safe behind a private
+            # network or Caddy access rule.
+            _metrics_token = os.environ.get("ENGRAMIA_METRICS_TOKEN", "").strip()
+
+            if _metrics_token:
+                import hmac as _hmac
+
+                from starlette.responses import Response as _StarletteResponse
+
+                _expected = _metrics_token.encode()
+
+                async def _guarded_metrics(scope, receive, send):
+                    if scope["type"] == "http":
+                        headers = dict(scope.get("headers", []))
+                        auth = headers.get(b"authorization", b"").decode()
+                        token = auth[len("Bearer ") :] if auth.startswith("Bearer ") else ""
+                        if not _hmac.compare_digest(token.encode(), _expected):
+                            resp = _StarletteResponse(
+                                "Unauthorized",
+                                status_code=401,
+                                media_type="text/plain",
+                            )
+                            await resp(scope, receive, send)
+                            return
+                    await metrics_app(scope, receive, send)
+
+                app.mount("/metrics", _guarded_metrics)
+                _log.info("Prometheus /metrics endpoint enabled (token-protected).")
+            else:
+                _log.warning(
+                    "SECURITY: Prometheus /metrics is enabled but ENGRAMIA_METRICS_TOKEN is not set. "
+                    "All /metrics requests will return 403. Set ENGRAMIA_METRICS_TOKEN to enable access."
+                )
+
+                from starlette.responses import Response as _StarletteResponse
+
+                async def _blocked_metrics(scope, receive, send):
+                    if scope["type"] == "http":
+                        resp = _StarletteResponse(
+                            "Forbidden: ENGRAMIA_METRICS_TOKEN is not configured.",
+                            status_code=403,
+                            media_type="text/plain",
+                        )
+                        await resp(scope, receive, send)
+                        return
+                    await metrics_app(scope, receive, send)
+
+                app.mount("/metrics", _blocked_metrics)
+        except ImportError:
+            _log.warning("prometheus_client not installed — /metrics not mounted.")
+
+    # Dashboard static files (Phase 5.3)
+    from pathlib import Path
+
+    from fastapi.staticfiles import StaticFiles
+
+    dashboard_dir = Path(__file__).parent.parent.parent / "dashboard" / "out"
+    if dashboard_dir.exists():
+        app.mount(
+            "/dashboard",
+            StaticFiles(directory=str(dashboard_dir), html=True),
+            name="dashboard",
+        )
+        _log.info("Dashboard mounted from %s", dashboard_dir)
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application.
+
+    Called once at startup. The Memory singleton is stored on ``app.state.memory``
+    and the auth engine (when DB auth is configured) on ``app.state.auth_engine``.
+
+    All core routes are mounted under ``/v1``.
+    Key management routes are mounted under ``/v1/keys``.
+    """
+    # ------------------------------------------------------------------
+    # Telemetry (Phase 5.5) — must be first so logging is structured
+    # from the very first line of startup output.
+    # ------------------------------------------------------------------
+    from engramia.telemetry import setup_telemetry
+
+    setup_telemetry()
+
+    # Swagger UI and OpenAPI schema are only exposed in dev/staging environments.
+    # In production (default when ENGRAMIA_ENV is unset), these endpoints return 404
+    # to reduce attack surface and avoid leaking API schema to the public internet.
+    _is_dev = os.getenv("ENGRAMIA_ENV", "prod").lower() in ("dev", "development", "local", "staging")
+
+    app = FastAPI(
+        title="Engramia API",
+        description=(
+            "Reusable execution memory and evaluation infrastructure for AI agent frameworks. "
+            "Provides learn, recall, evaluate, compose, and feedback endpoints."
+        ),
+        version=__version__,
+        docs_url="/docs" if _is_dev else None,
+        redoc_url="/redoc" if _is_dev else None,
+        openapi_url="/openapi.json" if _is_dev else None,
+    )
+
+    _register_middleware(app)
+    _register_exception_handlers(app)
 
     # ------------------------------------------------------------------
     # Memory instance
@@ -468,71 +562,6 @@ def create_app() -> FastAPI:
         worker.stop()
 
     # ------------------------------------------------------------------
-    # Prometheus /metrics endpoint (opt-in via ENGRAMIA_METRICS=true)
-    # Exposes Python process metrics + custom Engramia Gauges:
-    #   engramia_pattern_count, engramia_avg_eval_score,
-    #   engramia_total_runs, engramia_success_rate, engramia_reuse_rate
-    # ------------------------------------------------------------------
-    if os.environ.get("ENGRAMIA_METRICS", "false").lower() == "true":
-        try:
-            from engramia.api.prom_metrics import build_metrics_app
-
-            metrics_app = build_metrics_app(app.state.memory)
-
-            # Wrap the metrics ASGI app with a lightweight token guard.
-            # Set ENGRAMIA_METRICS_TOKEN to require a Bearer token on /metrics.
-            # Without a token configured, /metrics is only safe behind a private
-            # network or Caddy access rule.
-            _metrics_token = os.environ.get("ENGRAMIA_METRICS_TOKEN", "").strip()
-
-            if _metrics_token:
-                import hmac as _hmac
-
-                from starlette.responses import Response as _StarletteResponse
-
-                _expected = _metrics_token.encode()
-
-                async def _guarded_metrics(scope, receive, send):
-                    if scope["type"] == "http":
-                        headers = dict(scope.get("headers", []))
-                        auth = headers.get(b"authorization", b"").decode()
-                        token = auth[len("Bearer ") :] if auth.startswith("Bearer ") else ""
-                        if not _hmac.compare_digest(token.encode(), _expected):
-                            resp = _StarletteResponse(
-                                "Unauthorized",
-                                status_code=401,
-                                media_type="text/plain",
-                            )
-                            await resp(scope, receive, send)
-                            return
-                    await metrics_app(scope, receive, send)
-
-                app.mount("/metrics", _guarded_metrics)
-                _log.info("Prometheus /metrics endpoint enabled (token-protected).")
-            else:
-                _log.warning(
-                    "SECURITY: Prometheus /metrics is enabled but ENGRAMIA_METRICS_TOKEN is not set. "
-                    "All /metrics requests will return 403. Set ENGRAMIA_METRICS_TOKEN to enable access."
-                )
-
-                from starlette.responses import Response as _StarletteResponse
-
-                async def _blocked_metrics(scope, receive, send):
-                    if scope["type"] == "http":
-                        resp = _StarletteResponse(
-                            "Forbidden: ENGRAMIA_METRICS_TOKEN is not configured.",
-                            status_code=403,
-                            media_type="text/plain",
-                        )
-                        await resp(scope, receive, send)
-                        return
-                    await metrics_app(scope, receive, send)
-
-                app.mount("/metrics", _blocked_metrics)
-        except ImportError:
-            _log.warning("prometheus_client not installed — /metrics not mounted.")
-
-    # ------------------------------------------------------------------
     # Billing service (Phase 6) — no-op when DB engine is not available
     # ------------------------------------------------------------------
     from engramia.billing import BillingService
@@ -544,37 +573,7 @@ def create_app() -> FastAPI:
     else:
         _log.info("Billing service in no-op mode (no DB engine — dev/JSON storage).")
 
-    # ------------------------------------------------------------------
-    # Cloud auth routes (no /v1 prefix — web registration flow)
-    # ------------------------------------------------------------------
-    app.include_router(cloud_auth_router, prefix="/auth", tags=["Cloud Auth"])
-
-    # ------------------------------------------------------------------
-    # API v1 routes
-    # ------------------------------------------------------------------
-    app.include_router(meta_router, prefix="/v1")
-    app.include_router(router, prefix="/v1")
-    app.include_router(keys_router, prefix="/v1")
-    app.include_router(jobs_router, prefix="/v1")
-    app.include_router(governance_router, prefix="/v1")
-    app.include_router(analytics_router, prefix="/v1")
-    app.include_router(billing_router, prefix="/v1")
-
-    # ------------------------------------------------------------------
-    # Dashboard static files (Phase 5.3)
-    # ------------------------------------------------------------------
-    from pathlib import Path
-
-    from fastapi.staticfiles import StaticFiles
-
-    dashboard_dir = Path(__file__).parent.parent.parent / "dashboard" / "out"
-    if dashboard_dir.exists():
-        app.mount(
-            "/dashboard",
-            StaticFiles(directory=str(dashboard_dir), html=True),
-            name="dashboard",
-        )
-        _log.info("Dashboard mounted from %s", dashboard_dir)
+    _register_routers(app, storage)
 
     # ------------------------------------------------------------------
     # Startup security diagnostics

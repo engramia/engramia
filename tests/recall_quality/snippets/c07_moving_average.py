@@ -48,7 +48,7 @@ def moving_average(
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "[4.0, 5.0, 6.0, 7.0]",
-    "code": '''\
+    "code": """\
 from collections import deque
 
 def moving_avg(values, window=7):
@@ -59,13 +59,13 @@ def moving_avg(values, window=7):
         if len(buf) == window:
             result.append(sum(buf) / window)
     return result
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.0,
     "output": "",
-    "code": '''\
+    "code": """\
 def moving_avg(values, window=7):
     result = []
     for i in range(len(values) - window + 1):
@@ -76,5 +76,5 @@ def moving_avg(values, window=7):
         result.append(total / window)
     # BUG: returns shorter list with no NaN padding — length mismatch
     return result
-''',
+""",
 }

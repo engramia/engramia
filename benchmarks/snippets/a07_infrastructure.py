@@ -8,7 +8,7 @@ Domain: Terraform modules, Docker configs, cloud infrastructure definitions.
 GOOD: dict = {
     "eval_score": 8.9,
     "output": "Terraform module for ECS Fargate with ALB, auto-scaling, CloudWatch alarms, and security groups.",
-    "code": '''\
+    "code": """\
 # main.tf — ECS Fargate service module
 
 resource "aws_ecs_cluster" "main" {
@@ -107,13 +107,13 @@ resource "aws_appautoscaling_policy" "cpu" {
     scale_out_cooldown = 60
   }
 }
-''',
+""",
 }
 
 MEDIUM: dict = {
     "eval_score": 5.5,
     "output": "ECS service defined in Terraform.",
-    "code": '''\
+    "code": """\
 resource "aws_ecs_cluster" "main" {
   name = "my-cluster"
 }
@@ -130,13 +130,13 @@ resource "aws_ecs_service" "app" {
     security_groups = [var.sg_id]
   }
 }
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.8,
     "output": "terraform draft",
-    "code": '''\
+    "code": """\
 resource "aws_ecs_cluster" "cluster" {
   name = "cluster"
 }
@@ -144,5 +144,5 @@ resource "aws_ecs_cluster" "cluster" {
 # TODO: add task definition
 # TODO: add service
 # TODO: add load balancer
-''',
+""",
 }

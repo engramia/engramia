@@ -9,7 +9,7 @@ Run:
 """
 
 from engramia import Memory
-from engramia.providers import OpenAIEmbeddings, OpenAIProvider, JSONStorage
+from engramia.providers import JSONStorage, OpenAIEmbeddings, OpenAIProvider
 from engramia.sdk.pydantic_ai import EngramiaCapability
 
 # 1. Setup Memory
@@ -23,7 +23,7 @@ mem = Memory(
 from pydantic_ai import Agent
 
 agent = Agent(
-    'openai:gpt-4o',
+    "openai:gpt-4o",
     system_prompt="You are a senior Python developer.",
     capabilities=[EngramiaCapability(mem, recall_limit=3)],
 )

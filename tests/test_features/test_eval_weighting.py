@@ -9,6 +9,7 @@ With eval_weighted=False, order is determined by raw cosine similarity alone.
 The eval multiplier maps: score 9 → 0.95, score 3 → 0.65.
 So if raw cosines are equal, weighted recall will promote the higher-scored one.
 """
+
 from __future__ import annotations
 
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
@@ -53,13 +54,9 @@ def test_eval_weighted_ranking(
                 learned_keys.append(k)
 
         query = f"[{run_tag}] ew-query {tasks[0]}"
-        matches_weighted = client.recall(
-            task=query, limit=5, deduplicate=False, eval_weighted=True
-        )
+        matches_weighted = client.recall(task=query, limit=5, deduplicate=False, eval_weighted=True)
 
-        assert len(matches_weighted) >= 2, (
-            "Expected at least 2 matches for eval weighting test"
-        )
+        assert len(matches_weighted) >= 2, "Expected at least 2 matches for eval weighting test"
 
         # Find the high-score and low-score patterns in results
         high_rank = next(
@@ -73,8 +70,7 @@ def test_eval_weighted_ranking(
 
         if high_rank is not None and low_rank is not None:
             assert high_rank < low_rank, (
-                f"eval_weighted=True: high-score pattern rank {high_rank} "
-                f"should be < low-score rank {low_rank}"
+                f"eval_weighted=True: high-score pattern rank {high_rank} should be < low-score rank {low_rank}"
             )
 
     finally:
@@ -104,9 +100,7 @@ def test_eval_unweighted_does_not_penalise_low_score(
                 learned_keys.append(k)
 
         query = f"[{run_tag}] ew2-query {tasks[2]}"
-        matches_unweighted = client.recall(
-            task=query, limit=5, deduplicate=False, eval_weighted=False
-        )
+        matches_unweighted = client.recall(task=query, limit=5, deduplicate=False, eval_weighted=False)
 
         # Just assert we can get results without error — order depends on raw similarity
         assert isinstance(matches_unweighted, list), "Unweighted recall did not return a list"

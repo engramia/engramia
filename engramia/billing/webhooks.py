@@ -11,6 +11,7 @@ require authentication via ``require_auth``.
 """
 
 import logging
+from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
@@ -79,7 +80,7 @@ async def stripe_webhook(
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_auth)],
 )
-def billing_status(request: Request):
+def billing_status(request: Request) -> Any:
     """Return current plan, usage counters and limits for the authenticated tenant.
 
     Returns a minimal sandbox response when billing is not configured.
@@ -122,7 +123,7 @@ def billing_status(request: Request):
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_auth)],
 )
-async def create_checkout(request: Request):
+async def create_checkout(request: Request) -> Any:
     """Create a Stripe Checkout Session and return the redirect URL.
 
     Expects JSON body: ``{"price_id": "price_...", "success_url": "...", "cancel_url": "..."}``.
@@ -172,7 +173,7 @@ async def create_checkout(request: Request):
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_auth)],
 )
-def customer_portal(request: Request, return_url: str = ""):
+def customer_portal(request: Request, return_url: str = "") -> Any:
     """Return a Stripe Customer Portal URL for the authenticated tenant."""
     auth_context = getattr(request.state, "auth_context", None)
     if auth_context is None:
@@ -209,7 +210,7 @@ def customer_portal(request: Request, return_url: str = ""):
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_auth)],
 )
-async def set_overage(request: Request):
+async def set_overage(request: Request) -> Any:
     """Enable or disable eval_runs overage and optionally set a budget cap.
 
     Expects JSON body: ``{"enabled": true, "budget_cap_cents": 5000}``

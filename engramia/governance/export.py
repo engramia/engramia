@@ -17,6 +17,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from sqlalchemy import text
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -112,8 +114,6 @@ class DataExporter:
 
         scope = get_scope()
         try:
-            from sqlalchemy import text
-
             query = (
                 "SELECT key, classification, redacted, source, run_id "
                 "FROM memory_data "

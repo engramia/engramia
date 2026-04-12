@@ -29,9 +29,14 @@ pytestmark = pytest.mark.integration
 
 class TestLearnIntegration:
     def test_learn_returns_200_with_stored_true(self, app_client):
-        resp = app_client.post("/v1/learn", json={
-            "task": "Parse CSV file", "code": "import csv", "eval_score": 8.5,
-        })
+        resp = app_client.post(
+            "/v1/learn",
+            json={
+                "task": "Parse CSV file",
+                "code": "import csv",
+                "eval_score": 8.5,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["stored"] is True
@@ -39,9 +44,14 @@ class TestLearnIntegration:
 
     def test_learn_pattern_is_recallable(self, app_client):
         """Side-effect verification: learn stores, recall finds."""
-        app_client.post("/v1/learn", json={
-            "task": "Parse CSV file", "code": "import csv", "eval_score": 8.5,
-        })
+        app_client.post(
+            "/v1/learn",
+            json={
+                "task": "Parse CSV file",
+                "code": "import csv",
+                "eval_score": 8.5,
+            },
+        )
         resp = app_client.post("/v1/recall", json={"task": "Parse CSV file"})
         assert resp.status_code == 200
         assert len(resp.json()["matches"]) >= 1
@@ -52,15 +62,25 @@ class TestLearnIntegration:
         assert resp.json()["pattern_count"] >= 2
 
     def test_learn_invalid_score_returns_422(self, app_client):
-        resp = app_client.post("/v1/learn", json={
-            "task": "T", "code": "c", "eval_score": 11.0,
-        })
+        resp = app_client.post(
+            "/v1/learn",
+            json={
+                "task": "T",
+                "code": "c",
+                "eval_score": 11.0,
+            },
+        )
         assert resp.status_code == 422
 
     def test_learn_empty_task_returns_422(self, app_client):
-        resp = app_client.post("/v1/learn", json={
-            "task": "", "code": "c", "eval_score": 7.0,
-        })
+        resp = app_client.post(
+            "/v1/learn",
+            json={
+                "task": "",
+                "code": "c",
+                "eval_score": 7.0,
+            },
+        )
         assert resp.status_code == 422
         # Error sanitized — no internal details leaked
         assert "non-empty" not in resp.json().get("detail", "")
@@ -78,9 +98,14 @@ class TestRecallIntegration:
         assert resp.json()["matches"] == []
 
     def test_recall_returns_match_with_expected_fields(self, app_client):
-        app_client.post("/v1/learn", json={
-            "task": "Sort a list", "code": "sorted(lst)", "eval_score": 9.0,
-        })
+        app_client.post(
+            "/v1/learn",
+            json={
+                "task": "Sort a list",
+                "code": "sorted(lst)",
+                "eval_score": 9.0,
+            },
+        )
         resp = app_client.post("/v1/recall", json={"task": "Sort a list"})
         assert resp.status_code == 200
         matches = resp.json()["matches"]
@@ -106,9 +131,14 @@ class TestMetricsIntegration:
         assert "success_rate" in data
 
     def test_metrics_increments_after_learn(self, app_client):
-        app_client.post("/v1/learn", json={
-            "task": "T", "code": "c", "eval_score": 7.0,
-        })
+        app_client.post(
+            "/v1/learn",
+            json={
+                "task": "T",
+                "code": "c",
+                "eval_score": 7.0,
+            },
+        )
         resp = app_client.get("/v1/metrics")
         data = resp.json()
         assert data["pattern_count"] >= 1
@@ -139,9 +169,14 @@ class TestHealthIntegration:
 
 class TestDeletePatternIntegration:
     def test_delete_existing_pattern(self, app_client):
-        app_client.post("/v1/learn", json={
-            "task": "Delete me", "code": "x = 1", "eval_score": 7.0,
-        })
+        app_client.post(
+            "/v1/learn",
+            json={
+                "task": "Delete me",
+                "code": "x = 1",
+                "eval_score": 7.0,
+            },
+        )
         recall = app_client.post("/v1/recall", json={"task": "Delete me"})
         key = recall.json()["matches"][0]["pattern_key"]
 

@@ -129,10 +129,7 @@ class TestConcurrentListKeys:
                 errors.append(exc)
 
         with ThreadPoolExecutor(max_workers=20) as pool:
-            futures = (
-                [pool.submit(writer, i) for i in range(50)]
-                + [pool.submit(reader) for _ in range(20)]
-            )
+            futures = [pool.submit(writer, i) for i in range(50)] + [pool.submit(reader) for _ in range(20)]
             for f in as_completed(futures):
                 f.result()
 
@@ -219,10 +216,7 @@ class TestHighConcurrencyStress:
                 errors.append(exc)
 
         with ThreadPoolExecutor(max_workers=n_workers) as pool:
-            futures = (
-                [pool.submit(writer, i) for i in range(n_write)]
-                + [pool.submit(reader) for _ in range(n_read)]
-            )
+            futures = [pool.submit(writer, i) for i in range(n_write)] + [pool.submit(reader) for _ in range(n_read)]
             for f in as_completed(futures):
                 f.result()
 

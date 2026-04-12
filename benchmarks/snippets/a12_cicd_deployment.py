@@ -8,7 +8,7 @@ Domain: GitHub Actions workflows, Docker builds, staging deploy, release automat
 GOOD: dict = {
     "eval_score": 9.0,
     "output": "GitHub Actions workflow: lint → test → build Docker → deploy to staging. Matrix strategy, caching, OIDC auth.",
-    "code": '''\
+    "code": """\
 # .github/workflows/ci-deploy.yml
 name: CI/CD Pipeline
 
@@ -106,13 +106,13 @@ jobs:
             --cluster staging \\
             --services myapp-staging \\
             --timeout 300
-''',
+""",
 }
 
 MEDIUM: dict = {
     "eval_score": 5.5,
     "output": "CI workflow with test and build steps.",
-    "code": '''\
+    "code": """\
 # .github/workflows/ci.yml
 name: CI
 on: [push, pull_request]
@@ -133,13 +133,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t myapp .
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "workflow file",
-    "code": '''\
+    "code": """\
 # ci.yml
 name: CI
 on: push
@@ -152,5 +152,5 @@ jobs:
       - run: python -m pytest
       # TODO: add docker build
       # TODO: add deploy step
-''',
+""",
 }
