@@ -163,6 +163,8 @@ def serve(
         host=host,
         port=port,
         reload=reload,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
     )
 
 
