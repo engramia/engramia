@@ -23,9 +23,6 @@ _log = logging.getLogger(__name__)
 
 _OPENAI_INSTALL_MSG = "OpenAI providers require the openai package. Install it with: pip install engramia[openai]"
 
-#: Errors that should not be retried (client-side mistakes).
-_NO_RETRY_STATUS = {400, 401, 403}
-
 
 class OpenAIProvider(LLMProvider):
     """LLM provider backed by OpenAI Chat Completions.

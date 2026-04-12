@@ -23,7 +23,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
     "License :: Other/Proprietary License",
-    "License :: Free for non-commercial use"
 ]
 dependencies = [
     "pydantic>=2.0",
@@ -84,6 +83,8 @@ dev = [
     "ruff>=0.9",
     "mypy>=1.14",
     "testcontainers[postgres]>=4.0",
+    # Transitive deps pinned for CVE remediation (CVE-2026-4539).
+    "pygments>=2.20.0",
 ]
 all = [
     "engramia[openai,anthropic,local,postgres,api,cli,langchain,crewai,mcp,telemetry,cloud-auth]",

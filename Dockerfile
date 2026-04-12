@@ -47,7 +47,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 
 # Create a non-root user — never run services as root
 RUN addgroup --gid 1001 --system engramia \
-    && adduser --disabled-password --gecos "" --uid 1001 --ingroup engramia engramia
+    && adduser --disabled-password --gecos "" --uid 1001 --ingroup engramia \
+       --shell /usr/sbin/nologin engramia
 
 # Copy installed packages from builder — resolve Python minor version dynamically
 RUN PY_SITELIB=$(python -c "import sysconfig; print(sysconfig.get_path('purelib'))") \

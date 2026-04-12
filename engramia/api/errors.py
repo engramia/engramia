@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
 """Structured error codes for API responses (F-05).
 
 All API error responses include an ``error_code`` field taken from this

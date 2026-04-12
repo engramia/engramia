@@ -49,6 +49,10 @@ _JWT_SECRET_LOCK = threading.Lock()
 _ACCESS_TOKEN_EXPIRE_SECONDS = 3600  # 1 hour
 _REFRESH_TOKEN_EXPIRE_SECONDS = 30 * 86400  # 30 days
 
+#: Default project pattern cap for self-serve registrations.
+#: Mirrors the default on ``projects.max_patterns`` column (migration 008).
+_DEFAULT_PROJECT_PATTERN_LIMIT = 10_000
+
 
 def _get_jwt_secret() -> str:
     global _JWT_SECRET
@@ -330,9 +334,9 @@ def _create_registration(
         conn.execute(
             text(
                 "INSERT INTO projects (id, tenant_id, name, max_patterns, created_at) "
-                "VALUES (:id, :tid, 'default', 10000, now()::text)"
+                "VALUES (:id, :tid, 'default', :max_patterns, now()::text)"
             ),
-            {"id": project_id, "tid": tenant_id},
+            {"id": project_id, "tid": tenant_id, "max_patterns": _DEFAULT_PROJECT_PATTERN_LIMIT},
         )
         conn.execute(
             text(

@@ -73,6 +73,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
         response.headers["Referrer-Policy"] = "no-referrer"
+        # API-only service — no web content — minimize CSP surface.
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        response.headers["Permissions-Policy"] = "interest-cohort=()"
+        # HSTS: enforce HTTPS for 2 years once a client has seen this header.
+        # Defense-in-depth — Caddy may also set this at the edge.
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         return response
 
 

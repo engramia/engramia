@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.6.6] — 2026-04-05
+## [Unreleased] — targeting 0.6.6
 
 ### Added — Cloud Auth, Backup/DR, Status Page, GDPR & GTM (Phase 6.0)
 

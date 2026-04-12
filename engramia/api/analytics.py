@@ -173,9 +173,11 @@ def get_events(
         tenant_id=scope.tenant_id,
         project_id=scope.project_id,
     )
-    # Return newest-first, capped at limit
+    # `total` is the untruncated count of matching events, so clients can
+    # page reliably. `events` is the newest-first slice capped at `limit`.
+    total = len(events)
     events = list(reversed(events))[:limit]
     return ROIEventsResponse(
         events=[ROIEventOut(**e.model_dump()) for e in events],
-        total=len(events),
+        total=total,
     )

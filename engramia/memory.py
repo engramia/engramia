@@ -581,14 +581,6 @@ class Memory:
         except Exception as exc:
             _log.debug("_check_embedding_config skipped: %s", exc)
 
-    def _require_embeddings(self, method: str) -> None:
-        if self._embeddings is None:
-            raise ProviderError(
-                f"Memory.{method}() requires an embedding provider. "
-                "Install 'engramia[openai]' and set ENGRAMIA_EMBEDDING_MODEL, "
-                "or pass embeddings=... to Memory()."
-            )
-
     def _require_llm(self, method: str) -> None:
         if self._llm is None:
             raise ProviderError(

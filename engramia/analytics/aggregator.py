@@ -9,6 +9,7 @@ API reads are O(1) lookups rather than full-scan aggregations.
 """
 
 import logging
+import math
 import statistics
 import time
 from datetime import UTC, datetime
@@ -195,8 +196,10 @@ def _compute_rollup(
         avg_eval = round(sum(scores) / len(scores), 4)
         sorted_s = sorted(scores)
         p50 = round(statistics.median(sorted_s), 4)
-        idx_90 = max(0, int((len(sorted_s) - 1) * 0.9))
-        p90 = round(sorted_s[idx_90], 4)
+        # Nearest-rank (ceil) method: rank = ceil(p * n), then index = rank - 1.
+        # Correct for small samples — e.g. n=2 returns index 1 (larger value), not 0.
+        rank_90 = max(1, math.ceil(0.9 * len(sorted_s)))
+        p90 = round(sorted_s[rank_90 - 1], 4)
     else:
         avg_eval = p50 = p90 = 0.0
 

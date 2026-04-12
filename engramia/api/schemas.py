@@ -6,9 +6,12 @@ Separate from internal types (engramia/types.py) to allow the API
 surface to evolve independently from the Engramia data models.
 """
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
+
+#: Reusable shape for single skill-tag strings — keeps API payloads bounded.
+_SkillTag = Annotated[str, Field(max_length=200)]
 
 # ---------------------------------------------------------------------------
 # POST /learn
@@ -251,7 +254,7 @@ class AnalyzeFailuresResponse(BaseModel):
 
 class RegisterSkillsRequest(BaseModel):
     pattern_key: str = Field(max_length=200, description="Storage key of the pattern to tag.")
-    skills: list[str] = Field(max_length=50, description="Skill tags to associate (e.g. ['csv_parsing']).")
+    skills: list[_SkillTag] = Field(max_length=50, description="Skill tags to associate (e.g. ['csv_parsing']).")
 
 
 class RegisterSkillsResponse(BaseModel):
@@ -264,7 +267,7 @@ class RegisterSkillsResponse(BaseModel):
 
 
 class SkillsSearchRequest(BaseModel):
-    required: list[str] = Field(max_length=50, description="Skill tags to search for.")
+    required: list[_SkillTag] = Field(max_length=50, description="Skill tags to search for.")
     match_all: bool = Field(default=True, description="If True, pattern must have ALL skills.")
 
 

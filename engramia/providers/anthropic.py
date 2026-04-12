@@ -24,10 +24,6 @@ _ANTHROPIC_INSTALL_MSG = (
     "Anthropic provider requires the anthropic package. Install it with: pip install engramia[anthropic]"
 )
 
-#: Errors that should not be retried (client-side mistakes).
-_NO_RETRY_STATUS = {400, 401, 403}
-
-
 class AnthropicProvider(LLMProvider):
     """LLM provider backed by the Anthropic Messages API.
 
