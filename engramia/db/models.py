@@ -20,8 +20,19 @@ search via pgvector's ``<=>`` cosine distance operator.
 """
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, SmallInteger, Text, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    SmallInteger,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -234,6 +245,10 @@ class Job(Base):
     started_at: Mapped[str | None] = mapped_column(Text, nullable=True)
     completed_at: Mapped[str | None] = mapped_column(Text, nullable=True)
     expires_at: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Phase 6.0 (migration 014): optional hard cap on execution time (seconds).
+    # When set, the worker actively cancels the job rather than waiting for the
+    # passive TTL reaper.
+    max_execution_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 jobs_poll_index = Index(
@@ -278,6 +293,10 @@ class BillingSubscription(Base):
     current_period_end: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
     updated_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
+    # Migration 012: timestamp of first payment failure in a dunning cycle.
+    # NULL while the subscription is in good standing; set when status
+    # transitions to past_due; cleared on invoice.paid recovery.
+    past_due_since: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class UsageCounter(Base):
@@ -355,3 +374,58 @@ dsr_tenant_index = Index(
     DataSubjectRequest.status,
     DataSubjectRequest.created_at,
 )
+
+
+# ---------------------------------------------------------------------------
+# Billing webhook idempotency (migration 011)
+# ---------------------------------------------------------------------------
+
+
+class ProcessedWebhookEvent(Base):
+    """Records Stripe event IDs that have been successfully processed.
+
+    Stripe guarantees at-least-once delivery, so the same event can arrive
+    multiple times. The webhook handler consults this table and skips events
+    it has already processed, preventing double-charging on overage invoice
+    items. Stripe event IDs are globally unique strings (e.g. ``evt_1AbcDef``),
+    so using them directly as the primary key makes the idempotency check a
+    single indexed lookup.
+    """
+
+    __tablename__ = "processed_webhook_events"
+
+    stripe_event_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    processed_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Cloud auth — web registration + OAuth (migration 013)
+# ---------------------------------------------------------------------------
+
+
+class CloudUser(Base):
+    """User account for the hosted Engramia cloud (email + OAuth registration).
+
+    Each user owns exactly one tenant, created automatically at registration.
+    ``password_hash`` is bcrypt for credentials users and NULL for OAuth-only
+    users. ``provider`` is one of ``credentials`` / ``google`` / ``apple``.
+    """
+
+    __tablename__ = "cloud_users"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, server_default=func.gen_random_uuid())
+    email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tenant_id: Mapped[str] = mapped_column(Text, ForeignKey("tenants.id"), nullable=False)
+    name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider: Mapped[str] = mapped_column(Text, nullable=False, server_default="credentials")
+    provider_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    email_verified_at: Mapped[str | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[str] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_login_at: Mapped[str | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+cloud_users_email_index = Index("idx_cloud_users_email", CloudUser.email)
+cloud_users_tenant_index = Index("idx_cloud_users_tenant", CloudUser.tenant_id)

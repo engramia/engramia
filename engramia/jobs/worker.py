@@ -86,7 +86,10 @@ class JobWorker:
 
         while not self._stop_event.is_set():
             try:
-                executed = self._service.poll_and_execute(batch_size=self._max_concurrent)
+                executed = self._service.poll_and_execute(
+                    batch_size=self._max_concurrent,
+                    executor=self._executor,
+                )
                 if executed > 0:
                     _log.debug("Executed %d job(s).", executed)
 

@@ -23,6 +23,36 @@ from engramia.types import Scope
 
 _log = logging.getLogger(__name__)
 
+
+def _run_jobs(
+    executor: concurrent.futures.Executor | None,
+    execute_fn,
+    jobs: list[dict],
+) -> None:
+    """Run a batch of jobs serially (executor=None) or in parallel.
+
+    Each parallel job gets its own ``contextvars`` snapshot so that
+    ``set_scope`` / ``set_request_id`` inside ``execute_fn`` do not leak
+    across concurrent jobs sharing the same executor pool.
+    """
+    if not jobs:
+        return
+    if executor is None or len(jobs) == 1:
+        for job in jobs:
+            execute_fn(job)
+        return
+
+    futures = []
+    for job in jobs:
+        ctx = contextvars.copy_context()
+        futures.append(executor.submit(ctx.run, execute_fn, job))
+    concurrent.futures.wait(futures)
+    # Surface exceptions that bubbled past the per-job try/except.
+    for fut in futures:
+        exc = fut.exception()
+        if exc is not None:
+            _log.error("Unexpected exception escaped job execution: %s", exc)
+
 #: Default job expiry: 1 hour from creation.
 _DEFAULT_EXPIRES_SECONDS = 3600
 
@@ -207,18 +237,27 @@ class JobService:
         job["completed_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         return True
 
-    def poll_and_execute(self, batch_size: int = 1) -> int:
+    def poll_and_execute(
+        self,
+        batch_size: int = 1,
+        executor: concurrent.futures.Executor | None = None,
+    ) -> int:
         """Claim and execute pending jobs.
 
         Args:
             batch_size: Maximum number of jobs to claim in one poll.
+            executor: Optional thread/process pool for parallel execution.
+                When provided, claimed jobs are dispatched concurrently (each
+                with its own ``contextvars`` snapshot so scope/request_id do
+                not leak between jobs). When ``None``, jobs run serially in
+                the calling thread.
 
         Returns:
             Number of jobs executed.
         """
         if self._use_db:
-            return self._db_poll_and_execute(batch_size)
-        return self._mem_poll_and_execute(batch_size)
+            return self._db_poll_and_execute(batch_size, executor)
+        return self._mem_poll_and_execute(batch_size, executor)
 
     def reap_expired(self) -> int:
         """Mark expired running jobs as expired. Returns count reaped."""
@@ -240,7 +279,11 @@ class JobService:
     # In-memory implementation (JSON storage / tests)
     # ------------------------------------------------------------------
 
-    def _mem_poll_and_execute(self, batch_size: int) -> int:
+    def _mem_poll_and_execute(
+        self,
+        batch_size: int,
+        executor: concurrent.futures.Executor | None = None,
+    ) -> int:
         now_str = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         pending = [
             j
@@ -256,8 +299,8 @@ class JobService:
             job["status"] = JobStatus.RUNNING
             job["started_at"] = now_str
             job["attempts"] += 1
-            self._execute_job(job)
 
+        _run_jobs(executor, self._execute_job, claimed)
         return len(claimed)
 
     def _execute_job(self, job: dict) -> None:
@@ -420,7 +463,7 @@ class JobService:
             )
             return result.rowcount > 0
 
-    def _db_poll_and_execute(self, batch_size):
+    def _db_poll_and_execute(self, batch_size, executor=None):
         from sqlalchemy import text
 
         with self._engine.begin() as conn:
@@ -440,9 +483,8 @@ class JobService:
                 {"batch": batch_size},
             ).fetchall()
 
-        count = 0
-        for row in rows:
-            job_dict = {
+        job_dicts = [
+            {
                 "id": row[0],
                 "operation": row[1],
                 "params": row[2],
@@ -453,9 +495,10 @@ class JobService:
                 "request_id": row[7],
                 "max_execution_seconds": row[8],
             }
-            self._db_execute_one(job_dict)
-            count += 1
-        return count
+            for row in rows
+        ]
+        _run_jobs(executor, self._db_execute_one, job_dicts)
+        return len(job_dicts)
 
     def _db_execute_one(self, job_dict):
         from sqlalchemy import text
