@@ -91,9 +91,7 @@ class TestCompositionService:
         )
         eval_store = MagicMock()
         eval_store.get_eval_multiplier.return_value = 1.0
-        svc = CompositionService(
-            llm=mock_llm, storage=storage, embeddings=fake_embeddings, eval_store=eval_store
-        )
+        svc = CompositionService(llm=mock_llm, storage=storage, embeddings=fake_embeddings, eval_store=eval_store)
         pipeline = svc.compose("task with broken chain")
         assert pipeline.valid is False
         assert len(pipeline.contract_errors) > 0
@@ -112,9 +110,7 @@ class TestCompositionService:
         )
         eval_store = MagicMock()
         eval_store.get_eval_multiplier.return_value = 1.0
-        svc = CompositionService(
-            llm=mock_llm, storage=storage, embeddings=fake_embeddings, eval_store=eval_store
-        )
+        svc = CompositionService(llm=mock_llm, storage=storage, embeddings=fake_embeddings, eval_store=eval_store)
         pipeline = svc.compose("simple task")
         assert len(pipeline.stages) == 1
         assert pipeline.valid is True

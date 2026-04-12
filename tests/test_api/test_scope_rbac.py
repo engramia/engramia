@@ -363,15 +363,22 @@ class TestPermissions:
 
         # Override auth with key_id matching the author
         app.dependency_overrides[require_auth] = make_auth_dep(
-            role="editor", key_id="editor-key-1",
-            tenant_id="acme", project_id="prod",
+            role="editor",
+            key_id="editor-key-1",
+            tenant_id="acme",
+            project_id="prod",
         )
 
         client = TestClient(app)
         # Learn a pattern (will be authored by editor-key-1 via learn route)
-        resp = client.post("/v1/learn", json={
-            "task": "Editor's own pattern", "code": "pass", "eval_score": 7.0,
-        })
+        resp = client.post(
+            "/v1/learn",
+            json={
+                "task": "Editor's own pattern",
+                "code": "pass",
+                "eval_score": 7.0,
+            },
+        )
         assert resp.status_code == 200
 
         resp = client.post("/v1/recall", json={"task": "Editor's own pattern", "limit": 1})
@@ -393,21 +400,30 @@ class TestPermissions:
 
         # Learn as admin-key-1
         app.dependency_overrides[require_auth] = make_auth_dep(
-            role="admin", key_id="admin-key-1",
-            tenant_id="acme", project_id="prod",
+            role="admin",
+            key_id="admin-key-1",
+            tenant_id="acme",
+            project_id="prod",
         )
         client = TestClient(app)
-        resp = client.post("/v1/learn", json={
-            "task": "Admin's pattern", "code": "pass", "eval_score": 8.0,
-        })
+        resp = client.post(
+            "/v1/learn",
+            json={
+                "task": "Admin's pattern",
+                "code": "pass",
+                "eval_score": 8.0,
+            },
+        )
         assert resp.status_code == 200
         resp = client.post("/v1/recall", json={"task": "Admin's pattern", "limit": 1})
         key = resp.json()["matches"][0]["pattern_key"]
 
         # Switch to editor with different key_id
         app.dependency_overrides[require_auth] = make_auth_dep(
-            role="editor", key_id="editor-key-2",
-            tenant_id="acme", project_id="prod",
+            role="editor",
+            key_id="editor-key-2",
+            tenant_id="acme",
+            project_id="prod",
         )
         client = TestClient(app)
         resp = client.delete(f"/v1/patterns/{key}")

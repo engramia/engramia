@@ -14,6 +14,7 @@ Tests boundary conditions and error handling:
   9. Unicode task → learn + recall round-trip succeeds
   10. Very long task (just under 10K chars) → accepted
 """
+
 from __future__ import annotations
 
 import pytest
@@ -37,33 +38,25 @@ def _expect_error(fn, *args, **kwargs):
 
 def test_empty_task_raises(client: TestClient) -> None:
     """Empty task string must be rejected."""
-    raised = _expect_error(
-        client.learn, task="", code=_VALID_CODE, eval_score=_VALID_SCORE
-    )
+    raised = _expect_error(client.learn, task="", code=_VALID_CODE, eval_score=_VALID_SCORE)
     assert raised, "learn('') should raise ValidationError"
 
 
 def test_whitespace_task_raises(client: TestClient) -> None:
     """Whitespace-only task must be rejected."""
-    raised = _expect_error(
-        client.learn, task="   \t\n  ", code=_VALID_CODE, eval_score=_VALID_SCORE
-    )
+    raised = _expect_error(client.learn, task="   \t\n  ", code=_VALID_CODE, eval_score=_VALID_SCORE)
     assert raised, "learn(whitespace) should raise ValidationError"
 
 
 def test_eval_score_too_high_raises(client: TestClient) -> None:
     """eval_score > 10.0 must be rejected."""
-    raised = _expect_error(
-        client.learn, task=_VALID_TASK, code=_VALID_CODE, eval_score=11.0
-    )
+    raised = _expect_error(client.learn, task=_VALID_TASK, code=_VALID_CODE, eval_score=11.0)
     assert raised, "learn(eval_score=11.0) should raise ValidationError"
 
 
 def test_eval_score_negative_raises(client: TestClient) -> None:
     """eval_score < 0.0 must be rejected."""
-    raised = _expect_error(
-        client.learn, task=_VALID_TASK, code=_VALID_CODE, eval_score=-1.0
-    )
+    raised = _expect_error(client.learn, task=_VALID_TASK, code=_VALID_CODE, eval_score=-1.0)
     assert raised, "learn(eval_score=-1.0) should raise ValidationError"
 
 
@@ -73,9 +66,7 @@ def test_code_at_limit_accepted(client: TestClient, run_tag: str) -> None:
     big_code = "# " + ("x" * (500_000 - 2))  # exactly 500KB
     learned_keys: list[str] = []
     try:
-        key = learn_and_get_key(
-            client, task=task, code=big_code, eval_score=5.0
-        )
+        key = learn_and_get_key(client, task=task, code=big_code, eval_score=5.0)
         if key:
             learned_keys.append(key)
         # No assertion needed — if it raised, the test fails
@@ -87,18 +78,14 @@ def test_code_at_limit_accepted(client: TestClient, run_tag: str) -> None:
 def test_code_over_limit_raises(client: TestClient) -> None:
     """Code exceeding 500KB must be rejected."""
     over_limit_code = "x" * 500_001
-    raised = _expect_error(
-        client.learn, task=_VALID_TASK, code=over_limit_code, eval_score=5.0
-    )
+    raised = _expect_error(client.learn, task=_VALID_TASK, code=over_limit_code, eval_score=5.0)
     assert raised, "learn(code > 500KB) should raise ValidationError"
 
 
 def test_delete_nonexistent_pattern(client: TestClient) -> None:
     """Deleting a non-existent pattern key returns False without raising."""
     result = client.delete_pattern("patterns/nonexistent_key_xyz_000")
-    assert result is False, (
-        f"Expected delete_pattern() to return False for non-existent key, got {result}"
-    )
+    assert result is False, f"Expected delete_pattern() to return False for non-existent key, got {result}"
 
 
 def test_delete_twice_second_is_false(client: TestClient, run_tag: str) -> None:

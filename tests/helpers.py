@@ -6,6 +6,7 @@ Provides a unified TestClient adapter that normalises the Memory and
 EngramiaWebhook interfaces to a single API for use in quality and feature
 tests.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -114,9 +115,7 @@ class TestClient:
     def register_skills(self, pattern_key: str, skills: list[str]) -> None:
         self._b.register_skills(pattern_key, skills)
 
-    def find_by_skills(
-        self, required: list[str], match_all: bool = True
-    ) -> list[dict]:
+    def find_by_skills(self, required: list[str], match_all: bool = True) -> list[dict]:
         raw = self._b.find_by_skills(required=required, match_all=match_all)
         return [_normalise_match(m) for m in raw]
 

@@ -124,7 +124,7 @@ def generate_billing_api_spec(
 MEDIUM: dict = {
     "eval_score": 5.8,
     "output": "OpenAPI spec for billing endpoints.",
-    "code": '''\
+    "code": """\
 def get_openapi_spec():
     return {
         "openapi": "3.0.0",
@@ -139,18 +139,18 @@ def get_openapi_spec():
             },
         },
     }
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "spec draft",
-    "code": '''\
+    "code": """\
 # billing API docs
 # endpoints:
 # GET /subscriptions - list subs
 # POST /subscriptions - create sub
 # GET /invoices - list invoices
 # TODO: write actual OpenAPI yaml
-''',
+""",
 }

@@ -50,7 +50,8 @@ def _bootstrap_schema(engine) -> None:
 
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS memory_data (
                 key             TEXT        NOT NULL,
                 tenant_id       TEXT        NOT NULL DEFAULT '',
@@ -65,8 +66,10 @@ def _bootstrap_schema(engine) -> None:
                 expires_at      TEXT,
                 PRIMARY KEY (key)
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS memory_embeddings (
                 key         TEXT        NOT NULL,
                 tenant_id   TEXT        NOT NULL DEFAULT '',
@@ -74,15 +77,20 @@ def _bootstrap_schema(engine) -> None:
                 embedding   vector(4),
                 PRIMARY KEY (key)
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE INDEX IF NOT EXISTS idx_mem_data_scope
             ON memory_data (tenant_id, project_id)
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE INDEX IF NOT EXISTS idx_mem_emb_scope
             ON memory_embeddings (tenant_id, project_id)
-        """))
+        """)
+        )
 
 
 @pytest.fixture

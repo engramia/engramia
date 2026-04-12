@@ -124,9 +124,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # M-06: Warn when multiple workers are detected — in-memory counters are
         # not shared across processes, so the effective limit is workers x limit.
-        _workers = int(
-            os.environ.get("WEB_CONCURRENCY", os.environ.get("UVICORN_WORKERS", "1"))
-        )
+        _workers = int(os.environ.get("WEB_CONCURRENCY", os.environ.get("UVICORN_WORKERS", "1")))
         if _workers > 1:
             _log.warning(
                 "SECURITY: RateLimitMiddleware uses in-memory storage with %d workers. "

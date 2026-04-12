@@ -104,7 +104,7 @@ class StripeIntegration:
 MEDIUM: dict = {
     "eval_score": 5.8,
     "output": "Stripe charge working.",
-    "code": '''\
+    "code": """\
 import httpx
 
 class StripeClient:
@@ -119,13 +119,13 @@ class StripeClient:
                 headers={"Authorization": f"Bearer {self.api_key}"},
             )
             return resp.json()
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "stripe call",
-    "code": '''\
+    "code": """\
 import requests
 
 def charge_stripe(amount, token):
@@ -133,5 +133,5 @@ def charge_stripe(amount, token):
                        data={"amount": amount, "source": token},
                        auth=("sk_live_xxx", ""))
     return r.json()
-''',
+""",
 }

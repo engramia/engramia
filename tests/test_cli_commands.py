@@ -81,6 +81,7 @@ class TestStatus:
 
     def test_shows_pattern_count(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=2)
 
@@ -90,6 +91,7 @@ class TestStatus:
 
     def test_shows_runs_after_learn(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=1)
 
@@ -112,6 +114,7 @@ class TestAging:
 
     def test_aging_runs_without_error(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=3)
 
@@ -133,6 +136,7 @@ class TestRecall:
 
     def test_recall_finds_seeded_pattern(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=3)
 
@@ -144,13 +148,12 @@ class TestRecall:
 
     def test_recall_limit_flag(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=5)
 
         with patch("engramia.cli.main._make_embeddings", return_value=FakeEmbeddings()):
-            result = runner.invoke(
-                app, ["recall", "process data file", "--limit", "2", "--path", str(tmp_path)]
-            )
+            result = runner.invoke(app, ["recall", "process data file", "--limit", "2", "--path", str(tmp_path)])
         assert result.exit_code == 0
 
     def test_recall_missing_api_key_exits_nonzero(self, tmp_path):
@@ -175,6 +178,7 @@ class TestReindex:
 
     def test_reindex_seeded_storage(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=3)
 
@@ -185,6 +189,7 @@ class TestReindex:
 
     def test_reindex_dry_run_does_not_write(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=2)
 
@@ -209,35 +214,32 @@ class TestReindex:
 
 class TestGovernanceRetention:
     def test_retention_empty_storage(self, tmp_path):
-        result = runner.invoke(
-            app, ["governance", "retention", "--path", str(tmp_path), "--days", "365"]
-        )
+        result = runner.invoke(app, ["governance", "retention", "--path", str(tmp_path), "--days", "365"])
         assert result.exit_code == 0
         assert "retention" in result.output.lower() or "no patterns" in result.output.lower()
 
     def test_retention_dry_run_flag(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=2)
 
-        result = runner.invoke(
-            app, ["governance", "retention", "--path", str(tmp_path), "--dry-run", "--days", "365"]
-        )
+        result = runner.invoke(app, ["governance", "retention", "--path", str(tmp_path), "--dry-run", "--days", "365"])
         assert result.exit_code == 0
         assert "dry" in result.output.lower()
 
     def test_retention_does_not_delete_fresh_patterns(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=2)
 
         # Fresh patterns with 365-day retention → nothing deleted
-        result = runner.invoke(
-            app, ["governance", "retention", "--path", str(tmp_path), "--days", "365"]
-        )
+        result = runner.invoke(app, ["governance", "retention", "--path", str(tmp_path), "--days", "365"])
         assert result.exit_code == 0
         # Pattern count should still be 2
         from engramia.core.success_patterns import SuccessPatternStore
+
         assert SuccessPatternStore(storage).get_count() == 2
 
 
@@ -248,20 +250,17 @@ class TestGovernanceRetention:
 
 class TestGovernanceExport:
     def test_export_empty_storage_outputs_nothing(self, tmp_path):
-        result = runner.invoke(
-            app, ["governance", "export", "--path", str(tmp_path)]
-        )
+        result = runner.invoke(app, ["governance", "export", "--path", str(tmp_path)])
         assert result.exit_code == 0
         assert result.output.strip() == ""
 
     def test_export_to_stdout_is_valid_ndjson(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=2)
 
-        result = runner.invoke(
-            app, ["governance", "export", "--path", str(tmp_path)]
-        )
+        result = runner.invoke(app, ["governance", "export", "--path", str(tmp_path)])
         assert result.exit_code == 0
         lines = [l for l in result.output.strip().splitlines() if l.strip()]
         assert len(lines) == 2
@@ -271,13 +270,12 @@ class TestGovernanceExport:
 
     def test_export_to_file(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=3)
 
         out_file = tmp_path / "export.ndjson"
-        result = runner.invoke(
-            app, ["governance", "export", "--output", str(out_file), "--path", str(tmp_path)]
-        )
+        result = runner.invoke(app, ["governance", "export", "--output", str(out_file), "--path", str(tmp_path)])
         assert result.exit_code == 0
         assert out_file.exists()
         lines = out_file.read_text().strip().splitlines()
@@ -292,6 +290,7 @@ class TestGovernanceExport:
 class TestGovernancePurgeProject:
     def test_purge_with_yes_flag(self, tmp_path):
         from engramia.providers.json_storage import JSONStorage
+
         storage = JSONStorage(path=tmp_path)
         _seed_storage(storage, n=2)
 
@@ -322,6 +321,7 @@ class TestServe:
     def test_serve_exits_without_uvicorn(self, tmp_path):
         """If uvicorn is not installed, serve should exit with code 1."""
         import builtins
+
         real_import = builtins.__import__
 
         def _block_uvicorn(name, *args, **kwargs):

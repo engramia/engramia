@@ -17,7 +17,7 @@ from engramia.providers import JSONStorage, OpenAIEmbeddings, OpenAIProvider
 # LLM is required for evaluate() and compose(). Omit it for learn/recall only.
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
-    embeddings=OpenAIEmbeddings(),   # text-embedding-3-small by default
+    embeddings=OpenAIEmbeddings(),  # text-embedding-3-small by default
     storage=JSONStorage(path="./engramia_data"),
 )
 

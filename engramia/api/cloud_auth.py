@@ -291,10 +291,7 @@ def _blocklist_token(token: str) -> None:
 
             with engine.begin() as conn:
                 conn.execute(
-                    text(
-                        "INSERT INTO revoked_jtis (jti, expires_at) VALUES (:jti, :exp) "
-                        "ON CONFLICT (jti) DO NOTHING"
-                    ),
+                    text("INSERT INTO revoked_jtis (jti, expires_at) VALUES (:jti, :exp) ON CONFLICT (jti) DO NOTHING"),
                     {"jti": jti, "exp": exp_f},
                 )
             # Opportunistically delete expired rows from DB (best-effort).

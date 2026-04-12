@@ -8,6 +8,7 @@ Usage:
 
 Outputs thresholds.json with model-appropriate values for the test suite.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,9 +33,11 @@ def _build_embedder(mode: str):
     if mode == "remote":
         # Use OpenAI via env var
         from engramia.providers.openai import OpenAIEmbeddings
+
         return OpenAIEmbeddings(), "text-embedding-3-small"
     else:
         from engramia.providers.local_embeddings import LocalEmbeddings
+
         emb = LocalEmbeddings()
         return emb, "all-MiniLM-L6-v2"
 
@@ -87,8 +90,8 @@ def run_calibration(mode: str = "local") -> dict:
 
     # Thresholds: conservative — give 5-10% margin
     intra_threshold = round(min_intra - 0.05, 3)  # just below worst intra sim
-    cross_threshold = round(max_cross + 0.05, 3)   # just above best cross sim
-    noise_threshold = round(max_noise + 0.05, 3)   # just above noisiest match
+    cross_threshold = round(max_cross + 0.05, 3)  # just above best cross sim
+    noise_threshold = round(max_noise + 0.05, 3)  # just above noisiest match
 
     result = {
         "_model": model_name,

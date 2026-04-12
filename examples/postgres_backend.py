@@ -43,7 +43,7 @@ storage = PostgresStorage(database_url=DATABASE_URL)
 
 mem = Memory(
     llm=OpenAIProvider(model="gpt-4.1"),
-    embeddings=OpenAIEmbeddings(),   # 1536-dim, must match the pgvector column
+    embeddings=OpenAIEmbeddings(),  # 1536-dim, must match the pgvector column
     storage=storage,
 )
 
@@ -85,5 +85,5 @@ print(f"\nExported {len(records)} patterns (JSONL-compatible)")
 #    For high throughput, use the REST API (which creates one Memory instance)
 #    rather than creating many Memory instances in parallel.
 # ---------------------------------------------------------------------------
-print(f"\nStorage type: {mem.storage_type}")   # "postgres"
+print(f"\nStorage type: {mem.storage_type}")  # "postgres"
 print(f"Metrics: {mem.metrics}")

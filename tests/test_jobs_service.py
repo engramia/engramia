@@ -280,9 +280,16 @@ class TestJobServiceDBGet:
         engine = MagicMock()
         conn = MagicMock()
         conn.execute.return_value.fetchone.return_value = (
-            "job-1", "aging", "completed", {"pruned": 0}, None,
-            1, "2026-01-01T00:00:00Z", "2026-01-01T00:00:01Z",
-            "2026-01-01T00:00:02Z", None,
+            "job-1",
+            "aging",
+            "completed",
+            {"pruned": 0},
+            None,
+            1,
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T00:00:01Z",
+            "2026-01-01T00:00:02Z",
+            None,
         )
         engine.connect.return_value.__enter__ = MagicMock(return_value=conn)
         engine.connect.return_value.__exit__ = MagicMock(return_value=False)
@@ -416,8 +423,16 @@ class TestJobServiceDBList:
         conn = MagicMock()
         conn.execute.return_value.fetchall.return_value = [
             (
-                "job-1", "aging", "pending", None, None,
-                0, "2026-01-01T00:00:00Z", None, None, None,
+                "job-1",
+                "aging",
+                "pending",
+                None,
+                None,
+                0,
+                "2026-01-01T00:00:00Z",
+                None,
+                None,
+                None,
             )
         ]
         engine.connect.return_value.__enter__ = MagicMock(return_value=conn)

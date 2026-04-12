@@ -125,8 +125,8 @@ class EngramiaCapability:
             output_obj = getattr(result, "output", None)
             if output_obj is not None:
                 output_text = str(output_obj)
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as exc:
+            _log.debug("Failed to extract output: %s", exc)
 
         if not output_text:
             return result

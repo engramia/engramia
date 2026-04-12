@@ -5,6 +5,7 @@
 For each cluster pair: learn cluster A patterns, recall with a cluster B query.
 Assert that cross-cluster similarity is below cross_threshold.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -57,11 +58,7 @@ def test_cross_cluster_isolation(
 
         # Filter to only matches from cluster A (by checking task prefix and content)
         cross_matches = [
-            m for m in matches
-            if any(
-                tasks_a[i][:30] in m["pattern"]["task"]
-                for i in range(len(tasks_a))
-            )
+            m for m in matches if any(tasks_a[i][:30] in m["pattern"]["task"] for i in range(len(tasks_a)))
         ]
 
         if not cross_matches:

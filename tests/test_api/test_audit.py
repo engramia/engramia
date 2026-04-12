@@ -43,7 +43,7 @@ class TestLogEvent:
 
         message = caplog.records[0].message
         assert message.startswith("AUDIT ")
-        parsed = json.loads(message[len("AUDIT "):])
+        parsed = json.loads(message[len("AUDIT ") :])
 
         assert parsed["audit"] is True
         assert parsed["event"] == "auth_failure"
@@ -54,7 +54,7 @@ class TestLogEvent:
         with caplog.at_level(logging.WARNING, logger="engramia.audit"):
             log_event(AuditEvent.PATTERN_DELETED, key="patterns/abc123", user="admin")
 
-        parsed = json.loads(caplog.records[0].message[len("AUDIT "):])
+        parsed = json.loads(caplog.records[0].message[len("AUDIT ") :])
         assert parsed["event"] == "pattern_deleted"
         assert parsed["key"] == "patterns/abc123"
         assert parsed["user"] == "admin"
@@ -64,7 +64,7 @@ class TestLogEvent:
         with caplog.at_level(logging.WARNING, logger="engramia.audit"):
             log_event(AuditEvent.RATE_LIMITED, ip="10.0.0.1", count=5)
 
-        parsed = json.loads(caplog.records[0].message[len("AUDIT "):])
+        parsed = json.loads(caplog.records[0].message[len("AUDIT ") :])
         ts = parsed["timestamp"]
         assert "T" in ts, f"Expected ISO-8601, got: {ts}"
         assert ts.endswith("Z"), f"Expected UTC (Z suffix), got: {ts}"
@@ -76,8 +76,5 @@ class TestLogEvent:
                 log_event(event)
 
         assert len(caplog.records) == len(AuditEvent)
-        emitted_events = {
-            json.loads(r.message[len("AUDIT "):])["event"]
-            for r in caplog.records
-        }
+        emitted_events = {json.loads(r.message[len("AUDIT ") :])["event"] for r in caplog.records}
         assert emitted_events == {e.value for e in AuditEvent}

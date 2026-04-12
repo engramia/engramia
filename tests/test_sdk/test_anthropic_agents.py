@@ -96,7 +96,7 @@ class TestEngramiaQuery:
         async def mock_query(prompt, options):
             yield MagicMock()  # SystemMessage
             yield MagicMock()  # AssistantMessage
-            yield result_msg   # ResultMessage
+            yield result_msg  # ResultMessage
 
         mods["claude_agent_sdk"].query = mock_query
 
@@ -105,7 +105,10 @@ class TestEngramiaQuery:
 
             messages = []
             async for msg in engramia_query(
-                mem, prompt="Parse CSV files", auto_learn=True, min_score=7.0,
+                mem,
+                prompt="Parse CSV files",
+                auto_learn=True,
+                min_score=7.0,
             ):
                 messages.append(msg)
 

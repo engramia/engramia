@@ -9,6 +9,7 @@ Supports two execution modes controlled by ENGRAMIA_TEST_MODE env var:
 All test tasks are prefixed with a unique run_id so they can be identified
 and cleaned up without polluting shared storage.
 """
+
 from __future__ import annotations
 
 import json
@@ -57,11 +58,13 @@ class QualityTracker:
         self._d1.append({"cluster": cluster_id, "top1_sim": round(top1_sim, 4), "pass": passed})
 
     def record_d2(self, cluster_a: str, cluster_b: str, max_cross_sim: float, passed: bool) -> None:
-        self._d2.append({
-            "pair": f"{cluster_a}_{cluster_b}",
-            "max_cross_sim": round(max_cross_sim, 4),
-            "pass": passed,
-        })
+        self._d2.append(
+            {
+                "pair": f"{cluster_a}_{cluster_b}",
+                "max_cross_sim": round(max_cross_sim, 4),
+                "pass": passed,
+            }
+        )
 
     def record_d3(self, noise_total: int, noise_failed: int, max_noise_sim: float) -> None:
         self._d3 = {
@@ -72,28 +75,34 @@ class QualityTracker:
         }
 
     def record_boundary(self, task: str, matched_a: bool, matched_b: bool, passed: bool) -> None:
-        self._boundary.append({
-            "task": task[:70],
-            "matched_a": matched_a,
-            "matched_b": matched_b,
-            "pass": passed,
-        })
+        self._boundary.append(
+            {
+                "task": task[:70],
+                "matched_a": matched_a,
+                "matched_b": matched_b,
+                "pass": passed,
+            }
+        )
 
     # -- build / save ---------------------------------------------------------
 
     def build(self, thresholds: dict) -> dict:
         """Assemble the full metrics dict for this session."""
         try:
-            git_hash = subprocess.check_output(
-                ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
-            ).decode().strip()
+            git_hash = (
+                subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL)
+                .decode()
+                .strip()
+            )
         except Exception:
             git_hash = "unknown"
 
         try:
-            git_branch = subprocess.check_output(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"], stderr=subprocess.DEVNULL
-            ).decode().strip()
+            git_branch = (
+                subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], stderr=subprocess.DEVNULL)
+                .decode()
+                .strip()
+            )
         except Exception:
             git_branch = "unknown"
 
@@ -168,6 +177,7 @@ class QualityTracker:
 # Session fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="session")
 def run_tag() -> str:
     """Unique tag for this test session — prefixed on all task strings."""
@@ -238,6 +248,7 @@ def client(tmp_path_factory, run_tag):
 # ---------------------------------------------------------------------------
 # Helpers for per-test learn+discover_key+cleanup
 # ---------------------------------------------------------------------------
+
 
 def learn_and_get_key(
     client: TestClient,

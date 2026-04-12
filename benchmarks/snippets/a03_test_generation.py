@@ -8,7 +8,7 @@ Domain: Writing pytest test suites with fixtures, mocking, edge cases, parametri
 GOOD: dict = {
     "eval_score": 9.1,
     "output": "Generated 8 tests for OrderService covering creation, validation, payment integration, and edge cases.",
-    "code": '''\
+    "code": """\
 import pytest
 from unittest.mock import AsyncMock, patch
 from decimal import Decimal
@@ -92,13 +92,13 @@ class TestOrderPayment:
             await order_service.create(
                 user_id="u_1", items=[{"sku": "GONE", "qty": 1, "price": Decimal("10")}]
             )
-''',
+""",
 }
 
 MEDIUM: dict = {
     "eval_score": 5.5,
     "output": "Added basic tests for OrderService.",
-    "code": '''\
+    "code": """\
 import pytest
 from app.services.order import OrderService
 
@@ -112,18 +112,18 @@ def test_empty_order():
     svc = OrderService()
     with pytest.raises(Exception):
         svc.create(user_id="u1", items=[])
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.2,
     "output": "test file created",
-    "code": '''\
+    "code": """\
 from app.services.order import OrderService
 
 def test_order():
     s = OrderService()
     result = s.create("user1", [{"sku": "a", "qty": 1}])
     print(result)  # looks ok
-''',
+""",
 }

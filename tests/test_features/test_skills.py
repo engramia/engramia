@@ -9,6 +9,7 @@ Tests skill registration and tag-based pattern discovery:
   4. Unknown skill → empty result.
   5. Skill case-insensitivity.
 """
+
 from __future__ import annotations
 
 from tests.recall_quality.conftest import TestClient, learn_and_get_key
@@ -29,9 +30,7 @@ def test_skills_single_tag_match(client: TestClient, run_tag: str) -> None:
 
         matches = client.find_by_skills(["csv_parsing"], match_all=True)
         keys_found = {m["pattern_key"] for m in matches}
-        assert key in keys_found, (
-            "Pattern with skill 'csv_parsing' not found in find_by_skills result"
-        )
+        assert key in keys_found, "Pattern with skill 'csv_parsing' not found in find_by_skills result"
     finally:
         for k in set(learned_keys):
             client.delete_pattern(k)
@@ -115,9 +114,7 @@ def test_skills_multi_union(client: TestClient, run_tag: str) -> None:
 
         for k, label in ((key_c, "http_retry"), (key_d, "async_http")):
             if k:
-                assert k in found_keys, (
-                    f"Pattern with skill '{label}' not found with match_all=False"
-                )
+                assert k in found_keys, f"Pattern with skill '{label}' not found with match_all=False"
 
     finally:
         for k in set(learned_keys):
@@ -127,9 +124,7 @@ def test_skills_multi_union(client: TestClient, run_tag: str) -> None:
 def test_skills_unknown_skill_empty(client: TestClient, run_tag: str) -> None:
     """Searching for a skill that no pattern has returns empty list."""
     matches = client.find_by_skills(["nonexistent_skill_xyz_42"], match_all=True)
-    assert matches == [], (
-        f"Expected empty result for unknown skill, got {len(matches)} matches"
-    )
+    assert matches == [], f"Expected empty result for unknown skill, got {len(matches)} matches"
 
 
 def test_skills_case_insensitive(client: TestClient, run_tag: str) -> None:

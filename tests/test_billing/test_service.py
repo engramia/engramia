@@ -64,7 +64,18 @@ def _sub_row(
     past_due_since=None,
 ):
     """Return a tuple matching the SELECT column order in get_subscription()."""
-    return (customer_id, sub_id, plan_tier, interval, status, eval_runs_limit, patterns_limit, projects_limit, period_end, past_due_since)
+    return (
+        customer_id,
+        sub_id,
+        plan_tier,
+        interval,
+        status,
+        eval_runs_limit,
+        patterns_limit,
+        projects_limit,
+        period_end,
+        past_due_since,
+    )
 
 
 def _overage_row(enabled=True, price=1, unit=100, cap=10000):
@@ -170,9 +181,9 @@ class TestGetStatus:
         engine.connect.return_value.__exit__ = MagicMock(return_value=False)
         conn_r.execute.return_value.fetchone.side_effect = [
             _sub_row(eval_runs_limit=3000),  # get_subscription
-            None,                             # get_overage_settings
-            (42,),                            # meter.get_count
-            (2,),                             # _count_projects
+            None,  # get_overage_settings
+            (42,),  # meter.get_count
+            (2,),  # _count_projects
         ]
         svc = _billing_service(engine=engine)
         status = svc.get_status("t1", current_pattern_count=100)
@@ -285,9 +296,16 @@ class TestSetOverage:
         # Use pro plan — patch get_subscription to avoid repeated DB mock complexity
         with patch.object(svc, "get_subscription") as mock_sub:
             mock_sub.return_value = BillingSubscription(
-                tenant_id="t1", stripe_customer_id="cus_x", stripe_subscription_id="sub_x",
-                plan_tier="pro", billing_interval="month", status="active",
-                eval_runs_limit=3000, patterns_limit=50000, projects_limit=3, current_period_end=None,
+                tenant_id="t1",
+                stripe_customer_id="cus_x",
+                stripe_subscription_id="sub_x",
+                plan_tier="pro",
+                billing_interval="month",
+                status="active",
+                eval_runs_limit=3000,
+                patterns_limit=50000,
+                projects_limit=3,
+                current_period_end=None,
             )
             svc.set_overage("t1", enabled=True, budget_cap_cents=5000)
         # Verify that begin() was called (DB write happened)
@@ -315,7 +333,9 @@ class TestHandleWebhookEvent:
 
     def test_subscription_created_calls_upsert(self):
         data = {
-            "customer": "cus_x", "id": "sub_x", "status": "active",
+            "customer": "cus_x",
+            "id": "sub_x",
+            "status": "active",
             "items": {"data": [{"plan": {"interval": "month"}}]},
             "current_period_end": 1900000000,
             "metadata": {"plan_tier": "pro"},
@@ -327,7 +347,9 @@ class TestHandleWebhookEvent:
 
     def test_subscription_updated_calls_upsert(self):
         data = {
-            "customer": "cus_x", "id": "sub_x", "status": "active",
+            "customer": "cus_x",
+            "id": "sub_x",
+            "status": "active",
             "items": {"data": [{"plan": {"interval": "month"}}]},
             "current_period_end": 1900000000,
             "metadata": {},
@@ -431,9 +453,16 @@ class TestInternalHelpers:
     def test_report_overage_unlimited_plan_skips(self):
         svc = _billing_service(engine=None)
         sub = BillingSubscription(
-            tenant_id="t1", stripe_customer_id="cus_x", stripe_subscription_id=None,
-            plan_tier="enterprise", billing_interval="year", status="active",
-            eval_runs_limit=None, patterns_limit=None, projects_limit=None, current_period_end=None,
+            tenant_id="t1",
+            stripe_customer_id="cus_x",
+            stripe_subscription_id=None,
+            plan_tier="enterprise",
+            billing_interval="year",
+            status="active",
+            eval_runs_limit=None,
+            patterns_limit=None,
+            projects_limit=None,
+            current_period_end=None,
         )
         with (
             patch.object(svc, "_tenant_id_by_customer", return_value="t1"),

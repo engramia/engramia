@@ -34,20 +34,20 @@ def extract_emails(text: str) -> list[str]:
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "Found 3 emails.",
-    "code": '''\
+    "code": """\
 import re
 
 def find_emails(text):
     # Overly loose pattern: matches things like "a@b.c" (1-char TLD)
     pattern = r"[\\w.+\\-]+@[\\w.]+\\.[a-z]+"
     return re.findall(pattern, text, re.IGNORECASE)
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "",
-    "code": '''\
+    "code": """\
 def extract_emails(text):
     # BAD: split-based heuristic — misses many valid formats, produces false positives
     words = text.split()
@@ -57,5 +57,5 @@ def extract_emails(text):
             emails.append(word.strip(".,;:!?"))
     # BUG: duplicates not removed
     return emails
-''',
+""",
 }

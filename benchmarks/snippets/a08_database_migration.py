@@ -92,7 +92,7 @@ def downgrade() -> None:
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "Migration created for splitting users table.",
-    "code": '''\
+    "code": """\
 from alembic import op
 import sqlalchemy as sa
 
@@ -114,13 +114,13 @@ def upgrade():
 def downgrade():
     op.drop_table("profiles")
     op.drop_table("accounts")
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "migration file",
-    "code": '''\
+    "code": """\
 from alembic import op
 import sqlalchemy as sa
 
@@ -131,5 +131,5 @@ def upgrade():
 
 def downgrade():
     op.rename_table("accounts", "users")
-''',
+""",
 }

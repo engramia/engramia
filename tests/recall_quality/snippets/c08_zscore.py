@@ -42,23 +42,23 @@ def zscore_normalize(
 MEDIUM: dict = {
     "eval_score": 6.0,
     "output": "[-1.41, -0.71, 0.0, 0.71, 1.41]",
-    "code": '''\
+    "code": """\
 def zscore(values):
     mean = sum(values) / len(values)
     variance = sum((x - mean) ** 2 for x in values) / len(values)
     std = variance ** 0.5
     # BUG: ZeroDivisionError if std == 0
     return [(x - mean) / std for x in values]
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.5,
     "output": "",
-    "code": '''\
+    "code": """\
 def normalize(data):
     # BAD: divides by len instead of std — this is mean normalization, not z-score
     mean = sum(data) / len(data)
     return [(x - mean) / len(data) for x in data]
-''',
+""",
 }

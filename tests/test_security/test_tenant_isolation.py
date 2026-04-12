@@ -59,6 +59,7 @@ def embeddings():
 @pytest.fixture
 def make_mem(shared_storage, embeddings):
     """Return a Memory instance — scope is controlled per-call via as_tenant()."""
+
     def _factory():
         return Memory(embeddings=embeddings, storage=shared_storage)
 
@@ -91,15 +92,11 @@ class TestRecallIsolation:
 
         with as_tenant("alpha"):
             results = mem.recall("parse csv file", limit=10)
-        assert all("alpha" in m.pattern.design["code"] for m in results), (
-            "Alpha should only recall its own code"
-        )
+        assert all("alpha" in m.pattern.design["code"] for m in results), "Alpha should only recall its own code"
 
         with as_tenant("beta"):
             results = mem.recall("parse csv file", limit=10)
-        assert all("beta" in m.pattern.design["code"] for m in results), (
-            "Beta should only recall its own code"
-        )
+        assert all("beta" in m.pattern.design["code"] for m in results), "Beta should only recall its own code"
 
     def test_empty_store_returns_nothing(self, make_mem):
         mem = make_mem()
@@ -170,9 +167,7 @@ class TestExportImportIsolation:
             records = mem.export()
 
         assert len(records) == 1
-        assert "alpha_export" in records[0]["data"]["design"]["code"], (
-            "Export must only contain Tenant A's patterns"
-        )
+        assert "alpha_export" in records[0]["data"]["design"]["code"], "Export must only contain Tenant A's patterns"
 
     def test_import_into_tenant_b_does_not_affect_tenant_a(self, make_mem):
         mem = make_mem()

@@ -116,7 +116,7 @@ class EventETLPipeline:
 MEDIUM: dict = {
     "eval_score": 6.2,
     "output": "ETL pipeline runs, loads events to database.",
-    "code": '''\
+    "code": """\
 import json
 import boto3
 
@@ -135,13 +135,13 @@ def run_etl(bucket, prefix, db_conn):
             count += 1
     db_conn.commit()
     return count
-''',
+""",
 }
 
 BAD: dict = {
     "eval_score": 2.0,
     "output": "loads some data",
-    "code": '''\
+    "code": """\
 import json, boto3
 
 def etl(bucket, key):
@@ -149,5 +149,5 @@ def etl(bucket, key):
     records = json.loads(data)
     # TODO: transform and load
     return records
-''',
+""",
 }

@@ -11,6 +11,7 @@ whether embedding model changes or matcher tuning improved quality.
 Usage:
     python tests/recall_quality/report.py [--results-dir DIR] [--last N]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -81,29 +82,34 @@ def print_latest_summary(run: dict) -> None:
 
     print()
     print(f"  {'Dimension':<28}  {'Status':>6}  {'Key metric':>12}")
-    print(f"  {'-'*28}  {'-'*6}  {'-'*12}")
+    print(f"  {'-' * 28}  {'-' * 6}  {'-' * 12}")
 
     d1_pass = d1.get("clusters_passed", 0)
     d1_total = d1.get("clusters_total", 0)
-    print(f"  {'D1 Recall precision':<28}  {_dim_status(d1):>6}  "
-          f"avg={_fmt(d1.get('avg_top1_sim'))}  min={_fmt(d1.get('min_top1_sim'))}  "
-          f"({d1_pass}/{d1_total} clusters)")
+    print(
+        f"  {'D1 Recall precision':<28}  {_dim_status(d1):>6}  "
+        f"avg={_fmt(d1.get('avg_top1_sim'))}  min={_fmt(d1.get('min_top1_sim'))}  "
+        f"({d1_pass}/{d1_total} clusters)"
+    )
 
     d2_pass = d2.get("pairs_passed", 0)
     d2_total = d2.get("pairs_total", 0)
-    print(f"  {'D2 Cross-cluster isolation':<28}  {_dim_status(d2):>6}  "
-          f"max_cross={_fmt(d2.get('max_cross_sim'))}  ({d2_pass}/{d2_total} pairs)")
+    print(
+        f"  {'D2 Cross-cluster isolation':<28}  {_dim_status(d2):>6}  "
+        f"max_cross={_fmt(d2.get('max_cross_sim'))}  ({d2_pass}/{d2_total} pairs)"
+    )
 
     d3_fail = d3.get("noise_failed", 0)
     d3_total = d3.get("noise_total", 0)
-    print(f"  {'D3 Noise rejection':<28}  {_dim_status(d3):>6}  "
-          f"max_noise={_fmt(d3.get('max_noise_sim'))}  ({d3_total - d3_fail}/{d3_total} passed)")
+    print(
+        f"  {'D3 Noise rejection':<28}  {_dim_status(d3):>6}  "
+        f"max_noise={_fmt(d3.get('max_noise_sim'))}  ({d3_total - d3_fail}/{d3_total} passed)"
+    )
 
     bnd_matched = bnd.get("matched_either", 0)
     bnd_total = bnd.get("tasks_total", 0)
     bnd_both = bnd.get("matched_both", 0)
-    print(f"  {'Boundary tasks':<28}  {_dim_status(bnd):>6}  "
-          f"matched={bnd_matched}/{bnd_total}  both={bnd_both}")
+    print(f"  {'Boundary tasks':<28}  {_dim_status(bnd):>6}  matched={bnd_matched}/{bnd_total}  both={bnd_both}")
 
     # Per-cluster D1 detail
     per_cluster = d1.get("per_cluster", {})
@@ -125,9 +131,11 @@ def print_trend(history: list[dict], last: int) -> None:
     print("\n" + "=" * 90)
     print("  TREND  (oldest → newest)")
     print("=" * 90)
-    header = (f"  {'Commit':<9}  {'Branch':<14}  {'Model':<22}  "
-              f"{'D1 avg':>7}  {'D1 min':>7}  {'D2 max':>8}  {'D3 max':>8}  "
-              f"{'Bnd':>5}  {'OK?':>4}")
+    header = (
+        f"  {'Commit':<9}  {'Branch':<14}  {'Model':<22}  "
+        f"{'D1 avg':>7}  {'D1 min':>7}  {'D2 max':>8}  {'D3 max':>8}  "
+        f"{'Bnd':>5}  {'OK?':>4}"
+    )
     print(header)
     print("  " + "-" * 88)
 
@@ -138,13 +146,9 @@ def print_trend(history: list[dict], last: int) -> None:
         d3 = dims.get("D3_noise_rejection", {})
         bnd = dims.get("boundary", {})
 
-        all_pass = all(
-            d.get("pass") is not False
-            for d in (d1, d2, d3, bnd) if d
-        )
+        all_pass = all(d.get("pass") is not False for d in (d1, d2, d3, bnd) if d)
         status = " OK" if all_pass else "FAIL"
-        bnd_frac = (f"{bnd.get('matched_either', 0)}/{bnd.get('tasks_total', 0)}"
-                    if bnd else "—")
+        bnd_frac = f"{bnd.get('matched_either', 0)}/{bnd.get('tasks_total', 0)}" if bnd else "—"
 
         print(
             f"  {run.get('git_commit', '?'):<9}  "

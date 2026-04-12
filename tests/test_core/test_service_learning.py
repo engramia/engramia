@@ -92,9 +92,7 @@ class TestLearningService:
         redaction.process.assert_called_once()
 
     def test_learn_max_patterns_raises(self, svc, monkeypatch):
-        monkeypatch.setattr(
-            "engramia.core.services.learning._MAX_PATTERN_COUNT", 1
-        )
+        monkeypatch.setattr("engramia.core.services.learning._MAX_PATTERN_COUNT", 1)
         svc.learn(task="task1", code="code1", eval_score=7.0)
         with pytest.raises(ValidationError, match="full"):
             svc.learn(task="task2", code="code2", eval_score=7.0)

@@ -34,10 +34,10 @@ mem = Memory(
 # ---------------------------------------------------------------------------
 callback = EngramiaCallback(
     mem,
-    auto_learn=True,    # Store successful chain outputs as patterns
-    auto_recall=True,   # Recall relevant patterns before each chain run
-    min_score=5.0,      # Only learn if run "succeeded" (score threshold)
-    recall_limit=3,     # How many patterns to recall
+    auto_learn=True,  # Store successful chain outputs as patterns
+    auto_recall=True,  # Recall relevant patterns before each chain run
+    min_score=5.0,  # Only learn if run "succeeded" (score threshold)
+    recall_limit=3,  # How many patterns to recall
 )
 
 # ---------------------------------------------------------------------------

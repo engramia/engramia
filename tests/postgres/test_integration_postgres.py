@@ -43,7 +43,8 @@ def pg_engine():
         # Bootstrap schema (mirrors Alembic 001_initial migration)
         with engine.begin() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE TABLE IF NOT EXISTS memory_data (
                     key             TEXT    NOT NULL PRIMARY KEY,
                     tenant_id       TEXT    NOT NULL DEFAULT '',
@@ -57,15 +58,18 @@ def pg_engine():
                     redacted        BOOLEAN DEFAULT FALSE,
                     expires_at      TEXT
                 )
-            """))
-            conn.execute(text("""
+            """)
+            )
+            conn.execute(
+                text("""
                 CREATE TABLE IF NOT EXISTS memory_embeddings (
                     key         TEXT    NOT NULL PRIMARY KEY,
                     tenant_id   TEXT    NOT NULL DEFAULT '',
                     project_id  TEXT    NOT NULL DEFAULT '',
                     embedding   vector(1536)
                 )
-            """))
+            """)
+            )
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_md_scope ON memory_data (tenant_id, project_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_me_scope ON memory_embeddings (tenant_id, project_id)"))
         yield engine
@@ -90,9 +94,11 @@ def pg_memory(pg_engine):
     storage._embedding_dim = 1536
     storage._engine = pg_engine
     from sqlalchemy import text as _t
+
     storage._text = _t
 
     from tests.conftest import FakeEmbeddings
+
     mem = Memory(embeddings=FakeEmbeddings(), storage=storage)
     yield mem
 
@@ -307,6 +313,7 @@ class TestJsonToPostgresMigration:
         storage._embedding_dim = 1536
         storage._engine = pg_engine
         from sqlalchemy import text as _t
+
         storage._text = _t
 
         mem = Memory(embeddings=FakeEmbeddings(), storage=storage)
@@ -351,9 +358,9 @@ class TestJsonToPostgresMigration:
         common_keys = set(json_matches) & set(pg_matches)
         assert len(common_keys) >= 1
         for key in common_keys:
-            assert abs(
-                json_matches[key].pattern.success_score - pg_matches[key].pattern.success_score
-            ) < 0.01, f"Score mismatch for {key}"
+            assert abs(json_matches[key].pattern.success_score - pg_matches[key].pattern.success_score) < 0.01, (
+                f"Score mismatch for {key}"
+            )
 
     def test_pattern_keys_are_stable(self, json_memory, pg_memory_fresh):
         for task, code, score in _MIGRATION_FIXTURES:

@@ -5,6 +5,7 @@
 Learn patterns from several clusters.  Recall with completely unrelated
 noise tasks.  Assert max similarity stays below noise_threshold.
 """
+
 from __future__ import annotations
 
 from tests.recall_quality.conftest import QualityTracker, TestClient, learn_and_get_key
@@ -54,10 +55,7 @@ def test_noise_rejection(
                 max_sim = max(m["similarity"] for m in matches)
                 all_max_sims.append(max_sim)
                 if max_sim >= threshold:
-                    failures.append(
-                        f"Noise task '{noise_task[:60]}' matched "
-                        f"sim={max_sim:.4f} >= {threshold:.4f}"
-                    )
+                    failures.append(f"Noise task '{noise_task[:60]}' matched sim={max_sim:.4f} >= {threshold:.4f}")
             else:
                 all_max_sims.append(0.0)
 
@@ -68,9 +66,8 @@ def test_noise_rejection(
             max_noise_sim=overall_max,
         )
 
-        assert not failures, (
-            f"{len(failures)}/{len(NOISE_TASKS)} noise tasks exceeded threshold:\n"
-            + "\n".join(f"  {f}" for f in failures)
+        assert not failures, f"{len(failures)}/{len(NOISE_TASKS)} noise tasks exceeded threshold:\n" + "\n".join(
+            f"  {f}" for f in failures
         )
 
     finally:

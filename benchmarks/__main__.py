@@ -10,6 +10,7 @@ Usage:
     python -m benchmarks --output ./my-results/   # custom output dir
     python -m benchmarks --validate               # validate dataset only
 """
+
 from __future__ import annotations
 
 import argparse
@@ -54,7 +55,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Validate dataset integrity and exit (no benchmark run).",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Enable verbose logging.",
     )

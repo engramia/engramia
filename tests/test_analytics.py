@@ -183,10 +183,12 @@ class TestROICollectorFiltering:
         # (bypasses scope-aware storage routing, tests in-memory filter logic)
         c = ROICollector(storage)
         events_data = [
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=8.0,
-                     scope_tenant="tenant_a", scope_project="p").model_dump(),
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=6.0,
-                     scope_tenant="tenant_b", scope_project="p").model_dump(),
+            ROIEvent(
+                kind=EventKind.LEARN, ts=time.time(), eval_score=8.0, scope_tenant="tenant_a", scope_project="p"
+            ).model_dump(),
+            ROIEvent(
+                kind=EventKind.LEARN, ts=time.time(), eval_score=6.0, scope_tenant="tenant_b", scope_project="p"
+            ).model_dump(),
         ]
         storage.save(_EVENTS_KEY, events_data)
 
@@ -201,10 +203,12 @@ class TestROICollectorFiltering:
     def test_scope_filtering_by_project(self, storage):
         c = ROICollector(storage)
         events_data = [
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=7.0,
-                     scope_tenant="t", scope_project="proj1").model_dump(),
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=5.0,
-                     scope_tenant="t", scope_project="proj2").model_dump(),
+            ROIEvent(
+                kind=EventKind.LEARN, ts=time.time(), eval_score=7.0, scope_tenant="t", scope_project="proj1"
+            ).model_dump(),
+            ROIEvent(
+                kind=EventKind.LEARN, ts=time.time(), eval_score=5.0, scope_tenant="t", scope_project="proj2"
+            ).model_dump(),
         ]
         storage.save(_EVENTS_KEY, events_data)
 
@@ -219,10 +223,12 @@ class TestROICollectorFiltering:
     def test_load_events_admin_override_allows_unscoped_read(self, storage):
         c = ROICollector(storage)
         events_data = [
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=8.0,
-                     scope_tenant="tenant_x", scope_project="p").model_dump(),
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=6.0,
-                     scope_tenant="tenant_y", scope_project="p").model_dump(),
+            ROIEvent(
+                kind=EventKind.LEARN, ts=time.time(), eval_score=8.0, scope_tenant="tenant_x", scope_project="p"
+            ).model_dump(),
+            ROIEvent(
+                kind=EventKind.LEARN, ts=time.time(), eval_score=6.0, scope_tenant="tenant_y", scope_project="p"
+            ).model_dump(),
         ]
         storage.save(_EVENTS_KEY, events_data)
         events = c.load_events(admin_override=True)
@@ -264,12 +270,19 @@ class TestComputeRollup:
     """Tests for the pure _compute_rollup helper."""
 
     def _make_learn_event(self, eval_score: float, tenant: str = "t", project: str = "p") -> ROIEvent:
-        return ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=eval_score,
-                        scope_tenant=tenant, scope_project=project)
+        return ROIEvent(
+            kind=EventKind.LEARN, ts=time.time(), eval_score=eval_score, scope_tenant=tenant, scope_project=project
+        )
 
     def _make_recall_event(self, tier: str, sim: float, tenant: str = "t", project: str = "p") -> ROIEvent:
-        return ROIEvent(kind=EventKind.RECALL, ts=time.time(), reuse_tier=tier,
-                        similarity=sim, scope_tenant=tenant, scope_project=project)
+        return ROIEvent(
+            kind=EventKind.RECALL,
+            ts=time.time(),
+            reuse_tier=tier,
+            similarity=sim,
+            scope_tenant=tenant,
+            scope_project=project,
+        )
 
     def test_empty_events_all_zeros(self):
         rollup = _compute_rollup("t", "p", "daily", "2026-01-01T00:00:00Z", "2026-01-01T12:00:00Z", [])
@@ -382,14 +395,24 @@ class TestROIAggregator:
     def _seed_events(self, storage, tenant="default", project="default"):
         """Directly write events to storage for aggregator tests."""
         events = [
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=8.0,
-                     scope_tenant=tenant, scope_project=project),
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=6.0,
-                     scope_tenant=tenant, scope_project=project),
-            ROIEvent(kind=EventKind.RECALL, ts=time.time(), reuse_tier="duplicate",
-                     similarity=0.95, scope_tenant=tenant, scope_project=project),
-            ROIEvent(kind=EventKind.RECALL, ts=time.time(), reuse_tier="fresh",
-                     similarity=0.3, scope_tenant=tenant, scope_project=project),
+            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=8.0, scope_tenant=tenant, scope_project=project),
+            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=6.0, scope_tenant=tenant, scope_project=project),
+            ROIEvent(
+                kind=EventKind.RECALL,
+                ts=time.time(),
+                reuse_tier="duplicate",
+                similarity=0.95,
+                scope_tenant=tenant,
+                scope_project=project,
+            ),
+            ROIEvent(
+                kind=EventKind.RECALL,
+                ts=time.time(),
+                reuse_tier="fresh",
+                similarity=0.3,
+                scope_tenant=tenant,
+                scope_project=project,
+            ),
         ]
         storage.save(_EVENTS_KEY, [e.model_dump() for e in events])
 
@@ -424,10 +447,12 @@ class TestROIAggregator:
     def test_rollup_multi_scope_produces_separate_rollups(self, storage, collector):
         agg = ROIAggregator(storage, collector)
         events = [
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=9.0,
-                     scope_tenant="tenant_a", scope_project="proj"),
-            ROIEvent(kind=EventKind.LEARN, ts=time.time(), eval_score=5.0,
-                     scope_tenant="tenant_b", scope_project="proj"),
+            ROIEvent(
+                kind=EventKind.LEARN, ts=time.time(), eval_score=9.0, scope_tenant="tenant_a", scope_project="proj"
+            ),
+            ROIEvent(
+                kind=EventKind.LEARN, ts=time.time(), eval_score=5.0, scope_tenant="tenant_b", scope_project="proj"
+            ),
         ]
         storage.save(_EVENTS_KEY, [e.model_dump() for e in events])
         results = agg.rollup("daily")

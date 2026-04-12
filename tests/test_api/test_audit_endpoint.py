@@ -183,9 +183,24 @@ class TestAuditScopeIsolation:
         _seed(
             audit_engine,
             [
-                {"tenant_id": "tenant-a", "project_id": "proj-a", "action": "learn", "created_at": "2026-04-11T10:00:00Z"},
-                {"tenant_id": "tenant-b", "project_id": "proj-b", "action": "learn", "created_at": "2026-04-11T10:01:00Z"},
-                {"tenant_id": "tenant-a", "project_id": "proj-a", "action": "pattern_deleted", "created_at": "2026-04-11T10:02:00Z"},
+                {
+                    "tenant_id": "tenant-a",
+                    "project_id": "proj-a",
+                    "action": "learn",
+                    "created_at": "2026-04-11T10:00:00Z",
+                },
+                {
+                    "tenant_id": "tenant-b",
+                    "project_id": "proj-b",
+                    "action": "learn",
+                    "created_at": "2026-04-11T10:01:00Z",
+                },
+                {
+                    "tenant_id": "tenant-a",
+                    "project_id": "proj-a",
+                    "action": "pattern_deleted",
+                    "created_at": "2026-04-11T10:02:00Z",
+                },
             ],
         )
 
@@ -200,8 +215,18 @@ class TestAuditScopeIsolation:
         _seed(
             audit_engine,
             [
-                {"tenant_id": "tenant-a", "project_id": "proj-a", "action": "learn", "created_at": "2026-04-11T10:00:00Z"},
-                {"tenant_id": "tenant-a", "project_id": "proj-other", "action": "learn", "created_at": "2026-04-11T10:01:00Z"},
+                {
+                    "tenant_id": "tenant-a",
+                    "project_id": "proj-a",
+                    "action": "learn",
+                    "created_at": "2026-04-11T10:00:00Z",
+                },
+                {
+                    "tenant_id": "tenant-a",
+                    "project_id": "proj-other",
+                    "action": "learn",
+                    "created_at": "2026-04-11T10:01:00Z",
+                },
             ],
         )
         resp = _client(audit_engine, tenant_id="tenant-a", project_id="proj-a", tmp_path=tmp_path).get("/v1/audit")
@@ -221,11 +246,20 @@ class TestAuditFilters:
             audit_engine,
             [
                 {"action": "learn", "key_id": "key-1", "created_at": "2026-04-11T10:00:00Z"},
-                {"action": "pattern_deleted", "key_id": "key-1", "created_at": "2026-04-11T11:00:00Z",
-                 "resource_type": "pattern", "resource_id": "patterns/abc"},
+                {
+                    "action": "pattern_deleted",
+                    "key_id": "key-1",
+                    "created_at": "2026-04-11T11:00:00Z",
+                    "resource_type": "pattern",
+                    "resource_id": "patterns/abc",
+                },
                 {"action": "key_created", "key_id": "key-admin", "created_at": "2026-04-11T12:00:00Z"},
-                {"action": "learn", "key_id": "key-2", "created_at": "2026-04-11T13:00:00Z",
-                 "detail": {"eval_score": 8.5}},
+                {
+                    "action": "learn",
+                    "key_id": "key-2",
+                    "created_at": "2026-04-11T13:00:00Z",
+                    "detail": {"eval_score": 8.5},
+                },
                 {"action": "key_revoked", "key_id": "key-admin", "created_at": "2026-04-11T14:00:00Z"},
             ],
         )
@@ -305,8 +339,11 @@ class TestAuditResponseShape:
         _seed(
             audit_engine,
             [
-                {"action": "learn", "detail": {"pattern_key": "patterns/xyz", "score": 8.5},
-                 "created_at": "2026-04-11T10:00:00Z"},
+                {
+                    "action": "learn",
+                    "detail": {"pattern_key": "patterns/xyz", "score": 8.5},
+                    "created_at": "2026-04-11T10:00:00Z",
+                },
                 {"action": "health_check", "created_at": "2026-04-11T11:00:00Z"},
             ],
         )

@@ -177,19 +177,19 @@ class TestEvolveWithEval:
         for _ in range(3):
             feedback_store.record("Add error handling")
 
-        evolve_resp = json.dumps(
-            {"improved_prompt": "Worse prompt.", "changes": ["Something changed"]}
-        )
+        evolve_resp = json.dumps({"improved_prompt": "Worse prompt.", "changes": ["Something changed"]})
 
         # current = 9.0, candidate = 5.0 → 5.0 < 9.0 - 0.2 = 8.8 → rejected
         # evolve_with_eval makes 4 non-architect calls:
         # 1) code gen (current prompt), 2) eval (current), 3) code gen (candidate), 4) eval (candidate)
-        non_architect_responses = iter([
-            "import csv",               # code gen with current prompt
-            _make_eval_json(9.0),       # eval of current code → score 9.0
-            "import csv",               # code gen with candidate prompt
-            _make_eval_json(5.0),       # eval of candidate code → score 5.0
-        ])
+        non_architect_responses = iter(
+            [
+                "import csv",  # code gen with current prompt
+                _make_eval_json(9.0),  # eval of current code → score 9.0
+                "import csv",  # code gen with candidate prompt
+                _make_eval_json(5.0),  # eval of candidate code → score 5.0
+            ]
+        )
 
         class SequentialLLM:
             def call(self_, prompt: str, system: str | None = None, role: str = "default") -> str:

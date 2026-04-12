@@ -23,7 +23,7 @@ mem = Memory(
 from pydantic_ai import Agent
 
 agent = Agent(
-    'openai:gpt-4o',
+    "openai:gpt-4o",
     system_prompt="You are a senior Python developer.",
     capabilities=[EngramiaCapability(mem, recall_limit=3)],
 )
