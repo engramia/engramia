@@ -97,10 +97,27 @@ def _log_security_config() -> None:
                 "Set ENGRAMIA_ENV_AUTH_ROLE=editor|admin for multi-user deployments."
             )
     else:
-        _log.warning(
-            "SECURITY WARNING: No auth configured — API is unauthenticated. "
-            "Set ENGRAMIA_API_KEYS or configure DB auth for production."
-        )
+        allow_no_auth = os.environ.get("ENGRAMIA_ALLOW_NO_AUTH", "").lower() in ("true", "1", "yes")
+        env = os.environ.get("ENGRAMIA_ENVIRONMENT", "").lower().strip()
+        is_production = env in ("production", "prod", "staging")
+        if allow_no_auth and is_production:
+            _log.error(
+                "FATAL: ENGRAMIA_ALLOW_NO_AUTH=true is not permitted in environment %r. "
+                "This would expose the entire API without authentication. "
+                "Remove ENGRAMIA_ALLOW_NO_AUTH or set ENGRAMIA_AUTH_MODE=db/env.",
+                env,
+            )
+            sys.exit(1)
+        if allow_no_auth:
+            _log.critical(
+                "SECURITY CRITICAL: ENGRAMIA_ALLOW_NO_AUTH=true — the API is running "
+                "with NO authentication. This must never be used outside of local development."
+            )
+        else:
+            _log.warning(
+                "SECURITY WARNING: No auth configured — API is unauthenticated. "
+                "Set ENGRAMIA_API_KEYS or configure DB auth for production."
+            )
 
     cors_origins = os.environ.get("ENGRAMIA_CORS_ORIGINS", "")
     if not cors_origins.strip():

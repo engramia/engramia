@@ -124,20 +124,21 @@ def cleanup_old_jobs(memory, params: dict[str, Any]) -> dict[str, Any]:
     try:
         from sqlalchemy import text
 
-        status_placeholders = ", ".join(f":s{i}" for i in range(len(terminal_statuses)))
         status_params = {f"s{i}": s for i, s in enumerate(terminal_statuses)}
         base_params = {"tid": scope.tenant_id, "pid": scope.project_id, "cutoff": cutoff}
         all_params = {**base_params, **status_params}
+        # IN clause uses fixed bind parameters matching the hardcoded terminal_statuses tuple.
+        in_clause = ", ".join(":" + f"s{i}" for i in range(len(terminal_statuses)))
 
         count_query = (
             "SELECT COUNT(*) FROM jobs "
             "WHERE tenant_id = :tid AND project_id = :pid "
-            "AND created_at < :cutoff AND status IN (" + status_placeholders + ")"
+            "AND created_at < :cutoff AND status IN (" + in_clause + ")"
         )
         delete_query = (
             "DELETE FROM jobs "
             "WHERE tenant_id = :tid AND project_id = :pid "
-            "AND created_at < :cutoff AND status IN (" + status_placeholders + ")"
+            "AND created_at < :cutoff AND status IN (" + in_clause + ")"
         )
 
         if dry_run:
