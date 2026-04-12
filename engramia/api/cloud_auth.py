@@ -12,7 +12,14 @@ On registration, automatically creates:
 JWT tokens:
   Access token:  1 hour  — claims: sub, tenant_id, email, role, jti, type
   Refresh token: 30 days — same claims, type='refresh'
-  Secret: ENGRAMIA_JWT_SECRET env var (required in production)
+
+Signing algorithm (H-02 fix):
+  RS256 (preferred) — set ENGRAMIA_JWT_PRIVATE_KEY and ENGRAMIA_JWT_PUBLIC_KEY
+    to file paths (or PEM strings) for the RSA private and public keys.
+    Generate a key pair with: engramia auth generate-keys
+  HS256 (fallback)  — if RSA keys are not configured, falls back to
+    ENGRAMIA_JWT_SECRET (HS256).  A deprecation warning is emitted.
+    HS256 will be removed in a future release.
 
 Rate limiting: POST /auth/register is capped at 5 requests/minute per IP
 via an in-process fixed-window counter.
@@ -30,6 +37,7 @@ import secrets
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from typing import Literal
 
 from fastapi import APIRouter, Body, HTTPException, Request, status
@@ -43,9 +51,6 @@ router = APIRouter(tags=["Cloud Auth"])
 # JWT helpers
 # ---------------------------------------------------------------------------
 
-_JWT_SECRET: str | None = None
-_JWT_SECRET_LOCK = threading.Lock()
-
 _ACCESS_TOKEN_EXPIRE_SECONDS = 3600  # 1 hour
 _REFRESH_TOKEN_EXPIRE_SECONDS = 30 * 86400  # 30 days
 
@@ -54,26 +59,90 @@ _REFRESH_TOKEN_EXPIRE_SECONDS = 30 * 86400  # 30 days
 _DEFAULT_PROJECT_PATTERN_LIMIT = 10_000
 
 
-def _get_jwt_secret() -> str:
-    global _JWT_SECRET
-    with _JWT_SECRET_LOCK:
-        if _JWT_SECRET is None:
+@dataclass
+class _JWTConfig:
+    sign_key: object  # RSA private key object or HS256 secret str
+    verify_key: object  # RSA public key object or HS256 secret str
+    algorithm: str  # "RS256" or "HS256"
+    algorithms: list[str]  # list for jwt.decode()
+
+
+_JWT_CONFIG: _JWTConfig | None = None
+_JWT_CONFIG_LOCK = threading.Lock()
+
+
+def _load_pem_or_path(value: str) -> bytes:
+    """Return PEM bytes from either a PEM string or a file path."""
+    stripped = value.strip()
+    if stripped.startswith("-----"):
+        return stripped.encode()
+    with open(stripped, "rb") as fh:
+        return fh.read()
+
+
+def _get_jwt_config() -> _JWTConfig:
+    """Lazy-initialize and cache the JWT signing configuration.
+
+    Priority:
+      1. RS256 — if ENGRAMIA_JWT_PRIVATE_KEY and ENGRAMIA_JWT_PUBLIC_KEY are set.
+      2. HS256 — fallback to ENGRAMIA_JWT_SECRET (deprecated; emits a warning).
+    """
+    global _JWT_CONFIG
+    with _JWT_CONFIG_LOCK:
+        if _JWT_CONFIG is not None:
+            return _JWT_CONFIG
+
+        private_key_val = os.environ.get("ENGRAMIA_JWT_PRIVATE_KEY", "").strip()
+        public_key_val = os.environ.get("ENGRAMIA_JWT_PUBLIC_KEY", "").strip()
+
+        if private_key_val and public_key_val:
+            from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key
+
+            try:
+                private_key = load_pem_private_key(_load_pem_or_path(private_key_val), password=None)
+                public_key = load_pem_public_key(_load_pem_or_path(public_key_val))
+            except Exception as exc:
+                raise RuntimeError(f"Failed to load RSA keys for JWT signing: {exc}") from exc
+
+            _JWT_CONFIG = _JWTConfig(
+                sign_key=private_key,
+                verify_key=public_key,
+                algorithm="RS256",
+                algorithms=["RS256"],
+            )
+            _log.info("JWT signing: RS256 (asymmetric keys loaded)")
+        else:
+            # HS256 fallback — deprecated
             secret = os.environ.get("ENGRAMIA_JWT_SECRET", "").strip()
             if not secret:
                 env = os.environ.get("ENGRAMIA_ENV", "").strip().lower()
                 if env == "production":
                     raise RuntimeError(
-                        "ENGRAMIA_JWT_SECRET must be explicitly set in production. "
-                        'Generate with: python -c "import secrets; print(secrets.token_hex(32))"'
+                        "JWT signing keys not configured for production. "
+                        "Set ENGRAMIA_JWT_PRIVATE_KEY and ENGRAMIA_JWT_PUBLIC_KEY (RS256, recommended), "
+                        "or set ENGRAMIA_JWT_SECRET (HS256, deprecated). "
+                        "Generate an RSA key pair with: engramia auth generate-keys"
                     )
                 secret = secrets.token_hex(32)
                 _log.warning(
-                    "ENGRAMIA_JWT_SECRET not set — generated ephemeral secret. "
-                    "Tokens will be invalidated on server restart. "
-                    "Set ENGRAMIA_JWT_SECRET for production."
+                    "Neither ENGRAMIA_JWT_PRIVATE_KEY/PUBLIC_KEY nor ENGRAMIA_JWT_SECRET are set — "
+                    "generated ephemeral HS256 secret. Tokens will be invalidated on server restart."
                 )
-            _JWT_SECRET = secret
-        return _JWT_SECRET
+            else:
+                _log.warning(
+                    "DEPRECATION: JWT is using HS256 (ENGRAMIA_JWT_SECRET). "
+                    "A leaked secret allows full auth bypass for all tenants (H-02). "
+                    "Migrate to RS256 by setting ENGRAMIA_JWT_PRIVATE_KEY and ENGRAMIA_JWT_PUBLIC_KEY. "
+                    "Generate a key pair with: engramia auth generate-keys"
+                )
+            _JWT_CONFIG = _JWTConfig(
+                sign_key=secret,
+                verify_key=secret,
+                algorithm="HS256",
+                algorithms=["HS256"],
+            )
+
+        return _JWT_CONFIG
 
 
 def _make_token(
@@ -86,6 +155,7 @@ def _make_token(
 ) -> str:
     import jwt  # PyJWT
 
+    cfg = _get_jwt_config()
     now = int(time.time())
     exp = now + (_REFRESH_TOKEN_EXPIRE_SECONDS if is_refresh else _ACCESS_TOKEN_EXPIRE_SECONDS)
     payload = {
@@ -98,14 +168,15 @@ def _make_token(
         "iat": now,
         "exp": exp,
     }
-    return jwt.encode(payload, _get_jwt_secret(), algorithm="HS256")
+    return jwt.encode(payload, cfg.sign_key, algorithm=cfg.algorithm)
 
 
 def _decode_token(token: str, *, require_refresh: bool = False) -> dict:
     import jwt  # PyJWT
 
+    cfg = _get_jwt_config()
     try:
-        payload = jwt.decode(token, _get_jwt_secret(), algorithms=["HS256"])
+        payload = jwt.decode(token, cfg.verify_key, algorithms=cfg.algorithms)
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.") from None
     except jwt.InvalidTokenError:
@@ -151,11 +222,12 @@ def _blocklist_token(token: str) -> None:
     """
     import jwt
 
+    cfg = _get_jwt_config()
     try:
         payload = jwt.decode(
             token,
-            _get_jwt_secret(),
-            algorithms=["HS256"],
+            cfg.verify_key,
+            algorithms=cfg.algorithms,
             options={"verify_exp": False},  # allow blocklisting tokens that just expired
         )
     except jwt.InvalidTokenError:

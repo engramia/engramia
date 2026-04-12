@@ -39,7 +39,9 @@ Complete reference for all Engramia environment variables, grouped by category.
 | `ENGRAMIA_ENVIRONMENT` | — | Deployment environment label (`local`, `development`, `staging`, `production`). Used to block `ENGRAMIA_AUTH_MODE=dev` in non-local environments. |
 | `ENGRAMIA_ENV_AUTH_ROLE` | `owner` | Role assigned to requests authenticated via `env` auth mode (`ENGRAMIA_API_KEYS`). Valid values: `owner` \| `admin` \| `editor` \| `reader`. Defaults to `owner` for backward compatibility with single-key deployments. Set to `reader` or `editor` to limit the scope of static keys in production. |
 | `ENGRAMIA_BOOTSTRAP_TOKEN` | — | Secret token required to call `POST /v1/keys/bootstrap` (the first-ever owner key creation). Must be set before deploying to production. Without it the bootstrap endpoint is disabled. Minimum 32 characters recommended. |
-| `ENGRAMIA_JWT_SECRET` | *(auto-generated)* | HS256 signing secret for cloud-auth JWTs (access tokens: 1 h, refresh tokens: 30 d). **Required in production.** If absent, an ephemeral random secret is generated at startup — all issued tokens are invalidated on every restart. Generate with `python -c "import secrets; print(secrets.token_hex(32))"`. Minimum 32 hex characters recommended. |
+| `ENGRAMIA_JWT_PRIVATE_KEY` | — | Path to (or PEM content of) an RSA private key used to **sign** cloud-auth JWTs with RS256. **Recommended for production.** Generate a key pair with `engramia auth generate-keys`. Must be set together with `ENGRAMIA_JWT_PUBLIC_KEY`. |
+| `ENGRAMIA_JWT_PUBLIC_KEY` | — | Path to (or PEM content of) the RSA public key used to **verify** cloud-auth JWTs. Must be set together with `ENGRAMIA_JWT_PRIVATE_KEY`. |
+| `ENGRAMIA_JWT_SECRET` | *(auto-generated)* | **Deprecated (HS256).** Symmetric secret for cloud-auth JWTs. If set without RSA keys, a deprecation warning is logged. A leaked secret allows full auth bypass for all tenants (audit finding H-02). Migrate to RS256 by setting the RSA key vars above. If neither RSA keys nor this secret are set, an ephemeral secret is generated at startup. |
 
 **Auth mode behaviour:**
 
