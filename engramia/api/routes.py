@@ -748,7 +748,9 @@ def get_audit_log(
     auth_ctx: AuthContext | None = Depends(get_auth_context),
     limit: int = Query(default=50, ge=1, le=1000),
     since: str | None = Query(default=None, description="ISO-8601 timestamp — events >= this time."),
-    until: str | None = Query(default=None, description="ISO-8601 timestamp — events < this time (for cursor pagination)."),
+    until: str | None = Query(
+        default=None, description="ISO-8601 timestamp — events < this time (for cursor pagination)."
+    ),
     action: str | None = Query(default=None, max_length=100, description="Exact match on event action."),
     actor: str | None = Query(default=None, max_length=200, description="Filter by API key ID (actor)."),
 ) -> AuditResponse:

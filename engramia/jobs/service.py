@@ -53,6 +53,7 @@ def _run_jobs(
         if exc is not None:
             _log.error("Unexpected exception escaped job execution: %s", exc)
 
+
 #: Default job expiry: 1 hour from creation.
 _DEFAULT_EXPIRES_SECONDS = 3600
 

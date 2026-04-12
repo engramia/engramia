@@ -24,6 +24,7 @@ _ANTHROPIC_INSTALL_MSG = (
     "Anthropic provider requires the anthropic package. Install it with: pip install engramia[anthropic]"
 )
 
+
 class AnthropicProvider(LLMProvider):
     """LLM provider backed by the Anthropic Messages API.
 
