@@ -590,7 +590,7 @@ def login(body: LoginRequest, request: Request) -> LoginResponse:
     with engine.connect() as conn:
         row = conn.execute(
             text(
-                "SELECT id, password_hash, tenant_id FROM cloud_users WHERE email = :email AND provider = 'credentials'"
+                "SELECT id, password_hash, tenant_id, email_verified FROM cloud_users WHERE email = :email AND provider = 'credentials'"
             ),
             {"email": email},
         ).fetchone()
@@ -599,11 +599,16 @@ def login(body: LoginRequest, request: Request) -> LoginResponse:
         log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="unknown_email")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
 
-    user_id, stored_hash, tenant_id = str(row[0]), row[1], str(row[2])
+    user_id, stored_hash, tenant_id, email_verified = str(row[0]), row[1], str(row[2]), bool(row[3])
 
     if not stored_hash or not _verify_password(body.password, stored_hash):
         log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="wrong_password")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
+
+    # TODO: send verification email if not yet verified
+    if not email_verified:
+        log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="email_not_verified")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Please verify your email first.")
 
     with engine.begin() as conn:
         conn.execute(
