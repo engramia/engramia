@@ -419,6 +419,11 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     app.state.auth_engine = _make_auth_engine()
 
+    # Load persisted revoked JTIs from DB so revocations survive restarts (M-02).
+    from engramia.api.cloud_auth import set_blocklist_engine
+
+    set_blocklist_engine(app.state.auth_engine)
+
     # ------------------------------------------------------------------
     # Async job service + worker (Phase 5.4)
     # ------------------------------------------------------------------

@@ -18,7 +18,9 @@ Rate limiting: POST /auth/register is capped at 5 requests/minute per IP
 via an in-process fixed-window counter.
 
 Token revocation: /auth/logout blocklists JTIs in an in-memory dict with TTL
-matching the token expiry.  A Redis-backed solution can replace this later.
+matching the token expiry.  JTIs are also persisted to the ``revoked_jtis``
+database table (migration 015) so revocations survive restarts.
+A Redis-backed solution can replace this later.
 """
 
 import collections
@@ -137,17 +139,50 @@ def _bearer_token(request: Request) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Token revocation blocklist (in-memory, TTL-based)
+# Token revocation blocklist (in-memory with DB persistence, TTL-based)
 # ---------------------------------------------------------------------------
 
 _token_blocklist: dict[str, float] = {}  # jti → expiry epoch
 _token_blocklist_lock = threading.Lock()
 
+# Module-level engine reference — set by set_blocklist_engine() on startup so
+# blocklist operations can persist to / load from the database.
+_blocklist_engine = None
+
+
+def set_blocklist_engine(engine) -> None:
+    """Register the SQLAlchemy engine for blocklist persistence.
+
+    Loads all unexpired JTIs from the ``revoked_jtis`` table into the
+    in-memory dict so revocations survive server restarts.  Should be called
+    once during application startup after the auth engine is created.
+    """
+    global _blocklist_engine
+    _blocklist_engine = engine
+    if engine is None:
+        return
+    try:
+        from sqlalchemy import text
+
+        now = time.time()
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT jti, expires_at FROM revoked_jtis WHERE expires_at > :now"),
+                {"now": now},
+            ).fetchall()
+        with _token_blocklist_lock:
+            for jti, exp in rows:
+                _token_blocklist[str(jti)] = float(exp)
+        _log.info("Loaded %d unexpired revoked JTI(s) from database.", len(rows))
+    except Exception as exc:
+        _log.warning("Could not load revoked JTIs from database (non-fatal): %s", exc)
+
 
 def _blocklist_token(token: str) -> None:
-    """Add a token's JTI to the in-memory revocation blocklist until it expires.
+    """Add a token's JTI to the revocation blocklist.
 
-    Verifies the token signature before blocklisting.  Ignores malformed tokens.
+    Persists the JTI to the ``revoked_jtis`` DB table when an engine is
+    available so revocations survive restarts.  Ignores malformed tokens.
     """
     import jwt
 
@@ -167,13 +202,37 @@ def _blocklist_token(token: str) -> None:
         _log.debug("_blocklist_token: token missing jti or exp, cannot blocklist")
         return
 
+    exp_f = float(exp)
     now = time.time()
     with _token_blocklist_lock:
-        _token_blocklist[jti] = float(exp)
+        _token_blocklist[jti] = exp_f
         # Opportunistic cleanup of entries that have already expired
         stale = [k for k, v in _token_blocklist.items() if v < now]
         for k in stale:
             del _token_blocklist[k]
+
+    # Persist to DB so revocation survives restarts.
+    engine = _blocklist_engine
+    if engine is not None:
+        try:
+            from sqlalchemy import text
+
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO revoked_jtis (jti, expires_at) VALUES (:jti, :exp) "
+                        "ON CONFLICT (jti) DO NOTHING"
+                    ),
+                    {"jti": jti, "exp": exp_f},
+                )
+            # Opportunistically delete expired rows from DB (best-effort).
+            with engine.begin() as conn:
+                conn.execute(
+                    text("DELETE FROM revoked_jtis WHERE expires_at < :now"),
+                    {"now": now},
+                )
+        except Exception as exc:
+            _log.warning("Could not persist revoked JTI to database (non-fatal): %s", exc)
 
 
 def _is_jti_blocked(jti: str) -> bool:
