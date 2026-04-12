@@ -85,8 +85,15 @@ def billing_status(request: Request):
     """
     from engramia.billing.models import BillingStatus
 
+    auth_context = getattr(request.state, "auth_context", None)
+    if auth_context is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for billing operations",
+        )
+
     billing_svc = getattr(request.app.state, "billing_service", None)
-    tenant_id = request.state.auth_context.tenant_id
+    tenant_id = auth_context.tenant_id
 
     if billing_svc is None:
         return BillingStatus(
@@ -121,6 +128,13 @@ async def create_checkout(request: Request):
     """
     import json
 
+    auth_context = getattr(request.state, "auth_context", None)
+    if auth_context is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for billing operations",
+        )
+
     billing_svc = getattr(request.app.state, "billing_service", None)
     if billing_svc is None:
         raise HTTPException(
@@ -134,7 +148,7 @@ async def create_checkout(request: Request):
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON body.") from exc
 
-    tenant_id = request.state.auth_context.tenant_id
+    tenant_id = auth_context.tenant_id
 
     price_id: str = body.get("price_id", "")
     success_url: str = body.get("success_url", "")
@@ -159,11 +173,18 @@ async def create_checkout(request: Request):
 )
 def customer_portal(request: Request, return_url: str = ""):
     """Return a Stripe Customer Portal URL for the authenticated tenant."""
+    auth_context = getattr(request.state, "auth_context", None)
+    if auth_context is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for billing operations",
+        )
+
     billing_svc = getattr(request.app.state, "billing_service", None)
     if billing_svc is None:
         raise HTTPException(status_code=503, detail="Billing not configured.")
 
-    tenant_id = request.state.auth_context.tenant_id
+    tenant_id = auth_context.tenant_id
 
     if not return_url:
         return_url = str(request.base_url)
@@ -190,11 +211,18 @@ async def set_overage(request: Request):
     """
     import json
 
+    auth_context = getattr(request.state, "auth_context", None)
+    if auth_context is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for billing operations",
+        )
+
     billing_svc = getattr(request.app.state, "billing_service", None)
     if billing_svc is None:
         raise HTTPException(status_code=503, detail="Billing not configured.")
 
-    tenant_id = request.state.auth_context.tenant_id
+    tenant_id = auth_context.tenant_id
 
     payload = await request.body()
     try:
