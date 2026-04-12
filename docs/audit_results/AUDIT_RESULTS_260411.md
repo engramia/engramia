@@ -1,5 +1,7 @@
 # Engramia Audit Report — 2026-04-11
 
+> **Remediation update (2026-04-11):** 28 findings resolved across commits `71af380`, `ad40b03`, `fa43837`, `cb73e74`, `12a9b47`. All 5 "Top priorities" from the executive summary below are fixed. Full status matrix in [AUDIT_CROSS_REFERENCE_260411.md](AUDIT_CROSS_REFERENCE_260411.md#resolution-status-2026-04-11--post-remediation). Post-fix: 1344 tests pass, coverage 82.42%, ruff clean.
+
 ## Executive Summary
 
 ```

@@ -139,3 +139,69 @@ Documentation, cosmetics, and hardening items.
 - Dismissed after verification: **3 findings**
 
 **Net change from prior audit:** The `_vec_to_pg()` P0 from 260408 can be **closed** (confirmed safe). The Apple JWKS P0 from 260408 remains open but is low-exploitability (returns 500 not bypass). The real urgent fixes are T1-01 through T1-06.
+
+---
+
+## Resolution Status (2026-04-11 — post-remediation)
+
+Addendum recording which items from the plan above were implemented. Updated after each remediation batch; the original findings table and priorities above are preserved as the audit baseline.
+
+### ✅ Resolved (28 items across 5 commits)
+
+| Finding | Commit | Notes |
+|---|---|---|
+| F-05 / T1-01 | `71af380` | `health.py:23` `"013"` → `"014"`; false degradation eliminated |
+| F-02 / T1-02 | `71af380` | `EngramiaCallback` now dynamically injects `BaseCallbackHandler` into MRO at `__init__` time so the import stays lazy but the LangChain isinstance dispatch works |
+| F-06 / T1-04 | `71af380` | `_check_quota(…, additional=N)`; import endpoint passes `len(raw_records)` |
+| F-10 / T1-05 | `71af380` | `max(0.0, elapsed_weeks)` clamp in `eval_feedback.py:136` |
+| F-12 / T1-06 | `71af380` | K8s `secretKeyRef.key` fixed to `POSTGRES_PASSWORD` |
+| F-09 / T2-01 | `ad40b03` | `OpenAIEmbeddings._call_with_retry` mirrors LLM provider (3 attempts, exp backoff, skip on auth/bad-request) |
+| F-08 / T2-02 | `ad40b03` | `_check_login_rate` (10/min per IP) added to `/auth/login` |
+| T2-07 | `ad40b03` | `pool_recycle=1800` on PostgresStorage engine |
+| F-11 / T2-04 | `ad40b03` | Dashboard image pinned to `${IMAGE_TAG:?…}` |
+| F-13 / T2-05 | `ad40b03` | `cryptography>=46.0.7` floor pin (CVE-2026-39892) |
+| F-19 / T2-08 | `ad40b03` | `inc_job_submitted()` / `inc_job_completed()` wired in both in-memory + DB execution paths |
+| F-20 / T2-09 | `ad40b03` | `observe_storage("postgres", …)` on PG load/save |
+| F-18 / T2-10 | `ad40b03` | `tests/postgres/conftest.py` + `tests/test_db/conftest.py` auto-skip when Docker daemon or container startup fails |
+| F-16 / T3-01 + T3-04 | `fa43837` | `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Strict-Transport-Security: max-age=63072000; includeSubDomains`, `Permissions-Policy: interest-cohort=()` |
+| T3-05 | `fa43837` | Misleading `"License :: Free for non-commercial use"` classifier removed |
+| T3-06 | `fa43837` | SPDX header added to `engramia/api/errors.py` |
+| T3-07 | `fa43837` | Dead `Memory._require_embeddings()` removed; `_NO_RETRY_STATUS` dropped from both providers |
+| T3-08 | `fa43837` | Magic `10000` extracted to `_DEFAULT_PROJECT_PATTERN_LIMIT` |
+| T3-09 | `fa43837` | CHANGELOG `[0.6.6]` renamed to `[Unreleased] — targeting 0.6.6` |
+| F-24 / T3-10 | `fa43837` | p90 switched to `math.ceil` nearest-rank (n=2 now returns larger value) |
+| F-25 / T3-11 | `fa43837` | `GET /events` `total` captured before `[:limit]` slice |
+| T3-12 | `fa43837` | Container user given `/usr/sbin/nologin` shell |
+| T3-13 | `fa43837` | `engramia/telemetry/CLAUDE.md` stale "Known issues" rewritten to "Instrumentation status" |
+| T3-14 | `fa43837` | Per-item `max_length=200` on skill tag strings (`_SkillTag`) |
+| T3-16 | `fa43837` | `pygments>=2.20.0` pinned in dev extras (CVE-2026-4539) |
+| F-07 / T2-03 | `cb73e74` | `JobService.poll_and_execute(executor=…)` dispatches each claimed job with `contextvars.copy_context()`; 3 new regression tests prove concurrency + scope isolation |
+| F-15 / T2-06 | `cb73e74` | `db/models.py` gains `ProcessedWebhookEvent`, `CloudUser`, `Job.max_execution_seconds`, `BillingSubscription.past_due_since` + 7 smoke tests |
+| F-21 / T3-15 | `12a9b47` | New `GET /v1/audit` endpoint (admin-only `audit:read`, cursor pagination, scope isolation, filters, 503 on non-DB, defensive `_parse_detail`) + 17 tests + dashboard types/page rewritten |
+
+### 🗑 Dismissed after verification
+
+| Finding | Reason |
+|---|---|
+| F-01 | `_vec_to_pg()` f-string passes through named bind parameter; `:.8f` format guarantees float output; embedding input comes from providers, not users. Not exploitable. |
+| F-03 | `max_length` on response models is not a security control — the server governs its own output. |
+
+### ⏸ Deferred by owner decision
+
+| Finding | Owner note |
+|---|---|
+| F-04 | Apple OAuth `NotImplementedError` (500 → 501) — explicitly paused; will land when full Apple Sign-In is scoped. |
+
+### 🕑 Remaining — still tracked
+
+| Finding | Location | Status |
+|---|---|---|
+| F-22 | `GET /v1/patterns` list endpoint | Not started — separate design needed (filters, pagination, field projection). |
+| F-23 | Vault / external secret management | Already on **roadmap → Enterprise Hardening**. |
+| Prior-P0 | Apple JWKS signature verification | Pending Apple OAuth decision above. |
+| — | LLM health probe sends real API call on every deep health check | Follow-up idea: cache 60s or swap for lighter endpoint. |
+| — | `psycopg2-binary` in maintenance mode → `psycopg` (psycopg3) | Follow-up dependency modernization. |
+| — | No `environment` dimension on `Scope` | Design question: encode in `project_id` (current) vs add new axis. |
+| — | Import/export not chunked; no job submission backpressure | Scale gap — relevant when pattern counts grow. |
+
+**Post-remediation test status:** 1344 passed, 5 skipped, 0 failures. Coverage 82.42% (up from 80.84% at audit time). Ruff clean.
