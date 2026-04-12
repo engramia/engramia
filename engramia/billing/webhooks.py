@@ -11,6 +11,7 @@ require authentication via ``require_auth``.
 """
 
 import logging
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 
@@ -167,6 +168,11 @@ def customer_portal(request: Request, return_url: str = ""):
 
     if not return_url:
         return_url = str(request.base_url)
+    else:
+        parsed = urlparse(return_url)
+        allowed_netloc = urlparse(str(request.base_url)).netloc
+        if parsed.scheme not in ("http", "https") or parsed.netloc != allowed_netloc:
+            raise HTTPException(status_code=400, detail="Invalid return_url.")
 
     try:
         url = billing_svc.create_portal_url(tenant_id, return_url)
