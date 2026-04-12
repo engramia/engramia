@@ -491,3 +491,25 @@ class DSRListResponse(BaseModel):
         default_factory=dict,
         description="Counts of open requests by status: {pending, in_progress, overdue}.",
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /audit  (Phase 6.0 — audit log viewer for admin dashboard)
+# ---------------------------------------------------------------------------
+
+
+class AuditEventOut(BaseModel):
+    """One row from the audit_log table, projected for API clients."""
+
+    timestamp: str = Field(description="ISO-8601 timestamp when the event was recorded.")
+    action: str = Field(description="Action name, e.g. 'learn', 'key_created', 'pattern_deleted'.")
+    actor: str | None = Field(default=None, description="Key ID of the caller, or null for anonymous events.")
+    resource_type: str | None = Field(default=None, description="Type of the affected resource (e.g. 'pattern').")
+    resource_id: str | None = Field(default=None, description="Identifier of the affected resource.")
+    ip: str | None = Field(default=None, description="Client IP address recorded at the time of the event.")
+    detail: dict | None = Field(default=None, description="Structured event context (counts, reason, params).")
+
+
+class AuditResponse(BaseModel):
+    events: list[AuditEventOut] = Field(description="Matching events, newest first, capped at `limit`.")
+    total: int = Field(description="Total matching events BEFORE the limit slice — used for pagination.")

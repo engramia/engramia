@@ -182,10 +182,15 @@ export class EngramiaClient {
   }
 
   // Audit
-  audit(limit = 50, since?: string, action?: string) {
+  audit(
+    limit = 50,
+    opts: { since?: string; until?: string; action?: string; actor?: string } = {},
+  ) {
     const params = new URLSearchParams({ limit: String(limit) });
-    if (since) params.set("since", since);
-    if (action) params.set("action", action);
+    if (opts.since) params.set("since", opts.since);
+    if (opts.until) params.set("until", opts.until);
+    if (opts.action) params.set("action", opts.action);
+    if (opts.actor) params.set("actor", opts.actor);
     return this.request<AuditResponse>(
       "GET",
       `/v1/audit?${params.toString()}`,

@@ -34,6 +34,8 @@ from engramia.api.schemas import (
     AgingResponse,
     AnalyzeFailuresRequest,
     AnalyzeFailuresResponse,
+    AuditEventOut,
+    AuditResponse,
     ComposeRequest,
     ComposeResponse,
     DeepHealthCheckResult,
@@ -728,6 +730,131 @@ def run_feedback_decay(request: Request, memory: Memory = Depends(get_memory)):
         return async_resp
     pruned = memory.run_feedback_decay()
     return FeedbackDecayResponse(pruned=pruned)
+
+
+# ---------------------------------------------------------------------------
+# GET /audit  (Phase 6.0 — audit log viewer for admin dashboard)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/audit",
+    response_model=AuditResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[require_permission("audit:read")],
+)
+def get_audit_log(
+    request: Request,
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+    limit: int = Query(default=50, ge=1, le=1000),
+    since: str | None = Query(default=None, description="ISO-8601 timestamp — events >= this time."),
+    until: str | None = Query(default=None, description="ISO-8601 timestamp — events < this time (for cursor pagination)."),
+    action: str | None = Query(default=None, max_length=100, description="Exact match on event action."),
+    actor: str | None = Query(default=None, max_length=200, description="Filter by API key ID (actor)."),
+) -> AuditResponse:
+    """Return audit log events for the current scope.
+
+    Requires ``audit:read`` (admin+). Events are scoped to the caller's tenant
+    and project. Returned newest-first.
+
+    Pagination uses cursor semantics: pass the timestamp of the oldest row from
+    the previous page as ``until`` to fetch the next page. Offset-based paging
+    is deliberately not supported — the audit log grows continuously, which
+    makes offsets unstable under concurrent writes.
+
+    Degrades to 503 when the deployment has no SQL auth engine configured
+    (``audit_log`` is only populated by DB-backed deployments).
+    """
+    from sqlalchemy import text
+
+    engine = getattr(request.app.state, "auth_engine", None)
+    if engine is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error_code": ErrorCode.SERVICE_UNAVAILABLE,
+                "detail": (
+                    "Audit log is only available on DB-backed deployments. "
+                    "Configure ENGRAMIA_DATABASE_URL and migrate to enable."
+                ),
+            },
+        )
+
+    if auth_ctx is None:
+        # audit:read already gated this on admin+; without auth_ctx we cannot
+        # compute a scope, so refuse rather than leak cross-tenant rows.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error_code": ErrorCode.SERVICE_UNAVAILABLE,
+                "detail": "Audit log requires authenticated scope.",
+            },
+        )
+
+    params: dict = {
+        "tid": auth_ctx.tenant_id,
+        "pid": auth_ctx.project_id,
+        "since": since,
+        "until": until,
+        "action": action,
+        "actor": actor,
+    }
+    where = (
+        "tenant_id = :tid AND project_id = :pid "
+        "AND (CAST(:since AS TEXT) IS NULL OR created_at >= :since) "
+        "AND (CAST(:until AS TEXT) IS NULL OR created_at <  :until) "
+        "AND (CAST(:action AS TEXT) IS NULL OR action = :action) "
+        "AND (CAST(:actor  AS TEXT) IS NULL OR key_id = :actor)"
+    )
+
+    with engine.connect() as conn:
+        total_row = conn.execute(
+            text(f"SELECT COUNT(*) FROM audit_log WHERE {where}"),
+            params,
+        ).fetchone()
+        total = int(total_row[0]) if total_row else 0
+
+        rows = conn.execute(
+            text(
+                f"SELECT created_at, action, key_id, resource_type, resource_id, ip_address, detail "
+                f"FROM audit_log WHERE {where} "
+                f"ORDER BY created_at DESC, id DESC LIMIT :limit"
+            ),
+            {**params, "limit": limit},
+        ).fetchall()
+
+    events = [
+        AuditEventOut(
+            timestamp=row[0],
+            action=row[1],
+            actor=row[2],
+            resource_type=row[3],
+            resource_id=row[4],
+            ip=row[5],
+            # psycopg2 deserialises JSONB to dict directly; other drivers
+            # (e.g. SQLite TEXT-backed schemas) hand us a string — parse it.
+            detail=_parse_detail(row[6]),
+        )
+        for row in rows
+    ]
+    return AuditResponse(events=events, total=total)
+
+
+def _parse_detail(raw) -> dict | None:
+    """Normalise ``audit_log.detail`` to ``dict | None`` regardless of driver."""
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        import json as _json
+
+        try:
+            parsed = _json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
 
 
 # ---------------------------------------------------------------------------

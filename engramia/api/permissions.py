@@ -69,6 +69,8 @@ _ADMIN_PERMS: frozenset[str] = _EDITOR_PERMS | frozenset(
         "governance:write",
         "governance:admin",
         "governance:delete",
+        # Phase 6.0: Audit log access (dashboard audit viewer)
+        "audit:read",
     }
 )
 

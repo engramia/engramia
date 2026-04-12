@@ -248,9 +248,10 @@ export interface AuditEvent {
   timestamp: string;
   action: string;
   actor: string | null;
-  resource: string | null;
+  resource_type: string | null;
+  resource_id: string | null;
   ip: string | null;
-  detail: string | null;
+  detail: Record<string, unknown> | null;
 }
 
 export interface AuditResponse {
