@@ -493,11 +493,23 @@ def create_app() -> FastAPI:
                 app.mount("/metrics", _guarded_metrics)
                 _log.info("Prometheus /metrics endpoint enabled (token-protected).")
             else:
-                app.mount("/metrics", metrics_app)
                 _log.warning(
-                    "SECURITY: Prometheus /metrics is enabled without a token. "
-                    "Set ENGRAMIA_METRICS_TOKEN or restrict access via network policy."
+                    "SECURITY: Prometheus /metrics is enabled but ENGRAMIA_METRICS_TOKEN is not set. "
+                    "All /metrics requests will return 403. Set ENGRAMIA_METRICS_TOKEN to enable access."
                 )
+
+                from starlette.responses import Response as _StarletteResponse
+
+                async def _blocked_metrics(scope, receive, send):
+                    if scope["type"] == "http":
+                        resp = _StarletteResponse(
+                            "Forbidden: ENGRAMIA_METRICS_TOKEN is not configured.",
+                            status_code=403,
+                            media_type="text/plain",
+                        )
+                        await resp(scope, receive, send)
+
+                app.mount("/metrics", _blocked_metrics)
         except ImportError:
             _log.warning("prometheus_client not installed — /metrics not mounted.")
 

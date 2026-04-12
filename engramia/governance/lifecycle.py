@@ -130,14 +130,14 @@ def cleanup_old_jobs(memory, params: dict[str, Any]) -> dict[str, Any]:
         all_params = {**base_params, **status_params}
 
         count_query = (
-            f"SELECT COUNT(*) FROM jobs "
-            f"WHERE tenant_id = :tid AND project_id = :pid "
-            f"AND created_at < :cutoff AND status IN ({status_placeholders})"
+            "SELECT COUNT(*) FROM jobs "
+            "WHERE tenant_id = :tid AND project_id = :pid "
+            "AND created_at < :cutoff AND status IN (" + status_placeholders + ")"
         )
         delete_query = (
-            f"DELETE FROM jobs "
-            f"WHERE tenant_id = :tid AND project_id = :pid "
-            f"AND created_at < :cutoff AND status IN ({status_placeholders})"
+            "DELETE FROM jobs "
+            "WHERE tenant_id = :tid AND project_id = :pid "
+            "AND created_at < :cutoff AND status IN (" + status_placeholders + ")"
         )
 
         if dry_run:

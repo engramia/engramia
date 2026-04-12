@@ -244,6 +244,18 @@ async def require_auth(request: Request) -> None:
                     "as a deliberate safety acknowledgement."
                 ),
             )
+        env = os.environ.get("ENGRAMIA_ENV", "").lower().strip()
+        if env in ("production", "prod"):
+            _log.critical(
+                "CRITICAL: ENGRAMIA_ALLOW_NO_AUTH=true is set in a production environment (%r). "
+                "Authentication cannot be disabled in production. "
+                "Unset ENGRAMIA_ALLOW_NO_AUTH or change ENGRAMIA_AUTH_MODE.",
+                env,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication cannot be disabled in a production environment.",
+            )
         _log.warning(
             "SECURITY: Dev auth mode active — all requests are unauthenticated "
             "(ENGRAMIA_ALLOW_NO_AUTH=true). Do not use this in production."
@@ -260,6 +272,17 @@ async def require_auth(request: Request) -> None:
                     "No API keys configured. Set ENGRAMIA_API_KEYS, use ENGRAMIA_AUTH_MODE=db, "
                     "or set ENGRAMIA_ALLOW_NO_AUTH=true to explicitly allow unauthenticated access."
                 ),
+            )
+        env = os.environ.get("ENGRAMIA_ENV", "").lower().strip()
+        if env in ("production", "prod"):
+            _log.critical(
+                "CRITICAL: ENGRAMIA_ALLOW_NO_AUTH=true is set in a production environment (%r) "
+                "with no API keys configured. Authentication cannot be disabled in production.",
+                env,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication cannot be disabled in a production environment.",
             )
         _log.warning(
             "SECURITY: No API keys configured — request allowed without authentication "

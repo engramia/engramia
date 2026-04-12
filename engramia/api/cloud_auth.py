@@ -43,7 +43,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from fastapi import APIRouter, Body, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 _log = logging.getLogger(__name__)
 
@@ -584,6 +584,22 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=254)
     password: str = Field(..., min_length=12, max_length=128)
     name: str | None = Field(default=None, max_length=200)
+
+    @field_validator("password")
+    @classmethod
+    def password_complexity(cls, v: str) -> str:
+        missing = []
+        if not re.search(r"[A-Z]", v):
+            missing.append("uppercase letter")
+        if not re.search(r"[a-z]", v):
+            missing.append("lowercase letter")
+        if not re.search(r"[0-9]", v):
+            missing.append("digit")
+        if not re.search(r"[^A-Za-z0-9]", v):
+            missing.append("special character")
+        if missing:
+            raise ValueError(f"Password must contain at least one: {', '.join(missing)}.")
+        return v
 
 
 class LoginRequest(BaseModel):

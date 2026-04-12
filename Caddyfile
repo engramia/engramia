@@ -3,6 +3,10 @@ engramia.dev {
     file_server
     encode gzip
 
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
     handle_errors {
         respond "{err.status_code} {err.status_text}" {err.status_code}
     }
@@ -10,6 +14,10 @@ engramia.dev {
 
 www.engramia.dev {
     redir https://engramia.dev{uri} permanent
+
+    tls {
+        protocols tls1.2 tls1.3
+    }
 }
 
 docs.engramia.dev {
@@ -17,23 +25,43 @@ docs.engramia.dev {
     file_server
     encode gzip
 
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
     handle_errors {
         respond "{err.status_code} {err.status_text}" {err.status_code}
     }
 }
 
 app.engramia.dev {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
     reverse_proxy dashboard:3000
 }
 
 api.engramia.dev {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
     reverse_proxy engramia-api:8000
 }
 
 status.engramia.dev {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
     reverse_proxy uptime-kuma:3001
 }
 
 grafana.engramia.dev {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
     reverse_proxy grafana:3000
 }
