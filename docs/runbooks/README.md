@@ -1,7 +1,7 @@
 # Operational Runbooks — Engramia
 
 Quick-reference guides for common production issues on `api.engramia.dev`
-(Hetzner CX23, `root@engramia-staging`).
+(**Hetzner PROD**, CX23, SSH alias `engramia-staging` in `~/.ssh/config`).
 
 ## Runbooks
 
