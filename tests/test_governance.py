@@ -20,16 +20,13 @@ import pytest
 from engramia.governance.deletion import DeletionResult, ScopedDeletion
 from engramia.governance.export import DataExporter
 from engramia.governance.redaction import (
-    Finding,
     RedactionPipeline,
     RegexRedactor,
     SecretPatternRedactor,
 )
-from engramia.governance.retention import PurgeResult, RetentionManager, compute_expiry_iso
+from engramia.governance.retention import RetentionManager, compute_expiry_iso
 from engramia.memory import Memory
-from engramia.providers.json_storage import JSONStorage
 from engramia.types import DataClassification
-
 
 # ---------------------------------------------------------------------------
 # DataClassification
@@ -140,7 +137,7 @@ class TestRedactionPipeline:
         pipeline = RedactionPipeline.default()
         original = "contact me@test.com"
         data = {"code": original}
-        clean, _ = pipeline.process(data)
+        _, _ = pipeline.process(data)
         assert data["code"] == original  # original not mutated
 
     def test_finding_has_field_name(self):
@@ -158,7 +155,7 @@ class TestRedactionPipeline:
     def test_non_string_values_pass_through(self):
         pipeline = RedactionPipeline.default()
         data = {"code": "x=1", "score": 9.5, "tags": ["a", "b"]}
-        clean, findings = pipeline.process(data)
+        clean, _findings = pipeline.process(data)
         assert clean["score"] == 9.5
         assert clean["tags"] == ["a", "b"]
 
@@ -448,8 +445,9 @@ class TestPostgresStorageGovernance:
 
     def test_save_pattern_meta_calls_update(self, mock_engine, tmp_path):
         engine, conn = mock_engine
-        from engramia.providers.postgres import PostgresStorage
         from unittest.mock import patch
+
+        from engramia.providers.postgres import PostgresStorage
 
         with patch("engramia.providers.postgres.PostgresStorage.__init__", lambda *a, **kw: None):
             storage = PostgresStorage.__new__(PostgresStorage)
@@ -479,8 +477,9 @@ class TestPostgresStorageGovernance:
         engine, conn = mock_engine
         conn.execute.side_effect = Exception("DB error")
 
-        from engramia.providers.postgres import PostgresStorage
         from unittest.mock import patch
+
+        from engramia.providers.postgres import PostgresStorage
 
         with patch("engramia.providers.postgres.PostgresStorage.__init__", lambda *a, **kw: None):
             storage = PostgresStorage.__new__(PostgresStorage)
@@ -502,8 +501,9 @@ class TestPostgresStorageGovernance:
         r.rowcount = 5
         conn.execute.return_value = r
 
-        from engramia.providers.postgres import PostgresStorage
         from unittest.mock import patch
+
+        from engramia.providers.postgres import PostgresStorage
 
         with patch("engramia.providers.postgres.PostgresStorage.__init__", lambda *a, **kw: None):
             storage = PostgresStorage.__new__(PostgresStorage)
@@ -724,8 +724,6 @@ class TestGovernanceAPI:
         app.state.auth_engine = None
 
         # Override require_auth to be a no-op in tests
-        from fastapi import Depends
-
         app.dependency_overrides[require_auth] = lambda: None
 
         app.include_router(gov_router, prefix="/v1")
@@ -1693,17 +1691,17 @@ class TestAuditScrubber:
         from engramia.governance.audit_scrubber import AuditScrubber
 
         row = (1, "192.168.1.1", {"email": "user@example.com", "action": "login"})
-        engine, conn = self._make_engine([row])
+        engine, _conn = self._make_engine([row])
         scrubber = AuditScrubber(engine=engine)
         result = scrubber.scrub(older_than_days=90)
         assert result.rows_scrubbed == 1
-        conn.execute.assert_called()
+        _conn.execute.assert_called()
 
     def test_dry_run_counts_but_no_update(self):
         from engramia.governance.audit_scrubber import AuditScrubber
 
         row = (2, "10.0.0.1", {"email": "a@b.com"})
-        engine, conn = self._make_engine([row])
+        engine, _conn = self._make_engine([row])
         scrubber = AuditScrubber(engine=engine)
         result = scrubber.scrub(older_than_days=30, dry_run=True)
         assert result.rows_scrubbed == 1
@@ -1715,7 +1713,7 @@ class TestAuditScrubber:
         from engramia.governance.audit_scrubber import AuditScrubber
 
         row = (3, "[REDACTED]", {"email": "[REDACTED]", "action": "login"})
-        engine, conn = self._make_engine([row])
+        engine, _conn = self._make_engine([row])
         scrubber = AuditScrubber(engine=engine)
         result = scrubber.scrub(older_than_days=90)
         assert result.rows_scrubbed == 0
@@ -1724,7 +1722,7 @@ class TestAuditScrubber:
         from engramia.governance.audit_scrubber import AuditScrubber
 
         row = (4, "10.0.0.1", None)
-        engine, conn = self._make_engine([row])
+        engine, _conn = self._make_engine([row])
         scrubber = AuditScrubber(engine=engine)
         result = scrubber.scrub(older_than_days=90)
         assert result.rows_scrubbed == 1

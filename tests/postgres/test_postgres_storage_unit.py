@@ -7,13 +7,12 @@ dimension checks, and error handling.
 """
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from engramia._context import reset_scope, set_scope
 from engramia.types import Scope
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -67,14 +66,14 @@ def default_scope():
 
 class TestPostgresLoad:
     def test_returns_none_when_not_found(self):
-        engine, conn, _ = _make_engine(fetchone=None)
+        engine, _conn, _ = _make_engine(fetchone=None)
         storage = _make_storage(engine)
         assert storage.load("missing/key") is None
-        conn.execute.assert_called_once()
+        _conn.execute.assert_called_once()
 
     def test_returns_data_when_found(self):
         data = {"task": "sort a list", "score": 8.0}
-        engine, conn, _ = _make_engine(fetchone=(data,))
+        engine, _conn, _ = _make_engine(fetchone=(data,))
         storage = _make_storage(engine)
         result = storage.load("patterns/abc")
         assert result == data
@@ -111,23 +110,23 @@ class TestPostgresSave:
 class TestPostgresListKeys:
     def test_list_keys_no_prefix(self):
         rows = [("patterns/a",), ("patterns/b",)]
-        engine, conn, _ = _make_engine(fetchall=rows)
+        engine, _conn, _ = _make_engine(fetchall=rows)
         storage = _make_storage(engine)
         keys = storage.list_keys()
         assert keys == ["patterns/a", "patterns/b"]
 
     def test_list_keys_with_prefix_uses_like(self):
         rows = [("patterns/abc",)]
-        engine, conn, _ = _make_engine(fetchall=rows)
+        engine, _conn, _ = _make_engine(fetchall=rows)
         storage = _make_storage(engine)
         keys = storage.list_keys(prefix="patterns/")
         assert keys == ["patterns/abc"]
-        call_params = conn.execute.call_args[0][1]
+        call_params = _conn.execute.call_args[0][1]
         assert "prefix" in call_params
         assert call_params["prefix"].startswith("patterns/")
 
     def test_list_keys_empty(self):
-        engine, conn, _ = _make_engine(fetchall=[])
+        engine, _conn, _ = _make_engine(fetchall=[])
         storage = _make_storage(engine)
         assert storage.list_keys() == []
 
@@ -153,13 +152,13 @@ class TestPostgresDelete:
 
 class TestPostgresCountPatterns:
     def test_count_returns_integer(self):
-        engine, conn, _ = _make_engine(fetchone=(7,))
+        engine, _conn, _ = _make_engine(fetchone=(7,))
         storage = _make_storage(engine)
         count = storage.count_patterns("patterns/")
         assert count == 7
 
     def test_count_returns_zero_on_no_row(self):
-        engine, conn, _ = _make_engine(fetchone=None)
+        engine, _conn, _ = _make_engine(fetchone=None)
         storage = _make_storage(engine)
         assert storage.count_patterns("patterns/") == 0
 
@@ -218,10 +217,10 @@ class TestPostgresSavePatternMeta:
 
 class TestPostgresScopeIsolation:
     def test_load_passes_scope_params(self):
-        engine, conn, _ = _make_engine(fetchone=None)
+        engine, _conn, _ = _make_engine(fetchone=None)
         storage = _make_storage(engine)
         storage.load("patterns/x")
-        call_params = conn.execute.call_args[0][1]
+        call_params = _conn.execute.call_args[0][1]
         assert call_params["tid"] == "acme"
         assert call_params["pid"] == "prod"
 
@@ -234,9 +233,9 @@ class TestPostgresScopeIsolation:
         assert call_params["pid"] == "prod"
 
     def test_count_passes_scope_params(self):
-        engine, conn, _ = _make_engine(fetchone=(0,))
+        engine, _conn, _ = _make_engine(fetchone=(0,))
         storage = _make_storage(engine)
         storage.count_patterns()
-        call_params = conn.execute.call_args[0][1]
+        call_params = _conn.execute.call_args[0][1]
         assert call_params["tid"] == "acme"
         assert call_params["pid"] == "prod"

@@ -16,11 +16,8 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-import datetime
-
 from engramia.billing.enforcement import LimitEnforcer, _next_period_start
 from engramia.billing.models import BillingSubscription, OverageSettings
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -6,7 +6,6 @@ Uses a mock SQLAlchemy engine; no real PostgreSQL required.
 """
 
 import hashlib
-import os
 from unittest.mock import MagicMock
 
 import pytest

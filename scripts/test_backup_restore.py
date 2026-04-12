@@ -444,10 +444,10 @@ def main() -> int:
             return 1
 
         log(f"\nRESULT: PASS  ({elapsed:.1f}s)")
-        log(f"  ✓ pgvector extension active")
+        log("  ✓ pgvector extension active")
         log(f"  ✓ all {len(EXPECTED_TABLES)} expected tables present")
         log(f"  ✓ alembic_version = {EXPECTED_ALEMBIC_REVISION}")
-        log(f"  ✓ default tenant present")
+        log("  ✓ default tenant present")
         log(f"  ✓ seed tenant {SEED_TENANT_ID!r} present")
         log(f"  ✓ {len(SEED_KEYS)} seed memory_data rows present")
         return 0

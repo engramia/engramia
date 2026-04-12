@@ -15,10 +15,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any
 
 from engramia._util import jaccard
-
 
 # ---------------------------------------------------------------------------
 # Domain definitions — 12 realistic agent use-case clusters

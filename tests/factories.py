@@ -22,7 +22,6 @@ from fastapi import Request
 from engramia._context import set_scope
 from engramia.types import AuthContext, Scope
 
-
 # ---------------------------------------------------------------------------
 # Auth context factory
 # ---------------------------------------------------------------------------

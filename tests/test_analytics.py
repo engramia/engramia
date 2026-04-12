@@ -3,19 +3,18 @@
 """Unit tests for ROICollector and ROIAggregator (Phase 5.7)."""
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 import engramia.analytics.collector as collector_module
 from engramia._context import reset_scope, set_scope
 from engramia.analytics.aggregator import ROIAggregator, _compute_rollup
-from engramia.analytics.collector import ROICollector, _EVENTS_KEY
-from engramia.analytics.models import EventKind, LearnSummary, ROIEvent, RecallOutcome
+from engramia.analytics.collector import _EVENTS_KEY, ROICollector
+from engramia.analytics.models import EventKind, ROIEvent
 from engramia.exceptions import ValidationError
 from engramia.providers.json_storage import JSONStorage
 from engramia.types import Scope
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

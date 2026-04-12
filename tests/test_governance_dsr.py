@@ -8,12 +8,8 @@ Uses the in-memory fallback (engine=None) so no database is needed.
 from __future__ import annotations
 
 import datetime
-from unittest.mock import patch
-
-import pytest
 
 from engramia.governance.dsr import DSRRequest, DSRTracker
-
 
 # ---------------------------------------------------------------------------
 # Helpers

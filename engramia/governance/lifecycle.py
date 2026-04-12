@@ -19,6 +19,8 @@ import logging
 import time
 from typing import Any
 
+from sqlalchemy import text
+
 from engramia._context import get_scope
 
 _log = logging.getLogger(__name__)
@@ -74,8 +76,6 @@ def compact_audit_log(memory, params: dict[str, Any]) -> dict[str, Any]:
     )
 
     try:
-        from sqlalchemy import text
-
         if dry_run:
             with engine.connect() as conn:
                 row = conn.execute(
@@ -122,8 +122,6 @@ def cleanup_old_jobs(memory, params: dict[str, Any]) -> dict[str, Any]:
     terminal_statuses = ("completed", "failed", "cancelled", "expired")
 
     try:
-        from sqlalchemy import text
-
         status_params = {f"s{i}": s for i, s in enumerate(terminal_statuses)}
         base_params = {"tid": scope.tenant_id, "pid": scope.project_id, "cutoff": cutoff}
         all_params = {**base_params, **status_params}

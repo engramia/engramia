@@ -37,7 +37,7 @@ def pg_engine():
 
     with PostgresContainer("pgvector/pgvector:pg16") as postgres:
         url = postgres.get_connection_url()
-        from sqlalchemy import create_engine, text
+        from sqlalchemy import create_engine
 
         engine = create_engine(url, pool_pre_ping=True)
         _bootstrap_schema(engine)
@@ -96,12 +96,12 @@ def _bootstrap_schema(engine) -> None:
 @pytest.fixture
 def storage(pg_engine):
     """Fresh PostgresStorage pointing at the test container, default scope."""
+    # Wipe all rows between tests so they are independent
+    from sqlalchemy import text
+
     from engramia._context import reset_scope, set_scope
     from engramia.providers.postgres import PostgresStorage
     from engramia.types import Scope
-
-    # Wipe all rows between tests so they are independent
-    from sqlalchemy import text
 
     with pg_engine.begin() as conn:
         conn.execute(text("TRUNCATE memory_data, memory_embeddings"))
@@ -120,8 +120,9 @@ def storage(pg_engine):
 
 def _scoped_storage(pg_engine, tenant: str, project: str):
     """Return a PostgresStorage instance with a specific scope active."""
-    from engramia.providers.postgres import PostgresStorage
     from sqlalchemy import text as _text
+
+    from engramia.providers.postgres import PostgresStorage
 
     store = PostgresStorage.__new__(PostgresStorage)
     store._embedding_dim = 4

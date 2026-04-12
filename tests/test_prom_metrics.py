@@ -56,7 +56,6 @@ class TestBuildMetricsApp:
     def test_collect_logs_warning_on_memory_error(self, caplog):
         """_collect() logs a warning and does not propagate exceptions from memory.metrics."""
         pytest.importorskip("prometheus_client", reason="prometheus_client not installed")
-        import logging
         from engramia.api.prom_metrics import build_metrics_app
 
         broken_mem = MagicMock()

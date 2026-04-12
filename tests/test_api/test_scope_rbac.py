@@ -22,7 +22,7 @@ from engramia import Memory
 from engramia._context import get_scope, reset_scope, set_scope
 from engramia.api.permissions import PERMISSIONS
 from engramia.providers.json_storage import JSONStorage
-from engramia.types import AuthContext, Scope
+from engramia.types import Scope
 from tests.conftest import FakeEmbeddings
 from tests.factories import make_auth_dep
 

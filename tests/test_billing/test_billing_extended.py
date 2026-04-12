@@ -28,15 +28,14 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 import sqlalchemy.exc
 
+from engramia.billing.metering import UsageMeter
 from engramia.billing.models import (
     METRIC_EVAL_RUNS,
     BillingSubscription,
     OverageSettings,
 )
-from engramia.billing.metering import UsageMeter
 from engramia.billing.service import BillingService
 
 pytestmark = pytest.mark.integration

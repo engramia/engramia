@@ -9,7 +9,7 @@ Run:
 """
 
 from engramia import Memory
-from engramia.providers import OpenAIEmbeddings, OpenAIProvider, JSONStorage
+from engramia.providers import JSONStorage, OpenAIEmbeddings, OpenAIProvider
 from engramia.sdk.pydantic_ai import EngramiaCapability
 
 # 1. Setup Memory

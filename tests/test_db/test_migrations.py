@@ -217,17 +217,16 @@ class TestMigrationForwardBackward:
                 )
 
             # Second INSERT with same tenant_id must violate the UNIQUE constraint
-            with engine.begin() as conn:
-                with pytest.raises(IntegrityError):
-                    conn.execute(
-                        text(
-                            "INSERT INTO billing_subscriptions "
-                            "(id, tenant_id, plan_tier, billing_interval, status, "
-                            " eval_runs_limit, patterns_limit, projects_limit) "
-                            "VALUES ('mig-test-2', 'tenant-unique-test', "
-                            "'pro', 'month', 'active', 3000, 50000, 3)"
-                        )
+            with engine.begin() as conn, pytest.raises(IntegrityError):
+                conn.execute(
+                    text(
+                        "INSERT INTO billing_subscriptions "
+                        "(id, tenant_id, plan_tier, billing_interval, status, "
+                        " eval_runs_limit, patterns_limit, projects_limit) "
+                        "VALUES ('mig-test-2', 'tenant-unique-test', "
+                        "'pro', 'month', 'active', 3000, 50000, 3)"
                     )
+                )
         finally:
             engine.dispose()
 

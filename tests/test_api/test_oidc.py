@@ -287,8 +287,9 @@ def _sign_jwt(private_pem: bytes, claims: dict, kid: str = "test-key-1") -> str:
 
 def _jwk_from_public_pem(public_pem: bytes, kid: str = "test-key-1") -> dict:
     """Build a minimal JWK dict from a PEM public key (for cache injection)."""
+    import base64
+
     from cryptography.hazmat.primitives.serialization import load_pem_public_key
-    import base64, struct
 
     pub = load_pem_public_key(public_pem)
     pub_numbers = pub.public_key().public_numbers() if hasattr(pub, "public_key") else pub.public_numbers()
@@ -387,9 +388,9 @@ def test_expired_jwt_raises_401(rsa_key_pair):
         patch.object(oidc_module, "_jwks_cache", {kid: jwk}),
         patch.object(oidc_module, "_jwks_fetched_at", float("inf")),
         patch.object(oidc_module, "set_scope"),
+        pytest.raises(HTTPException) as exc_info,
     ):
-        with pytest.raises(HTTPException) as exc_info:
-            oidc_auth(req, token)
+        oidc_auth(req, token)
 
     assert exc_info.value.status_code == 401
 
@@ -534,9 +535,9 @@ class TestDecodeJwtAlgorithmAllowlist:
         with (
             patch.dict("sys.modules", {"jwt": fake_jwt, "jwt.algorithms": fake_alg_module}),
             patch.object(oidc_module, "_get_jwk", return_value=None),
+            pytest.raises(HTTPException) as exc_info,
         ):
-            with pytest.raises(HTTPException) as exc_info:
-                oidc_module._decode_jwt("rs256.token")
+            oidc_module._decode_jwt("rs256.token")
         assert exc_info.value.status_code == 401
         assert "signing key" in exc_info.value.detail.lower()
 

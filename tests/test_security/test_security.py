@@ -20,8 +20,7 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 
 pytestmark = pytest.mark.security
 from fastapi.testclient import TestClient
@@ -320,7 +319,6 @@ class TestBodySizeLimit:
         client = TestClient(app, raise_server_exceptions=False)
         # Send a payload larger than 100 bytes
         large_payload = {"task": "x" * 200, "code": "pass", "eval_score": 7.0}
-        import json
 
         body = json.dumps(large_payload).encode()
         resp = client.post(

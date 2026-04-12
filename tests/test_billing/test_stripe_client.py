@@ -14,7 +14,6 @@ import pytest
 
 from engramia.billing.stripe_client import StripeClient
 
-
 pytestmark = pytest.mark.integration
 
 

@@ -18,10 +18,6 @@ from typing import Any
 
 import numpy as np
 
-from engramia import Memory
-from engramia.providers import JSONStorage
-from engramia.providers.local_embeddings import LocalEmbeddings
-
 from benchmarks.dataset import (
     DOMAINS,
     NOISE_TASKS,
@@ -30,6 +26,9 @@ from benchmarks.dataset import (
     build_dataset,
     build_training_set,
 )
+from engramia import Memory
+from engramia.providers import JSONStorage
+from engramia.providers.local_embeddings import LocalEmbeddings
 
 logger = logging.getLogger(__name__)
 
