@@ -43,9 +43,16 @@ engramia_data/
 
 # Test
 .pytest_cache/
+.pytest_tmp/
+.pytest_tmp*/
 .coverage
+.coverage.*
+.pip-audit-cache/
+.cov_live.json
 htmlcov/
 tests/recall_quality/results/
+.pip-audit-cache
+.pytest_tmp*
 
 # Benchmark outputs (auto-generated runs — but published reference data is tracked)
 benchmarks/results/*
