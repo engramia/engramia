@@ -142,7 +142,11 @@ NEXT_PUBLIC_STRIPE_PRO_URL=
 NEXT_PUBLIC_STRIPE_TEAM_URL=
 
 # Backend JWT (used for /auth/* endpoints)
-ENGRAMIA_JWT_SECRET=<openssl rand -hex 32>
+ENGRAMIA_JWT_PRIVATE_KEY=/secrets/private_key.pem
+ENGRAMIA_JWT_PUBLIC_KEY=/secrets/public_key.pem
+# Generate the key pair once with: engramia auth generate-keys --out-dir /secrets
+# Legacy HS256 fallback (deprecated — see H-02):
+# ENGRAMIA_JWT_SECRET=<openssl rand -hex 32>
 ```
 
 ### Common Issues

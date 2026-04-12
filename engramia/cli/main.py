@@ -19,6 +19,8 @@ Commands::
     engramia governance export       — Export patterns as NDJSON (GDPR Art. 20)
     engramia governance purge-project — Wipe all data for a project (GDPR Art. 17)
 
+    engramia auth generate-keys      — Generate RSA key pair for RS256 JWT signing
+
 Provider selection (for recall):
     Set OPENAI_API_KEY to use OpenAI embeddings (default).
     Set ENGRAMIA_LOCAL_EMBEDDINGS=1 to use local sentence-transformers (no API key).
@@ -45,6 +47,9 @@ app.add_typer(keys_app)
 
 governance_app = typer.Typer(name="governance", help="Data governance: retention, export, deletion (Phase 5.6).")
 app.add_typer(governance_app)
+
+auth_app = typer.Typer(name="auth", help="Cloud auth utilities (JWT key management).")
+app.add_typer(auth_app)
 
 console = Console()
 
@@ -787,6 +792,64 @@ def governance_purge_project(
     table.add_row("Jobs deleted", str(result.jobs_deleted))
     table.add_row("Keys revoked", str(result.keys_revoked))
     console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# Auth utilities
+# ---------------------------------------------------------------------------
+
+
+@auth_app.command("generate-keys")
+def auth_generate_keys(
+    out_dir: str = typer.Option(".", "--out-dir", "-o", help="Directory to write key files into."),
+    key_size: int = typer.Option(2048, "--key-size", help="RSA key size in bits (2048 or 4096)."),
+) -> None:
+    """Generate an RSA key pair for RS256 JWT signing.
+
+    Writes private_key.pem and public_key.pem to --out-dir.
+
+    Set these env vars to activate RS256:
+      ENGRAMIA_JWT_PRIVATE_KEY=/path/to/private_key.pem
+      ENGRAMIA_JWT_PUBLIC_KEY=/path/to/public_key.pem
+    """
+    import pathlib
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    if key_size not in (2048, 4096):
+        console.print(f"[red]--key-size must be 2048 or 4096 (got {key_size})[/red]")
+        raise typer.Exit(1)
+
+    out = pathlib.Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    private_path = out / "private_key.pem"
+    public_path = out / "public_key.pem"
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=key_size)
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    public_pem = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+    private_path.write_bytes(private_pem)
+    private_path.chmod(0o600)
+    public_path.write_bytes(public_pem)
+
+    console.print(f"[green]RSA {key_size}-bit key pair generated:[/green]")
+    console.print(f"  Private key: {private_path.resolve()}")
+    console.print(f"  Public key:  {public_path.resolve()}")
+    console.print()
+    console.print("[yellow]Add to your environment:[/yellow]")
+    console.print(f"  ENGRAMIA_JWT_PRIVATE_KEY={private_path.resolve()}")
+    console.print(f"  ENGRAMIA_JWT_PUBLIC_KEY={public_path.resolve()}")
+    console.print()
+    console.print("[red]Keep private_key.pem secret — do not commit it to version control.[/red]")
 
 
 # ---------------------------------------------------------------------------
