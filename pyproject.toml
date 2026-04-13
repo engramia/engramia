@@ -67,7 +67,7 @@ cloud-auth = [
     "PyJWT>=2.8",
     "cryptography>=42.0",
 ]
-billing = ["stripe>=7.0"]
+billing = ["stripe>=15.0.1"]
 telemetry = [
     "opentelemetry-api>=1.41.0",
     "opentelemetry-sdk>=1.41.0",
