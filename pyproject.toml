@@ -48,7 +48,7 @@ postgres = [
 ]
 api = [
     "fastapi>=0.110",
-    "uvicorn[standard]>=0.27",
+    "uvicorn[standard]>=0.44.0",
 ]
 cli = [
     "typer[all]>=0.12",
