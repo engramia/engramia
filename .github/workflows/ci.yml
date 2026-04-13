@@ -48,7 +48,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
@@ -84,7 +84,7 @@ jobs:
           ENGRAMIA_STORAGE: postgres
       - name: Upload full coverage
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-full
           path: coverage.xml
@@ -203,7 +203,7 @@ jobs:
           CI: "true"
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -241,7 +241,7 @@ jobs:
 
       - name: Upload SAST report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: bandit-report
           path: bandit-report.json
