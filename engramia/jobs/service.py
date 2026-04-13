@@ -66,7 +66,7 @@ class JobService:
     concurrent worker safety. In JSON/memory mode, uses a simple dict.
     """
 
-    def __init__(self, engine: Any | None = None, memory: Any | None = None) -> None:
+    def __init__(self, engine: Any = None, memory: Any = None) -> None:
         """Initialize the job service.
 
         Args:

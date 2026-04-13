@@ -25,6 +25,24 @@ from engramia.memory import Memory
 from engramia.providers.base import EmbeddingProvider
 from engramia.providers.json_storage import JSONStorage
 
+
+@pytest.fixture(autouse=True)
+def _reset_scope_contextvar():
+    """Reset the scope contextvar after every test.
+
+    Tests that call ``set_scope()`` without a matching ``reset_scope()``
+    leak the scope into the main thread's context, which then mismatches
+    worker-thread writes (ThreadPoolExecutor workers start with a fresh
+    default context). This manifests as `0 == N` assertions in concurrent
+    tests when the scope leaks between tests during full-suite runs.
+    """
+    from engramia._context import _scope_var
+    from engramia.types import Scope
+
+    token = _scope_var.set(Scope())
+    yield
+    _scope_var.reset(token)
+
 # ---------------------------------------------------------------------------
 # Fixed LLM response for deterministic eval/compose tests
 # ---------------------------------------------------------------------------

@@ -56,7 +56,8 @@ def pg_engine():
                     run_id          TEXT,
                     author          TEXT,
                     redacted        BOOLEAN DEFAULT FALSE,
-                    expires_at      TEXT
+                    expires_at      TEXT,
+                    CONSTRAINT uq_memory_data_scope_key UNIQUE (tenant_id, project_id, key)
                 )
             """)
             )
@@ -66,7 +67,8 @@ def pg_engine():
                     key         TEXT    NOT NULL PRIMARY KEY,
                     tenant_id   TEXT    NOT NULL DEFAULT '',
                     project_id  TEXT    NOT NULL DEFAULT '',
-                    embedding   vector(1536)
+                    embedding   vector(1536),
+                    CONSTRAINT uq_memory_embeddings_scope_key UNIQUE (tenant_id, project_id, key)
                 )
             """)
             )

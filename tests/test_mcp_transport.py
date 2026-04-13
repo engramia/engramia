@@ -69,10 +69,28 @@ _mcp_server_stdio = ModuleType("mcp.server.stdio")
 _mcp_server_models = ModuleType("mcp.server.models")
 _mcp_types = ModuleType("mcp.types")
 
+
+class _TextContent:
+    """Minimal stand-in for mcp.types.TextContent."""
+
+    def __init__(self, *, type: str, text: str) -> None:
+        self.type = type
+        self.text = text
+
+
+class _Tool:
+    """Minimal stand-in for mcp.types.Tool."""
+
+    def __init__(self, *, name: str, description: str, inputSchema: dict) -> None:
+        self.name = name
+        self.description = description
+        self.inputSchema = inputSchema
+
+
 _mcp_server.Server = _CorrectedFakeServer
 _mcp_server_models.InitializationOptions = MagicMock
-_mcp_types.TextContent = MagicMock
-_mcp_types.Tool = MagicMock
+_mcp_types.TextContent = _TextContent
+_mcp_types.Tool = _Tool
 
 # Force-register stubs so the server module always uses the corrected version.
 # We also evict any previously cached engramia.mcp.server so a fresh import
@@ -98,23 +116,6 @@ from engramia.mcp.server import (  # noqa: E402
 # ---------------------------------------------------------------------------
 # Helper replacements for MagicMock stubs — allow attribute inspection
 # ---------------------------------------------------------------------------
-
-
-class _TextContent:
-    """Minimal stand-in for mcp.types.TextContent."""
-
-    def __init__(self, *, type: str, text: str) -> None:
-        self.type = type
-        self.text = text
-
-
-class _Tool:
-    """Minimal stand-in for mcp.types.Tool."""
-
-    def __init__(self, *, name: str, description: str, inputSchema: dict) -> None:
-        self.name = name
-        self.description = description
-        self.inputSchema = inputSchema
 
 
 @pytest.fixture()

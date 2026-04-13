@@ -40,7 +40,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Body, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
@@ -63,8 +63,8 @@ _DEFAULT_PROJECT_PATTERN_LIMIT = 10_000
 
 @dataclass
 class _JWTConfig:
-    sign_key: object  # RSA private key object or HS256 secret str
-    verify_key: object  # RSA public key object or HS256 secret str
+    sign_key: Any  # RSA private key object or HS256 secret str
+    verify_key: Any  # RSA public key object or HS256 secret str
     algorithm: str  # "RS256" or "HS256"
     algorithms: list[str]  # list for jwt.decode()
 

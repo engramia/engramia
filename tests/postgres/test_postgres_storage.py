@@ -64,7 +64,8 @@ def _bootstrap_schema(engine) -> None:
                 author          TEXT,
                 redacted        BOOLEAN     DEFAULT FALSE,
                 expires_at      TEXT,
-                PRIMARY KEY (key)
+                PRIMARY KEY (key),
+                CONSTRAINT uq_memory_data_scope_key UNIQUE (tenant_id, project_id, key)
             )
         """)
         )
@@ -75,7 +76,8 @@ def _bootstrap_schema(engine) -> None:
                 tenant_id   TEXT        NOT NULL DEFAULT '',
                 project_id  TEXT        NOT NULL DEFAULT '',
                 embedding   vector(4),
-                PRIMARY KEY (key)
+                PRIMARY KEY (key),
+                CONSTRAINT uq_memory_embeddings_scope_key UNIQUE (tenant_id, project_id, key)
             )
         """)
         )
