@@ -13,6 +13,11 @@ from typing import Any
 
 _log = logging.getLogger(__name__)
 
+# Explicitly pin the Stripe API version so upgrading the stripe-python SDK
+# (e.g. v15 -> v16) does not silently change request/response shapes.
+# Bump this deliberately after testing webhook event compatibility.
+_STRIPE_API_VERSION = "2025-04-30.basil"
+
 
 class StripeClient:
     """Minimal Stripe API surface needed for Engramia billing.
@@ -45,6 +50,10 @@ class StripeClient:
                 "STRIPE_SECRET_KEY is not set. Configure it via env var or StripeClient(secret_key=...)."
             )
         _stripe_lib.api_key = self._secret_key
+        # Pin the Stripe API version explicitly so behaviour (request/response
+        # shapes) does not shift when the stripe-python SDK default changes
+        # with a future major bump.
+        _stripe_lib.api_version = _STRIPE_API_VERSION
         self._stripe = _stripe_lib
         return self._stripe
 
