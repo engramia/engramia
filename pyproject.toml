@@ -39,7 +39,7 @@ Changelog = "https://github.com/engramia/engramia/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.50"]
-local = ["sentence-transformers>=3.0"]
+local = ["sentence-transformers>=5.4.0"]
 postgres = [
     "sqlalchemy[asyncio]>=2.0",
     "psycopg2-binary>=2.9",
