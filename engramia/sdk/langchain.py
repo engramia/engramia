@@ -5,11 +5,12 @@
 Requires the ``langchain`` extra:
     pip install engramia[langchain]
 
-Usage:
+Usage (LangChain >= 1.0, LCEL):
     from engramia.sdk.langchain import EngramiaCallback
 
     callback = EngramiaCallback(mem, auto_learn=True, auto_recall=True)
-    chain = LLMChain(llm=llm, prompt=prompt, callbacks=[callback])
+    chain = prompt | llm
+    result = chain.invoke({"input": "..."}, config={"callbacks": [callback]})
     # Engramia automatically learns from successful runs and recalls relevant context.
 """
 
