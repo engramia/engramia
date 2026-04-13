@@ -54,7 +54,7 @@ cli = [
     "typer[all]>=0.12",
     "rich>=13.0",
 ]
-langchain = ["langchain-core>=0.1"]
+langchain = ["langchain-core>=1.2.28"]
 crewai = ["crewai>=0.28"]
 openai-agents = ["openai-agents>=0.10"]
 anthropic-agents = ["claude-agent-sdk>=0.1"]
