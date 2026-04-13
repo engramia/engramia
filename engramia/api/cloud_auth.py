@@ -579,7 +579,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=254)
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=8, max_length=72)
     name: str | None = Field(default=None, max_length=200)
 
     @field_validator("password")
@@ -596,6 +596,11 @@ class RegisterRequest(BaseModel):
             missing.append("special character")
         if missing:
             raise ValueError(f"Password must contain at least one: {', '.join(missing)}.")
+        # bcrypt 5.x raises ValueError for encoded passwords > 72 bytes
+        # (previously silently truncated). Multi-byte chars can push a
+        # ≤72-char password over the byte limit — enforce byte length too.
+        if len(v.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 bytes when UTF-8 encoded.")
         return v
 
 
