@@ -1,13 +1,24 @@
 name: Security Scan
 
+# Scoped triggers so pure-docs/workflow/frontend PRs don't pay for full
+# Python scans. Weekly cron guarantees baseline coverage regardless.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+    paths:
+      - 'engramia/**'
+      - 'pyproject.toml'
+      - 'Dockerfile'
+      - '.github/workflows/security.yml'
   schedule:
     # Run weekly on Monday at 08:00 UTC even without new commits
     - cron: "0 8 * * 1"
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   pip-audit:
