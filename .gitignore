@@ -60,11 +60,6 @@ dashboard/node_modules/
 dashboard/out/
 dashboard/.next/
 
-# Website build
-website/website/node_modules/
-website/website/.next/
-website/website/out/
-
 # General node artifacts (catch-all)
 node_modules/
 .next/
@@ -89,4 +84,3 @@ STRIPE.md
 COMPLIANCE_INPUT_TEMPLATE.md
 # Legal internal docs
 docs/legal/key-legal-design-decisions.md
-website/**/key-legal-design-decisions.md

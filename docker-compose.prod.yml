@@ -11,6 +11,8 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Static marketing site built by engramia/website repo.
+      # Operator responsibility: place the built `out/` directory at ./website on the deploy host.
       - ./website:/srv/website:ro
       - ./docs-site:/srv/docs:ro
       - caddy_data:/data
