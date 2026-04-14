@@ -59,18 +59,3 @@ api.engramia.dev {
     reverse_proxy engramia-api:8000
 }
 
-status.engramia.dev {
-    tls {
-        protocols tls1.2 tls1.3
-    }
-
-    reverse_proxy uptime-kuma:3001
-}
-
-grafana.engramia.dev {
-    tls {
-        protocols tls1.2 tls1.3
-    }
-
-    reverse_proxy grafana:3000
-}

@@ -2,9 +2,6 @@
 site/
 docs-site/
 
-# Infrastructure docs (contain server IPs, credential locations)
-docs/architecture/infra_arch.md
-
 # Python
 __pycache__/
 *.py[cod]
@@ -90,15 +87,6 @@ roadmap.md
 test_run_prompt.md
 STRIPE.md
 COMPLIANCE_INPUT_TEMPLATE.md
-docs/internal/
-docs/GTM_ROADMAP*
-
-# Audit outputs (LLM-generated, never version)
-AUDIT_PROMPT.md
-AUDIT_RESULTS*
-docs/*audit*
-docs/*AUDIT*
-
 # Legal internal docs
 docs/legal/key-legal-design-decisions.md
 website/**/key-legal-design-decisions.md

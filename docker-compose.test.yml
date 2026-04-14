@@ -3,8 +3,8 @@
 # Optimized for speed: fsync/synchronous_commit OFF (never use in prod/staging).
 # DB volumes are removed on stop (down -v).
 #
-# Start:  ./scripts/env-manager.sh start test
-# Stop:   ./scripts/env-manager.sh stop test   (removes volumes)
+# Start:  docker compose -f docker-compose.test.yml up -d
+# Stop:   docker compose -f docker-compose.test.yml down -v   (removes volumes)
 # Reset:  ./scripts/reset-test-db.sh
 #
 # Ports (localhost only):

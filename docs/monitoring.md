@@ -934,70 +934,12 @@ curl http://localhost:3100/loki/api/v1/label/container/values
 
 ## Public Status Page
 
-Expose Uptime Kuma's status page at `https://status.engramia.dev` via nginx reverse proxy.
+Uptime Kuma ships a built-in status page feature. Expose it at a domain of
+your choice by adding a reverse-proxy block in your Caddy (or nginx) config
+that forwards to `uptime-kuma:3001`, then configure the status page in the
+Uptime Kuma UI:
 
-### Prerequisites
-
-- nginx installed on the VPS (`apt install nginx`)
-- DNS: `CNAME status.engramia.dev → <your VPS IP>` propagated
-- Uptime Kuma running (port `127.0.0.1:3001` — already scoped to localhost in `docker-compose.monitoring.yml`)
-
-### Automated Setup
-
-```bash
-# Optional: override the cert email
-export CERT_EMAIL=ops@engramia.dev
-
-bash scripts/setup-status-page.sh
-```
-
-The script:
-1. Installs a temporary HTTP-only nginx vhost for ACME challenge
-2. Obtains a Let's Encrypt certificate via `certbot --nginx`
-3. Replaces the vhost with the full SSL config from `nginx/status.engramia.dev.conf`
-4. Reloads nginx
-
-### Manual Steps (if needed)
-
-```bash
-# Install certbot
-apt install certbot python3-certbot-nginx
-
-# Get certificate
-certbot certonly --nginx -d status.engramia.dev \
-  --email ops@engramia.dev --agree-tos --non-interactive
-
-# Install nginx config
-cp nginx/status.engramia.dev.conf /etc/nginx/sites-available/status.engramia.dev
-ln -sf /etc/nginx/sites-available/status.engramia.dev /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
-```
-
-### Configure Status Page in Uptime Kuma UI
-
-Open `http://localhost:3001` (via SSH tunnel if needed) and:
-
-1. **Status Pages** → **Add Status Page**
-2. **Name:** `Engramia Status`
-3. **Slug:** `engramia` → URL becomes `/status/engramia`
-4. **Domain:** `status.engramia.dev`
-5. Add monitors to display:
-   | Monitor | Suggested label |
-   |---------|----------------|
-   | `http://engramia-api:8000/v1/health` | API Health |
-   | `https://api.engramia.dev/v1/health/deep` | API Deep Check |
-   | `http://prometheus:9090/-/healthy` | Prometheus |
-   | `http://grafana:3000/api/health` | Grafana |
-6. Toggle **Published** → ON
-7. **Save**
-
-The status page will be live at `https://status.engramia.dev`.
-
-### Certificate Renewal
-
-certbot auto-renews via its systemd timer. Verify with:
-
-```bash
-systemctl status certbot.timer
-certbot renew --dry-run
-```
+1. Open the Uptime Kuma web UI (`http://localhost:3001` via SSH tunnel if needed)
+2. **Status Pages** → **Add Status Page**
+3. Set a slug and the public domain
+4. Add monitors (API health, Prometheus, Grafana, etc.) and mark the page **Published**
