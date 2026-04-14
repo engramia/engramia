@@ -5,7 +5,7 @@ Parameters
 
 Licensor: Marek Čermák
 
-Licensed Work: Engramia, version 0.6.5 and later. Licenced work is (c) 2026 Marek Čermák
+Licensed Work: Engramia, version 0.5.0 and later. Licensed work is (c) 2026 Marek Čermák
 
 Additional Use Grant: You may make production use of the Licensed Work, provided
                       Your use does not include offering the Licensed Work to third
@@ -16,12 +16,12 @@ Additional Use Grant: You may make production use of the Licensed Work, provided
                       A "competitive offering" is a Product that is offered to third
                       parties on a paid basis, including through paid support 
                       arrangements, that significantly overlaps with the capabilities 
-                      of Marek Čermák's paid version(s) of the Licensed Work. If Your 
-                      Product is not a competitive offering when You first make it 
-                      generally available, it will not become a competitive offering
-                      later due to Marek Čermák releasing a new version of the Licensed 
-                      Work with additional capabilities. In addition, Products that 
-                      are not provided on a paid basis are not competitive.
+                      of the Licensed Work. If Your Product is not a competitive 
+		      offering when You first make it generally available, it will not
+		      become a competitive offering later due to Marek Čermák releasing
+                      a new version of the Licensed Work with additional capabilities. 
+		      In addition, Products that are not provided on a paid basis are 
+		      not competitive.
 
                       "Product" means software that is offered to end users to manage 
                       in their own environments or offered as a service on a hosted 
@@ -33,7 +33,7 @@ Additional Use Grant: You may make production use of the Licensed Work, provided
                       that the Licensed Work must be accessed or downloaded for the 
                       competitive offering to operate.
 
-                      Hosting or using the Licensed Work(s) for internal purposes 
+                      Hosting or using the Licensed Work for internal purposes 
                       within an organization is not considered a competitive 
                       offering. Marek Čermák considers your organization to include all 
                       of your affiliates under common control.
