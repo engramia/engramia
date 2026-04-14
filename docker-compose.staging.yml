@@ -47,7 +47,7 @@ services:
           memory: 32M
 
   dashboard-staging:
-    image: engramia/dashboard:${IMAGE_TAG:?IMAGE_TAG must be set}
+    image: ghcr.io/engramia/dashboard:${IMAGE_TAG:?IMAGE_TAG must be set}
     container_name: engramia-dashboard-staging
     ports:
       - "127.0.0.1:3100:3000"

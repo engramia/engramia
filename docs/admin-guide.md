@@ -92,16 +92,19 @@ docker compose -f docker-compose.prod.yml exec pgvector \
   psql -U engramia engramia -c "\d cloud_users"
 ```
 
-### 6. Build and Deploy Dashboard
+### 6. Deploy Dashboard
+
+The dashboard lives in a separate repository: [engramia/dashboard](https://github.com/engramia/dashboard).
+Its CI publishes Docker images to `ghcr.io/engramia/dashboard:<tag>`, which `docker-compose.prod.yml`
+pulls via `IMAGE_TAG`.
 
 ```bash
-# Build dashboard Docker image
-cd dashboard
-docker build -t engramia/dashboard:latest .
-
-# Or with docker-compose (if build section added):
+# Pull the published image and (re)start the dashboard service
+docker compose -f docker-compose.prod.yml pull dashboard
 docker compose -f docker-compose.prod.yml up -d dashboard
 ```
+
+See the dashboard repo for build instructions and local development.
 
 ### 7. Verify Registration Flow
 
@@ -174,5 +177,5 @@ To add Apple later:
 2. Create an App ID with Sign In with Apple capability
 3. Create a Service ID with the web domain `app.engramia.dev`
 4. Generate a private key for Sign In with Apple
-5. Add `Apple` provider to `dashboard/src/auth.ts`
+5. Add `Apple` provider to `src/auth.ts` in the [engramia/dashboard](https://github.com/engramia/dashboard) repo
 6. Add env vars: `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_PRIVATE_KEY`, `APPLE_KEY_ID`

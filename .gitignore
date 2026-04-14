@@ -58,11 +58,6 @@ tests/recall_quality/results/
 benchmarks/results/*
 !benchmarks/results/longmemeval_*.json
 
-# Dashboard build
-dashboard/node_modules/
-dashboard/out/
-dashboard/.next/
-
 # Website build
 website/website/node_modules/
 website/website/.next/
