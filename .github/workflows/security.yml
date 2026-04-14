@@ -49,16 +49,14 @@ jobs:
       - name: Install bandit
         run: pip install bandit[toml]
       - name: Run bandit
+        # -c pyproject.toml picks up [tool.bandit] exclude_dirs (tests,
+        # migrations) and skips (B101: assert-in-dev-guards).
         run: |
-          bandit -r engramia/ \
-            --severity-level medium \
-            --confidence-level medium \
-            --exclude engramia/db/migrations \
+          bandit -r engramia/ -c pyproject.toml \
+            --severity-level medium --confidence-level medium \
             -f json -o bandit-report.json || true
-          bandit -r engramia/ \
-            --severity-level medium \
-            --confidence-level medium \
-            --exclude engramia/db/migrations
+          bandit -r engramia/ -c pyproject.toml \
+            --severity-level medium --confidence-level medium
       - name: Upload bandit report
         if: always()
         uses: actions/upload-artifact@v7
@@ -66,6 +64,19 @@ jobs:
           name: bandit-report
           path: bandit-report.json
           if-no-files-found: ignore
+          retention-days: 30
+
+  trufflehog:
+    name: trufflehog (secret scanning)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # full history required for diff-based scan
+      - name: Run trufflehog
+        uses: trufflesecurity/trufflehog@v3.94.3
+        with:
+          extra_args: --only-verified
 
   trivy:
     name: Trivy (Docker image CVE scan)
