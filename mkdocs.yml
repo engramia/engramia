@@ -93,8 +93,6 @@ nav:
       - Overview: security.md
       - Security Architecture: architecture/security-architecture.md
       - SOC 2 Controls: soc2-controls.md
-  - Architecture:
-      - Admin Dashboard: architecture/admin-dashboard.md
   - Legal:
       - Terms of Service: legal/TERMS_OF_SERVICE.md
       - Acceptable Use Policy: legal/ACCEPTABLE_USE_POLICY.md
