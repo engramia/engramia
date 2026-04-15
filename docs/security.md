@@ -45,6 +45,5 @@ for the disclosure process and known limitations.
 | [SECURITY.md](https://github.com/engramia/engramia/blob/main/SECURITY.md) | Full security policy — 10 known limitations, production deployment checklist, OWASP ASVS Level 2/3 compliance |
 | [Security Architecture](architecture/security-architecture.md) | Threat model, defense layers, trust boundaries |
 | [SOC 2 Controls](soc2-controls.md) | SOC 2 Type II control mapping |
-| [Incident Response Plan](incident-response-plan.md) | Severity matrix, response procedures, GDPR breach notification, communication templates |
 | [Production Hardening](production-hardening.md) | TLS termination, secrets management, infrastructure security |
 | [Data Handling](data-handling.md) | How Engramia processes and stores data |

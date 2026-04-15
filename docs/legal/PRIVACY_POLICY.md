@@ -159,7 +159,7 @@ We implement appropriate technical and organizational measures to protect your d
 - **Non-root containers** — Docker containers run as non-root user
 - **Body size limits** — request body size limited to prevent abuse
 
-For a detailed description of our security measures, see our [Security Policy](../../SECURITY.md).
+For a detailed description of our security measures, see our [Security Policy](https://github.com/engramia/engramia/blob/main/SECURITY.md).
 
 ### Encryption
 

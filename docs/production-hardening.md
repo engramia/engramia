@@ -244,7 +244,7 @@ pgvector embedding size: ~6 KB per pattern (1536 × 4 bytes float32). 10 000 pat
 
 ## Incident Response
 
-See [Incident Response Plan](incident-response-plan.md) for the full IR process.
+The full incident response plan is maintained in the private [engramia-ops](https://github.com/engramia/engramia-ops) repository.
 
 Quick contacts:
 - **Infrastructure**: Hetzner Cloud Console (hetzner.com/cloud)

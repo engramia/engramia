@@ -100,7 +100,7 @@ The Processor shall:
 | Container security | Non-root Docker containers |
 | Request limits | Body size limits, rate limiting per IP and endpoint |
 
-For a complete description, see the Engramia [Security Policy](../../SECURITY.md).
+For a complete description, see the Engramia [Security Policy](https://github.com/engramia/engramia/blob/main/SECURITY.md).
 
 ### 4.4 Sub-processors
 - Not engage any Sub-processor without prior specific or general written authorization from the Controller.

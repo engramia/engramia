@@ -1,6 +1,6 @@
 # Admin Guide
 
-Operational reference for Engramia platform administrators. For general deployment see [deployment.md](deployment.md), for runbooks see [runbooks/README.md](runbooks/README.md).
+Operational reference for Engramia platform administrators. For general deployment see [deployment.md](deployment.md). Operator runbooks live in the private [engramia-ops](https://github.com/engramia/engramia-ops) repository.
 
 ---
 

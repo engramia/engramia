@@ -1,6 +1,7 @@
 site_name: Engramia
 site_description: Self-learning memory layer for AI agent frameworks
 site_url: https://docs.engramia.dev
+site_dir: docs-site
 repo_url: https://github.com/engramia/engramia
 repo_name: engramia/engramia
 edit_uri: edit/main/docs/

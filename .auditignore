@@ -1,14 +1,6 @@
-# .auditignore – audit-pipeline ignore patterns for agent-brain
+# .auditignore — audit-pipeline ignore patterns for Engramia Core
 # Patterns here extend the built-in list (node_modules, dist, build, out,
 # venv, __pycache__, lock files, binaries etc. are already excluded).
-
-# Next.js / Nuxt build artefacts
-.next/
-.nuxt/
-.output/
-
-# Static export (Next.js `next export`)
-# out/ already covered by built-in
 
 # Coverage / test artefacts
 coverage/
@@ -17,30 +9,6 @@ coverage.xml
 
 # Caches
 .cache/
-.turbo/
-.parcel-cache/
-
-# Deployment / hosting config caches
-.vercel/
-.netlify/
-
-# Infrastructure
-.terraform/
-.terraform.lock.hcl
-
-# Minified / bundled assets (not useful to audit)
-*.min.js
-*.min.css
-*.bundle.js
-*.chunk.js
-
-# Source maps
-*.map
-*.js.map
-*.css.map
-
-# Generated Next.js type declarations
-next-env.d.ts
 
 # Database migrations (generated schema files)
 migrations/

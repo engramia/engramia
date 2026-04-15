@@ -4,7 +4,7 @@
 > It covers Docker Compose (dev + production), Kubernetes, database migrations,
 > backup/restore, and rollback procedures.
 >
-> Related docs: [Environment Variables](environment-variables.md) · [Production Hardening](production-hardening.md) · [Backup & Restore](backup-restore.md)
+> Related docs: [Environment Variables](environment-variables.md) · [Production Hardening](production-hardening.md)
 
 ---
 
@@ -334,7 +334,7 @@ Pre-computed load test results for v0.6.0 on the reference Hetzner CX23 hardware
 
 The primary bottleneck on both recall and learn is the external OpenAI API round-trip.  With local `sentence-transformers` embeddings, recall p50 drops to ~35 ms.
 
-Full results, methodology, and instructions for re-running are in [`tests/load/results_baseline.md`](../tests/load/results_baseline.md).  The Locust test script is at [`tests/load/locustfile.py`](../tests/load/locustfile.py).
+Full results, methodology, and instructions for re-running are in [`tests/load/results_baseline.md`](https://github.com/engramia/engramia/blob/main/tests/load/results_baseline.md).  The Locust test script is at [`tests/load/locustfile.py`](https://github.com/engramia/engramia/blob/main/tests/load/locustfile.py).
 
 ---
 
