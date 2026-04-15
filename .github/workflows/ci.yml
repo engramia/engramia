@@ -122,10 +122,9 @@ jobs:
           echo "tag=$TAG  runtime=$RUNTIME"
           [ "$TAG" = "$RUNTIME" ] || (echo "VERSION DRIFT: tag=$TAG runtime=$RUNTIME" && exit 1)
 
-  # E2E tests for dashboard and website are now in their respective repos:
+  # Frontend E2E tests live in their respective repos:
   # - Dashboard: https://github.com/engramia/dashboard
   # - Website:   https://github.com/engramia/website
-  # API-level E2E tests remain in e2e/ (Playwright against the API only).
 
   security:
     name: Security Scan

@@ -9,7 +9,7 @@ Reusable execution memory and evaluation infrastructure for AI agent frameworks.
 
 > **Status:** v0.6.5 — 1200+ tests / 80%+ coverage.
 > Core library · REST API · 9 framework integrations · multi-tenancy · RBAC · async jobs · observability · data governance · ROI analytics.
-> See [roadmap.md](roadmap.md) for what's next.
+> See [GitHub Issues](https://github.com/engramia/engramia/issues) for planned work and discussion.
 
 ---
 
@@ -66,7 +66,7 @@ Extracted from Agent Factory V2 — a system that reached a 93% task success rat
 | Deep health — `GET /v1/health/deep` (storage + LLM + embeddings) | **Stable** |
 | Data governance — PII redaction, retention, GDPR delete/export | **Stable** |
 | ROI analytics — event collection, rollup API, composite score | **Stable** |
-| Admin dashboard — Next.js 15 static export, 10 pages | **Stable** |
+| Admin dashboard — separate app, see [engramia/dashboard](https://github.com/engramia/dashboard) | **Stable** |
 | `compose` — LLM pipeline decomposition from patterns | **Experimental** |
 | `evolve_prompt` — LLM-based prompt improvement | **Experimental** |
 | `analyze_failures` — failure pattern clustering | **Experimental** |
@@ -806,7 +806,7 @@ engramia/
 │   └── postgres.py           # PostgreSQL + pgvector (scope-aware queries)
 │
 ├── api/                 # REST API
-│   ├── app.py                # App factory, lifespan, dashboard static mount
+│   ├── app.py                # App factory, lifespan, startup/shutdown
 │   ├── routes.py             # Core endpoints (learn, recall, evaluate, ...)
 │   ├── auth.py               # Multi-mode auth (auto/env/db/dev)
 │   ├── keys.py               # API key management router (/v1/keys)
@@ -893,7 +893,7 @@ engramia/
 | Observability (OTel, Prometheus, JSON logs) | ✅ Stable |
 | Data governance (PII redaction, retention, GDPR) | ✅ Stable |
 | ROI analytics (collector, rollup, REST API) | ✅ Stable |
-| Admin dashboard (Next.js 15, 10 pages) | ✅ Stable |
+| Admin dashboard (separate repo: [engramia/dashboard](https://github.com/engramia/dashboard)) | ✅ Stable |
 | Service layer (LearningService, RecallService, ...) | ✅ Stable |
 | OpenAI Agents SDK integration (RunHooks + instructions) | ✅ Stable |
 | Anthropic Agent SDK integration (query wrapper + hooks) | ✅ Stable |
