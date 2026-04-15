@@ -1,8 +1,6 @@
 name: Deploy to Production
 
 # Manual trigger — run after staging smoke tests pass.
-# TODO (post public launch): replace with GitHub environment "production"
-# Required reviewers gate (Settings → Environments → production → Required reviewers).
 on:
   workflow_dispatch:
     inputs:
