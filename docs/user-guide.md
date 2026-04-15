@@ -1366,7 +1366,7 @@ print(resp.json()["status"])
 
 ## 11. Monitoring
 
-Engramia ships with a complete monitoring stack based on Prometheus, Grafana, Loki, and Uptime Kuma. All services are defined in `docker-compose.monitoring.yml` and managed via `scripts/monitoring.sh`.
+Engramia ships with a complete monitoring stack based on Prometheus, Grafana, Loki, and Uptime Kuma. All services are defined in `docker-compose.monitoring.yml`. An operator management wrapper (`monitoring.sh`) is maintained in the private [engramia-ops](https://github.com/engramia/engramia-ops) repository; self-hosters can invoke `docker compose -f docker-compose.monitoring.yml ...` directly as shown below.
 
 ### Architecture
 
@@ -1399,32 +1399,7 @@ All ports are bound to `127.0.0.1` only (not publicly accessible). Use SSH tunne
 
 **Prerequisites:** The production stack (`docker-compose.prod.yml`) must be running first, because the monitoring services connect to the shared `engramia-net` Docker network.
 
-**Using the management script:**
-
-```bash
-# Start monitoring only (prod stack must already be running)
-bash scripts/monitoring.sh start
-
-# Start everything (prod + monitoring together)
-bash scripts/monitoring.sh start-all
-
-# Check status
-bash scripts/monitoring.sh status
-
-# View logs
-bash scripts/monitoring.sh logs
-
-# Restart monitoring
-bash scripts/monitoring.sh restart
-
-# Stop monitoring only (prod keeps running)
-bash scripts/monitoring.sh stop
-
-# Stop everything
-bash scripts/monitoring.sh stop-all
-```
-
-**Or directly with Docker Compose:**
+**Using Docker Compose directly:**
 
 ```bash
 docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml up -d

@@ -44,8 +44,7 @@ what works, forget what does not, reuse proven solutions, and improve over time.
 3. [Environment Variables](environment-variables.md) — all `ENGRAMIA_*` vars
 4. [Admin Guide](admin-guide.md) — dashboard, tenant management, RBAC
 5. [Monitoring](monitoring.md) — Prometheus metrics, Grafana, alerting
-6. [Backup & Restore](backup-restore.md) — backup strategy, RTO/RPO, restore
-7. [ROI Calibration](roi-calibration.md) — interpret and improve your ROI score
+6. [ROI Calibration](roi-calibration.md) — interpret and improve your ROI score
 
 ---
 
@@ -76,26 +75,12 @@ what works, forget what does not, reuse proven solutions, and improve over time.
 - [Security Overview](security.md) — summary of measures
 - [Security Architecture](architecture/security-architecture.md) — threat model and defense layers
 - [SOC 2 Controls](soc2-controls.md) — SOC 2 Type II control mapping
-- [Incident Response Plan](incident-response-plan.md) — detection, response, GDPR breach
 
 ## Operations
 
-- [Disaster Recovery](disaster-recovery.md) — DR plan and recovery procedures
 - [Data Handling](data-handling.md) — how Engramia processes and stores data
 - [Embedding Reindex](embedding-reindex.md) — reindex after model change
 - [HNSW Maintenance](hnsw-maintenance.md) — pgvector index maintenance
-
-## Runbooks
-
-Operational playbooks for common incidents and maintenance:
-
-- [Runbooks Overview](runbooks/README.md)
-- [Deploy Checklist](runbooks/deploy-checklist.md) · [Rollback](runbooks/deploy-rollback.md)
-- [API Key Rotation](runbooks/api-key-rotation.md) · [Certificate Renewal](runbooks/certificate-renewal.md)
-- [Database Recovery](runbooks/database-recovery.md) · [Disk Full](runbooks/disk-full.md)
-- [High Error Rates](runbooks/high-error-rates.md) · [High Latency](runbooks/high-latency.md)
-- [Job Queue Issues](runbooks/job-queue-issues.md) · [LLM Provider Outage](runbooks/llm-provider-outage.md)
-- [Maintenance Mode](runbooks/maintenance-mode.md) · [Rate Limit Tuning](runbooks/rate-limit-tuning.md)
 
 ## Legal
 
