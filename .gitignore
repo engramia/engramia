@@ -55,12 +55,7 @@ tests/recall_quality/results/
 benchmarks/results/*
 !benchmarks/results/longmemeval_*.json
 
-# Dashboard build
-dashboard/node_modules/
-dashboard/out/
-dashboard/.next/
-
-# General node artifacts (catch-all)
+# General node artifacts (catch-all for e2e tests)
 node_modules/
 .next/
 
@@ -82,5 +77,7 @@ roadmap.md
 test_run_prompt.md
 STRIPE.md
 COMPLIANCE_INPUT_TEMPLATE.md
+PUBLIC_READINESS_REPORT.md
+CLEANUP_REPORT.md
 # Legal internal docs
 docs/legal/key-legal-design-decisions.md

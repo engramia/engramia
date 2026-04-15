@@ -11,7 +11,10 @@ __pycache__
 .env
 tests
 docs
+dashboard
+e2e
 examples
+benchmarks
 roadmap.md
 CLAUDE.md
 CONTRIBUTING.md

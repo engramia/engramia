@@ -1,6 +1,9 @@
-# Recall Quality Test Suite — Design Document
+# Recall Quality Test Suite — Design & Reference
 
-> Revision 2 (2026-03-28) — post code-review revision
+> Revision 3 (2026-04-15) — merged operational reference into design doc.
+> Covers both `tests/recall_quality/` (embedding-quality longitudinal suite) and
+> `tests/test_features/` (functional regression suite). See **Running the suite**
+> below for day-to-day usage; see **Critical findings** for the why behind test rules.
 
 ## Purpose
 
@@ -590,41 +593,166 @@ should be high (> 0.6), off-diagonal should be low (< 0.4).
 
 ## File structure
 
+The suite is split into two directories with different purposes:
+
+| | `tests/recall_quality/` | `tests/test_features/` |
+|---|---|---|
+| **Measures** | Embedding-space quality (longitudinal) | Correctness of system features |
+| **Fails when** | Embedding model / thresholds / matcher changes | Code regressions in Engramia |
+| **Writes `results/*.json`** | Yes — one per run | No |
+
 ```
-tests/recall_quality/
-├── DESIGN.md                    # This file
-├── conftest.py                  # Fixtures: client, run_id, cleanup, calibration
-├── task_clusters.py             # All 12 clusters + noise + boundary definitions
-├── snippets/
-│   ├── __init__.py
-│   ├── c01_csv_filter.py        # good/medium/bad code for C01
-│   ├── c02_csv_aggregate.py
-│   ├── c03_toml_validation.py
-│   ├── c04_yaml_merge.py
-│   ├── c05_http_retry.py
-│   ├── c06_pagination.py
-│   ├── c07_moving_average.py
-│   ├── c08_zscore.py
-│   ├── c09_async_batch.py
-│   ├── c10_email_regex.py
-│   ├── c11_pg_upsert.py
-│   └── c12_file_dedup.py
-├── test_d01_recall_precision.py
-├── test_d02_cross_cluster.py
-├── test_d03_noise_rejection.py
-├── test_d04_deduplication.py
-├── test_d05_reuse_boost.py
-├── test_d06_eval_weighting.py
-├── test_d07_warmup_curve.py
-├── test_d08_aging.py            # local mode only
-├── test_d09_feedback.py
-├── test_d10_skills.py
-├── test_d11_metrics.py
-├── test_d12_robustness.py
-├── test_boundary_tasks.py
-├── calibrate.py                 # Embed all tasks, compute baseline thresholds
-└── report.py                    # Aggregate results → JSON + CSV
+tests/recall_quality/          # embedding-quality suite (D1–D3 + boundary)
+├── DESIGN.md                  # This file
+├── conftest.py                # TestClient, QualityTracker, run_tag, thresholds
+├── task_clusters.py           # 12 clusters × 5 variants + 15 noise + 8 boundary
+├── thresholds.json            # Calibrated thresholds (output of calibrate.py)
+├── results/                   # Timestamped JSON per run (git-ignored)
+├── calibrate.py               # Compute thresholds for the active embedding model
+├── report.py                  # Show latest results + trend table
+├── snippets/                  # c01–c12: good/medium/bad code snippets
+├── test_d01_recall_precision.py   # intra-cluster top-1 similarity
+├── test_d02_cross_cluster.py      # cross-cluster isolation
+├── test_d03_noise_rejection.py    # noise task rejection
+└── test_boundary_tasks.py         # tasks straddling two clusters
+
+tests/test_features/           # functional regression suite (D4–D12)
+├── conftest.py                # Own client + run_tag (isolated from quality storage)
+├── test_deduplication.py      # D4: deduplicate=True/False behavior
+├── test_reuse_boost.py        # D5: +0.1/recall accumulation, cap 10.0
+├── test_eval_weighting.py     # D6: eval_weighted ordering
+├── test_warmup_curve.py       # D7: context length grows with learned patterns
+├── test_aging.py              # D8: 0.98^weeks decay, prune < 0.1 (local only)
+├── test_feedback.py           # D9: EvalFeedbackStore lifecycle
+├── test_skills.py             # D10: register_skills + find_by_skills CRUD
+├── test_metrics.py            # D11: metrics.runs delta after learn/recall
+└── test_robustness.py         # D12: validation boundary cases
 ```
+
+---
+
+## Running the suite
+
+```bash
+# Quality tests (writes results/*.json)
+pytest tests/recall_quality/ --no-cov -q
+
+# Feature tests (regression)
+pytest tests/test_features/ --no-cov -q
+
+# Both
+pytest tests/recall_quality/ tests/test_features/ --no-cov -q
+```
+
+### Remote mode (production API)
+
+```bash
+export ENGRAMIA_API_URL=https://api.engramia.dev
+export ENGRAMIA_API_KEY=sk-...
+export ENGRAMIA_TEST_MODE=remote
+pytest tests/recall_quality/ tests/test_features/ --no-cov -q
+```
+
+### Calibrating thresholds (after embedding model change)
+
+```bash
+python tests/recall_quality/calibrate.py   # rewrites thresholds.json
+```
+
+### Viewing results and trends
+
+```bash
+python tests/recall_quality/report.py
+python tests/recall_quality/report.py --last 10   # last 10 runs
+python tests/recall_quality/report.py --last 0    # all runs
+```
+
+---
+
+## Longitudinal results
+
+Each run of `tests/recall_quality/` writes:
+
+```
+tests/recall_quality/results/{timestamp}_{git_hash}.json
+```
+
+Schema:
+
+```json
+{
+  "run_id": "20260328T125902_6b59f30",
+  "timestamp": "2026-03-28T12:59:02.123456+00:00",
+  "git_commit": "6b59f30",
+  "git_branch": "main",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "thresholds": {"intra": 0.55, "cross": 0.5, "noise": 0.5},
+  "dimensions": {
+    "D1_recall_precision": {
+      "pass": true,
+      "clusters_total": 12, "clusters_passed": 12,
+      "avg_top1_sim": 0.740, "min_top1_sim": 0.614,
+      "per_cluster": {"C01": {"top1_sim": 0.73, "pass": true}}
+    },
+    "D2_cross_isolation": {
+      "pass": true,
+      "pairs_total": 6, "pairs_passed": 6,
+      "max_cross_sim": 0.283
+    },
+    "D3_noise_rejection": {
+      "pass": true,
+      "noise_total": 15, "noise_failed": 0, "max_noise_sim": 0.330
+    },
+    "boundary": {
+      "pass": true,
+      "tasks_total": 8, "matched_either": 8, "matched_both": 1
+    }
+  }
+}
+```
+
+`results/` is git-ignored — files do not accumulate in the repo. CI can archive
+them to artifacts / S3 if trend tracking across runs is needed.
+
+---
+
+## Interpreting results
+
+### D1 — Recall precision (`avg_top1_sim`)
+Average similarity of a held-out 5th variant to the 4 learned variants.
+- **Improvement**: stronger embedding model (e.g. `all-mpnet-base-v2`).
+- **Regression**: matcher changes or threshold drift.
+
+### D2 — Cross-cluster isolation (`max_cross_sim`)
+Maximum cross-cluster similarity when recalling from a foreign cluster.
+- `< 0.35` — good separation of semantic domains.
+- `> 0.45` — model fails to distinguish adjacent domains.
+
+### D3 — Noise rejection (`max_noise_sim`)
+Maximum similarity across all noise queries.
+- `< 0.40` — reliable rejection of unrelated queries.
+
+### Boundary tasks (`matched_both`)
+Count of boundary tasks where both target clusters were relevant — an
+aspirational metric; a richer embedding produces higher values.
+
+---
+
+## Acceptance criteria
+
+| Dimension | Criterion |
+|-----------|-----------|
+| D1 | All 12 clusters: top-1 sim ≥ `intra_threshold` (default 0.55) |
+| D2 | All pairs: max cross sim < `cross_threshold` (default 0.50) |
+| D3 | All noise tasks: max sim < `noise_threshold` (default 0.50) |
+| Boundary | At least one cluster of each boundary pair relevant |
+| D4–D12 | See `tests/test_features/` — functional correctness |
+
+After changing the embedding model or matcher parameters:
+
+1. Run `calibrate.py` → new `thresholds.json`.
+2. Run `pytest tests/recall_quality/` → new results file.
+3. Run `report.py` → compare against prior runs in the trend table.
 
 ---
 
