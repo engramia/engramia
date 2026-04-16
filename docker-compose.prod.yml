@@ -105,7 +105,10 @@ services:
       pgvector:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf -o /dev/null -w '%{http_code}' http://localhost:8000/v1/health | grep -qE '^(200|401)$'"]
+      # API is healthy if /v1/health returns 200 or 401 (401 = server is up
+      # but caller has no bearer token). Uses python3 because the image
+      # doesn't ship curl.
+      test: ["CMD-SHELL", "python3 -c 'import http.client,sys; c=http.client.HTTPConnection(\"localhost\",8000,timeout=3); c.request(\"GET\",\"/v1/health\"); sys.exit(0 if c.getresponse().status in (200,401) else 1)'"]
       interval: 30s
       timeout: 5s
       retries: 3
