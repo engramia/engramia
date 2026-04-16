@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BUSL-1.1
 """PostgreSQL + pgvector backend — production-ready persistent storage.
 
 Use this setup for:

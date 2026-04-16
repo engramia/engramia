@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BUSL-1.1
 """Fully offline usage — local embeddings, no API key required.
 
 Uses sentence-transformers for embeddings (runs on CPU, no cloud calls).

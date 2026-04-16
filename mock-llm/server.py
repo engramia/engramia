@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: BSL-1.1
+# SPDX-License-Identifier: BUSL-1.1
 """Mock OpenAI-compatible LLM server for integration testing.
 
 Implements /v1/chat/completions and /v1/embeddings with deterministic

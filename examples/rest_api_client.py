@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BUSL-1.1
 """Engramia REST API client — using the lightweight webhook SDK.
 
 No extra dependencies beyond the standard library. Connects to a running

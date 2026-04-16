@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BUSL-1.1
 """AutoGen — Engramia as an AssistantAgent Memory source.
 
 Setup:

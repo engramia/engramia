@@ -21,14 +21,15 @@ Engramia in production or commercial contexts.
 | **Error sanitization** | Exception details are logged server-side but not returned to clients |
 | **Audit logging** | Structured JSON audit log for `auth_failure`, `pattern_deleted`, `rate_limited` events |
 | **Key hashing** | SHA-256 for all internal key generation (no MD5) |
-| **Docker hardening** | Non-root user (`brain:1001`), read-only considerations |
+| **Docker hardening** | Non-root user (`engramia:1001`), read-only considerations |
 | **API versioning** | All endpoints under `/v1/` prefix |
 
 ## Reporting Vulnerabilities
 
 If you discover a security vulnerability in Engramia, please report it
-responsibly via email or a private GitHub security advisory. Do **not** open
-a public issue for security vulnerabilities.
+responsibly to [support@engramia.dev](mailto:support@engramia.dev) or open
+a private GitHub security advisory. Do **not** open a public issue for
+security vulnerabilities. You will receive an acknowledgement within 48 hours.
 
 ---
 

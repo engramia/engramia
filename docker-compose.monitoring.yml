@@ -2,7 +2,7 @@
 # Deploy alongside prod:
 #   docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml up -d
 # Or standalone (after prod is up):
-#   COMPOSE_PROJECT_NAME=agent-brain docker compose -f docker-compose.monitoring.yml up -d
+#   COMPOSE_PROJECT_NAME=engramia docker compose -f docker-compose.monitoring.yml up -d
 
 networks:
   engramia-net:

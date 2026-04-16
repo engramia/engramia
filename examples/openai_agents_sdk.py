@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BUSL-1.1
 """OpenAI Agents SDK — auto-recall into system prompt, auto-learn from results.
 
 Setup:

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BUSL-1.1
 """Anthropic Agent SDK — recall + run + learn in one call.
 
 Setup:

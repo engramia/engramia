@@ -7,7 +7,7 @@ name = "engramia"
 dynamic = ["version"]
 description = "Reusable execution memory and evaluation infrastructure for AI agent frameworks"
 authors = [
-    {name = "Marek Čermák"},
+    {name = "Marek Čermák", email = "support@engramia.dev"},
 ]
 readme = "README.md"
 requires-python = ">=3.12"

@@ -39,10 +39,9 @@ When reporting documentation issues, it helps to know where files live:
 
 | Location | Contents |
 |----------|----------|
-| `docs/` | All public documentation (guides, API reference, runbooks, legal) |
+| `docs/` | All public documentation (guides, API reference, legal) |
 | `docs/integrations/` | Agent framework integration guides |
 | `docs/legal/` | Terms of Service, Privacy Policy, and other legal documents |
-| `docs/runbooks/` | Operational playbooks for incidents and maintenance |
 | `mkdocs.yml` | Site navigation and build configuration |
 
 The entry point is `docs/index.md`. When referencing a problem, please include
@@ -52,7 +51,7 @@ the file path or the URL of the published page.
 
 **Do not open a public Issue for security vulnerabilities.**
 
-Report them privately to [security@engramia.dev](mailto:security@engramia.dev).
+Report them privately to [support@engramia.dev](mailto:support@engramia.dev).
 Include a description of the issue, steps to reproduce, and potential impact.
 You will receive an acknowledgement within 48 hours.
 
@@ -61,4 +60,4 @@ See [SECURITY.md](SECURITY.md) for the full security policy and disclosure proce
 ## Licensing questions
 
 See [docs/legal/licensing.html](docs/legal/licensing.html) or email
-[legal@engramia.dev](mailto:legal@engramia.dev).
+[support@engramia.dev](mailto:support@engramia.dev).

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BUSL-1.1
 """LangChain integration — auto-learn from chain runs and recall relevant context.
 
 Engramia attaches to LangChain via a callback handler. It automatically:

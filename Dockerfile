@@ -3,7 +3,7 @@
 # Stage 1: builder — installs dependencies into a virtualenv
 # Stage 2: runtime — copies only the venv, keeps image small
 
-ARG PYTHON_VERSION=3.14
+ARG PYTHON_VERSION=3.13
 
 FROM python:${PYTHON_VERSION}-slim AS builder
 
@@ -24,7 +24,7 @@ RUN SETUPTOOLS_SCM_PRETEND_VERSION=${APP_VERSION} \
     pip install --no-cache-dir ".[api,openai,postgres,telemetry]"
 
 # Stage 2: runtime
-ARG PYTHON_VERSION=3.14
+ARG PYTHON_VERSION=3.13
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
 WORKDIR /app

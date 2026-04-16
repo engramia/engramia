@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BUSL-1.1
 """Pydantic AI — Engramia as a drop-in Capability.
 
 Setup:

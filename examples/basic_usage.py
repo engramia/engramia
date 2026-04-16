@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BUSL-1.1
 """Basic Engramia usage — learn, recall, evaluate, metrics.
 
 Setup:
