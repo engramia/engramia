@@ -5,7 +5,7 @@ Parameters
 
 Licensor: Marek Čermák
 
-Licensed Work: Engramia, version 0.6.5 and later. Licenced work is (c) 2026 Marek Čermák
+Licensed Work: Engramia, version 0.6.5. Licenced work is (c) 2026 Marek Čermák
 
 Additional Use Grant: You may make production use of the Licensed Work, provided
                       Your use does not include offering the Licensed Work to third
@@ -38,7 +38,7 @@ Additional Use Grant: You may make production use of the Licensed Work, provided
                       offering. Marek Čermák considers your organization to include all 
                       of your affiliates under common control.
 
-Change Date: 2030-04-05
+Change Date: 2030-04-20
 
 Change License: Apache 2.0
 
