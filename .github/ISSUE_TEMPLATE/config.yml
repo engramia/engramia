@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/engramia/engramia/security/advisories/new
+    about: Report security issues privately via GitHub security advisories (preferred).
+  - name: Commercial licensing / Enterprise support
+    url: mailto:support@engramia.dev
+    about: Reach out for commercial licensing, SLA, or enterprise deployment questions.
+  - name: Community discussion
+    url: https://github.com/engramia/engramia/discussions
+    about: Ask questions, share use cases, or give feedback.
+  - name: Documentation
+    url: https://engramia.readthedocs.io
+    about: Read the docs before filing a bug — it might already be answered.

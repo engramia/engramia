@@ -21,8 +21,13 @@ services:
       ENGRAMIA_EMBEDDING_MODEL: ${ENGRAMIA_EMBEDDING_MODEL:-text-embedding-3-small}
 
       # API authentication (comma-separated keys).
-      # Empty keys alone return 503 — set ENGRAMIA_ALLOW_NO_AUTH=true for local dev only.
+      # This file is a dev/self-hosting entry point: ENGRAMIA_ALLOW_NO_AUTH
+      # defaults to true so `docker compose up` works out of the box. In
+      # production, use docker-compose.prod.yml which sets ENGRAMIA_AUTH_MODE=db
+      # and requires real keys. Auth.py emits a security warning on startup
+      # whenever no-auth mode is active.
       ENGRAMIA_API_KEYS: ${ENGRAMIA_API_KEYS:-}
+      ENGRAMIA_ALLOW_NO_AUTH: ${ENGRAMIA_ALLOW_NO_AUTH:-true}
 
       # Security hardening (see docs for production values)
       # CORS — restrict to your frontend origin in production:

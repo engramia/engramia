@@ -18,6 +18,7 @@ jobs:
     name: Dispatch staging deploy
     runs-on: ubuntu-latest
     if: >
+      github.repository == 'engramia/engramia' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
     steps:

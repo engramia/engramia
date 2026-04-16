@@ -13,7 +13,7 @@ Hosted trial for evaluation. No credit card required.
 | Patterns | 5,000 |
 | Support | Community |
 
-**[Try free →](https://api.engramia.dev/docs)**
+**[Get started →](https://engramia.readthedocs.io)**
 
 ---
 

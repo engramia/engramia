@@ -46,9 +46,14 @@ You may not:
 3. **Abuse system resources** — send requests designed to degrade service
    performance (DDoS, resource exhaustion), mine cryptocurrency, or consume
    compute disproportionate to legitimate use.
-4. **Scrape or benchmark competitively** — systematically extract data or
-   performance metrics for the purpose of developing, training, or marketing
-   a competing product, except to the extent permitted by applicable law.
+4. **Scrape or benchmark the hosted Service for competitive purposes** —
+   systematically extract data or performance metrics from the Licensor's
+   hosted SaaS at `engramia.dev` for the purpose of developing, training, or
+   marketing a competing product, except to the extent permitted by
+   applicable law. This restriction applies to the hosted Service only;
+   source-available self-hosted deployments under the Business Source
+   License 1.1 may be benchmarked for legitimate research, evaluation, and
+   comparative analysis, subject to fair-use and comparative-advertising law.
 5. **Resell without authorization** — resell, sublicense, or rebrand the
    Service as your own product without a written reseller agreement.
 6. **Automate account creation** — create accounts programmatically or use

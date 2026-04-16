@@ -139,6 +139,51 @@ Competitors were evaluated by wrapping their public APIs with the same query
 interface (task → recall → score). Each system was given the same 500 queries
 and the same set of stored patterns.
 
+## Reproduction Protocol
+
+The figures above are auditable. We follow comparative-advertising best
+practice: report only what we can reproduce, document exactly how, and
+accept that the numbers may shift as competitor APIs evolve.
+
+**Engramia run:**
+- Engramia version: `v0.6.0` (source: [CHANGELOG.md](../CHANGELOG.md))
+- Run date: 2026-04-07
+- Hardware: Hetzner CX23 (4 vCPU, 8 GB RAM, DE region)
+- Embedding model: `text-embedding-3-small` (OpenAI, 1536-dim)
+- Storage: `JSONStorage`, isolated per dimension
+- Raw results: [`benchmarks/results/longmemeval_2026-04-07.json`](results/longmemeval_2026-04-07.json)
+- Reproduce: `python -m benchmarks.longmemeval --output results/my_run.json`
+
+**Competitor runs (Mem0, Zep):**
+- Run date: 2026-04-07
+- Adapter: each system's public client SDK, pinned versions documented in
+  `benchmarks/results/longmemeval_2026-04-07.json` under `competitor_metadata`
+- Same 500-task dataset, same storage setup per system's recommended
+  configuration (default embedding model, default similarity threshold)
+- Competitor clients run against each vendor's public cloud API (no
+  self-hosted competitors)
+- Raw per-run traces: *not archived* — re-running will produce slightly
+  different numbers as vendor APIs evolve
+
+**Hindsight:** score sourced from Hindsight's published Q1 2026 blog post.
+We did not re-run Hindsight against our dataset.
+
+**Known limits of this comparison:**
+- Competitor performance depends on their configuration choices (chunking,
+  similarity threshold, embedding model). We used each system's stated
+  default — your production tuning may shift numbers ±5–10%.
+- Absolute scores are a snapshot in time. If a competitor improves their
+  ranker or embedding, they may now score higher than our April 2026 run.
+- This is an "identical-conditions" benchmark, not a feature comparison.
+  Different systems optimise for different trade-offs (speed vs. quality
+  vs. context window vs. cost).
+
+**Fair-use statement:** Comparative benchmarks are published in good faith
+to help practitioners choose a memory layer for their use case. If you are
+a vendor whose results you believe are misrepresented here, please open
+an issue or email support@engramia.dev and we will re-run with your
+recommended configuration.
+
 ## Reproducing locally
 
 ```bash

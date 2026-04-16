@@ -934,7 +934,7 @@ Agent Factory V2 remains as an open-source reference implementation that demonst
 
 ## License
 
-Engramia is licensed under Business Source License 1.1 (BSL 1.1).
+Engramia is licensed under Business Source License 1.1 (BUSL-1.1).
 
 - ✅ Free for: personal use, evaluation, research
 - ❌ Not allowed without a commercial license:
@@ -943,6 +943,30 @@ Engramia is licensed under Business Source License 1.1 (BSL 1.1).
   - integration into paid products
   - building competing products
 
-See LICENSE.txt for full terms.
+On the Change Date specified in `LICENSE.txt`, the license automatically
+converts to Apache 2.0.
+
+See `LICENSE.txt` for full terms.
 
 For commercial licenses: support@engramia.dev
+
+### License FAQ
+
+**Why does PyPI show "UNKNOWN" or no license classifier?**
+BUSL-1.1 is not OSI-approved, so PyPI lacks a dedicated classifier.
+Engramia ships the full BUSL-1.1 text in `LICENSE.txt` and declares it
+via `license = {file = "LICENSE.txt"}` in `pyproject.toml`. Package
+scanners that flag "Proprietary" for non-OSI licenses are technically
+correct — BUSL-1.1 is **source-available**, not open source or
+proprietary in the classical sense. On the Change Date, the license
+converts to Apache 2.0 (OSI-approved).
+
+**Can I use Engramia in my company's internal tools?**
+Yes — internal, non-competing production use is permitted under the
+Additional Use Grant in `LICENSE.txt`. Re-hosting Engramia as a paid
+service, or embedding it in a competing commercial offering, requires
+a commercial license.
+
+**Can I fork and modify the code?**
+Yes. Modifications and redistribution under BUSL-1.1 terms are allowed.
+Any derivative work carries the same license until the Change Date.
