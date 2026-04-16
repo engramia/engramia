@@ -38,7 +38,7 @@ services:
   # Dashboard is maintained in a separate repo: https://github.com/engramia/dashboard
   # Image is built and published by the dashboard repo's own CI (GHCR).
   dashboard:
-    image: ghcr.io/engramia/dashboard:${DASHBOARD_TAG:-latest}
+    image: ghcr.io/engramia/dashboard:${DASHBOARD_TAG:?DASHBOARD_TAG must be set}
     restart: unless-stopped
     environment:
       - NEXTAUTH_URL=${DASHBOARD_URL:-https://app.engramia.dev}
@@ -69,7 +69,7 @@ services:
           memory: 192M
 
   website:
-    image: ghcr.io/engramia/website:${WEBSITE_TAG:-latest}
+    image: ghcr.io/engramia/website:${WEBSITE_TAG:?WEBSITE_TAG must be set}
     restart: unless-stopped
     environment:
       - NODE_ENV=production
