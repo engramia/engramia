@@ -278,7 +278,7 @@ Each GitHub Actions release tags the image as `ghcr.io/engramia/engramia:<versio
 
 ```bash
 # On the production host
-cd /opt/engramia
+cd <your-install-path>
 
 # 1. (Optional) Enter maintenance mode first
 echo "ENGRAMIA_MAINTENANCE=true" >> .env && docker compose up -d
@@ -522,7 +522,7 @@ Secrets are passed via environment variables loaded from `.env` files by Docker 
 
 ### Production (Hetzner VM)
 
-Secrets are stored in `/opt/engramia/.env` on the production VM, accessible only to root. Docker Compose reads this file at container startup.
+Secrets are stored in `<your-install-path>/.env` on the production host, restricted to the deploy user. Docker Compose reads this file at container startup.
 
 ### Future: External secret managers (roadmap)
 
