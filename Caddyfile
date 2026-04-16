@@ -8,17 +8,11 @@
 }
 
 engramia.dev {
-    root * /srv/website
-    file_server
-    encode gzip
-
     tls {
         protocols tls1.2 tls1.3
     }
 
-    handle_errors {
-        respond "{err.status_code} {err.status_text}" {err.status_code}
-    }
+    reverse_proxy website:3000
 }
 
 www.engramia.dev {

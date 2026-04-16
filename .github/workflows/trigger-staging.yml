@@ -41,6 +41,6 @@ jobs:
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
-            /repos/engramia/engramia-ops/actions/workflows/deploy-staging.yml/dispatches \
+            /repos/engramia/engramia-ops/actions/workflows/deploy-staging-core.yml/dispatches \
             -f ref=main \
             -f "inputs[image_tag]=main-${{ steps.sha.outputs.short }}"

@@ -11,9 +11,6 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Static marketing site built by engramia/website repo.
-      # Operator responsibility: place the built `out/` directory at ./website on the deploy host.
-      - ./website:/srv/website:ro
       - ./docs-site:/srv/docs:ro
       - caddy_data:/data
       - caddy_config:/config
@@ -71,8 +68,31 @@ services:
           cpus: "0.1"
           memory: 192M
 
+  website:
+    image: ghcr.io/engramia/website:${WEBSITE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    networks:
+      - engramia-net
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 192M
+        reservations:
+          cpus: "0.1"
+          memory: 96M
+
   engramia-api:
-    image: ghcr.io/engramia/engramia:${IMAGE_TAG:?IMAGE_TAG must be set}
+    image: ghcr.io/engramia/engramia:${CORE_TAG:?CORE_TAG must be set}
     ports:
       - "127.0.0.1:8000:8000"
     env_file: .env
