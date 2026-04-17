@@ -1,0 +1,258 @@
+groups:
+  - name: engramia
+    rules:
+      # --- Availability ---
+      - alert: EngramiaDown
+        expr: up{job="engramia-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Engramia API is down"
+          description: "Prometheus cannot scrape engramia-api for over 2 minutes."
+
+      # --- Latency ---
+      - alert: HighRequestLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(engramia_request_duration_seconds_bucket[5m])
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 request latency > 5s"
+          description: "95th percentile latency is {{ $value }}s over the last 5m."
+
+      - alert: HighLLMLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(engramia_llm_call_duration_seconds_bucket[5m])
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 LLM call latency > 30s"
+          description: "LLM provider {{ $labels.provider }} p95 = {{ $value }}s."
+
+      # --- Error Rate ---
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(engramia_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(engramia_requests_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate > 10%"
+          description: "{{ $value | humanizePercentage }} of requests returning 5xx."
+
+      # --- Memory/Eval Health ---
+      - alert: LowSuccessRate
+        expr: engramia_success_rate < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pattern success rate dropped below 50%"
+          description: "Current success rate: {{ $value }}."
+
+      - alert: LowEvalScore
+        expr: engramia_avg_eval_score < 3
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Average eval score below 3/10"
+          description: "Rolling eval score: {{ $value }}/10."
+
+      - alert: ZeroPatterns
+        expr: engramia_pattern_count == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No patterns stored"
+          description: "Pattern count is 0 — storage may be empty or disconnected."
+
+      # --- Recall Quality ---
+      - alert: HighRecallMissRate
+        expr: |
+          (
+            rate(engramia_recall_misses_total[1h])
+            /
+            (rate(engramia_recall_hits_total[1h]) + rate(engramia_recall_misses_total[1h]))
+          ) > 0.8
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Recall miss rate > 80%"
+          description: "Most recall queries return no matches — embedding index may be degraded."
+
+      # --- Database Connection Pool ---
+      - alert: HighDBPoolUsage
+        expr: |
+          (
+            engramia_db_pool_checked_out
+            /
+            engramia_db_pool_size
+          ) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DB connection pool > 80% utilised"
+          description: "{{ $value | humanizePercentage }} of pool connections are checked out. Consider increasing ENGRAMIA_DB_POOL_SIZE or scaling horizontally."
+
+      - alert: DBPoolExhausted
+        expr: engramia_db_pool_overflow > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DB connection pool exhausted — overflow connections in use"
+          description: "{{ $value }} overflow connections active. Requests will queue or fail. Check for connection leaks or increase pool ceiling."
+
+      # --- Disk Usage ---
+      - alert: HighDiskUsage
+        expr: |
+          (
+            (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_avail_bytes{mountpoint="/"})
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Root filesystem usage > 85%"
+          description: "Disk on {{ $labels.instance }} is {{ $value | humanizePercentage }} full. Clean up logs or expand the volume."
+
+      - alert: CriticalDiskUsage
+        expr: |
+          (
+            (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_avail_bytes{mountpoint="/"})
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) > 0.95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Root filesystem usage > 95% — write failures imminent"
+          description: "Disk on {{ $labels.instance }} is {{ $value | humanizePercentage }} full. Immediate action required."
+
+      # --- External Dependency Failures ---
+      - alert: LLMProviderErrors
+        expr: |
+          (
+            rate(engramia_llm_errors_total[10m])
+            /
+            (rate(engramia_llm_calls_total[10m]) + 0.0001)
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM provider error rate > 10%"
+          description: "Provider {{ $labels.provider }} error rate is {{ $value | humanizePercentage }} over last 10m. Check API key validity and provider status page."
+
+      - alert: LLMProviderDown
+        expr: |
+          (
+            rate(engramia_llm_errors_total[5m])
+            /
+            (rate(engramia_llm_calls_total[5m]) + 0.0001)
+          ) > 0.5
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LLM provider {{ $labels.provider }} error rate > 50%"
+          description: "LLM provider appears degraded or unreachable. Recall/compose/evolve endpoints will fail for affected requests."
+
+      - alert: StripeWebhookErrors
+        expr: rate(engramia_stripe_webhook_errors_total[15m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stripe webhook processing errors"
+          description: "{{ $value | humanize }} webhook errors/s over last 15m. Billing state may be inconsistent — check Stripe Dashboard for failed events."
+
+      # --- Job Queue ---
+      - alert: JobQueueDepthHigh
+        expr: engramia_job_queue_depth > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Async job queue depth > 50"
+          description: "{{ $value }} jobs pending. Workers may be under-provisioned. Consider increasing ENGRAMIA_JOB_MAX_CONCURRENT or adding instances."
+
+      - alert: JobQueueDepthCritical
+        expr: engramia_job_queue_depth > 200
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Async job queue depth > 200 — severe backlog"
+          description: "{{ $value }} jobs queued. SLA breach risk. Investigate worker health and consider emergency scaling."
+
+      - alert: JobProcessingLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            rate(engramia_job_duration_seconds_bucket[10m])
+          ) > 30
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 async job processing > 30s"
+          description: "Jobs are taking {{ $value }}s (p95) to complete — SLA target is 30s. Check LLM latency and concurrency settings."
+
+      - alert: JobProcessingLatencyCritical
+        expr: |
+          histogram_quantile(0.95,
+            rate(engramia_job_duration_seconds_bucket[10m])
+          ) > 120
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "p95 async job processing > 120s — SLA breach"
+          description: "Jobs are taking {{ $value }}s (p95). Clients awaiting async responses will time out. Check for stalled workers."
+
+      - alert: JobStuckOrFailed
+        expr: engramia_job_failed_total > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "One or more async jobs failed permanently"
+          description: "{{ $value }} jobs in failed state. Check application logs for root cause — there is no automatic dead-letter retry."
+
+  - name: system
+    rules:
+      - alert: HighMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RAM usage > 90%"
+          description: "Server {{ $labels.instance }} RAM usage is above 90%. Current value: {{ $value | humanizePercentage }}."
+
+      - alert: HighSwapUsage
+        expr: (node_memory_SwapTotal_bytes > 0) and ((node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes) / node_memory_SwapTotal_bytes > 0.5)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Swap usage > 50%"
+          description: "Server {{ $labels.instance }} is using {{ $value | humanizePercentage }} of swap. Consider optimizing resource limits or upgrading."

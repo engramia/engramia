@@ -1,0 +1,9 @@
+{
+  "_comment": "Default thresholds. Run calibrate.py to recompute for the active embedding model.",
+  "_model": "all-MiniLM-L6-v2",
+  "intra_threshold": 0.55,
+  "cross_threshold": 0.50,
+  "noise_threshold": 0.50,
+  "duplicate_tier": 0.92,
+  "adapt_tier": 0.70
+}

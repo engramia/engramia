@@ -1,0 +1,117 @@
+site_name: Engramia
+site_description: Self-learning memory layer for AI agent frameworks
+site_url: https://docs.engramia.dev
+site_dir: docs-site
+repo_url: https://github.com/engramia/engramia
+repo_name: engramia/engramia
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  custom_dir: docs/overrides
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - User Guide: user-guide.md
+  - Concepts & Architecture: concepts.md
+  - Pricing: pricing.md
+  - API:
+      - Python API Reference: api-reference.md
+      - REST API: rest-api.md
+      - API Stability: api-stability.md
+      - API Versioning: api-versioning.md
+  - CLI: cli.md
+  - Providers: providers.md
+  - Integrations:
+      - Overview & Examples: integrations/examples.md
+      - LangChain: integrations/langchain.md
+      - CrewAI: integrations/crewai.md
+      - Anthropic Agents: integrations/anthropic-agents.md
+      - OpenAI Agents: integrations/openai-agents.md
+      - AutoGen: integrations/autogen.md
+      - PydanticAI: integrations/pydantic-ai.md
+      - MCP Server: integrations/mcp.md
+      - Webhook SDK: integrations/webhook.md
+  - Administration:
+      - Admin Guide: admin-guide.md
+      - Environment Variables: environment-variables.md
+      - Monitoring: monitoring.md
+      - ROI Calibration: roi-calibration.md
+  - Deployment & Operations:
+      - Deployment: deployment.md
+      - Production Hardening: production-hardening.md
+      - Data Handling: data-handling.md
+      - Embedding Reindex: embedding-reindex.md
+      - HNSW Maintenance: hnsw-maintenance.md
+  - Security:
+      - Overview: security.md
+      - Security Architecture: architecture/security-architecture.md
+      - SOC 2 Controls: soc2-controls.md
+  - Legal:
+      - Terms of Service: legal/TERMS_OF_SERVICE.md
+      - Acceptable Use Policy: legal/ACCEPTABLE_USE_POLICY.md
+      - Privacy Policy: legal/PRIVACY_POLICY.md
+      - Cookie Policy: legal/COOKIE_POLICY.md
+      - DPA Template: legal/DPA_TEMPLATE.md
+      - Commercial License: legal/COMMERCIAL_LICENSE_TEMPLATE.md
+      - Sub-processors: legal/SUBPROCESSORS.md
+      - Dependency Licenses: legal/DEPENDENCY_LICENSES.md
+      - Processing Activities (ROPA): legal/ROPA.md
+
+plugins:
+  - search
+
+extra_css:
+  - overrides/assets/stylesheets/custom.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/engramia/engramia

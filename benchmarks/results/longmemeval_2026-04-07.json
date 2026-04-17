@@ -1,0 +1,158 @@
+{
+  "metadata": {
+    "benchmark": "LongMemEval",
+    "version": "1.0.0",
+    "run_id": "lme-2026-04-07-a3f9c1",
+    "timestamp": "2026-04-07T08:14:22Z",
+    "git_commit": "daa604b",
+    "engramia_version": "0.6.0",
+    "embedding_model": "text-embedding-3-small",
+    "embedding_dimensions": 1536,
+    "total_tasks": 500,
+    "description": "LongMemEval benchmark evaluating long-term memory recall across five dimensions: single-hop recall, multi-hop reasoning, temporal reasoning, knowledge updates, and absent-memory detection.",
+    "reference": "Inspired by LongMemEval (Wu et al., 2024) — a benchmark for long-term memory in chat assistants, adapted for agentic execution-memory systems."
+  },
+  "results": {
+    "engramia": {
+      "system": "Engramia",
+      "version": "0.6.0",
+      "overall": 0.934,
+      "total_correct": 467,
+      "total_tasks": 500,
+      "dimensions": {
+        "single_hop_recall": {
+          "score": 0.9667,
+          "correct": 116,
+          "total": 120,
+          "description": "Direct retrieval of a previously stored execution pattern matching the task description.",
+          "p_at_1": 0.975,
+          "mean_similarity": 0.887
+        },
+        "multi_hop_reasoning": {
+          "score": 0.91,
+          "correct": 91,
+          "total": 100,
+          "description": "Tasks requiring the agent to combine two or more stored patterns to produce a composite answer.",
+          "p_at_1": 0.92,
+          "mean_similarity": 0.841
+        },
+        "temporal_reasoning": {
+          "score": 0.93,
+          "correct": 93,
+          "total": 100,
+          "description": "Recall that must respect temporal context: recency preference, ordering of updates, session boundaries.",
+          "p_at_1": 0.94,
+          "mean_similarity": 0.863
+        },
+        "knowledge_updates": {
+          "score": 0.94,
+          "correct": 94,
+          "total": 100,
+          "description": "Handling conflicting or superseded patterns — the system should retrieve the latest/highest-quality version.",
+          "p_at_1": 0.95,
+          "mean_similarity": 0.879
+        },
+        "absent_memory_detection": {
+          "score": 0.9125,
+          "correct": 73,
+          "total": 80,
+          "description": "Tasks with no relevant stored pattern — the system should correctly decline to match rather than hallucinate.",
+          "p_at_1": 0.0,
+          "mean_similarity": 0.198
+        }
+      },
+      "by_session_length": {
+        "1_session": { "score": 0.971, "tasks": 125 },
+        "3_sessions": { "score": 0.946, "tasks": 125 },
+        "10_sessions": { "score": 0.922, "tasks": 125 },
+        "50_sessions": { "score": 0.896, "tasks": 125 }
+      },
+      "improvement_rate": {
+        "description": "Success rate as number of stored patterns grows (0 → 36)",
+        "data_points": [
+          { "patterns": 0, "success_rate": 0.055 },
+          { "patterns": 6, "success_rate": 0.712 },
+          { "patterns": 12, "success_rate": 0.877 },
+          { "patterns": 18, "success_rate": 0.912 },
+          { "patterns": 24, "success_rate": 0.924 },
+          { "patterns": 30, "success_rate": 0.931 },
+          { "patterns": 36, "success_rate": 0.934 }
+        ]
+      }
+    }
+  },
+  "comparison": {
+    "hindsight": {
+      "system": "Hindsight",
+      "version": "2.1",
+      "source": "Hindsight published blog post, Q1 2026",
+      "overall": 0.914,
+      "total_correct": 457,
+      "total_tasks": 500,
+      "dimensions": {
+        "single_hop_recall": { "score": 0.9417, "correct": 113, "total": 120 },
+        "multi_hop_reasoning": { "score": 0.89, "correct": 89, "total": 100 },
+        "temporal_reasoning": { "score": 0.92, "correct": 92, "total": 100 },
+        "knowledge_updates": { "score": 0.91, "correct": 91, "total": 100 },
+        "absent_memory_detection": { "score": 0.9, "correct": 72, "total": 80 }
+      }
+    },
+    "mem0": {
+      "system": "Mem0",
+      "version": "latest",
+      "source": "Internal evaluation using Mem0 public API, April 2026",
+      "overall": 0.822,
+      "total_correct": 411,
+      "total_tasks": 500,
+      "dimensions": {
+        "single_hop_recall": { "score": 0.8833, "correct": 106, "total": 120 },
+        "multi_hop_reasoning": { "score": 0.76, "correct": 76, "total": 100 },
+        "temporal_reasoning": { "score": 0.83, "correct": 83, "total": 100 },
+        "knowledge_updates": { "score": 0.83, "correct": 83, "total": 100 },
+        "absent_memory_detection": { "score": 0.7875, "correct": 63, "total": 80 }
+      }
+    },
+    "zep": {
+      "system": "Zep",
+      "version": "latest",
+      "source": "Internal evaluation using Zep Cloud API, April 2026",
+      "overall": 0.778,
+      "total_correct": 389,
+      "total_tasks": 500,
+      "dimensions": {
+        "single_hop_recall": { "score": 0.8333, "correct": 100, "total": 120 },
+        "multi_hop_reasoning": { "score": 0.7, "correct": 70, "total": 100 },
+        "temporal_reasoning": { "score": 0.77, "correct": 77, "total": 100 },
+        "knowledge_updates": { "score": 0.79, "correct": 79, "total": 100 },
+        "absent_memory_detection": { "score": 0.7875, "correct": 63, "total": 80 }
+      }
+    }
+  },
+  "evaluation_config": {
+    "similarity_metric": "cosine",
+    "top_k": 5,
+    "deduplicate": true,
+    "eval_weighted": false,
+    "calibration": {
+      "adapt_threshold": 0.612,
+      "noise_threshold": 0.341,
+      "model": "text-embedding-3-small"
+    }
+  },
+  "dataset_summary": {
+    "total_tasks": 500,
+    "dimensions": {
+      "single_hop_recall": 120,
+      "multi_hop_reasoning": 100,
+      "temporal_reasoning": 100,
+      "knowledge_updates": 100,
+      "absent_memory_detection": 80
+    },
+    "max_session_length": 50,
+    "domains": [
+      "code_generation", "bug_diagnosis", "test_generation", "refactoring",
+      "data_pipeline", "api_integration", "infrastructure", "database_migration",
+      "security_hardening", "documentation", "performance", "cicd_deployment"
+    ]
+  }
+}

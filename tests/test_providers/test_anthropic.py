@@ -1,0 +1,163 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
+"""Tests for AnthropicProvider (mocked, no API key needed)."""
+
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+def _make_provider(mock_client):
+    """Create an AnthropicProvider with a mock client, bypassing __init__."""
+    from engramia.providers.anthropic import AnthropicProvider
+
+    provider = AnthropicProvider.__new__(AnthropicProvider)
+    provider._client = mock_client
+    provider._model = "claude-sonnet-4-6"
+    provider._max_retries = 3
+    provider._max_tokens = 4096
+    return provider
+
+
+def _mock_response(text="Hello, world!"):
+    mock_response = MagicMock()
+    mock_block = MagicMock()
+    mock_block.type = "text"
+    mock_block.text = text
+    mock_response.content = [mock_block]
+    return mock_response
+
+
+# Create a fake anthropic module with the exception classes
+_fake_anthropic = MagicMock()
+_fake_anthropic.AuthenticationError = type("AuthenticationError", (Exception,), {})
+_fake_anthropic.BadRequestError = type("BadRequestError", (Exception,), {})
+_fake_anthropic.PermissionDeniedError = type("PermissionDeniedError", (Exception,), {})
+
+
+@pytest.fixture(autouse=True)
+def _mock_anthropic_module():
+    """Ensure the anthropic module is available for import.
+
+    Calls reset_mock() in teardown so that call_count, called, call_args and
+    child-mock state accumulated during one test never bleed into the next.
+    The exception-type attributes (AuthenticationError etc.) are direct __dict__
+    assignments and survive reset_mock(), so they remain valid across tests.
+    """
+    with patch.dict(sys.modules, {"anthropic": _fake_anthropic}):
+        yield
+    _fake_anthropic.reset_mock()
+
+
+class TestAnthropicProvider:
+    """Tests for the Anthropic LLM provider."""
+
+    def test_call_returns_text(self):
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _mock_response("Hello, world!")
+        provider = _make_provider(mock_client)
+
+        result = provider.call("test prompt")
+        assert result == "Hello, world!"
+
+    def test_call_with_system_prompt(self):
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _mock_response("response")
+        provider = _make_provider(mock_client)
+
+        provider.call("prompt", system="Be helpful")
+        call_kwargs = mock_client.messages.create.call_args[1]
+        assert call_kwargs["system"] == "Be helpful"
+
+    def test_call_without_system_prompt(self):
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _mock_response("response")
+        provider = _make_provider(mock_client)
+
+        provider.call("prompt")
+        call_kwargs = mock_client.messages.create.call_args[1]
+        assert "system" not in call_kwargs
+
+    def test_retries_on_transient_error(self):
+        mock_client = MagicMock()
+        mock_client.messages.create.side_effect = [
+            ConnectionError("timeout"),
+            _mock_response("success"),
+        ]
+        provider = _make_provider(mock_client)
+
+        result = provider.call("test")
+        assert result == "success"
+        assert mock_client.messages.create.call_count == 2
+
+    def test_raises_after_all_retries_exhausted(self):
+        mock_client = MagicMock()
+        mock_client.messages.create.side_effect = ConnectionError("always fails")
+        provider = _make_provider(mock_client)
+        provider._max_retries = 2
+
+        with pytest.raises(ConnectionError, match="always fails"):
+            provider.call("test")
+
+    def test_does_not_retry_auth_error(self):
+        mock_client = MagicMock()
+        mock_client.messages.create.side_effect = _fake_anthropic.AuthenticationError("bad key")
+        provider = _make_provider(mock_client)
+
+        with pytest.raises(Exception, match="bad key"):
+            provider.call("test")
+        assert mock_client.messages.create.call_count == 1
+
+    def test_does_not_retry_permission_denied(self):
+        """PermissionDeniedError must surface immediately, not be retried."""
+        mock_client = MagicMock()
+        mock_client.messages.create.side_effect = _fake_anthropic.PermissionDeniedError("no permission")
+        provider = _make_provider(mock_client)
+
+        with pytest.raises(_fake_anthropic.PermissionDeniedError):
+            provider.call("test")
+        assert mock_client.messages.create.call_count == 1
+
+    def test_does_not_retry_bad_request(self):
+        """BadRequestError (400) must surface immediately, not be retried."""
+        mock_client = MagicMock()
+        mock_client.messages.create.side_effect = _fake_anthropic.BadRequestError("bad request")
+        provider = _make_provider(mock_client)
+
+        with pytest.raises(_fake_anthropic.BadRequestError):
+            provider.call("test")
+        assert mock_client.messages.create.call_count == 1
+
+    def test_no_text_blocks_returns_empty_string(self):
+        """When response.content has no 'text' type blocks, call() returns ''."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        # Simulate a response with only a non-text block (e.g. tool_use)
+        mock_block = MagicMock()
+        mock_block.type = "tool_use"
+        mock_response.content = [mock_block]
+        mock_client.messages.create.return_value = mock_response
+        provider = _make_provider(mock_client)
+
+        result = provider.call("test")
+        assert result == ""
+
+    def test_empty_content_list_returns_empty_string(self):
+        """When response.content is empty, call() returns '' rather than raising."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = []
+        mock_client.messages.create.return_value = mock_response
+        provider = _make_provider(mock_client)
+
+        result = provider.call("test")
+        assert result == ""
+
+    def test_import_error_raised_when_anthropic_not_installed(self):
+        """AnthropicProvider.__init__ must raise ImportError if anthropic package absent."""
+        with patch.dict(sys.modules, {"anthropic": None}):
+            from engramia.providers.anthropic import AnthropicProvider
+
+            with pytest.raises(ImportError, match="anthropic"):
+                AnthropicProvider()

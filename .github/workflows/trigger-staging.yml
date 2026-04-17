@@ -1,0 +1,47 @@
+name: Trigger staging deploy
+
+# Runs after docker.yml successfully pushes an image on main.
+# Mints a short-lived token from the Engramia Deploy Dispatcher GitHub App
+# and triggers engramia-ops/deploy-staging.yml with the main-<sha> tag.
+
+on:
+  workflow_run:
+    workflows: ["Docker Image"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch staging deploy
+    runs-on: ubuntu-latest
+    if: >
+      github.repository == 'engramia/engramia' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    steps:
+      - name: Mint GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: engramia
+          repositories: engramia-ops
+
+      - name: Compute short SHA
+        id: sha
+        run: echo "short=$(echo ${{ github.event.workflow_run.head_sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Trigger engramia-ops deploy-staging
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/engramia/engramia-ops/actions/workflows/deploy-staging-core.yml/dispatches \
+            -f ref=main \
+            -f "inputs[image_tag]=main-${{ steps.sha.outputs.short }}"

@@ -1,0 +1,20 @@
+# .auditignore — audit-pipeline ignore patterns for Engramia Core
+# Patterns here extend the built-in list (node_modules, dist, build, out,
+# venv, __pycache__, lock files, binaries etc. are already excluded).
+
+# Coverage / test artefacts
+coverage/
+.nyc_output/
+coverage.xml
+
+# Caches
+.cache/
+
+# Database migrations (generated schema files)
+migrations/
+
+# Benchmark fixtures / generated output
+benchmarks/snippets/
+
+# Monitoring dashboards / config dumps (infrastructure, not app code)
+monitoring/

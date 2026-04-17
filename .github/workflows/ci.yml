@@ -1,0 +1,209 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,openai,api,cli,postgres,billing,cloud-auth]"
+
+      - name: Lint (ruff)
+        run: ruff check engramia/
+
+      - name: Format check (ruff)
+        run: ruff format --check engramia/
+
+      - name: Type check (mypy)
+        run: mypy engramia/ --ignore-missing-imports
+
+      - name: Tests
+        # Subset coverage (no postgres/embeddings) — full coverage enforced in test-full job
+        run: pytest -m "not postgres and not local_embeddings and not concurrent" --cov=engramia --cov-report=xml --cov-fail-under=60 --junitxml=test-results.xml
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v6
+        if: always()
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results
+          path: test-results.xml
+
+  test-full:
+    name: Full Test Suite (with Postgres)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: engramia_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -e ".[dev,openai,api,cli,postgres]"
+      - name: Run full test suite
+        run: pytest --cov=engramia --cov-fail-under=80 --cov-report=xml --junitxml=test-results-full.xml
+        env:
+          ENGRAMIA_TEST_DB_URL: postgresql://postgres:test@localhost:5432/engramia_test
+          ENGRAMIA_STORAGE: postgres
+      - name: Upload full coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-full
+          path: coverage.xml
+
+  version-consistency:
+    name: Version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # required for hatch-vcs to read tags
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install with hatch-vcs
+        run: pip install hatch-vcs ".[dev,api]"
+
+      - name: hatch-vcs smoke (hatchling can resolve version)
+        run: python -m hatchling version
+
+      - name: No hardcoded version in __init__.py
+        run: "! grep -E '^__version__ = \"[0-9]' engramia/__init__.py"
+
+      - name: pyproject.toml uses dynamic version
+        run: grep 'dynamic.*version' pyproject.toml
+
+      - name: Build/runtime version parity (tagged commits only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          RUNTIME=$(python -c "import engramia; print(engramia.__version__)")
+          echo "tag=$TAG  runtime=$RUNTIME"
+          [ "$TAG" = "$RUNTIME" ] || (echo "VERSION DRIFT: tag=$TAG runtime=$RUNTIME" && exit 1)
+
+  license-audit:
+    name: License audit (drift check)
+    runs-on: ubuntu-latest
+    # Only runs when dependency declarations change — the audit file is
+    # stable when pyproject.toml and the script itself are untouched.
+    # prepare-release.yml regenerates canonically on every release.
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # hatch-vcs needs tags for version string
+
+      - name: Detect dependency-related changes
+        id: deps-changed
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            deps:
+              - 'pyproject.toml'
+
+      - uses: actions/setup-python@v6
+        if: steps.deps-changed.outputs.deps == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install runtime extras (no [dev])
+        if: steps.deps-changed.outputs.deps == 'true'
+        # Must match prepare-release.yml: the audit reflects what ships
+        # in the wheel/image, not what CI uses for testing.
+        run: |
+          pip install --upgrade pip
+          pip install ".[all]"
+          pip install pip-licenses
+
+      - name: Check DEPENDENCY_LICENSES.md is up to date
+        if: steps.deps-changed.outputs.deps == 'true'
+        run: python scripts/audit_licenses.py --check --fail-on=high
+
+  # Frontend E2E tests live in their respective repos:
+  # - Dashboard: https://github.com/engramia/dashboard
+  # - Website:   https://github.com/engramia/website
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # full history for trufflehog
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,openai,api,cli]"
+
+      - name: Dependency audit (pip-audit)
+        run: |
+          pip install pip-audit
+          # GHSA-pjjw-68hj-v9mw: uv <0.11.6 — transitive build-tool dep, not runtime.
+          pip-audit --desc --skip-editable --ignore-vuln GHSA-pjjw-68hj-v9mw
+
+      - name: SAST (bandit)
+        run: |
+          pip install bandit
+          bandit -r engramia/ -c pyproject.toml --severity-level medium --confidence-level medium -f json -o bandit-report.json || true
+          bandit -r engramia/ -c pyproject.toml --severity-level high --confidence-level high
+        continue-on-error: false
+
+      - name: Upload SAST report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Secret scanning (trufflehog)
+        uses: trufflesecurity/trufflehog@v3.94.3
+        with:
+          extra_args: --only-verified

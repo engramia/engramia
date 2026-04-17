@@ -1,0 +1,137 @@
+name: Prepare release
+
+# Generates a release commit with an updated LICENSE.txt (BUSL 1.1
+# per-version Change Date) and creates an annotated tag. Does NOT build
+# or publish artefacts — docker.yml (on release:published) and publish.yml
+# (manual workflow_dispatch) handle that once you cut the GitHub Release.
+#
+# Usage:
+#   gh workflow run prepare-release.yml -f version=1.0.0
+#   gh workflow run prepare-release.yml -f version=1.0.0 -f change_date=2032-06-01
+#   gh workflow run prepare-release.yml -f version=1.0.0 -f dry_run=true
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without 'v' prefix (e.g. 1.0.0)"
+        required: true
+        type: string
+      change_date:
+        description: "BUSL Change Date (YYYY-MM-DD). Default: today + 4 years"
+        required: false
+        type: string
+      dry_run:
+        description: "Preview LICENSE diff without committing or tagging"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Update LICENSE + tag
+    runs-on: ubuntu-latest
+    if: github.repository == 'engramia/engramia'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate no existing tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "::error::Tag v${{ inputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Build script args
+        id: args
+        run: |
+          ARGS="--version ${{ inputs.version }}"
+          if [ -n "${{ inputs.change_date }}" ]; then
+            ARGS="$ARGS --change-date ${{ inputs.change_date }}"
+          fi
+          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
+
+      - name: Dry run — show proposed LICENSE diff
+        if: ${{ inputs.dry_run }}
+        run: python scripts/update_license.py ${{ steps.args.outputs.args }} --dry-run
+
+      - name: Update LICENSE.txt
+        if: ${{ !inputs.dry_run }}
+        run: python scripts/update_license.py ${{ steps.args.outputs.args }}
+
+      - name: Install runtime extras + pip-licenses into audit venv
+        if: ${{ !inputs.dry_run }}
+        run: |
+          python -m venv .audit-venv
+          . .audit-venv/bin/activate
+          pip install --upgrade pip
+          # Runtime extras only — NO [dev], docs, or test tooling.
+          # The audit must reflect what ships in the wheel/image.
+          pip install ".[all]"
+          pip install pip-licenses
+
+      - name: Regenerate DEPENDENCY_LICENSES.md
+        if: ${{ !inputs.dry_run }}
+        run: |
+          . .audit-venv/bin/activate
+          # Fails with exit 2 if any HIGH-risk (AGPL/GPL-3/SSPL) license
+          # slipped in — release is blocked until resolved.
+          python scripts/audit_licenses.py --fail-on=high
+
+      - name: Show diff
+        if: ${{ !inputs.dry_run }}
+        run: git diff LICENSE.txt docs/legal/DEPENDENCY_LICENSES.md
+
+      - name: Commit, tag, push
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "Engramia Release Bot"
+          git config user.email "support@engramia.dev"
+          CHANGED=""
+          if ! git diff --quiet LICENSE.txt; then
+            CHANGED="$CHANGED LICENSE.txt"
+          fi
+          if ! git diff --quiet docs/legal/DEPENDENCY_LICENSES.md; then
+            CHANGED="$CHANGED docs/legal/DEPENDENCY_LICENSES.md"
+          fi
+          if [ -z "$CHANGED" ]; then
+            echo "::notice::No release-time file changes — tagging existing HEAD."
+          else
+            git add $CHANGED
+            git commit -m "chore: update LICENSE + DEPENDENCY_LICENSES for v${{ inputs.version }}"
+          fi
+          git tag -a "v${{ inputs.version }}" -m "v${{ inputs.version }}"
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v${{ inputs.version }}"
+
+      - name: Summary
+        if: ${{ !inputs.dry_run }}
+        run: |
+          {
+            echo "## Release v${{ inputs.version }} prepared"
+            echo ""
+            echo "### Next steps"
+            echo ""
+            echo "1. Verify the tag and LICENSE commit on main."
+            echo "2. Create a GitHub Release to trigger the docker.yml image build:"
+            echo ""
+            echo "   \`\`\`"
+            echo "   gh release create v${{ inputs.version }} --generate-notes"
+            echo "   \`\`\`"
+            echo ""
+            echo "3. Publish to PyPI via the existing publish workflow:"
+            echo ""
+            echo "   \`\`\`"
+            echo "   gh workflow run publish.yml -f confirm=publish"
+            echo "   \`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"

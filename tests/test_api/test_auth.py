@@ -1,0 +1,132 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
+"""Tests for API authentication middleware."""
+
+import os
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from engramia.memory import Memory
+from engramia.providers.json_storage import JSONStorage
+from tests.conftest import FakeEmbeddings
+
+pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def _clean_env():
+    """Ensure auth env vars are cleaned up after each test."""
+    old_keys = os.environ.pop("ENGRAMIA_API_KEYS", None)
+    old_no_auth = os.environ.pop("ENGRAMIA_ALLOW_NO_AUTH", None)
+    yield
+    if old_keys is not None:
+        os.environ["ENGRAMIA_API_KEYS"] = old_keys
+    else:
+        os.environ.pop("ENGRAMIA_API_KEYS", None)
+    if old_no_auth is not None:
+        os.environ["ENGRAMIA_ALLOW_NO_AUTH"] = old_no_auth
+    else:
+        os.environ.pop("ENGRAMIA_ALLOW_NO_AUTH", None)
+
+
+def _make_test_app(api_keys: str = "", allow_no_auth: bool = False) -> FastAPI:
+    """Create a minimal test app with auth middleware."""
+    if api_keys:
+        os.environ["ENGRAMIA_API_KEYS"] = api_keys
+    else:
+        os.environ.pop("ENGRAMIA_API_KEYS", None)
+
+    if allow_no_auth:
+        os.environ["ENGRAMIA_ALLOW_NO_AUTH"] = "true"
+    else:
+        os.environ.pop("ENGRAMIA_ALLOW_NO_AUTH", None)
+
+    # Import router fresh (auth reads env at request time)
+    from engramia.api.routes import router
+
+    app = FastAPI()
+    app.include_router(router, prefix="/v1")
+    return app
+
+
+@pytest.fixture
+def tmp_mem(tmp_path):
+    storage = JSONStorage(path=tmp_path)
+    embeddings = FakeEmbeddings()
+    return Memory(embeddings=embeddings, storage=storage)
+
+
+class TestAuthDevMode:
+    """When ENGRAMIA_API_KEYS is empty and ENGRAMIA_ALLOW_NO_AUTH=true, all requests pass."""
+
+    def test_no_auth_required_when_allow_no_auth_set(self, tmp_mem):
+        app = _make_test_app("", allow_no_auth=True)
+        app.state.memory = tmp_mem
+
+        client = TestClient(app)
+        resp = client.get("/v1/health")
+        assert resp.status_code == 200
+
+    def test_request_with_token_also_works_when_allow_no_auth_set(self, tmp_mem):
+        app = _make_test_app("", allow_no_auth=True)
+        app.state.memory = tmp_mem
+
+        client = TestClient(app)
+        resp = client.get("/v1/health", headers={"Authorization": "Bearer any-token"})
+        assert resp.status_code == 200
+
+    def test_no_keys_and_no_allow_returns_503(self, tmp_mem):
+        """Without ENGRAMIA_ALLOW_NO_AUTH, missing keys must return 503, not 200."""
+        app = _make_test_app("", allow_no_auth=False)
+        app.state.memory = tmp_mem
+
+        client = TestClient(app)
+        resp = client.get("/v1/health")
+        assert resp.status_code == 503
+
+
+class TestAuthEnabled:
+    """When ENGRAMIA_API_KEYS is set, Bearer tokens are required."""
+
+    def test_missing_token_returns_401(self, tmp_mem):
+        app = _make_test_app("secret-key-123")
+        app.state.memory = tmp_mem
+
+        client = TestClient(app)
+        resp = client.get("/v1/health")
+        assert resp.status_code == 401
+
+    def test_wrong_token_returns_401(self, tmp_mem):
+        app = _make_test_app("secret-key-123")
+        app.state.memory = tmp_mem
+
+        client = TestClient(app)
+        resp = client.get("/v1/health", headers={"Authorization": "Bearer wrong-key"})
+        assert resp.status_code == 401
+
+    def test_valid_token_returns_200(self, tmp_mem):
+        app = _make_test_app("secret-key-123")
+        app.state.memory = tmp_mem
+
+        client = TestClient(app)
+        resp = client.get("/v1/health", headers={"Authorization": "Bearer secret-key-123"})
+        assert resp.status_code == 200
+
+    def test_multiple_keys_supported(self, tmp_mem):
+        app = _make_test_app("key-a,key-b,key-c")
+        app.state.memory = tmp_mem
+
+        client = TestClient(app)
+        for key in ("key-a", "key-b", "key-c"):
+            resp = client.get("/v1/health", headers={"Authorization": f"Bearer {key}"})
+            assert resp.status_code == 200
+
+    def test_invalid_auth_scheme_returns_401(self, tmp_mem):
+        app = _make_test_app("secret-key-123")
+        app.state.memory = tmp_mem
+
+        client = TestClient(app)
+        resp = client.get("/v1/health", headers={"Authorization": "Basic dXNlcjpwYXNz"})
+        assert resp.status_code == 401

@@ -1,0 +1,39 @@
+name: Feature Request
+description: Suggest a new feature or capability
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature. Please describe the use case — not
+        just what you want added, but what you are trying to achieve.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do? What does not work today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What would the ideal solution look like? (Code sketch, API, behavior.)
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds did you try? Why were they insufficient?
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This fits within Engramia's stated scope (agent memory, evaluation)
+        - label: I have searched existing issues for duplicates

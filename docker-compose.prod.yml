@@ -1,0 +1,186 @@
+networks:
+  engramia-net:
+    name: engramia-net
+    driver: bridge
+
+services:
+  caddy:
+    image: caddy:2.9.1-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./docs-site:/srv/docs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - engramia-net
+    restart: unless-stopped
+    depends_on:
+      - engramia-api
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # Dashboard is maintained in a separate repo: https://github.com/engramia/dashboard
+  # Image is built and published by the dashboard repo's own CI (GHCR).
+  dashboard:
+    image: ghcr.io/engramia/dashboard:${DASHBOARD_TAG:?DASHBOARD_TAG must be set}
+    restart: unless-stopped
+    environment:
+      - NEXTAUTH_URL=${DASHBOARD_URL:-https://app.engramia.dev}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXT_PUBLIC_API_URL=${API_URL:-https://api.engramia.dev}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - NEXT_PUBLIC_STRIPE_PRO_URL=${STRIPE_PRO_URL:-}
+      - NEXT_PUBLIC_STRIPE_TEAM_URL=${STRIPE_TEAM_URL:-}
+    networks:
+      - engramia-net
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
+        reservations:
+          cpus: "0.1"
+          memory: 192M
+
+  website:
+    image: ghcr.io/engramia/website:${WEBSITE_TAG:?WEBSITE_TAG must be set}
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    networks:
+      - engramia-net
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 192M
+        reservations:
+          cpus: "0.1"
+          memory: 96M
+
+  engramia-api:
+    image: ghcr.io/engramia/engramia:${CORE_TAG:?CORE_TAG must be set}
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file: .env
+    volumes:
+      - engramia_data:/data
+    networks:
+      - engramia-net
+    restart: unless-stopped
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    healthcheck:
+      # API is healthy if /v1/health returns 200 or 401 (401 = server is up
+      # but caller has no bearer token). Uses python3 because the image
+      # doesn't ship curl.
+      test: ["CMD-SHELL", "python3 -c 'import http.client,sys; c=http.client.HTTPConnection(\"localhost\",8000,timeout=3); c.request(\"GET\",\"/v1/health\"); sys.exit(0 if c.getresponse().status in (200,401) else 1)'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=64m
+      - /app/tmp:mode=1777,size=32m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  pgvector:
+    image: pgvector/pgvector:0.7.4-pg16
+    environment:
+      POSTGRES_USER: engramia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: engramia
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c effective_cache_size=256MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
+      -c wal_buffers=8MB
+      -c checkpoint_completion_target=0.9
+      -c random_page_cost=1.1
+      -c max_connections=100
+      -c max_parallel_workers_per_gather=1
+      -c max_parallel_workers=2
+      -c log_min_duration_statement=500
+      -c log_checkpoints=on
+      -c log_lock_waits=on
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - engramia-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engramia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+volumes:
+  engramia_data:
+  caddy_data:
+  caddy_config:
+  pgdata:

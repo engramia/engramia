@@ -1,0 +1,55 @@
+{
+    servers {
+        protocols h1 h2
+    }
+    tls {
+        protocols tls1.2 tls1.3
+    }
+}
+
+engramia.dev {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    reverse_proxy website:3000
+}
+
+www.engramia.dev {
+    redir https://engramia.dev{uri} permanent
+
+    tls {
+        protocols tls1.2 tls1.3
+    }
+}
+
+docs.engramia.dev {
+    root * /srv/docs
+    file_server
+    encode gzip
+
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    handle_errors {
+        respond "{err.status_code} {err.status_text}" {err.status_code}
+    }
+}
+
+app.engramia.dev {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    reverse_proxy dashboard:3000
+}
+
+api.engramia.dev {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    reverse_proxy engramia-api:8000
+}
+
