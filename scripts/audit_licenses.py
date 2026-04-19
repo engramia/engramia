@@ -119,6 +119,23 @@ RISK_NOTES = {
 
 RISK_ORDER = ["HIGH", "MEDIUM", "LOW", "UNKNOWN", "OK"]
 
+# Platform-suffix pattern on package names — collapses variants like
+# `nvidia-cudnn-cu12`, `@foo/bar-linux-x64`, or hypothetical future
+# platform-specific Python wheels into a single canonical entry so the
+# committed inventory is stable across macOS / Linux / Alpine / Windows
+# regenerations. Python packages currently rarely use this naming, but
+# the normalizer is kept in sync with the Node-side audit script.
+_PLATFORM_SUFFIX_RE = re.compile(
+    r"-(linux|linuxmusl|darwin|win32|freebsd|android|sunos|netbsd|openbsd|manylinux|musllinux)"
+    r"-(x64|arm64|arm|ia32|x86_64|aarch64|ppc64|ppc64le|s390x|mips|mipsel|riscv64)"
+    r"(-(gnu|musl|msvc|eabi|eabihf))?$",
+    re.IGNORECASE,
+)
+
+
+def _canonical_name(name: str) -> str:
+    return _PLATFORM_SUFFIX_RE.sub("-<platform>", name)
+
 
 @dataclass
 class Package:
@@ -165,20 +182,31 @@ def run_pip_licenses() -> list[Package]:
         sys.exit(3)
 
     data = json.loads(raw)
-    out: list[Package] = []
+    # Collapse platform-specific variants (if any) into a single canonical
+    # entry. Only entries whose name actually carries a platform suffix
+    # are collapsed — versioned duplicates of the same package must be
+    # preserved as separate rows.
+    canonical: dict[str, Package] = {}
+    rest: list[Package] = []
     for item in data:
-        name = item["Name"]
-        if name.lower() == SELF_PACKAGE:
+        raw_name = item["Name"]
+        if raw_name.lower() == SELF_PACKAGE:
             continue
+        name = _canonical_name(raw_name)
         lic = (item.get("License") or "UNKNOWN").strip()
-        out.append(
-            Package(
-                name=name,
-                version=(item.get("Version") or "").strip(),
-                license=lic,
-                risk=classify(lic),
-            )
+        pkg = Package(
+            name=name,
+            version=(item.get("Version") or "").strip(),
+            license=lic,
+            risk=classify(lic),
         )
+        if name == raw_name:
+            rest.append(pkg)
+            continue
+        existing = canonical.get(name)
+        if existing is None or RISK_ORDER.index(pkg.risk) < RISK_ORDER.index(existing.risk):
+            canonical[name] = pkg
+    out = rest + list(canonical.values())
     out.sort(key=lambda p: p.name.lower())
     return out
 

@@ -42,13 +42,25 @@ class OpenAIProvider(LLMProvider):
         timeout: float = 30.0,
     ) -> None:
         try:
-            from openai import OpenAI
-
-            self._client = OpenAI(timeout=timeout)
+            import openai  # noqa: F401 — presence check, client built lazily
         except ImportError:
             raise ImportError(_OPENAI_INSTALL_MSG) from None
         self._model = model
         self._max_retries = max_retries
+        self._timeout = timeout
+        self._client_cache: Any = None
+
+    @property
+    def _client(self) -> Any:
+        if self._client_cache is None:
+            from openai import OpenAI
+
+            self._client_cache = OpenAI(timeout=self._timeout)
+        return self._client_cache
+
+    @_client.setter
+    def _client(self, value: Any) -> None:
+        self._client_cache = value
 
     @_tracing.traced("llm.call", {"llm.provider": "openai"})
     def call(
@@ -104,13 +116,25 @@ class OpenAIEmbeddings(EmbeddingProvider):
         max_retries: int = 3,
     ) -> None:
         try:
-            from openai import OpenAI
-
-            self._client = OpenAI(timeout=timeout)
+            import openai  # noqa: F401 — presence check, client built lazily
         except ImportError:
             raise ImportError(_OPENAI_INSTALL_MSG) from None
         self._model = model
         self._max_retries = max_retries
+        self._timeout = timeout
+        self._client_cache: Any = None
+
+    @property
+    def _client(self) -> Any:
+        if self._client_cache is None:
+            from openai import OpenAI
+
+            self._client_cache = OpenAI(timeout=self._timeout)
+        return self._client_cache
+
+    @_client.setter
+    def _client(self, value: Any) -> None:
+        self._client_cache = value
 
     def _call_with_retry(self, input_data: str | list[str]) -> Any:
         """Call the embeddings API with exponential backoff on transient errors."""
