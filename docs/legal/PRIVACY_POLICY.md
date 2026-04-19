@@ -2,7 +2,7 @@
 
 **Engramia — Reusable Execution Memory for AI Agents**
 
-Last updated: 2026-04-05
+Last updated: 2026-04-19
 
 ---
 
@@ -93,7 +93,13 @@ We may derive **anonymized, aggregated data** from your use of the Service to:
 
 Such aggregated data **does not identify you or any individual** and cannot be re-identified. Examples include: average pattern counts per user tier, aggregate API call volumes, distribution of evaluation scores.
 
+**Data minimization.** Analytics events capture only metric values (evaluation scores, similarity, reuse tier, pattern counts) and tenant scope identifiers. Task descriptions, prompts, code snippets, feedback text, email addresses, IP addresses, and other direct identifiers are **never recorded** in the analytics pipeline in the first place, consistent with the data minimization principle under GDPR Art. 5(1)(c).
+
+**Publication safeguards.** Before publishing any benchmark, report, or research output based on aggregated data, we apply small-n suppression and aggregate across multiple customers so that individual contributions cannot be reconstructed. In line with GDPR Recital 26, data published in this form is treated as irreversibly anonymized and falls outside the material scope of the GDPR.
+
 **We will never share, sell, or disclose your raw Customer Data to third parties.**
+
+You retain the right to object to analytics processing at any time — see Section 9 (Your Rights, GDPR Art. 21).
 
 ### 4.4 To Communicate With You
 
@@ -165,9 +171,16 @@ For a detailed description of our security measures, see our [Security Policy](h
 
 **In transit:** All data transmitted between your systems and Engramia is encrypted using TLS 1.2 or TLS 1.3.
 
-**At rest:** Database contents (patterns, evaluation scores, metadata) are stored on Hetzner VPS infrastructure in Germany. Hetzner CX-series servers do not provide hardware-level disk encryption by default. Data is protected at the application layer through: hashed API keys (SHA-256), non-root container execution, network segmentation (internal Docker bridge), and restricted database access (no public exposure).
+**At rest:** Database contents (patterns, evaluation scores, metadata) are stored on Hetzner VPS infrastructure in Germany (Frankfurt region). Hetzner CX-series servers do not provide hardware-level disk encryption by default; we protect data at the application layer through:
 
-We recommend enterprise customers with strict at-rest encryption requirements to consider the self-hosted deployment option, where you control the infrastructure and can apply LUKS disk encryption or encrypted block storage.
+- **PII redaction pipeline** — inbound text fields (task descriptions, code snippets, evaluation outputs) pass through a redaction module that strips detected personal data (emails, phone numbers, IP addresses, common credential patterns) before persistence.
+- **Hashed API keys** — API keys are never stored in plaintext; only SHA-256 hashes are persisted, and key comparison uses timing-safe HMAC.
+- **Scope-aware tenant isolation** — each tenant is bound to a distinct scope propagated via contextvars into every database query path; application-layer filters enforce that pattern, feedback, and analytics reads apply tenant and project identifiers, so a compromised API key cannot reach another tenant's data.
+- **Non-root container execution** — services run under a dedicated non-root user.
+- **Network segmentation** — in production the database is reachable only over the internal Docker bridge; no public port exposure.
+- **Restricted operator access** — SSH access to the underlying VM is limited to the operator; authentication events are logged at the operating system level.
+
+We recommend enterprise customers with strict at-rest encryption requirements (e.g. HIPAA, PCI-DSS) to choose the self-hosted deployment option, where you control the infrastructure and can apply LUKS disk encryption or encrypted block storage.
 
 No system is 100% secure. While we strive to protect your data, we cannot guarantee absolute security.
 
