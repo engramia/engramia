@@ -20,6 +20,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm == 'publish'
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: actions/setup-python@v6
         with:
@@ -27,6 +30,16 @@ jobs:
 
       - name: Install build tools
         run: pip install build
+
+      - name: Verify hatch-vcs resolves to a PEP 440 public version
+        run: |
+          pip install hatch-vcs
+          VERSION=$(python -m hatchling version)
+          echo "Resolved version: $VERSION"
+          if [[ "$VERSION" == *"+"* ]]; then
+            echo "::error::hatch-vcs produced a local version ($VERSION). The current HEAD is not tagged — PyPI rejects local versions. Tag the commit first."
+            exit 1
+          fi
 
       - name: Build wheel and sdist
         run: python -m build
