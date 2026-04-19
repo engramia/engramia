@@ -1,0 +1,12 @@
+# Engramia — staging extras (mounted at /etc/caddy/extras.caddy on the
+# staging CX23). Adds the staging marketing preview on top of the
+# universal api + app site blocks.
+#
+# Required env var:
+#   DOMAIN_WWW          staging-www.engramia.dev.
+#   UPSTREAM_WEBSITE    Defaults to website-staging:3000 in staging.
+
+{$DOMAIN_WWW} {
+	import secure_defaults
+	reverse_proxy {$UPSTREAM_WEBSITE:website-staging:3000}
+}

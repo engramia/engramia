@@ -1,0 +1,9 @@
+# Engramia — empty extras placeholder.
+#
+# Mounted at /etc/caddy/extras.caddy by environments that have no
+# extra site blocks beyond the universal api + app pair (test, train,
+# local dev).
+#
+# Keeping this file empty-but-present lets the base Caddyfile use a
+# single unconditional `import /etc/caddy/extras.caddy` directive
+# across every environment.

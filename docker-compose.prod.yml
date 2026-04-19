@@ -11,9 +11,25 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Env-specific site blocks (apex + www + docs on prod). Other
+      # environments mount Caddyfile.extras.staging / .empty here.
+      - ./Caddyfile.extras.prod:/etc/caddy/extras.caddy:ro
       - ./docs-site:/srv/docs:ro
       - caddy_data:/data
       - caddy_config:/config
+    environment:
+      - CADDY_EMAIL=${CADDY_EMAIL:?CADDY_EMAIL must be set}
+      - CADDY_AUTO_HTTPS=${CADDY_AUTO_HTTPS:-on}
+      - CADDY_LOG_LEVEL=${CADDY_LOG_LEVEL:-INFO}
+      - DOMAIN_API=${DOMAIN_API:?DOMAIN_API must be set}
+      - DOMAIN_APP=${DOMAIN_APP:?DOMAIN_APP must be set}
+      - DOMAIN_APEX=${DOMAIN_APEX:?DOMAIN_APEX must be set}
+      - DOMAIN_WWW=${DOMAIN_WWW:?DOMAIN_WWW must be set}
+      - DOMAIN_DOCS=${DOMAIN_DOCS:?DOMAIN_DOCS must be set}
+      - UPSTREAM_API=${UPSTREAM_API:-engramia-api:8000}
+      - UPSTREAM_DASHBOARD=${UPSTREAM_DASHBOARD:-dashboard:3000}
+      - UPSTREAM_WEBSITE=${UPSTREAM_WEBSITE:-website:3000}
+      - DOCS_ROOT=${DOCS_ROOT:-/srv/docs}
     networks:
       - engramia-net
     restart: unless-stopped

@@ -1,55 +1,81 @@
+# Engramia — universal Caddyfile
+#
+# One file, every environment (prod, staging, test, train, local). All
+# variation is driven by environment variables loaded from the env file
+# that docker-compose mounts as .env, plus an env-specific "extras"
+# fragment mounted at /etc/caddy/extras.caddy.
+#
+# Required env variables (every environment must set these; missing
+# values blow up at config parse time, not at first request):
+#
+#   CADDY_EMAIL         Contact address for Let's Encrypt (use any valid
+#                       inbox for prod; local dev with CADDY_AUTO_HTTPS=off
+#                       can leave this empty).
+#   DOMAIN_API          Public hostname for the REST API.
+#   DOMAIN_APP          Public hostname for the admin dashboard.
+#   UPSTREAM_API        Docker-network target for the API container
+#                       (host:port). Defaults to engramia-api:8000.
+#   UPSTREAM_DASHBOARD  Docker-network target for the dashboard
+#                       container. Defaults to dashboard:3000.
+#
+# Optional:
+#
+#   CADDY_AUTO_HTTPS    "on" (default) or "off". Set "off" for local dev
+#                       that serves plain HTTP on custom ports.
+#   CADDY_LOG_LEVEL     INFO (default) | DEBUG | WARN | ERROR.
+#
+# Env-specific site blocks (apex, www, docs, anything else) live in
+# Caddyfile.extras.<env> in this repo; the deploy workflow mounts the
+# right one at /etc/caddy/extras.caddy. Envs with nothing extra to add
+# mount Caddyfile.extras.empty.
+
 {
-    servers {
-        protocols h1 h2
-    }
-    tls {
-        protocols tls1.2 tls1.3
-    }
+	email {$CADDY_EMAIL}
+	auto_https {$CADDY_AUTO_HTTPS:on}
+	admin off
+	servers {
+		protocols h1 h2
+	}
+	log default {
+		level {$CADDY_LOG_LEVEL:INFO}
+		format json
+	}
 }
 
-engramia.dev {
-    tls {
-        protocols tls1.2 tls1.3
-    }
+# ---------------------------------------------------------------------------
+# Snippets — imported by every site block below and by the env-specific
+# extras file. Change in one place, apply everywhere.
+# ---------------------------------------------------------------------------
 
-    reverse_proxy website:3000
+(secure_defaults) {
+	tls {
+		protocols tls1.2 tls1.3
+	}
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	encode zstd gzip
 }
 
-www.engramia.dev {
-    redir https://engramia.dev{uri} permanent
+# ---------------------------------------------------------------------------
+# Core services — present in every environment.
+# ---------------------------------------------------------------------------
 
-    tls {
-        protocols tls1.2 tls1.3
-    }
+{$DOMAIN_API} {
+	import secure_defaults
+	reverse_proxy {$UPSTREAM_API:engramia-api:8000}
 }
 
-docs.engramia.dev {
-    root * /srv/docs
-    file_server
-    encode gzip
-
-    tls {
-        protocols tls1.2 tls1.3
-    }
-
-    handle_errors {
-        respond "{err.status_code} {err.status_text}" {err.status_code}
-    }
+{$DOMAIN_APP} {
+	import secure_defaults
+	reverse_proxy {$UPSTREAM_DASHBOARD:dashboard:3000}
 }
 
-app.engramia.dev {
-    tls {
-        protocols tls1.2 tls1.3
-    }
-
-    reverse_proxy dashboard:3000
-}
-
-api.engramia.dev {
-    tls {
-        protocols tls1.2 tls1.3
-    }
-
-    reverse_proxy engramia-api:8000
-}
-
+# ---------------------------------------------------------------------------
+# Env-specific extras (apex, www redirect, docs, …). See
+# Caddyfile.extras.prod / Caddyfile.extras.staging / Caddyfile.extras.empty.
+# ---------------------------------------------------------------------------
+import /etc/caddy/extras.caddy
