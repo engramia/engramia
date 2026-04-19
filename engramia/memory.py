@@ -532,8 +532,7 @@ class Memory:
                         self._storage.save_embedding(key, embedding)
                     except Exception as exc:  # pragma: no cover — provider errors
                         _log.warning(
-                            "Failed to re-embed imported pattern %r: %s — "
-                            "recall will not find it until re-embedded.",
+                            "Failed to re-embed imported pattern %r: %s — recall will not find it until re-embedded.",
                             key,
                             exc,
                         )
