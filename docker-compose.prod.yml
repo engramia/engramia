@@ -19,7 +19,6 @@ services:
       - caddy_config:/config
     environment:
       - CADDY_EMAIL=${CADDY_EMAIL:?CADDY_EMAIL must be set}
-      - CADDY_AUTO_HTTPS=${CADDY_AUTO_HTTPS:-on}
       - CADDY_LOG_LEVEL=${CADDY_LOG_LEVEL:-INFO}
       - DOMAIN_API=${DOMAIN_API:?DOMAIN_API must be set}
       - DOMAIN_APP=${DOMAIN_APP:?DOMAIN_APP must be set}

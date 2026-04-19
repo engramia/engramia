@@ -31,7 +31,8 @@
 
 {
 	email {$CADDY_EMAIL}
-	auto_https {$CADDY_AUTO_HTTPS:on}
+	# auto_https is on by default. Local dev that needs plain HTTP can set
+	# site addresses to http://… instead of toggling a global.
 	admin off
 	servers {
 		protocols h1 h2
