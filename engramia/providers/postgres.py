@@ -201,7 +201,7 @@ class PostgresStorage(StorageBackend):
                 self._text(
                     """
                     INSERT INTO memory_embeddings (key, tenant_id, project_id, embedding)
-                    VALUES (:key, :tid, :pid, :vec::vector)
+                    VALUES (:key, :tid, :pid, CAST(:vec AS vector))
                     ON CONFLICT (tenant_id, project_id, key) DO UPDATE
                         SET embedding = EXCLUDED.embedding
                     """
@@ -289,12 +289,12 @@ class PostgresStorage(StorageBackend):
                 rows = conn.execute(
                     self._text(
                         """
-                        SELECT key, 1 - (embedding <=> :vec::vector) AS similarity
+                        SELECT key, 1 - (embedding <=> CAST(:vec AS vector)) AS similarity
                         FROM memory_embeddings
                         WHERE key LIKE :prefix ESCAPE '\\'
                           AND tenant_id = :tid
                           AND project_id = :pid
-                        ORDER BY embedding <=> :vec::vector
+                        ORDER BY embedding <=> CAST(:vec AS vector)
                         LIMIT :limit
                         """
                     ),
@@ -304,11 +304,11 @@ class PostgresStorage(StorageBackend):
                 rows = conn.execute(
                     self._text(
                         """
-                        SELECT key, 1 - (embedding <=> :vec::vector) AS similarity
+                        SELECT key, 1 - (embedding <=> CAST(:vec AS vector)) AS similarity
                         FROM memory_embeddings
                         WHERE tenant_id = :tid
                           AND project_id = :pid
-                        ORDER BY embedding <=> :vec::vector
+                        ORDER BY embedding <=> CAST(:vec AS vector)
                         LIMIT :limit
                         """
                     ),
