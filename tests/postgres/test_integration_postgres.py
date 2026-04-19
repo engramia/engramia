@@ -123,7 +123,7 @@ class TestLearnRecallCycle:
         pg_memory.learn(task="compute moving average over time series", code="rolling_mean()", eval_score=9.0)
         pg_memory.learn(task="unrelated database backup task", code="pg_dump()", eval_score=7.0)
         results = pg_memory.recall("moving average calculation", limit=5)
-        assert "rolling_mean" in results[0].pattern.code
+        assert "rolling_mean" in results[0].pattern.design["code"]
 
     def test_recall_limit_respected(self, pg_memory):
         for i in range(8):
@@ -154,7 +154,7 @@ class TestDelete:
         key = pg_memory.export()[0]["key"]
         assert pg_memory.delete_pattern(key) is True
         results = pg_memory.recall("task to delete via postgres", limit=5)
-        assert all("deleteme" not in m.pattern.code for m in results)
+        assert all("deleteme" not in m.pattern.design["code"] for m in results)
 
     def test_delete_nonexistent_returns_false(self, pg_memory):
         assert pg_memory.delete_pattern("patterns/does_not_exist_xyz") is False
@@ -191,11 +191,11 @@ class TestExportImport:
         pg_memory.learn(task="overwrite test task", code="original()", eval_score=7.0)
         exported = pg_memory.export()
         # mutate the code field
-        exported[0]["data"]["code"] = "updated()"
+        exported[0]["data"]["design"]["code"] = "updated()"
         imported = pg_memory.import_data(exported, overwrite=True)
         assert imported == 1
         results = pg_memory.recall("overwrite test task", limit=1)
-        assert "updated" in results[0].pattern.code
+        assert "updated" in results[0].pattern.design["code"]
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +260,7 @@ class TestEvalWeightedRecall:
         pg_memory.learn(task="parse json response from api", code="low_quality()", eval_score=4.0)
         pg_memory.learn(task="parse json response from api endpoint", code="high_quality()", eval_score=9.0)
         results = pg_memory.recall("parse json response", limit=5, eval_weighted=True)
-        assert results[0].pattern.code == "high_quality()"
+        assert results[0].pattern.design["code"] == "high_quality()"
 
 
 # ---------------------------------------------------------------------------

@@ -91,14 +91,15 @@ The multiplier is `0.5 + 0.5 * (score / 10.0)`, so:
 This means a pattern with eval_score=5 and raw_sim=0.8 ranks **lower**
 than a pattern with eval_score=10 and raw_sim=0.7 (effective 0.60 vs 0.70).
 
-### 6. Import does NOT restore embeddings
+### 6. Import restores embeddings from task text
 
-`import_data()` calls `storage.save(key, data)` but never calls
+`import_data()` calls `storage.save(key, data)` **and** re-embeds the
+task via the configured embedding provider before calling
 `storage.save_embedding(key, embedding)`.  An import/export roundtrip
-preserves pattern data but recall will **not find** imported patterns
-(no embedding to search against).
-
-**This is a known limitation / potential bug.**  The test should document it.
+preserves searchability as long as an embedding provider is attached
+to the target `Memory`.  Export intentionally does not carry vectors
+(they are provider-specific) — portability across providers is
+preserved by re-embedding on the destination.
 
 ### 7. Feedback requires count >= 2 to surface
 

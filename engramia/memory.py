@@ -520,6 +520,23 @@ class Memory:
             if not overwrite and self._storage.load(key) is not None:
                 continue
             self._storage.save(key, data)
+            # Regenerate embedding so recall() works after the round-trip.
+            # Export does not carry vectors (they are provider-specific), so
+            # we re-embed from the stored task text when an embedding provider
+            # is configured. Mirrors the learn() code path.
+            if self._embeddings is not None:
+                task = data.get("task")
+                if isinstance(task, str) and task:
+                    try:
+                        embedding = self._embeddings.embed(task)
+                        self._storage.save_embedding(key, embedding)
+                    except Exception as exc:  # pragma: no cover — provider errors
+                        _log.warning(
+                            "Failed to re-embed imported pattern %r: %s — "
+                            "recall will not find it until re-embedded.",
+                            key,
+                            exc,
+                        )
             imported += 1
         _log.info("Imported %d patterns (overwrite=%s)", imported, overwrite)
         return imported
