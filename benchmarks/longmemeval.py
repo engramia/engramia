@@ -173,11 +173,16 @@ class LongMemEvalResult:
         return sum(d.total for d in self.dimension_results)
 
     def to_dict(self) -> dict[str, Any]:
+        total_correct = sum(d.correct for d in self.dimension_results)
+        # Schema mirrors benchmarks/results/longmemeval_2026-04-07.json so
+        # `print_summary()` can render both pre-computed reference runs and
+        # fresh local results without branching.
         return {
             "engramia_version": self.engramia_version,
             "embedding_model": self.embedding_model,
             "timestamp": self.timestamp,
-            "overall_score": round(self.overall_score, 4),
+            "overall": round(self.overall_score, 4),
+            "total_correct": total_correct,
             "total_tasks": self.total_tasks,
             "dimensions": {d.dimension: d.to_dict() for d in self.dimension_results},
         }
@@ -452,14 +457,21 @@ class LongMemEvalRunner:
     # ------------------------------------------------------------------
 
     def _run_single_hop(self, mem: Any, tasks: list[LongMemTask]) -> DimensionResult:
-        """Evaluate single-hop recall — top-1 must be from the correct pattern."""
+        """Evaluate single-hop recall — top-1 must be from the correct pattern.
+
+        Training patterns are seeded with tasks of the form ``"Write {domain} code vN"``
+        so a substring check against the humanised domain is enough to verify the
+        recalled pattern came from the right domain. Using ``startswith`` would
+        miss every single task because patterns start with the word "Write".
+        """
         result = DimensionResult(dimension="single_hop_recall", total=len(tasks), correct=0)
         for task in tasks:
             matches = mem.recall(task=task.query, limit=1, deduplicate=True, eval_weighted=False)
             hit = False
             if matches:
                 top = matches[0]
-                hit = float(top.similarity) >= 0.5 and top.pattern.task.startswith(task.domain.replace("_", " "))
+                domain_text = task.domain.replace("_", " ")
+                hit = float(top.similarity) >= 0.5 and domain_text in top.pattern.task
             if hit:
                 result.correct += 1
             result.task_results.append({"task_id": task.task_id, "hit": hit})
@@ -472,8 +484,10 @@ class LongMemEvalRunner:
             matches = mem.recall(task=task.query, limit=5, deduplicate=True, eval_weighted=False)
             if task.requires_all and len(task.expected_pattern_ids) == 2:
                 dom_a, dom_b = task.domain.split("+")
-                found_a = any(m.pattern.task.startswith(dom_a.replace("_", " ")) for m in matches)
-                found_b = any(m.pattern.task.startswith(dom_b.replace("_", " ")) for m in matches)
+                dom_a_text = dom_a.replace("_", " ")
+                dom_b_text = dom_b.replace("_", " ")
+                found_a = any(dom_a_text in m.pattern.task for m in matches)
+                found_b = any(dom_b_text in m.pattern.task for m in matches)
                 hit = found_a and found_b
             else:
                 hit = bool(matches)
@@ -490,8 +504,10 @@ class LongMemEvalRunner:
             hit = False
             if matches and task.preferred_pattern_id:
                 top = matches[0]
-                # Prefer patterns with higher eval scores (proxy for recency in this bench)
-                hit = top.pattern.eval_score >= 8.0
+                # Prefer patterns with higher eval scores (proxy for recency in this bench).
+                # `mem.learn(eval_score=X)` persists X as `Pattern.success_score`; the
+                # `Pattern` model never exposed an `eval_score` attribute.
+                hit = top.pattern.success_score >= 8.0
             if hit:
                 result.correct += 1
             result.task_results.append({"task_id": task.task_id, "hit": hit})
@@ -504,8 +520,8 @@ class LongMemEvalRunner:
             matches = mem.recall(task=task.query, limit=5, deduplicate=True, eval_weighted=True)
             hit = False
             if matches:
-                top_score = matches[0].pattern.eval_score or 0.0
-                hit = top_score >= 8.5  # v3 patterns have eval_score=9.1
+                top_score = matches[0].pattern.success_score or 0.0
+                hit = top_score >= 8.5  # v3 patterns were learned with eval_score=9.1
             if hit:
                 result.correct += 1
             result.task_results.append({"task_id": task.task_id, "hit": hit})
@@ -529,28 +545,71 @@ class LongMemEvalRunner:
     def run(self) -> LongMemEvalResult:
         """Run all five LongMemEval dimensions and return aggregate results.
 
-        Requires ``engramia[local]`` to be installed::
+        Embedding provider is selected from the environment so both the
+        published reference run (OpenAI ``text-embedding-3-small``) and the
+        offline reproducible run (``all-MiniLM-L6-v2``) share the same
+        harness code path:
 
-            pip install engramia[local]
+        - If ``OPENAI_API_KEY`` is set *and* ``engramia[openai]`` is
+          installed, use ``OpenAIEmbeddings`` (1536-dim). This matches the
+          methodology in ``LONGMEMEVAL.md`` and should reproduce the
+          published 93.4% figure within ±1 percentage point.
+        - Otherwise fall back to ``LocalEmbeddings`` (sentence-transformers,
+          384-dim). Results will be meaningfully lower because the smaller
+          model separates near-duplicate tasks less cleanly; this is why
+          the doc comparison only promises parity with OpenAI embeddings.
+
+        Set ``ENGRAMIA_BENCHMARK_EMBEDDING=local`` to force the local
+        backend even when OPENAI_API_KEY is set (useful for cost-free
+        regression runs in CI).
         """
         try:
             from engramia import Memory  # type: ignore[import]
             from engramia.providers import JSONStorage  # type: ignore[import]
-            from engramia.providers.local_embeddings import LocalEmbeddings  # type: ignore[import]
         except ImportError as exc:
-            raise RuntimeError("Run 'pip install engramia[local]' to install local embeddings.") from exc
+            raise RuntimeError("Install with 'pip install engramia[local]' (or [openai]).") from exc
 
         import datetime
+        import os
 
-        embeddings = LocalEmbeddings()
+        force_local = os.environ.get("ENGRAMIA_BENCHMARK_EMBEDDING", "").lower() == "local"
+        have_openai_key = bool(os.environ.get("OPENAI_API_KEY"))
+        try:
+            from engramia.providers.openai import OpenAIEmbeddings  # type: ignore[import]
+
+            openai_available = True
+        except ImportError:
+            openai_available = False
+
+        if openai_available and have_openai_key and not force_local:
+            embeddings = OpenAIEmbeddings()
+            embedding_model = "text-embedding-3-small"
+            logger.info("Using OpenAIEmbeddings (%s)", embedding_model)
+        else:
+            try:
+                from engramia.providers.local_embeddings import LocalEmbeddings  # type: ignore[import]
+            except ImportError as exc:
+                raise RuntimeError(
+                    "No embedding provider available. Install 'engramia[local]' "
+                    "or 'engramia[openai]' and set OPENAI_API_KEY."
+                ) from exc
+            embeddings = LocalEmbeddings()
+            embedding_model = "all-MiniLM-L6-v2"
+            logger.info("Using LocalEmbeddings (%s)", embedding_model)
+
+        try:
+            from engramia import __version__ as engramia_version  # type: ignore[import]
+        except ImportError:
+            engramia_version = "unknown"
+
         tasks_by_dim: dict[str, list[LongMemTask]] = {}
         for t in self._dataset:
             tasks_by_dim.setdefault(t.dimension, []).append(t)
 
         result = LongMemEvalResult(
-            engramia_version="0.6.0",
-            embedding_model="all-MiniLM-L6-v2",
-            timestamp=datetime.datetime.utcnow().isoformat() + "Z",
+            engramia_version=engramia_version,
+            embedding_model=embedding_model,
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
         )
 
         runners = {
@@ -637,7 +696,8 @@ def print_summary(data: dict[str, Any]) -> None:
     print("  Comparison:")
     print(f"  {'System':<20} {'Overall':>8}")
     print(f"  {'-' * 20} {'-' * 8}")
-    print(f"  {'Engramia v0.6.0':<20} {overall_pct:>7.1f}%")
+    version_label = f"Engramia v{meta.get('engramia_version', '?')}"
+    print(f"  {version_label:<20} {overall_pct:>7.1f}%")
     for name, info in comparison.items():
         pct = info["overall"] * 100
         print(f"  {info['system']:<20} {pct:>7.1f}%")
@@ -698,7 +758,15 @@ def main(argv: list[str] | None = None) -> int:
     runner = LongMemEvalRunner(keep=args.keep)
     result = runner.run()
     data = result.to_dict()
-    print_summary({"metadata": {}, "results": {"engramia": data}, "comparison": {}})
+    # Reference JSON embeds run-wide facts in `metadata`; mirror that so the
+    # summary header shows Version / Embedding / Tasks for live runs too.
+    metadata = {
+        "engramia_version": data["engramia_version"],
+        "embedding_model": data["embedding_model"],
+        "total_tasks": data["total_tasks"],
+        "timestamp": data["timestamp"],
+    }
+    print_summary({"metadata": metadata, "results": {"engramia": data}, "comparison": {}})
 
     if args.output:
         args.output.write_text(json.dumps(data, indent=2))
