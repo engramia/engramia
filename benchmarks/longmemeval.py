@@ -466,7 +466,7 @@ class LongMemEvalRunner:
         """
         result = DimensionResult(dimension="single_hop_recall", total=len(tasks), correct=0)
         for task in tasks:
-            matches = mem.recall(task=task.query, limit=1, deduplicate=True, eval_weighted=False)
+            matches = mem.recall(task=task.query, limit=1, deduplicate=True, eval_weighted=False, readonly=True)
             hit = False
             if matches:
                 top = matches[0]
@@ -481,7 +481,7 @@ class LongMemEvalRunner:
         """Evaluate multi-hop reasoning — top-5 must contain both required patterns."""
         result = DimensionResult(dimension="multi_hop_reasoning", total=len(tasks), correct=0)
         for task in tasks:
-            matches = mem.recall(task=task.query, limit=5, deduplicate=True, eval_weighted=False)
+            matches = mem.recall(task=task.query, limit=5, deduplicate=True, eval_weighted=False, readonly=True)
             if task.requires_all and len(task.expected_pattern_ids) == 2:
                 dom_a, dom_b = task.domain.split("+")
                 dom_a_text = dom_a.replace("_", " ")
@@ -500,7 +500,7 @@ class LongMemEvalRunner:
         """Evaluate temporal reasoning — most-recently stored pattern must rank first."""
         result = DimensionResult(dimension="temporal_reasoning", total=len(tasks), correct=0)
         for task in tasks:
-            matches = mem.recall(task=task.query, limit=3, deduplicate=True, eval_weighted=True)
+            matches = mem.recall(task=task.query, limit=3, deduplicate=True, eval_weighted=True, readonly=True)
             hit = False
             if matches and task.preferred_pattern_id:
                 top = matches[0]
@@ -517,7 +517,7 @@ class LongMemEvalRunner:
         """Evaluate knowledge updates — highest-quality pattern must rank first."""
         result = DimensionResult(dimension="knowledge_updates", total=len(tasks), correct=0)
         for task in tasks:
-            matches = mem.recall(task=task.query, limit=5, deduplicate=True, eval_weighted=True)
+            matches = mem.recall(task=task.query, limit=5, deduplicate=True, eval_weighted=True, readonly=True)
             hit = False
             if matches:
                 top_score = matches[0].pattern.success_score or 0.0
@@ -585,7 +585,7 @@ class LongMemEvalRunner:
         threshold = self._calibrate_noise_threshold(mem)
         result = DimensionResult(dimension="absent_memory_detection", total=len(tasks), correct=0)
         for task in tasks:
-            matches = mem.recall(task=task.query, limit=1, deduplicate=True, eval_weighted=False)
+            matches = mem.recall(task=task.query, limit=1, deduplicate=True, eval_weighted=False, readonly=True)
             hit = not matches or float(matches[0].similarity) < threshold
             if hit:
                 result.correct += 1

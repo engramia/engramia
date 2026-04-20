@@ -195,6 +195,7 @@ class Memory:
         limit: int = 5,
         deduplicate: bool = True,
         eval_weighted: bool = True,
+        readonly: bool = False,
     ) -> list[Match]:
         """Find stored patterns most relevant to *task*.
 
@@ -204,6 +205,10 @@ class Memory:
             deduplicate: Group near-duplicate tasks and return only the
                 top-scoring pattern per group (default True).
             eval_weighted: Boost patterns with high eval scores (default True).
+            readonly: Skip the ``mark_reused`` side-effect so repeat
+                queries don't mutate pattern scores. Defaults to False
+                (production). Set True in benchmarks, evals, and
+                anywhere you need recall to be a pure function.
 
         Returns:
             List of Match objects sorted by (weighted) similarity descending.
@@ -215,6 +220,7 @@ class Memory:
             limit=limit,
             deduplicate=deduplicate,
             eval_weighted=eval_weighted,
+            readonly=readonly,
         )
 
     # ------------------------------------------------------------------

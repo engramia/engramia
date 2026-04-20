@@ -140,6 +140,7 @@ class RecallService:
         limit: int = 5,
         deduplicate: bool = True,
         eval_weighted: bool = True,
+        readonly: bool = False,
     ) -> list[Match]:
         """Find stored patterns most relevant to task.
 
@@ -153,6 +154,12 @@ class RecallService:
             deduplicate: Group near-duplicate tasks and return only the
                 top-scoring pattern per group.
             eval_weighted: Boost patterns with high eval scores.
+            readonly: When ``True``, skip the side-effect of marking
+                returned patterns as reused (``mark_reused`` adds +0.1 to
+                ``success_score`` on every recall). Use for benchmark
+                runs, eval harnesses, or anything where reproducibility
+                across repeated identical queries is required.
+                Defaults to ``False`` (production behaviour).
 
         Returns:
             List of Match objects sorted by (weighted) similarity descending.
@@ -193,8 +200,9 @@ class RecallService:
             matches = _deduplicate_matches(matches)
 
         result = matches[:limit]
-        for m in result:
-            self._pattern_store.mark_reused(m.pattern_key)
+        if not readonly:
+            for m in result:
+                self._pattern_store.mark_reused(m.pattern_key)
 
         if result:
             best = result[0]

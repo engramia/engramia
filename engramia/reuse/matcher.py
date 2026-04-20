@@ -74,6 +74,7 @@ class PatternMatcher:
                 similarity=round(min(similarity, 1.0), 6),
                 reuse_tier=reuse_tier(similarity),
                 pattern_key=key,
+                effective_score=round(min(effective, 1.0), 6),
             )
             weighted.append((effective, match))
 

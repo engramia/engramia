@@ -1,9 +1,9 @@
 {
   "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
   "embedding_model": "text-embedding-3-small",
-  "timestamp": "2026-04-20T17:00:45.655164Z",
-  "overall": 0.94,
-  "total_correct": 470,
+  "timestamp": "2026-04-20T17:20:13.969314Z",
+  "overall": 0.978,
+  "total_correct": 489,
   "total_tasks": 500,
   "dimensions": {
     "single_hop_recall": {
@@ -11,35 +11,35 @@
       "score": 0.9083,
       "correct": 109,
       "total": 120,
-      "duration_seconds": 20.36
+      "duration_seconds": 18.23
     },
     "multi_hop_reasoning": {
       "dimension": "multi_hop_reasoning",
-      "score": 0.9,
-      "correct": 90,
+      "score": 1.0,
+      "correct": 100,
       "total": 100,
-      "duration_seconds": 17.25
+      "duration_seconds": 16.89
     },
     "temporal_reasoning": {
       "dimension": "temporal_reasoning",
-      "score": 0.91,
-      "correct": 91,
+      "score": 1.0,
+      "correct": 100,
       "total": 100,
-      "duration_seconds": 18.3
+      "duration_seconds": 18.25
     },
     "knowledge_updates": {
       "dimension": "knowledge_updates",
       "score": 1.0,
       "correct": 100,
       "total": 100,
-      "duration_seconds": 19.77
+      "duration_seconds": 18.93
     },
     "absent_memory_detection": {
       "dimension": "absent_memory_detection",
       "score": 1.0,
       "correct": 80,
       "total": 80,
-      "duration_seconds": 16.1
+      "duration_seconds": 15.73
     }
   }
 }

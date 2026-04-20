@@ -59,12 +59,20 @@ class Match(BaseModel):
             - "fresh": similarity < 0.70, generate new agent (pattern is context only).
         pattern_key: Storage key for this pattern. Pass to ``mem.delete_pattern()``
             to permanently remove it.
+        effective_score: Rank-ordering score used when ``eval_weighted=True``
+            — ``similarity`` multiplied by the pattern's quality multiplier
+            (in [0.5, 1.0]) derived from its stored eval score. ``None`` when
+            ``eval_weighted=False`` was passed to ``recall()`` or when the
+            caller cannot provide it. Exposed so that downstream consumers
+            can rank or filter matches without losing the eval-weighted
+            ordering that recall already applied.
     """
 
     pattern: Pattern
     similarity: float = Field(ge=0.0, le=1.0)
     reuse_tier: Literal["duplicate", "adapt", "fresh"]
     pattern_key: str = ""
+    effective_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class LearnResult(BaseModel):
