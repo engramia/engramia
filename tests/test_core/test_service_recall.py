@@ -53,7 +53,10 @@ def _seed_pattern(storage, fake_embeddings, task="parse CSV files", code="import
         eval_store=MagicMock(),
         roi_collector=MagicMock(),
     )
-    svc.learn(task=task, code=code, eval_score=score)
+    # `on_duplicate="keep_both"` preserves the pre-0.6.7 behaviour so recall
+    # tests that exercise duplicate grouping see multiple distinct stored
+    # patterns rather than one replacing the other.
+    svc.learn(task=task, code=code, eval_score=score, on_duplicate="keep_both")
 
 
 class TestRecallService:

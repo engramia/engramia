@@ -28,11 +28,19 @@ def _pattern_key(task: str) -> str:
         task: Natural language description of the task.
 
     Returns:
-        Storage key in the format ``patterns/<hash8>_<ts_ms>``.
+        Storage key in the format ``patterns/<hash8>_<ts_ms>_<rand6>``.
+        The trailing random suffix prevents key collisions when two
+        ``learn()`` calls land in the same millisecond (e.g. bulk
+        ``import_data``, multi-threaded API handlers, load-test
+        scenarios). Without it the second writer silently overwrote
+        the first's pattern.
     """
+    import secrets
+
     task_hash = hashlib.sha256(task.encode()).hexdigest()[:8]
     ts = int(time.time() * 1000)
-    return f"{PATTERNS_PREFIX}/{task_hash}_{ts}"
+    rand = secrets.token_urlsafe(4).replace("-", "").replace("_", "")[:6]
+    return f"{PATTERNS_PREFIX}/{task_hash}_{ts}_{rand}"
 
 
 def jaccard(a: str, b: str) -> float:

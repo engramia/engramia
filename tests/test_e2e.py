@@ -128,10 +128,15 @@ class TestRecallDeduplication:
         assert len(matches) >= 1  # at least the exact match
 
     def test_dedup_disabled_returns_all_variants(self, mem):
-        """With deduplicate=False, all pattern variants are returned."""
-        mem.learn(task="Parse CSV and compute stats", code="v1", eval_score=6.0)
-        mem.learn(task="Parse CSV and compute stats", code="v2", eval_score=9.0)
-        mem.learn(task="Parse CSV and compute stats", code="v3", eval_score=7.5)
+        """With deduplicate=False, all pattern variants are returned.
+
+        `on_duplicate="keep_both"` opts out of 0.6.7's replace-with-better
+        learn-side dedup so the store genuinely contains three variants
+        to exercise recall's `deduplicate=False` branch.
+        """
+        mem.learn(task="Parse CSV and compute stats", code="v1", eval_score=6.0, on_duplicate="keep_both")
+        mem.learn(task="Parse CSV and compute stats", code="v2", eval_score=9.0, on_duplicate="keep_both")
+        mem.learn(task="Parse CSV and compute stats", code="v3", eval_score=7.5, on_duplicate="keep_both")
         matches = mem.recall(task="Parse CSV and compute stats", deduplicate=False)
         assert len(matches) == 3
 
@@ -139,7 +144,7 @@ class TestRecallDeduplication:
         """limit applies after deduplication, not before."""
         # Create 5 distinct tasks, each with 2 variants
         for i in range(5):
-            mem.learn(task=f"unique task number {i}", code=f"v1_{i}", eval_score=6.0)
-            mem.learn(task=f"unique task number {i}", code=f"v2_{i}", eval_score=8.0)
+            mem.learn(task=f"unique task number {i}", code=f"v1_{i}", eval_score=6.0, on_duplicate="keep_both")
+            mem.learn(task=f"unique task number {i}", code=f"v2_{i}", eval_score=8.0, on_duplicate="keep_both")
         matches = mem.recall(task="unique task number 0", limit=2)
         assert len(matches) <= 2

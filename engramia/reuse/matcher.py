@@ -38,12 +38,20 @@ class PatternMatcher:
         self._embeddings = embeddings
         self._eval_store = eval_store
 
-    def find(self, task: str, limit: int = 5) -> list[Match]:
+    def find(self, task: str, limit: int = 5, fetch_multiplier: int = 1) -> list[Match]:
         """Return the best-matching patterns for *task*, eval-weighted.
 
         Args:
             task: Task description to match against stored patterns.
-            limit: Maximum number of results.
+            limit: Maximum number of results to return.
+            fetch_multiplier: Over-sampling factor for the underlying
+                storage query. The matcher fetches ``limit * fetch_multiplier``
+                raw candidates before eval-weighting and truncation so the
+                eval-score reranker has room to promote high-score
+                patterns that lost a few points of raw cosine. Callers
+                that plan to also deduplicate the result should pass a
+                value >= 3; callers that want the raw top-N should pass 1
+                (default).
 
         Returns:
             List of Match objects sorted by effective (weighted) score descending.
@@ -53,7 +61,7 @@ class PatternMatcher:
         embedding = self._embeddings.embed(task)
         raw_results = self._storage.search_similar(
             embedding,
-            limit=limit * 3,
+            limit=limit * max(1, fetch_multiplier),
             prefix=PATTERNS_PREFIX,
         )
 
@@ -69,12 +77,28 @@ class PatternMatcher:
                 continue
             multiplier = self._eval_store.get_eval_multiplier(key, task)
             effective = similarity * multiplier
+
+            # Cosine on unit vectors is bounded in [-1, 1] and the storage
+            # layer clamps to [0, 1]. Hitting the ceiling here would mean
+            # an upstream provider is returning non-normalised vectors or
+            # a sum-of-products larger than the norm product — a real
+            # correctness bug worth a loud warning instead of silent
+            # clamping that happens to keep Pydantic validation quiet.
+            sim_clamped = min(max(similarity, 0.0), 1.0)
+            if abs(similarity - sim_clamped) > 1e-6:
+                _log.warning(
+                    "Similarity from %s returned %.6f — outside expected [0, 1] "
+                    "range; clamping. This usually indicates an embedding "
+                    "provider that does not normalise output vectors.",
+                    self._embeddings.__class__.__name__,
+                    similarity,
+                )
             match = Match(
                 pattern=pattern,
-                similarity=round(min(similarity, 1.0), 6),
-                reuse_tier=reuse_tier(similarity),
+                similarity=round(sim_clamped, 6),
+                reuse_tier=reuse_tier(sim_clamped),
                 pattern_key=key,
-                effective_score=round(min(effective, 1.0), 6),
+                effective_score=round(min(max(effective, 0.0), 1.0), 6),
             )
             weighted.append((effective, match))
 

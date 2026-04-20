@@ -10,7 +10,7 @@ appropriate service.
 
 import logging
 import time
-from typing import cast
+from typing import Literal, cast
 
 from engramia._util import PATTERNS_PREFIX
 from engramia.analytics.collector import ROICollector
@@ -149,6 +149,7 @@ class Memory:
         classification: str = DataClassification.INTERNAL,
         source: str = "api",
         author: str | None = None,
+        on_duplicate: Literal["replace_with_better", "keep_both", "skip"] = "replace_with_better",
     ) -> LearnResult:
         """Record a successful agent run and store it as a reusable pattern.
 
@@ -162,9 +163,23 @@ class Memory:
                 ``'confidential'``). Defaults to ``'internal'``.
             source: Origin of the pattern (``'api'``, ``'sdk'``, ``'cli'``, ``'import'``).
             author: Identifier of the creator (key_id, service name, or email).
+            on_duplicate: How to resolve near-duplicate tasks already in the
+                store (word-level Jaccard >= 0.92 on the task text).
+
+                - ``'replace_with_better'`` (default): overwrite the
+                  stored pattern when ``eval_score`` beats the stored
+                  ``success_score``; otherwise keep the existing pattern
+                  and return ``stored=False``.
+                - ``'keep_both'``: always insert a new pattern (pre-0.6.7
+                  behaviour — useful when eval scoring is noisy and you
+                  want the aggregate effect across runs).
+                - ``'skip'``: never overwrite; return ``stored=False``
+                  whenever a near-duplicate is already present.
 
         Returns:
-            LearnResult with ``stored=True`` and the current pattern count.
+            LearnResult with ``stored`` reflecting whether the store
+            actually changed and ``pattern_count`` holding the post-call
+            total.
         """
         self._validate_task(task)
         self._validate_code(code)
@@ -183,6 +198,7 @@ class Memory:
             classification=classification,
             source=source,
             author=author,
+            on_duplicate=on_duplicate,
         )
 
     # ------------------------------------------------------------------

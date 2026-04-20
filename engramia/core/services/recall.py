@@ -164,17 +164,25 @@ class RecallService:
         Returns:
             List of Match objects sorted by (weighted) similarity descending.
         """
-        fetch_limit = limit * _DEDUP_FETCH_MULTIPLIER if deduplicate else limit
+        # Dedup needs an over-sampled pool so the Jaccard grouping has a
+        # chance to collapse near-duplicates before we truncate to `limit`.
+        # `PatternMatcher` owns the over-sampling on the eval-weighted path
+        # via `fetch_multiplier`, so we only pre-expand on the plain path
+        # and keep a single `limit * 3` storage query end-to-end instead of
+        # the old `limit * 9` that double-expanded in both layers.
+        fetch_multiplier = _DEDUP_FETCH_MULTIPLIER if deduplicate else 1
 
         try:
             if self._embeddings is None:
                 raise ProviderError("No embedding provider configured — using keyword fallback")
             if eval_weighted:
                 matcher = PatternMatcher(self._storage, self._embeddings, self._eval_store)
-                matches = matcher.find(task, limit=fetch_limit)
+                matches = matcher.find(task, limit=limit, fetch_multiplier=fetch_multiplier)
             else:
                 embedding = self._embeddings.embed(task)
-                results = self._storage.search_similar(embedding, limit=fetch_limit, prefix=PATTERNS_PREFIX)
+                results = self._storage.search_similar(
+                    embedding, limit=limit * fetch_multiplier, prefix=PATTERNS_PREFIX
+                )
                 matches = []
                 for key, similarity in results:
                     data = self._storage.load(key)
@@ -189,12 +197,17 @@ class RecallService:
                             pattern_key=key,
                         )
                     )
-        except (ProviderError, Exception) as exc:
+        except (ProviderError, TimeoutError, ConnectionError) as exc:
+            # Only degrade to the keyword fallback on provider / network
+            # failures. Validation errors, authorization errors, and
+            # programmer bugs (AttributeError, KeyError, TypeError) should
+            # propagate so they surface in observability instead of
+            # silently turning into a low-quality recall.
             _log.warning(
                 "Embedding provider failed during recall, falling back to keyword search: %s",
                 exc,
             )
-            matches = self._keyword_fallback(task, fetch_limit)
+            matches = self._keyword_fallback(task, limit * fetch_multiplier)
 
         if deduplicate:
             matches = _deduplicate_matches(matches)
