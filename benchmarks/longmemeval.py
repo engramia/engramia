@@ -48,7 +48,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-RESULTS_PATH = Path(__file__).parent / "results" / "longmemeval_2026-04-07.json"
+RESULTS_PATH = Path(__file__).parent / "results" / "longmemeval_2026-04-21.json"
 
 # ---------------------------------------------------------------------------
 # Dimension definitions
@@ -842,18 +842,49 @@ def main(argv: list[str] | None = None) -> int:
     runner = LongMemEvalRunner(keep=args.keep)
     result = runner.run()
     data = result.to_dict()
-    # Reference JSON embeds run-wide facts in `metadata`; mirror that so the
-    # summary header shows Version / Embedding / Tasks for live runs too.
-    metadata = {
-        "engramia_version": data["engramia_version"],
-        "embedding_model": data["embedding_model"],
-        "total_tasks": data["total_tasks"],
-        "timestamp": data["timestamp"],
+
+    # Enriched report format — matches the shape `load_reference_results()`
+    # and the /benchmarks website page consume. `comparison` is intentionally
+    # empty; competitor numbers (Hindsight, Mem0, Zep) must be re-produced on
+    # this same public harness before they can be re-attached, and the old
+    # pre-release numbers for those systems lived under a different
+    # methodology we no longer trust apples-to-apples.
+    report = {
+        "metadata": {
+            "benchmark": "LongMemEval",
+            "version": "1.0.0",
+            "timestamp": data["timestamp"],
+            "engramia_version": data["engramia_version"],
+            "embedding_model": data["embedding_model"],
+            "total_tasks": data["total_tasks"],
+            "description": (
+                "Engramia long-term memory recall across five dimensions: "
+                "single-hop recall, multi-hop reasoning, temporal reasoning, "
+                "knowledge updates, and absent-memory detection."
+            ),
+        },
+        "results": {"engramia": data},
+        "comparison": {},
+        "evaluation_config": {
+            "similarity_metric": "cosine",
+            "top_k": 5,
+            "deduplicate": True,
+            "single_hop_threshold": SINGLE_HOP_THRESHOLD_BY_MODEL.get(
+                data["embedding_model"], SINGLE_HOP_THRESHOLD_DEFAULT
+            ),
+            "noise_threshold_strategy": "auto-calibrated per run — see _calibrate_noise_threshold",
+            "embedding_model": data["embedding_model"],
+        },
+        "dataset_summary": {
+            "total_tasks": data["total_tasks"],
+            "dimensions": {d: v["total"] for d, v in data["dimensions"].items()},
+            "domains": list(DOMAINS),
+        },
     }
-    print_summary({"metadata": metadata, "results": {"engramia": data}, "comparison": {}})
+    print_summary(report)
 
     if args.output:
-        args.output.write_text(json.dumps(data, indent=2))
+        args.output.write_text(json.dumps(report, indent=2))
         print(f"Results written to {args.output}")
 
     overall = result.overall_score

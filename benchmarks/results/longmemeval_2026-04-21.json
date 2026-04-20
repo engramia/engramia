@@ -1,0 +1,91 @@
+{
+  "metadata": {
+    "benchmark": "LongMemEval",
+    "version": "1.0.0",
+    "timestamp": "2026-04-20T22:15:03.159342Z",
+    "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
+    "embedding_model": "text-embedding-3-small",
+    "total_tasks": 500,
+    "description": "Engramia long-term memory recall across five dimensions: single-hop recall, multi-hop reasoning, temporal reasoning, knowledge updates, and absent-memory detection."
+  },
+  "results": {
+    "engramia": {
+      "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
+      "embedding_model": "text-embedding-3-small",
+      "timestamp": "2026-04-20T22:15:03.159342Z",
+      "overall": 0.998,
+      "total_correct": 499,
+      "total_tasks": 500,
+      "dimensions": {
+        "single_hop_recall": {
+          "dimension": "single_hop_recall",
+          "score": 0.9917,
+          "correct": 119,
+          "total": 120,
+          "duration_seconds": 17.07
+        },
+        "multi_hop_reasoning": {
+          "dimension": "multi_hop_reasoning",
+          "score": 1.0,
+          "correct": 100,
+          "total": 100,
+          "duration_seconds": 13.99
+        },
+        "temporal_reasoning": {
+          "dimension": "temporal_reasoning",
+          "score": 1.0,
+          "correct": 100,
+          "total": 100,
+          "duration_seconds": 14.36
+        },
+        "knowledge_updates": {
+          "dimension": "knowledge_updates",
+          "score": 1.0,
+          "correct": 100,
+          "total": 100,
+          "duration_seconds": 16.24
+        },
+        "absent_memory_detection": {
+          "dimension": "absent_memory_detection",
+          "score": 1.0,
+          "correct": 80,
+          "total": 80,
+          "duration_seconds": 28.95
+        }
+      }
+    }
+  },
+  "comparison": {},
+  "evaluation_config": {
+    "similarity_metric": "cosine",
+    "top_k": 5,
+    "deduplicate": true,
+    "single_hop_threshold": 0.4,
+    "noise_threshold_strategy": "auto-calibrated per run \u2014 see _calibrate_noise_threshold",
+    "embedding_model": "text-embedding-3-small"
+  },
+  "dataset_summary": {
+    "total_tasks": 500,
+    "dimensions": {
+      "single_hop_recall": 120,
+      "multi_hop_reasoning": 100,
+      "temporal_reasoning": 100,
+      "knowledge_updates": 100,
+      "absent_memory_detection": 80
+    },
+    "domains": [
+      "code_generation",
+      "bug_diagnosis",
+      "test_generation",
+      "refactoring",
+      "data_pipeline",
+      "api_integration",
+      "infrastructure",
+      "database_migration",
+      "security_hardening",
+      "documentation",
+      "performance",
+      "cicd_deployment"
+    ]
+  }
+}
