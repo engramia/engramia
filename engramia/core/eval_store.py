@@ -122,10 +122,22 @@ class EvalStore:
     ) -> float | None:
         """Look up the eval score for a specific agent on a similar task.
 
+        The default ``min_jaccard`` of 0.15 is preserved for backward
+        compatibility with callers that want "same-key AND related-task".
+        Recall's eval-weighting path passes ``min_jaccard=0.0`` so the
+        quality multiplier is driven purely by the stored pattern rather
+        than by lexical overlap with the user's query — the Jaccard gate
+        otherwise defaults the multiplier to 0.75 whenever the query
+        phrases the same intent in different words, which is exactly the
+        generalisation case ``eval_weighted`` is supposed to serve.
+
         Args:
-            agent_name: Agent/pattern identifier.
-            task: Task to match against stored eval tasks.
-            min_jaccard: Minimum word-overlap to consider tasks related.
+            agent_name: Agent/pattern identifier (pattern_key in practice).
+            task: Task to match against stored eval tasks. Only consulted
+                when ``min_jaccard > 0``.
+            min_jaccard: Minimum word-overlap between stored eval task
+                and ``task`` to consider the record relevant. Pass 0.0 to
+                disable the check entirely.
             tenant_id: Scope override; defaults to the instance tenant_id.
             project_id: Scope override; defaults to the instance project_id.
 
@@ -135,8 +147,11 @@ class EvalStore:
         key = self._scoped_key(tenant_id or self._tenant_id, project_id or self._project_id)
         evals = self._load_raw(key)
         for e in reversed(evals):
-            if e["agent_name"] == agent_name and jaccard(e["task"], task) >= min_jaccard:
-                return e["scores"].get("overall")
+            if e["agent_name"] != agent_name:
+                continue
+            if min_jaccard > 0.0 and jaccard(e["task"], task) < min_jaccard:
+                continue
+            return e["scores"].get("overall")
         return None
 
     def get_average_score(
@@ -188,7 +203,12 @@ class EvalStore:
         Returns:
             Float multiplier in [0.5, 1.0].
         """
-        score = self.get_agent_score(agent_name, task, tenant_id=tenant_id, project_id=project_id)
+        # Pass ``min_jaccard=0`` so the lookup succeeds by key regardless of
+        # how the caller's ``task`` is phrased. Recall's eval weighting would
+        # otherwise collapse to 0.75 for every pattern as soon as the query
+        # uses different words than the stored task, which is the whole
+        # point of `eval_weighted` in the first place.
+        score = self.get_agent_score(agent_name, task, min_jaccard=0.0, tenant_id=tenant_id, project_id=project_id)
         if score is None:
             return 0.75
         return 0.5 + 0.5 * (score / 10.0)

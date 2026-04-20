@@ -1,0 +1,45 @@
+{
+  "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
+  "embedding_model": "text-embedding-3-small",
+  "timestamp": "2026-04-20T16:33:53.072723Z",
+  "overall": 0.886,
+  "total_correct": 443,
+  "total_tasks": 500,
+  "dimensions": {
+    "single_hop_recall": {
+      "dimension": "single_hop_recall",
+      "score": 0.9083,
+      "correct": 109,
+      "total": 120,
+      "duration_seconds": 19.3
+    },
+    "multi_hop_reasoning": {
+      "dimension": "multi_hop_reasoning",
+      "score": 0.9,
+      "correct": 90,
+      "total": 100,
+      "duration_seconds": 20.43
+    },
+    "temporal_reasoning": {
+      "dimension": "temporal_reasoning",
+      "score": 0.91,
+      "correct": 91,
+      "total": 100,
+      "duration_seconds": 22.36
+    },
+    "knowledge_updates": {
+      "dimension": "knowledge_updates",
+      "score": 1.0,
+      "correct": 100,
+      "total": 100,
+      "duration_seconds": 20.0
+    },
+    "absent_memory_detection": {
+      "dimension": "absent_memory_detection",
+      "score": 0.6625,
+      "correct": 53,
+      "total": 80,
+      "duration_seconds": 13.75
+    }
+  }
+}

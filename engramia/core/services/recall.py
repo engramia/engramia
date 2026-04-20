@@ -56,15 +56,19 @@ def _deduplicate_matches(matches: list[Match]) -> list[Match]:
             if jaccard(matches[i].pattern.task, matches[j].pattern.task) > JACCARD_DEDUP_THRESHOLD:
                 union(i, j)
 
-    best: dict[int, Match] = {}
+    # Pick the best representative per group by eval score, tracking the
+    # earliest input position so we can preserve the caller's intended
+    # ordering — PatternMatcher returns matches already sorted by the
+    # eval-weighted effective score. Re-sorting here by raw similarity
+    # silently discarded that ordering (Bug: knowledge_updates / temporal
+    # dimensions on the LongMemEval suite regressed from ~93% to ~26-68%).
+    best: dict[int, tuple[int, Match]] = {}
     for i, match in enumerate(matches):
         root = find(i)
-        if root not in best or match.pattern.success_score > best[root].pattern.success_score:
-            best[root] = match
+        if root not in best or match.pattern.success_score > best[root][1].pattern.success_score:
+            best[root] = (i, match)
 
-    result = list(best.values())
-    result.sort(key=lambda m: m.similarity, reverse=True)
-    return result
+    return [m for _, m in sorted(best.values(), key=lambda pair: pair[0])]
 
 
 class RecallService:
