@@ -7,7 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — targeting 0.6.6
+## [Unreleased] — targeting 0.6.7
+
+### Added — Recency-aware recall + honest benchmark methodology
+
+- **`Memory.recall(recency_weight=..., recency_half_life_days=...)`** —
+  new kwargs blend an exponential half-life decay on
+  `Pattern.timestamp` into the ranking signal at query time.
+  `recency_weight=0.0` (default) is a strict no-op preserving
+  pre-0.6.7 output byte-for-byte; `1.0` applies full decay; values in
+  between scale via `recency_factor ** recency_weight`.
+  Composes multiplicatively with `eval_weighted`. `Match.effective_score`
+  is now populated whenever any non-similarity signal is active (not
+  only on the `eval_weighted=True` path). Future-dated timestamps
+  (clock skew) are clamped to `age=0` — matches `run_aging` behaviour.
+- **REST API `POST /v1/recall`** — new `recency_weight` and
+  `recency_half_life_days` body fields with the same defaults; request
+  model validates `recency_weight ∈ [0, 1]` and `recency_half_life_days > 0`.
+- **SDK `EngramiaWebhook.recall`, MCP `engramia_recall` tool, CLI
+  `engramia recall`** — all surfaces now accept the recency kwargs with
+  matching defaults; backward-compatible with pre-0.6.7 callers.
+- **LongMemEval temporal dimension** — now tests Engramia's recency-aware
+  recall directly. Patterns are back-dated at seed time (v1 90 days old,
+  v2 45 days old, v3 now) so the 30-day half-life discriminates them
+  well above the similarity noise floor, and `_run_temporal` calls
+  `recall(recency_weight=1.0, eval_weighted=False)`. OpenAI
+  `text-embedding-3-small` score: 100 / 100 (was 0 / 100 under the
+  pre-audit embedder-lottery protocol). Overall OpenAI:
+  **97.8 % (489 / 500)**, random baseline 19.0 %, discrimination 5.1×.
+
+### Changed
+
+- **`Match.effective_score` docstring** updated to reflect the new
+  population policy (`None` only on the plain similarity-only path).
+- **Benchmark methodology** fully documented in `benchmarks/LONGMEMEVAL.md`:
+  pre-registered thresholds, held-out noise calibration pool,
+  recency-aware temporal check, seeded random-recall baseline.
 
 ### Added — Cloud Auth, Backup/DR, GDPR (Phase 6.0)
 

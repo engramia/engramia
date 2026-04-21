@@ -59,13 +59,15 @@ class Match(BaseModel):
             - "fresh": similarity < 0.70, generate new agent (pattern is context only).
         pattern_key: Storage key for this pattern. Pass to ``mem.delete_pattern()``
             to permanently remove it.
-        effective_score: Rank-ordering score used when ``eval_weighted=True``
-            — ``similarity`` multiplied by the pattern's quality multiplier
-            (in [0.5, 1.0]) derived from its stored eval score. ``None`` when
-            ``eval_weighted=False`` was passed to ``recall()`` or when the
-            caller cannot provide it. Exposed so that downstream consumers
-            can rank or filter matches without losing the eval-weighted
-            ordering that recall already applied.
+        effective_score: Rank-ordering score produced by ``recall()`` when
+            any non-similarity signal is active. Populated whenever
+            ``eval_weighted=True`` (scales ``similarity`` by the pattern's
+            quality multiplier in [0.5, 1.0]) and/or
+            ``recency_weight > 0`` (additionally scales by an exponential
+            half-life decay over ``recency_half_life_days``). ``None`` on
+            the plain similarity-only path. Exposed so downstream consumers
+            can rank or filter matches without re-deriving the multipliers
+            recall already applied.
     """
 
     pattern: Pattern

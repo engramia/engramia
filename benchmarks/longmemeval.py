@@ -555,51 +555,93 @@ class LongMemEvalRunner:
             result.task_results.append({"task_id": task.task_id, "hit": hit})
         return result
 
+    def _backdate_versioned_patterns(self, mem: Any) -> None:
+        """Space v1/v2/v3 timestamps so the recency knob can discriminate them.
+
+        The seed loop writes v1/v2/v3 back-to-back via ``mem.learn()``, so
+        their ``Pattern.timestamp`` values differ by ~one embedding call
+        (tens of milliseconds). That is orders of magnitude below the
+        30-day half-life the recency knob targets and leaves recency unable
+        to re-order the three versions under any non-degenerate half-life.
+
+        Production patterns accumulate over hours / days / weeks, so this
+        post-seed rewrite models the real timestamp distribution the
+        recency knob is built for — without which the temporal dimension
+        degenerates back into "whichever version the embedder happens to
+        prefer on raw similarity", the exact embedder-lottery situation
+        that motivated adding ``recency_weight`` in the first place.
+        """
+        # Random-baseline stub has no storage — nothing to back-date there.
+        if not hasattr(mem, "_storage"):
+            return
+        now = time.time()
+        day = 86400.0
+        # v1 is three half-lives old (factor 1/8), v2 one half-life
+        # (factor 1/2), v3 is now (factor 1). Any gap >> half_life would
+        # work; these are wide enough to survive future half-life changes.
+        age_by_marker = {" v1": 90 * day, " v2": 45 * day, " v3": 0.0}
+        storage = mem._storage  # noqa: SLF001 — benchmark harness is allowed to touch storage
+        for key in storage.list_keys(prefix="patterns/"):
+            data = storage.load(key)
+            if not data:
+                continue
+            task_text = data.get("task", "")
+            for marker, age in age_by_marker.items():
+                if task_text.endswith(marker):
+                    data["timestamp"] = now - age
+                    storage.save(key, data)
+                    break
+
     def _run_temporal(self, mem: Any, tasks: list[LongMemTask]) -> DimensionResult:
         """Evaluate temporal reasoning — most-recently stored pattern must rank first.
 
-        Honest framing (v0.6.5): ``Memory.recall()`` has no recall-time recency
-        ranking; ``Pattern.timestamp`` is consumed only by the offline
-        ``run_aging()`` decay job, so the only signal a recall query has for
-        "most recent" is whatever the embedding model extracts from the stored
-        task text. The earlier version of this dimension set
-        ``eval_weighted=True`` and passed whenever ``success_score >= 8.0``,
-        which reduced to a tautology: v3 patterns were seeded with
-        ``eval_score=9.1``, so the pass rule was guaranteed by the seed, not
-        by any temporal behaviour of the system.
+        Since 0.6.7 this is a real test of Engramia's recency-aware recall.
+        ``Memory.recall(recency_weight=1.0)`` applies an exponential
+        half-life decay on ``Pattern.timestamp`` at query time (half-life
+        defaults to 30 days). The harness back-dates v1/v2/v3 timestamps
+        to 90 / 45 / 0 days old (see ``_backdate_versioned_patterns``) so
+        the recency signal is well above noise — without that rewrite the
+        three versions seeded within milliseconds of each other all sit
+        at recency_factor ≈ 1.0 and the knob can't re-order them.
 
-        The rewritten protocol:
+        Protocol:
 
-        * ``eval_weighted=False`` — no quality bias in ranking.
-        * Training patterns (seeded in order v1 → v2 → v3 per domain) have
-          ``Pattern.timestamp`` set monotonically by ``default_factory=time.time``.
-        * A task passes only if top-1's ``pattern.task`` contains BOTH the
-          queried domain marker AND the ``v3`` marker — i.e. the system
-          returned *this* domain's newest version, not a v1/v2 of the same
-          domain or a v3 of an unrelated one.
+        * Back-date all stored patterns so v1 is 90 days old, v2 is 45
+          days old, v3 is now (reflects a production-like accumulation).
+        * ``eval_weighted=False`` — no quality bias. Temporal preference
+          must come from the timestamp signal alone so this dimension
+          stays orthogonal to ``knowledge_updates``.
+        * ``recency_weight=1.0`` — full exponential decay.
+        * ``deduplicate=False`` — v1/v2/v3 have Jaccard word-overlap ≈ 0.8
+          and would otherwise collapse into a single survivor (picked by
+          ``success_score``), which would sneak the quality signal back in
+          through the dedup side-door.
+        * Pass rule: top-1's ``pattern.task`` contains BOTH the queried
+          domain marker AND the ``v3`` marker — i.e. the system returned
+          *this* domain's newest version, not a v1/v2 of the same domain
+          or a v3 of an unrelated one.
 
-        Earlier iterations also checked that top-1's ``pattern.timestamp``
-        equalled the maximum across the returned matches. That check failed
-        systematically (0/100 on OpenAI) because ``recall(limit=3)`` returns
-        the top three across all 36 stored patterns, so whenever the second-
-        or third-place match came from a domain seeded later in the loop its
-        timestamp dominated — even when top-1 was the genuinely correct
-        domain's v3. The timestamp check added no signal beyond "v3 in text"
-        once ``on_duplicate="replace_with_better"`` made v1/v2 disappear at
-        learn time under high-similarity embeddings, so it was dropped.
-
-        Expected honest score is meaningfully below the former 100 %; that
-        delta IS the measurement — it surfaces that Engramia currently
-        offers no recall-time recency signal beyond what the embedding model
-        itself extracts from the stored task text.
+        Pre-0.6.7 harness note: ``recall()`` had no recency signal, so the
+        temporal dimension reduced to whatever the embedder extracted
+        from the stored task text — an implicit embedder lottery. OpenAI
+        ``text-embedding-3-small`` scored 0 / 100 because it ranked v2 >
+        v3 for "most recent" queries; ``all-MiniLM-L6-v2`` scored 84 /
+        100 coincidentally. Neither number was a measurement of Engramia.
+        With the recency knob the dimension now measures the system
+        under test.
         """
+        self._backdate_versioned_patterns(mem)
         result = DimensionResult(dimension="temporal_reasoning", total=len(tasks), correct=0)
         for task in tasks:
-            # deduplicate=False — v1/v2/v3 have Jaccard word-overlap ≈ 0.8
-            # and would otherwise collapse into a single survivor (picked
-            # by success_score), which would sneak the quality signal back
-            # in through the dedup side-door.
-            matches = mem.recall(task=task.query, limit=3, deduplicate=False, eval_weighted=False, readonly=True)
+            matches = mem.recall(
+                task=task.query,
+                limit=3,
+                deduplicate=False,
+                eval_weighted=False,
+                recency_weight=1.0,
+                recency_half_life_days=30.0,
+                readonly=True,
+            )
             hit = False
             if matches:
                 top_task = matches[0].pattern.task
@@ -851,9 +893,11 @@ class LongMemEvalRunner:
                 limit: int = 5,
                 deduplicate: bool = True,
                 eval_weighted: bool = True,
+                recency_weight: float = 0.0,
+                recency_half_life_days: float = 30.0,
                 readonly: bool = False,
             ) -> list[Match]:
-                del task, deduplicate, eval_weighted, readonly
+                del task, deduplicate, eval_weighted, recency_weight, recency_half_life_days, readonly
                 n = min(limit, len(all_patterns))
                 picks = rng.sample(all_patterns, n)
                 sims = sorted((rng.random() for _ in range(n)), reverse=True)

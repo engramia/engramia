@@ -86,6 +86,8 @@ class EngramiaWebhook:
         limit: int = 5,
         deduplicate: bool = True,
         eval_weighted: bool = True,
+        recency_weight: float = 0.0,
+        recency_half_life_days: float = 30.0,
     ) -> list[dict]:
         """Find relevant patterns for a task.
 
@@ -94,6 +96,9 @@ class EngramiaWebhook:
             limit: Maximum number of matches.
             deduplicate: Group near-duplicate tasks.
             eval_weighted: Boost high-quality patterns.
+            recency_weight: Bias ranking toward recently-stored patterns
+                (0.0 = off, 1.0 = full exponential decay).
+            recency_half_life_days: Half-life of the recency decay, days.
 
         Returns:
             List of match dicts.
@@ -103,6 +108,8 @@ class EngramiaWebhook:
             "limit": limit,
             "deduplicate": deduplicate,
             "eval_weighted": eval_weighted,
+            "recency_weight": recency_weight,
+            "recency_half_life_days": recency_half_life_days,
         }
         resp = self._post("/v1/recall", body)
         return resp.get("matches", [])

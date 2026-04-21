@@ -88,7 +88,10 @@ _TOOL_LEARN = types.Tool(
 
 _TOOL_RECALL = types.Tool(
     name="engramia_recall",
-    description=("Find stored patterns most relevant to a new task using semantic search with eval-score weighting."),
+    description=(
+        "Find stored patterns most relevant to a new task using semantic "
+        "search with optional eval-score weighting and recency bias."
+    ),
     inputSchema={
         "type": "object",
         "properties": {
@@ -99,6 +102,22 @@ _TOOL_RECALL = types.Tool(
                 "minimum": 1,
                 "maximum": 50,
                 "default": 5,
+            },
+            "recency_weight": {
+                "type": "number",
+                "description": (
+                    "Bias toward recently-stored patterns via exponential "
+                    "half-life decay. 0.0 = off (default), 1.0 = full decay."
+                ),
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "default": 0.0,
+            },
+            "recency_half_life_days": {
+                "type": "number",
+                "description": "Half-life of the recency decay, in days.",
+                "exclusiveMinimum": 0.0,
+                "default": 30.0,
             },
         },
         "required": ["task"],
@@ -223,6 +242,8 @@ def _dispatch(mem: Memory, name: str, arguments: dict) -> object:
         matches = mem.recall(
             task=arguments["task"],
             limit=int(arguments.get("limit", 5)),
+            recency_weight=float(arguments.get("recency_weight", 0.0)),
+            recency_half_life_days=float(arguments.get("recency_half_life_days", 30.0)),
         )
         return [
             {

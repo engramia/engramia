@@ -306,6 +306,8 @@ def recall(body: RecallRequest, memory: Memory = Depends(get_memory)) -> RecallR
         limit=fetch_limit,
         deduplicate=body.deduplicate,
         eval_weighted=body.eval_weighted,
+        recency_weight=body.recency_weight,
+        recency_half_life_days=body.recency_half_life_days,
     )
 
     # Post-filter by classification, source, min_score.

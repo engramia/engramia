@@ -211,6 +211,8 @@ class Memory:
         limit: int = 5,
         deduplicate: bool = True,
         eval_weighted: bool = True,
+        recency_weight: float = 0.0,
+        recency_half_life_days: float = 30.0,
         readonly: bool = False,
     ) -> list[Match]:
         """Find stored patterns most relevant to *task*.
@@ -221,21 +223,38 @@ class Memory:
             deduplicate: Group near-duplicate tasks and return only the
                 top-scoring pattern per group (default True).
             eval_weighted: Boost patterns with high eval scores (default True).
+            recency_weight: Bias ranking toward patterns stored more
+                recently. ``0.0`` (default) preserves pre-0.6.7 behaviour
+                (no recency signal); ``1.0`` applies full exponential
+                decay with the given half-life; values in between scale
+                the decay via ``recency_factor ** recency_weight``.
+                Multiplies with ``eval_weighted`` when both are active.
+            recency_half_life_days: Half-life of the recency decay, in
+                days. A pattern stored this many days ago contributes a
+                recency factor of 0.5; twice that, 0.25; and so on.
+                Defaults to 30. Ignored when ``recency_weight == 0``.
             readonly: Skip the ``mark_reused`` side-effect so repeat
                 queries don't mutate pattern scores. Defaults to False
                 (production). Set True in benchmarks, evals, and
                 anywhere you need recall to be a pure function.
 
         Returns:
-            List of Match objects sorted by (weighted) similarity descending.
+            List of Match objects sorted by effective score descending.
+            ``Match.effective_score`` is populated whenever
+            ``eval_weighted`` is True or ``recency_weight`` > 0; it is
+            ``None`` only on the plain similarity path.
         """
         self._validate_task(task)
         self._validate_limit(limit)
+        self._validate_recency_weight(recency_weight)
+        self._validate_recency_half_life(recency_half_life_days)
         return self._recall_svc.recall(
             task=task,
             limit=limit,
             deduplicate=deduplicate,
             eval_weighted=eval_weighted,
+            recency_weight=recency_weight,
+            recency_half_life_days=recency_half_life_days,
             readonly=readonly,
         )
 
@@ -649,3 +668,13 @@ class Memory:
     def _validate_eval_score(score: float) -> None:
         if not (_MIN_EVAL_SCORE <= score <= _MAX_EVAL_SCORE):
             raise ValidationError(f"eval_score must be between {_MIN_EVAL_SCORE} and {_MAX_EVAL_SCORE}, got {score}")
+
+    @staticmethod
+    def _validate_recency_weight(weight: float) -> None:
+        if not (0.0 <= weight <= 1.0):
+            raise ValidationError(f"recency_weight must be between 0.0 and 1.0, got {weight}")
+
+    @staticmethod
+    def _validate_recency_half_life(half_life_days: float) -> None:
+        if half_life_days <= 0.0:
+            raise ValidationError(f"recency_half_life_days must be > 0, got {half_life_days}")

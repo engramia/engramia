@@ -225,6 +225,19 @@ def recall(
     task: str = typer.Argument(..., help="Task description to search for."),
     limit: int = typer.Option(5, "--limit", "-n", help="Maximum number of matches."),
     path: str = typer.Option("./engramia_data", "--path", "-p", help="Engramia data directory."),
+    recency_weight: float = typer.Option(
+        0.0,
+        "--recency-weight",
+        min=0.0,
+        max=1.0,
+        help="Bias toward recently-stored patterns (0.0 = off, 1.0 = full exponential decay).",
+    ),
+    recency_half_life_days: float = typer.Option(
+        30.0,
+        "--recency-half-life",
+        min=0.0,
+        help="Half-life of the recency decay, in days. Ignored when --recency-weight=0.",
+    ),
 ) -> None:
     """Search for patterns matching a task description."""
     from engramia.memory import Memory
@@ -234,7 +247,13 @@ def recall(
     mem = Memory(embeddings=embeddings, storage=storage)
 
     console.print(f"Searching for: [italic]{task}[/italic]\n")
-    matches = mem.recall(task=task, limit=limit, deduplicate=True)
+    matches = mem.recall(
+        task=task,
+        limit=limit,
+        deduplicate=True,
+        recency_weight=recency_weight,
+        recency_half_life_days=recency_half_life_days,
+    )
 
     if not matches:
         console.print("[yellow]No matching patterns found.[/yellow]")

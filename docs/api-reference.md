@@ -69,6 +69,8 @@ mem.recall(
     limit: int = 5,
     deduplicate: bool = True,
     eval_weighted: bool = True,
+    recency_weight: float = 0.0,
+    recency_half_life_days: float = 30.0,
 ) -> list[Match]
 ```
 
@@ -80,23 +82,56 @@ Find relevant success patterns for a new task via semantic search.
 | `limit` | `int` | `5` | Max results to return |
 | `deduplicate` | `bool` | `True` | Group similar tasks (Jaccard > 0.7), return only top-scoring per group |
 | `eval_weighted` | `bool` | `True` | Multiply similarity by eval quality multiplier [0.5, 1.0] |
+| `recency_weight` | `float` | `0.0` | Bias toward recently-stored patterns via exponential half-life decay on `Pattern.timestamp`. `0.0` = off (no behaviour change), `1.0` = full decay, intermediate values soften the effect via `recency_factor ** recency_weight`. Multiplies with `eval_weighted` when both are active. |
+| `recency_half_life_days` | `float` | `30.0` | Half-life of the recency decay, in days. A pattern this many days old contributes a `recency_factor` of 0.5; twice that, 0.25. Ignored when `recency_weight == 0`. |
 
-**Returns:** `list[Match]` sorted by effective similarity.
+**Returns:** `list[Match]` sorted by effective score descending.
 
 Each `Match` contains:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `similarity` | `float` | Cosine similarity (0.0–1.0) |
+| `effective_score` | `float | None` | Rank-ordering score produced by recall when any non-similarity signal is active (`eval_weighted=True` and/or `recency_weight>0`); `None` on the plain similarity path |
 | `reuse_tier` | `str` | `"duplicate"`, `"adapt"`, or `"fresh"` |
 | `pattern_key` | `str` | Storage key for `delete_pattern()` |
-| `pattern` | `Pattern` | Full pattern with task, design, success_score, reuse_count |
+| `pattern` | `Pattern` | Full pattern with task, design, success_score, reuse_count, timestamp |
 
 ```python
 matches = mem.recall(task="Read CSV and calculate averages", limit=5)
 for m in matches:
     print(f"{m.similarity:.2f} | {m.pattern.task}")
 ```
+
+### Recency-aware recall
+
+For workloads where stale patterns should lose rank over time — codebase
+refactors, deprecated APIs, post-incident rewrites — pass
+`recency_weight > 0`:
+
+```python
+# Prefer patterns stored in the last couple of weeks:
+recent = mem.recall(
+    task="Apply the current auth middleware",
+    recency_weight=1.0,
+    recency_half_life_days=14.0,
+)
+```
+
+The blended formula is
+
+```text
+recency_factor  = 0.5 ** (max(0, now - pattern.timestamp) / (H * 86400))
+effective_score = similarity × quality_factor × recency_factor ** recency_weight
+```
+
+where `quality_factor` is the eval multiplier when `eval_weighted=True`
+(else 1) and `H` is `recency_half_life_days`. Future-dated timestamps
+(clock skew) are clamped to `age=0` so they do not award a >1 boost,
+matching the behaviour of `SuccessPatternStore.run_aging`.
+
+`recency_weight=0.0` is a strict no-op and preserves pre-0.6.7 output
+byte-for-byte.
 
 ---
 

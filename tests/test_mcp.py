@@ -228,11 +228,34 @@ class TestLearnDispatch:
 class TestRecallDispatch:
     def test_recall_calls_memory_with_defaults(self, mem):
         _dispatch(mem, "engramia_recall", {"task": "Parse CSV"})
-        mem.recall.assert_called_once_with(task="Parse CSV", limit=5)
+        mem.recall.assert_called_once_with(
+            task="Parse CSV",
+            limit=5,
+            recency_weight=0.0,
+            recency_half_life_days=30.0,
+        )
 
     def test_recall_passes_custom_limit(self, mem):
         _dispatch(mem, "engramia_recall", {"task": "T", "limit": "10"})
-        mem.recall.assert_called_once_with(task="T", limit=10)
+        mem.recall.assert_called_once_with(
+            task="T",
+            limit=10,
+            recency_weight=0.0,
+            recency_half_life_days=30.0,
+        )
+
+    def test_recall_passes_recency_kwargs(self, mem):
+        _dispatch(
+            mem,
+            "engramia_recall",
+            {"task": "T", "recency_weight": "0.5", "recency_half_life_days": "14"},
+        )
+        mem.recall.assert_called_once_with(
+            task="T",
+            limit=5,
+            recency_weight=0.5,
+            recency_half_life_days=14.0,
+        )
 
     def test_recall_returns_match_list_with_expected_fields(self, mem):
         result = _dispatch(mem, "engramia_recall", {"task": "Parse CSV"})

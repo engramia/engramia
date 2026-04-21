@@ -47,6 +47,26 @@ class RecallRequest(BaseModel):
     offset: int = Field(default=0, ge=0, le=10_000, description="Number of results to skip (for pagination).")
     deduplicate: bool = Field(default=True)
     eval_weighted: bool = Field(default=True)
+    recency_weight: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Bias ranking toward recently-stored patterns via exponential "
+            "half-life decay. 0.0 = off (default, pre-0.6.7 behaviour), "
+            "1.0 = full decay. Multiplies with eval_weighted when both "
+            "are active."
+        ),
+    )
+    recency_half_life_days: float = Field(
+        default=30.0,
+        gt=0.0,
+        description=(
+            "Half-life of the recency decay in days. Patterns stored this "
+            "many days ago get a recency factor of 0.5. Ignored when "
+            "recency_weight == 0."
+        ),
+    )
     classification: str | None = Field(
         default=None, max_length=50, description="Filter by classification: public|internal|confidential."
     )

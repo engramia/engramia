@@ -2,7 +2,7 @@
   "metadata": {
     "benchmark": "LongMemEval",
     "version": "1.0.0",
-    "timestamp": "2026-04-21T17:18:27.094914Z",
+    "timestamp": "2026-04-21T19:18:26.712553Z",
     "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
     "embedding_model": "text-embedding-3-small",
     "total_tasks": 500,
@@ -12,9 +12,9 @@
     "engramia": {
       "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
       "embedding_model": "text-embedding-3-small",
-      "timestamp": "2026-04-21T17:18:27.094914Z",
-      "overall": 0.778,
-      "total_correct": 389,
+      "timestamp": "2026-04-21T19:18:26.712553Z",
+      "overall": 0.978,
+      "total_correct": 489,
       "total_tasks": 500,
       "dimensions": {
         "single_hop_recall": {
@@ -22,35 +22,35 @@
           "score": 0.9083,
           "correct": 109,
           "total": 120,
-          "duration_seconds": 18.21
+          "duration_seconds": 18.92
         },
         "multi_hop_reasoning": {
           "dimension": "multi_hop_reasoning",
           "score": 1.0,
           "correct": 100,
           "total": 100,
-          "duration_seconds": 15.41
+          "duration_seconds": 15.31
         },
         "temporal_reasoning": {
           "dimension": "temporal_reasoning",
-          "score": 0.0,
-          "correct": 0,
+          "score": 1.0,
+          "correct": 100,
           "total": 100,
-          "duration_seconds": 15.24
+          "duration_seconds": 15.82
         },
         "knowledge_updates": {
           "dimension": "knowledge_updates",
           "score": 1.0,
           "correct": 100,
           "total": 100,
-          "duration_seconds": 15.59
+          "duration_seconds": 19.64
         },
         "absent_memory_detection": {
           "dimension": "absent_memory_detection",
           "score": 1.0,
           "correct": 80,
           "total": 80,
-          "duration_seconds": 16.85
+          "duration_seconds": 17.8
         }
       }
     }
