@@ -88,28 +88,19 @@ DIMENSION_SIZES: dict[str, int] = {
     "absent_memory_detection": 80,
 }
 
-# single_hop "correct recall" minimum similarity per embedding model.
-# Auto-calibration is the usual solution but for pilot-launch reproducibility
-# we prefer fixed, documented values per supported model — a fresh checkout
-# produces the same numbers without a pre-run calibration step.
+# single_hop "correct recall" minimum similarity — pre-registered, model-agnostic.
 #
-# Values chosen from empirical query→stored-task similarity distributions on
-# the 12-domain × 120-query single_hop set. Each threshold is placed just
-# below the observed min-similarity for queries that recall the correct
-# domain. Readers who swap the embedding model should either extend this
-# table or fall back to `SINGLE_HOP_THRESHOLD_DEFAULT`.
+# This threshold is fixed at 0.50 regardless of embedding model and must be
+# frozen BEFORE looking at any run's failures. An earlier iteration of this
+# harness lowered the threshold to 0.40 after observing that several
+# correct-domain queries landed at 0.42–0.49; that is exactly the kind of
+# post-hoc tuning that inflates headline numbers without improving the
+# system. The benchmark is a measurement, not a knob.
 #
-# Different embedding models produce different similarity scales (e.g. OpenAI
-# `3-small` is less stretched than `3-large`), which is why a fixed threshold
-# shared across models would bias the benchmark against whichever model
-# happens to compress its output range.
-SINGLE_HOP_THRESHOLD_BY_MODEL: dict[str, float] = {
-    "text-embedding-3-small": 0.40,
-    "text-embedding-3-large": 0.40,
-    "all-MiniLM-L6-v2": 0.45,
-    "all-mpnet-base-v2": 0.50,
-}
-SINGLE_HOP_THRESHOLD_DEFAULT = 0.40
+# Readers who swap the embedding model do not get to tune this value —
+# a different model producing a different score IS the signal we are
+# trying to surface.
+SINGLE_HOP_THRESHOLD = 0.50
 
 # Agent domains used across all task categories
 DOMAINS = [
@@ -359,39 +350,85 @@ def build_knowledge_update_tasks() -> list[LongMemTask]:
     return tasks
 
 
+# Two strictly disjoint noise pools. The calibration pool is held out —
+# used ONLY to fit the absent-memory similarity threshold; no query from
+# it appears as a graded test task. The evaluation pool is graded and
+# must never leak into calibration. If these ever overlap the
+# absent-memory dimension degenerates into a trivial self-test with a
+# mathematically guaranteed 100 % pass rate.
+NOISE_EVALUATION_POOL: tuple[str, ...] = (
+    "Convert a PDF to EPUB with custom metadata fields.",
+    "Render a 3D point cloud from LiDAR scan data.",
+    "Implement a Tetris game with a high-score leaderboard.",
+    "Design a PCB schematic for a temperature sensor.",
+    "Translate Rust unsafe code to idiomatic Zig.",
+    "Write a Commodore 64 BASIC program for the SID chip.",
+    "Build a knitting pattern generator for Fibonacci sequences.",
+    "Implement Reed-Solomon error correction for QR code encoding.",
+    "Generate a meal plan from fridge inventory using computer vision.",
+    "Simulate orbital mechanics for a CubeSat trajectory.",
+    "Implement a Merkle-tree-based file deduplication system.",
+    "Write a shader for procedural terrain generation in GLSL.",
+    "Parse DICOM medical imaging metadata and anonymise fields.",
+    "Implement a distributed consensus protocol using Paxos.",
+    "Build a retro CRT monitor effect using WebGL post-processing.",
+    "Generate SVG diagrams from natural language layout descriptions.",
+    "Implement a lock-free concurrent skip list in C++.",
+    "Write Verilog for a 4-stage pipelined RISC CPU core.",
+    "Model Markov chain text generation from a book corpus.",
+    "Implement a bloom filter with configurable false-positive rate.",
+)
+
+NOISE_CALIBRATION_POOL: tuple[str, ...] = (
+    "Design a jazz chord progression in Lydian mode.",
+    "Simulate fluid dynamics for ocean wave rendering.",
+    "Translate ancient Sumerian cuneiform tablets to English.",
+    "Generate a cross-stitch pattern from a photograph.",
+    "Write MIDI sysex messages for a Yamaha DX7 synthesiser.",
+    "Implement Conway's Game of Life on a hexagonal grid.",
+    "Solve a Rubik's cube using the CFOP method notation.",
+    "Compute Fourier transforms of seismic wave recordings.",
+    "Generate a wine-pairing guide from a tasting menu.",
+    "Implement ray marching for procedural clouds in a shader.",
+    "Write 6502 assembly to render sprites on a NES.",
+    "Build a chess opening book from PGN game archives.",
+    "Generate origami folding instructions from a 3D model.",
+    "Compute ballistic trajectories with atmospheric drag.",
+    "Write a compiler for the Brainfuck esoteric language.",
+    "Model supply chains for medieval long-distance trade routes.",
+    "Implement FFT-based audio pitch detection for tuners.",
+    "Generate recipes from molecular gastronomy principles.",
+    "Plan a polyphase sampling filter for a software-defined radio.",
+    "Choreograph a contemporary ballet from musical cue sheets.",
+)
+
+# Runtime guarantee: any accidental overlap would silently inflate the
+# absent-memory score. Fail loudly at import time rather than at graph-day.
+_overlap = set(NOISE_EVALUATION_POOL) & set(NOISE_CALIBRATION_POOL)
+if _overlap:
+    raise RuntimeError(
+        f"NOISE_EVALUATION_POOL and NOISE_CALIBRATION_POOL must be disjoint; "
+        f"found overlap: {sorted(_overlap)}"
+    )
+del _overlap
+
+
 def build_absent_tasks() -> list[LongMemTask]:
-    """80 tasks with no relevant stored pattern; system must return no match."""
-    noise_queries = [
-        "Convert a PDF to EPUB with custom metadata fields.",
-        "Render a 3D point cloud from LiDAR scan data.",
-        "Implement a Tetris game with a high-score leaderboard.",
-        "Design a PCB schematic for a temperature sensor.",
-        "Translate Rust unsafe code to idiomatic Zig.",
-        "Write a Commodore 64 BASIC program for the SID chip.",
-        "Build a knitting pattern generator for Fibonacci sequences.",
-        "Implement Reed-Solomon error correction for QR code encoding.",
-        "Generate a meal plan from fridge inventory using computer vision.",
-        "Simulate orbital mechanics for a CubeSat trajectory.",
-        "Implement a Merkle-tree-based file deduplication system.",
-        "Write a shader for procedural terrain generation in GLSL.",
-        "Parse DICOM medical imaging metadata and anonymise fields.",
-        "Implement a distributed consensus protocol using Paxos.",
-        "Build a retro CRT monitor effect using WebGL post-processing.",
-        "Generate SVG diagrams from natural language layout descriptions.",
-        "Implement a lock-free concurrent skip list in C++.",
-        "Write Verilog for a 4-stage pipelined RISC CPU core.",
-        "Model Markov chain text generation from a book corpus.",
-        "Implement a bloom filter with configurable false-positive rate.",
-    ]
+    """80 tasks with no relevant stored pattern; system must return no match.
+
+    Queries are drawn exclusively from ``NOISE_EVALUATION_POOL``.
+    ``NOISE_CALIBRATION_POOL`` is held out and must not leak here.
+    """
     tasks: list[LongMemTask] = []
     for idx in range(80):
+        base = NOISE_EVALUATION_POOL[idx % len(NOISE_EVALUATION_POOL)]
+        suffix = f" (variant {idx // len(NOISE_EVALUATION_POOL)})" if idx >= len(NOISE_EVALUATION_POOL) else ""
         tasks.append(
             LongMemTask(
                 task_id=f"absent_{idx:04d}",
                 dimension="absent_memory_detection",
                 domain="noise",
-                query=noise_queries[idx % len(noise_queries)]
-                + (f" (variant {idx // len(noise_queries)})" if idx >= len(noise_queries) else ""),
+                query=base + suffix,
                 expected_pattern_ids=(),
             )
         )
@@ -431,7 +468,6 @@ class LongMemEvalRunner:
     def __init__(self, *, keep: bool = False) -> None:
         self._keep = keep
         self._dataset = build_dataset()
-        self._embedding_model_name = "unknown"  # set by `run()` before dimension runners fire
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -480,19 +516,13 @@ class LongMemEvalRunner:
     # ------------------------------------------------------------------
 
     def _run_single_hop(self, mem: Any, tasks: list[LongMemTask]) -> DimensionResult:
-        """Evaluate single-hop recall — top-1 must be from the correct pattern.
+        """Evaluate single-hop recall — top-1 must clear the pre-registered threshold.
 
         Training patterns are seeded with tasks of the form ``"Write {domain} code vN"``
-        so a substring check against the humanised domain is enough to verify the
-        recalled pattern came from the right domain. Using ``startswith`` would
-        miss every single task because patterns start with the word "Write".
-
-        The similarity threshold is drawn from ``SINGLE_HOP_THRESHOLD_BY_MODEL``
-        so different embedding models with different similarity scales all get a
-        fair baseline without per-run calibration.
+        so a substring check against the humanised domain verifies the
+        recalled pattern came from the right domain.
         """
-        threshold = SINGLE_HOP_THRESHOLD_BY_MODEL.get(self._embedding_model_name, SINGLE_HOP_THRESHOLD_DEFAULT)
-        logger.info("single_hop_recall threshold for %s: %.2f", self._embedding_model_name, threshold)
+        logger.info("single_hop_recall threshold (pre-registered): %.2f", SINGLE_HOP_THRESHOLD)
         result = DimensionResult(dimension="single_hop_recall", total=len(tasks), correct=0)
         for task in tasks:
             matches = mem.recall(task=task.query, limit=1, deduplicate=True, eval_weighted=False, readonly=True)
@@ -500,7 +530,7 @@ class LongMemEvalRunner:
             if matches:
                 top = matches[0]
                 domain_text = task.domain.replace("_", " ")
-                hit = float(top.similarity) >= threshold and domain_text in top.pattern.task
+                hit = float(top.similarity) >= SINGLE_HOP_THRESHOLD and domain_text in top.pattern.task
             if hit:
                 result.correct += 1
             result.task_results.append({"task_id": task.task_id, "hit": hit})
@@ -526,17 +556,46 @@ class LongMemEvalRunner:
         return result
 
     def _run_temporal(self, mem: Any, tasks: list[LongMemTask]) -> DimensionResult:
-        """Evaluate temporal reasoning — most-recently stored pattern must rank first."""
+        """Evaluate temporal reasoning — most-recently stored pattern must rank first.
+
+        Honest framing (v0.6.5): ``Memory.recall()`` has no recall-time recency
+        ranking; ``Pattern.timestamp`` is consumed only by the offline
+        ``run_aging()`` decay job, so the only signal a recall query has for
+        "most recent" is whatever the embedding model extracts from the stored
+        task text. The earlier version of this dimension set
+        ``eval_weighted=True`` and passed whenever ``success_score >= 8.0``,
+        which reduced to a tautology: v3 patterns were seeded with
+        ``eval_score=9.1``, so the pass rule was guaranteed by the seed, not
+        by any temporal behaviour of the system.
+
+        The rewritten protocol:
+
+        * ``eval_weighted=False`` — no quality bias in ranking.
+        * Training patterns (seeded in order v1 → v2 → v3 per domain) have
+          ``Pattern.timestamp`` set monotonically by ``default_factory=time.time``,
+          so v3 is genuinely the most-recently stored per domain.
+        * A task passes only if top-1's ``pattern.task`` contains the v3 marker
+          AND its ``pattern.timestamp`` is the maximum among the returned
+          matches for that domain.
+
+        Expected honest score on OpenAI ``text-embedding-3-small`` is meaningfully
+        below the former 100 %; that delta IS the measurement — it surfaces that
+        Engramia currently offers no recall-time recency signal beyond what the
+        embedding model itself extracts from the text.
+        """
         result = DimensionResult(dimension="temporal_reasoning", total=len(tasks), correct=0)
         for task in tasks:
-            matches = mem.recall(task=task.query, limit=3, deduplicate=True, eval_weighted=True, readonly=True)
+            # deduplicate=False — v1/v2/v3 have Jaccard word-overlap ≈ 0.8
+            # and would otherwise collapse into a single survivor (picked
+            # by success_score), which would sneak the quality signal back
+            # in through the dedup side-door.
+            matches = mem.recall(task=task.query, limit=3, deduplicate=False, eval_weighted=False, readonly=True)
             hit = False
-            if matches and task.preferred_pattern_id:
+            if matches:
                 top = matches[0]
-                # Prefer patterns with higher eval scores (proxy for recency in this bench).
-                # `mem.learn(eval_score=X)` persists X as `Pattern.success_score`; the
-                # `Pattern` model never exposed an `eval_score` attribute.
-                hit = top.pattern.success_score >= 8.0
+                is_v3_text = " v3" in top.pattern.task
+                is_latest_stored = top.pattern.timestamp == max(m.pattern.timestamp for m in matches)
+                hit = is_v3_text and is_latest_stored
             if hit:
                 result.correct += 1
             result.task_results.append({"task_id": task.task_id, "hit": hit})
@@ -559,19 +618,20 @@ class LongMemEvalRunner:
     def _calibrate_noise_threshold(self, mem: Any, default: float = 0.35) -> float:
         """Compute the noise-similarity ceiling from the active embedding model.
 
-        The hard-coded ``0.35`` threshold that shipped with the first public
-        harness fails the absent-memory check for modern sentence embeddings:
-        OpenAI ``text-embedding-3-small`` places genuinely-unrelated queries
-        at cosine ≈ 0.4, so most "absent" queries cross the fixed line and
-        the dimension degenerates to ~66 %. The reference v0.6.0 run used
-        ``0.341`` from a calibration pass; this method reproduces that
-        protocol inside the public harness:
+        Fits the absent-memory threshold on the **held-out**
+        ``NOISE_CALIBRATION_POOL``. The evaluation pool is never touched
+        here: if the calibration sample and the test sample share queries
+        the absent-memory dimension degenerates into a tautology with a
+        mathematically guaranteed 100 % pass rate.
+
+        Protocol:
 
         1. Embed one training-pattern representative per domain.
-        2. Embed a sample of the actual noise queries.
+        2. Embed the held-out calibration queries.
         3. ``noise_threshold = max(noise-to-any-domain sim) + 0.05``.
 
-        Returns ``default`` if the embedding provider has no batch access.
+        The hard-coded ``0.35`` default is used only when the embedding
+        provider has no accessible ``embed`` method (e.g. a mock).
         """
         import numpy as np
 
@@ -583,18 +643,9 @@ class LongMemEvalRunner:
         domain_tasks = [f"Write {d.replace('_', ' ')} code v1" for d in DOMAINS]
         domain_embs = np.array([embedder.embed(t) for t in domain_tasks])
 
-        # Sample of the noise queries — only need enough to get a stable max.
-        noise_sample = [
-            "Convert a PDF to EPUB with custom metadata fields.",
-            "Render a 3D point cloud from LiDAR scan data.",
-            "Implement a Tetris game with a high-score leaderboard.",
-            "Design a PCB schematic for a temperature sensor.",
-            "Translate Rust unsafe code to idiomatic Zig.",
-            "Implement Reed-Solomon error correction for QR code encoding.",
-            "Simulate orbital mechanics for a CubeSat trajectory.",
-            "Write Verilog for a 4-stage pipelined RISC CPU core.",
-        ]
-        noise_embs = np.array([embedder.embed(t) for t in noise_sample])
+        # Held-out calibration queries — disjoint from NOISE_EVALUATION_POOL
+        # by construction (enforced at module import).
+        noise_embs = np.array([embedder.embed(t) for t in NOISE_CALIBRATION_POOL])
 
         # Cosine on unit-normalised vectors — explicit norm keeps the math
         # correct for providers that do not normalise.
@@ -678,8 +729,6 @@ class LongMemEvalRunner:
             embeddings = LocalEmbeddings()
             embedding_model = "all-MiniLM-L6-v2"
             logger.info("Using LocalEmbeddings (%s)", embedding_model)
-        # Publish for dimension runners (single_hop uses a per-model threshold).
-        self._embedding_model_name = embedding_model
 
         try:
             from engramia import __version__ as engramia_version  # type: ignore[import]
@@ -737,6 +786,116 @@ class LongMemEvalRunner:
             result.total_tasks,
         )
         return result
+
+    def run_random_baseline(self, seed: int = 42) -> LongMemEvalResult:
+        """Run all five dimensions with a seeded random-recall stub.
+
+        Provides a floor against which the real Engramia numbers are compared.
+        A dimension whose real score is near this baseline is NOT measuring
+        retrieval quality — it's measuring something that random sampling can
+        also pass. Published honest numbers must outperform this floor by a
+        margin large enough for the comparison to be informative.
+
+        The stub fabricates a synthetic pattern universe identical in shape to
+        what ``run()`` seeds (3 versions × 12 domains = 36 patterns) and
+        returns ``limit`` random picks per call with random-but-descending
+        similarity scores. No external embedding provider or API key is
+        required, so this can run anywhere.
+
+        ``seed`` is fixed so two invocations produce byte-identical results.
+        """
+        import datetime
+        import random
+
+        from engramia.types import Match, Pattern
+
+        all_patterns: list[tuple[Pattern, str]] = []
+        base_ts = time.time()
+        for di, domain in enumerate(DOMAINS):
+            for vi, tp in enumerate(self._build_training_patterns(domain)):
+                p = Pattern(
+                    task=tp["task"],
+                    design={"code": tp["code"]},
+                    success_score=tp["eval_score"],
+                    reuse_count=0,
+                    # Strict monotonic ordering so the temporal v3-is-latest
+                    # check has deterministic input even under random sampling.
+                    timestamp=base_ts + di * 10 + vi,
+                )
+                all_patterns.append((p, tp["pattern_id"]))
+
+        rng = random.Random(seed)
+
+        def _tier(sim: float) -> str:
+            if sim >= 0.92:
+                return "duplicate"
+            if sim >= 0.70:
+                return "adapt"
+            return "fresh"
+
+        class _RandomMem:
+            embeddings = None  # keeps _calibrate_noise_threshold on its default path
+
+            @staticmethod
+            def recall(
+                task: str,
+                limit: int = 5,
+                deduplicate: bool = True,
+                eval_weighted: bool = True,
+                readonly: bool = False,
+            ) -> list[Match]:
+                del task, deduplicate, eval_weighted, readonly
+                n = min(limit, len(all_patterns))
+                picks = rng.sample(all_patterns, n)
+                sims = sorted((rng.random() for _ in range(n)), reverse=True)
+                return [
+                    Match(
+                        pattern=p,
+                        similarity=s,
+                        reuse_tier=_tier(s),
+                        pattern_key=pk,
+                    )
+                    for (p, pk), s in zip(picks, sims, strict=True)
+                ]
+
+        tasks_by_dim: dict[str, list[LongMemTask]] = {}
+        for t in self._dataset:
+            tasks_by_dim.setdefault(t.dimension, []).append(t)
+
+        baseline = LongMemEvalResult(
+            engramia_version="random-baseline",
+            embedding_model=f"random(seed={seed})",
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
+        )
+
+        runners = {
+            "single_hop_recall": self._run_single_hop,
+            "multi_hop_reasoning": self._run_multi_hop,
+            "temporal_reasoning": self._run_temporal,
+            "knowledge_updates": self._run_knowledge_updates,
+            "absent_memory_detection": self._run_absent_detection,
+        }
+
+        mem = _RandomMem()
+        for dim_name, run_fn in runners.items():
+            start = time.monotonic()
+            dim_result = run_fn(mem, tasks_by_dim.get(dim_name, []))
+            dim_result.duration_seconds = time.monotonic() - start
+            baseline.dimension_results.append(dim_result)
+            logger.info(
+                "  [random-baseline] %s: %d/%d (%.1f%%)",
+                dim_name,
+                dim_result.correct,
+                dim_result.total,
+                dim_result.score * 100,
+            )
+        logger.info(
+            "[random-baseline] Overall: %.1f%% (%d/%d tasks)",
+            baseline.overall_score * 100,
+            sum(d.correct for d in baseline.dimension_results),
+            baseline.total_tasks,
+        )
+        return baseline
 
 
 # ---------------------------------------------------------------------------
@@ -823,6 +982,23 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable verbose logging.",
     )
+    p.add_argument(
+        "--include-random-baseline",
+        action="store_true",
+        help=(
+            "Also run a seeded random-recall stub across all five dimensions "
+            "and attach per-dim numbers under results.comparison.random_baseline. "
+            "Intended as a discrimination floor — a dimension whose real score "
+            "is near this baseline is not measuring retrieval quality."
+        ),
+    )
+    p.add_argument(
+        "--random-baseline-seed",
+        type=int,
+        default=42,
+        metavar="SEED",
+        help="Seed for --include-random-baseline (default: 42).",
+    )
     return p
 
 
@@ -843,12 +1019,30 @@ def main(argv: list[str] | None = None) -> int:
     result = runner.run()
     data = result.to_dict()
 
+    comparison: dict[str, Any] = {}
+    if args.include_random_baseline:
+        baseline = runner.run_random_baseline(seed=args.random_baseline_seed)
+        baseline_data = baseline.to_dict()
+        comparison["random_baseline"] = {
+            "system": f"random-recall (seed={args.random_baseline_seed})",
+            "overall": baseline_data["overall"],
+            "total_correct": baseline_data["total_correct"],
+            "total_tasks": baseline_data["total_tasks"],
+            "dimensions": baseline_data["dimensions"],
+            "note": (
+                "Seeded random sampling across the synthetic pattern universe. "
+                "Any dimension where Engramia's score is within a few percentage "
+                "points of this floor is not discriminating retrieval quality."
+            ),
+        }
+
     # Enriched report format — matches the shape `load_reference_results()`
-    # and the /benchmarks website page consume. `comparison` is intentionally
-    # empty; competitor numbers (Hindsight, Mem0, Zep) must be re-produced on
-    # this same public harness before they can be re-attached, and the old
-    # pre-release numbers for those systems lived under a different
-    # methodology we no longer trust apples-to-apples.
+    # and the /benchmarks website page consume. `comparison` is populated
+    # only when explicitly requested (random_baseline via flag); competitor
+    # numbers (Hindsight, Mem0, Zep) must be re-produced on this same public
+    # harness before they can be re-attached, and the old pre-release numbers
+    # for those systems lived under a different methodology we no longer
+    # trust apples-to-apples.
     report = {
         "metadata": {
             "benchmark": "LongMemEval",
@@ -864,15 +1058,17 @@ def main(argv: list[str] | None = None) -> int:
             ),
         },
         "results": {"engramia": data},
-        "comparison": {},
+        "comparison": comparison,
         "evaluation_config": {
             "similarity_metric": "cosine",
             "top_k": 5,
             "deduplicate": True,
-            "single_hop_threshold": SINGLE_HOP_THRESHOLD_BY_MODEL.get(
-                data["embedding_model"], SINGLE_HOP_THRESHOLD_DEFAULT
+            "single_hop_threshold": SINGLE_HOP_THRESHOLD,
+            "single_hop_threshold_policy": "pre-registered, model-agnostic; frozen before first run",
+            "noise_threshold_strategy": (
+                "auto-calibrated per run on a held-out NOISE_CALIBRATION_POOL "
+                "disjoint from the evaluation pool — see _calibrate_noise_threshold"
             ),
-            "noise_threshold_strategy": "auto-calibrated per run — see _calibrate_noise_threshold",
             "embedding_model": data["embedding_model"],
         },
         "dataset_summary": {
