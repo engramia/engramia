@@ -25,9 +25,13 @@ services:
       - DOMAIN_APEX=${DOMAIN_APEX:?DOMAIN_APEX must be set}
       - DOMAIN_WWW=${DOMAIN_WWW:?DOMAIN_WWW must be set}
       - DOMAIN_DOCS=${DOMAIN_DOCS:?DOMAIN_DOCS must be set}
+      - DOMAIN_GRAFANA=${DOMAIN_GRAFANA:?DOMAIN_GRAFANA must be set}
+      - DOMAIN_STATUS=${DOMAIN_STATUS:?DOMAIN_STATUS must be set}
       - UPSTREAM_API=${UPSTREAM_API:-engramia-api:8000}
       - UPSTREAM_DASHBOARD=${UPSTREAM_DASHBOARD:-dashboard:3000}
       - UPSTREAM_WEBSITE=${UPSTREAM_WEBSITE:-website:3000}
+      - UPSTREAM_GRAFANA=${UPSTREAM_GRAFANA:-grafana:3000}
+      - UPSTREAM_STATUS=${UPSTREAM_STATUS:-uptime-kuma:3001}
       - DOCS_ROOT=${DOCS_ROOT:-/srv/docs}
     networks:
       - engramia-net
