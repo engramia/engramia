@@ -2,55 +2,55 @@
   "metadata": {
     "benchmark": "LongMemEval",
     "version": "1.0.0",
-    "timestamp": "2026-04-21T15:55:41.845036Z",
+    "timestamp": "2026-04-21T17:18:27.094914Z",
     "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
-    "embedding_model": "all-MiniLM-L6-v2",
+    "embedding_model": "text-embedding-3-small",
     "total_tasks": 500,
     "description": "Engramia long-term memory recall across five dimensions: single-hop recall, multi-hop reasoning, temporal reasoning, knowledge updates, and absent-memory detection."
   },
   "results": {
     "engramia": {
       "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
-      "embedding_model": "all-MiniLM-L6-v2",
-      "timestamp": "2026-04-21T15:55:41.845036Z",
-      "overall": 0.922,
-      "total_correct": 461,
+      "embedding_model": "text-embedding-3-small",
+      "timestamp": "2026-04-21T17:18:27.094914Z",
+      "overall": 0.778,
+      "total_correct": 389,
       "total_tasks": 500,
       "dimensions": {
         "single_hop_recall": {
           "dimension": "single_hop_recall",
-          "score": 0.8333,
-          "correct": 100,
+          "score": 0.9083,
+          "correct": 109,
           "total": 120,
-          "duration_seconds": 2.26
+          "duration_seconds": 18.21
         },
         "multi_hop_reasoning": {
           "dimension": "multi_hop_reasoning",
           "score": 1.0,
           "correct": 100,
           "total": 100,
-          "duration_seconds": 2.28
+          "duration_seconds": 15.41
         },
         "temporal_reasoning": {
           "dimension": "temporal_reasoning",
-          "score": 0.84,
-          "correct": 84,
+          "score": 0.0,
+          "correct": 0,
           "total": 100,
-          "duration_seconds": 1.54
+          "duration_seconds": 15.24
         },
         "knowledge_updates": {
           "dimension": "knowledge_updates",
           "score": 1.0,
           "correct": 100,
           "total": 100,
-          "duration_seconds": 2.94
+          "duration_seconds": 15.59
         },
         "absent_memory_detection": {
           "dimension": "absent_memory_detection",
-          "score": 0.9625,
-          "correct": 77,
+          "score": 1.0,
+          "correct": 80,
           "total": 80,
-          "duration_seconds": 1.57
+          "duration_seconds": 16.85
         }
       }
     }
@@ -58,8 +58,8 @@
   "comparison": {
     "random_baseline": {
       "system": "random-recall (seed=42)",
-      "overall": 0.218,
-      "total_correct": 109,
+      "overall": 0.19,
+      "total_correct": 95,
       "total_tasks": 500,
       "dimensions": {
         "single_hop_recall": {
@@ -78,8 +78,8 @@
         },
         "temporal_reasoning": {
           "dimension": "temporal_reasoning",
-          "score": 0.17,
-          "correct": 17,
+          "score": 0.03,
+          "correct": 3,
           "total": 100,
           "duration_seconds": 0.0
         },
@@ -108,7 +108,7 @@
     "single_hop_threshold": 0.5,
     "single_hop_threshold_policy": "pre-registered, model-agnostic; frozen before first run",
     "noise_threshold_strategy": "auto-calibrated per run on a held-out NOISE_CALIBRATION_POOL disjoint from the evaluation pool \u2014 see _calibrate_noise_threshold",
-    "embedding_model": "all-MiniLM-L6-v2"
+    "embedding_model": "text-embedding-3-small"
   },
   "dataset_summary": {
     "total_tasks": 500,

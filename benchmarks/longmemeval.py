@@ -572,16 +572,26 @@ class LongMemEvalRunner:
 
         * ``eval_weighted=False`` — no quality bias in ranking.
         * Training patterns (seeded in order v1 → v2 → v3 per domain) have
-          ``Pattern.timestamp`` set monotonically by ``default_factory=time.time``,
-          so v3 is genuinely the most-recently stored per domain.
-        * A task passes only if top-1's ``pattern.task`` contains the v3 marker
-          AND its ``pattern.timestamp`` is the maximum among the returned
-          matches for that domain.
+          ``Pattern.timestamp`` set monotonically by ``default_factory=time.time``.
+        * A task passes only if top-1's ``pattern.task`` contains BOTH the
+          queried domain marker AND the ``v3`` marker — i.e. the system
+          returned *this* domain's newest version, not a v1/v2 of the same
+          domain or a v3 of an unrelated one.
 
-        Expected honest score on OpenAI ``text-embedding-3-small`` is meaningfully
-        below the former 100 %; that delta IS the measurement — it surfaces that
-        Engramia currently offers no recall-time recency signal beyond what the
-        embedding model itself extracts from the text.
+        Earlier iterations also checked that top-1's ``pattern.timestamp``
+        equalled the maximum across the returned matches. That check failed
+        systematically (0/100 on OpenAI) because ``recall(limit=3)`` returns
+        the top three across all 36 stored patterns, so whenever the second-
+        or third-place match came from a domain seeded later in the loop its
+        timestamp dominated — even when top-1 was the genuinely correct
+        domain's v3. The timestamp check added no signal beyond "v3 in text"
+        once ``on_duplicate="replace_with_better"`` made v1/v2 disappear at
+        learn time under high-similarity embeddings, so it was dropped.
+
+        Expected honest score is meaningfully below the former 100 %; that
+        delta IS the measurement — it surfaces that Engramia currently
+        offers no recall-time recency signal beyond what the embedding model
+        itself extracts from the stored task text.
         """
         result = DimensionResult(dimension="temporal_reasoning", total=len(tasks), correct=0)
         for task in tasks:
@@ -592,10 +602,9 @@ class LongMemEvalRunner:
             matches = mem.recall(task=task.query, limit=3, deduplicate=False, eval_weighted=False, readonly=True)
             hit = False
             if matches:
-                top = matches[0]
-                is_v3_text = " v3" in top.pattern.task
-                is_latest_stored = top.pattern.timestamp == max(m.pattern.timestamp for m in matches)
-                hit = is_v3_text and is_latest_stored
+                top_task = matches[0].pattern.task
+                domain_text = task.domain.replace("_", " ")
+                hit = domain_text in top_task and " v3" in top_task
             if hit:
                 result.correct += 1
             result.task_results.append({"task_id": task.task_id, "hit": hit})
