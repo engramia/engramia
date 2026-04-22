@@ -51,9 +51,7 @@ def send_email(
     """
     host = os.environ.get("ENGRAMIA_SMTP_HOST", "").strip()
     if not host:
-        raise EmailNotConfigured(
-            "ENGRAMIA_SMTP_HOST is not set. Configure SMTP to enable transactional email."
-        )
+        raise EmailNotConfigured("ENGRAMIA_SMTP_HOST is not set. Configure SMTP to enable transactional email.")
 
     port = int(os.environ.get("ENGRAMIA_SMTP_PORT", "587"))
     user = os.environ.get("ENGRAMIA_SMTP_USER", "").strip()

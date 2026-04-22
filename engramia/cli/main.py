@@ -935,7 +935,7 @@ def cleanup_unverified_users(
 
     sent_count = 0
     for row in reminder_rows:
-        user_id, email, name, created_at = str(row[0]), str(row[1]), row[2], row[3]
+        user_id, email, name = str(row[0]), str(row[1]), row[2]
         if dry_run:
             console.print(f"[yellow]DRY-RUN reminder → {email}[/yellow]")
             sent_count += 1

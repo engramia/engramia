@@ -40,6 +40,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import UTC
 from typing import Any, Literal
 
 from fastapi import APIRouter, Body, HTTPException, Request, status
@@ -471,8 +472,7 @@ def _create_verification_token(engine, user_id: str) -> str:
         # Invalidate any prior unconsumed tokens for this user.
         conn.execute(
             text(
-                "UPDATE email_verification_tokens SET consumed_at = now() "
-                "WHERE user_id = :uid AND consumed_at IS NULL"
+                "UPDATE email_verification_tokens SET consumed_at = now() WHERE user_id = :uid AND consumed_at IS NULL"
             ),
             {"uid": user_id},
         )
@@ -1073,9 +1073,7 @@ def verify(body: VerifyRequest, request: Request) -> dict:
 
         if row is None:
             log_event(AuditEvent.AUTH_FAILURE, reason="verify_token_not_found")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification link."
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification link.")
 
         user_id, expires_at, consumed_at, already_verified = row[0], row[1], row[2], bool(row[3])
 
@@ -1091,11 +1089,11 @@ def verify(body: VerifyRequest, request: Request) -> dict:
             )
 
         # expires_at is a timezone-aware datetime; compare against now().
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if expires_at < datetime.now(timezone.utc):
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at < datetime.now(UTC):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="This verification link has expired. Please request a new one.",
@@ -1106,10 +1104,7 @@ def verify(body: VerifyRequest, request: Request) -> dict:
             {"h": token_hash},
         )
         conn.execute(
-            text(
-                "UPDATE cloud_users SET email_verified = true, email_verified_at = now() "
-                "WHERE id = :uid"
-            ),
+            text("UPDATE cloud_users SET email_verified = true, email_verified_at = now() WHERE id = :uid"),
             {"uid": str(user_id)},
         )
 

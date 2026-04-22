@@ -9,4 +9,4 @@ Mailgun, Postfix, etc.) via standard env vars.
 
 from engramia.email.sender import EmailNotConfigured, send_email
 
-__all__ = ["send_email", "EmailNotConfigured"]
+__all__ = ["EmailNotConfigured", "send_email"]
