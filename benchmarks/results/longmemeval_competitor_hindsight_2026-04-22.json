@@ -1,0 +1,51 @@
+{
+  "metadata": {
+    "benchmark": "LongMemEval (Engramia synthetic) — competitor",
+    "timestamp": "2026-04-22T16:47:43.382441Z",
+    "system_name": "hindsight-client",
+    "system_version": "0.5.4",
+    "forced_mapping_note": "Hindsight combines semantic + keyword + graph + temporal retrieval with LLM-driven fact / entity extraction at retain time; each pattern is far more expensive to store than a single embedding. RecallResult carries no numeric similarity, so absent_memory_detection falls back to 'matches at all is a failure' — Hindsight almost always returns something from its graph + keyword paths, and will therefore score poorly on that dimension for reasons orthogonal to retrieval quality. No delete/reset API, so each adapter instance uses a fresh bank_id and accumulates server-side state.",
+    "noise_threshold": 0.35,
+    "pass_rules_note": "Pass rules loosened vs Engramia-native harness — single_hop drops the SINGLE_HOP_THRESHOLD comparison, knowledge_updates substitutes a text-level 'v3' check for the success_score check. See benchmarks/longmemeval_competitors.py module docstring for full rule table."
+  },
+  "overall": 0.622,
+  "total_correct": 311,
+  "total_tasks": 500,
+  "dimensions": {
+    "single_hop_recall": {
+      "dimension": "single_hop_recall",
+      "score": 0.95,
+      "correct": 114,
+      "total": 120,
+      "duration_seconds": 63.02
+    },
+    "multi_hop_reasoning": {
+      "dimension": "multi_hop_reasoning",
+      "score": 0.97,
+      "correct": 97,
+      "total": 100,
+      "duration_seconds": 38.11
+    },
+    "temporal_reasoning": {
+      "dimension": "temporal_reasoning",
+      "score": 0.59,
+      "correct": 59,
+      "total": 100,
+      "duration_seconds": 53.04
+    },
+    "knowledge_updates": {
+      "dimension": "knowledge_updates",
+      "score": 0.41,
+      "correct": 41,
+      "total": 100,
+      "duration_seconds": 61.63
+    },
+    "absent_memory_detection": {
+      "dimension": "absent_memory_detection",
+      "score": 0.0,
+      "correct": 0,
+      "total": 80,
+      "duration_seconds": 32.3
+    }
+  }
+}

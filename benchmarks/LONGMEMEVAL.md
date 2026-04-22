@@ -221,60 +221,97 @@ carries a ``forced_mapping_note`` in its emitted JSON because
 competitors' semantics rarely overlap Engramia's 1:1 — a single number
 without context is misleading.
 
-**Mem0 (v2.0.0, OSS, local Qdrant, 2026-04-22).** Run with OpenAI
-`text-embedding-3-small` embeddings (same as the Engramia column) and
-`add(infer=False)` so patterns are stored verbatim rather than through
-Mem0's default fact-extraction LLM pass. Pass rules loosened vs.
-Engramia-native (no SINGLE_HOP_THRESHOLD check; knowledge_updates
-substitutes a text-level "v3" check for the success_score ≥ 8.5
-check — Mem0 has no quality multiplier).
+Three backends benchmarked to date — Engramia 0.6.7 (native), Mem0
+OSS (local Qdrant), Hindsight (Docker server). All three columns
+use OpenAI `text-embedding-3-small` for embeddings / LLM work and
+the same 500-task synthetic suite. Pass rules loosened vs the
+Engramia-native harness (no SINGLE_HOP_THRESHOLD check;
+knowledge_updates substitutes a text-level "v3" check for the
+`success_score ≥ 8.5` check — competitors don't all expose a
+quality multiplier). Rule table: see
+[`benchmarks/longmemeval_competitors.py`](longmemeval_competitors.py)
+module docstring.
 
-| Dimension                | Engramia (post-audit OpenAI) | Mem0 (v2.0.0 local) | Random baseline |
-|--------------------------|-----------------------------:|--------------------:|----------------:|
-| Single-hop recall        |             90.8 % (109/120) |     97.5 % (117/120) |          3.3 % |
-| Multi-hop reasoning      |            100.0 % (100/100) |      81.0 % (81/100) |         15.0 % |
-| Temporal reasoning       |            100.0 % (100/100) |      26.0 % (26/100) |          3.0 % |
-| Knowledge updates        |            100.0 % (100/100) |       8.0 %  (8/100) |         41.0 % |
-| Absent-memory detection  |             100.0 %  (80/80) |       97.5 %  (78/80) |         40.0 % |
-| **Overall**              |         **97.8 % (489/500)** | **62.0 % (310/500)** | **19.0 %** |
+| Dimension                | Engramia 0.6.7 | Mem0 v2.0.0 | Hindsight 0.5.4 | Random baseline |
+|--------------------------|---------------:|------------:|----------------:|----------------:|
+| Single-hop recall        |  90.8 % (109/120) | 97.5 % (117/120) |   95.0 % (114/120) |          3.3 % |
+| Multi-hop reasoning      | 100.0 % (100/100) |  81.0 % (81/100) |    97.0 %  (97/100) |         15.0 % |
+| Temporal reasoning       | 100.0 % (100/100) |  26.0 % (26/100) |    59.0 %  (59/100) |          3.0 % |
+| Knowledge updates        | 100.0 % (100/100) |   8.0 %  (8/100) |    41.0 %  (41/100) |         41.0 % |
+| Absent-memory detection  |  100.0 %  (80/80) |  97.5 %  (78/80) |     0.0 %   (0/80) |         40.0 % |
+| **Overall**              | **97.8 % (489/500)** | **62.0 % (310/500)** | **62.2 % (311/500)** | **19.0 %** |
 
-Key observations:
+#### Cross-system notes
 
-* **Single-hop (97.5 %)** — higher than Engramia's 90.8 %, but
-  misleading on its own. Engramia's native harness also enforces
-  `similarity ≥ SINGLE_HOP_THRESHOLD = 0.50` on raw cosine; the
-  competitor harness drops that check because Mem0's Qdrant score
-  distribution is not on the same scale as Engramia's raw cosine.
-  Straight apples-to-apples, Mem0 would land lower here.
-* **Temporal (26 %)** — Mem0 has no recency_weight knob.
-  Engramia scores 100 % here because 0.6.7 added one
-  (see the "Temporal dimension" note above).
-* **Knowledge updates (8 %)** — *below* the 41 % random-recall floor.
-  Mem0's Qdrant HNSW appears to tie-break near-identical-embedding
-  patterns consistently by insertion order (v1 first, v3 last), so
-  v1 tends to win on these queries. The random-recall stub, by
-  contrast, uniformly samples across v1/v2/v3, hitting v3 in a
-  third of queries. The 8 % result is an honest measurement of
-  how Mem0 handles "three near-duplicate patterns with a quality
-  tier" — not a flattering one for this workload, but accurate.
-* **Absent-memory (97.5 %)** — comfortably above the 40 % random
-  floor. Mem0's Qdrant similarity for unrelated queries falls
-  below the 0.35 threshold in 97.5 % of cases, matching Engramia
-  closely on this dimension.
+* **Single-hop high scores need context.** Mem0 (97.5 %) and
+  Hindsight (95.0 %) appear to top Engramia here, but the
+  Engramia-native harness also enforces
+  `similarity ≥ SINGLE_HOP_THRESHOLD = 0.50` on raw cosine. The
+  competitor harness drops that check because competitor score
+  distributions are not on the same scale — Hindsight exposes no
+  similarity at all. Straight apples-to-apples with Engramia's
+  threshold included, both competitors would land lower.
+
+* **Multi-hop** (second-best after Engramia): Hindsight's graph
+  retrieval strategy helps here (97.0 %); Mem0 is pure vector so
+  it loses more often on the two-domains-in-one-query pattern
+  (81.0 %).
+
+* **Temporal** is where the architectural difference is starkest.
+  Engramia 100 % because `recall(recency_weight=1.0)` (0.6.7
+  feature) promotes the newest version under back-dated seed
+  timestamps. Hindsight 59 % from its "temporal" retrieval
+  strategy alone (no explicit caller knob; the server's internal
+  temporal reasoning fires automatically). Mem0 26 % — close to
+  its single_hop floor, no recency signal whatsoever.
+
+* **Knowledge updates**: Engramia 100 % (quality-weighted path
+  promotes v3). Hindsight 41 % — exactly matches the random-recall
+  floor, which means its retrieval is not preferring v3 over
+  v1/v2 on these queries. Mem0 8 % — *below* the random floor, a
+  Qdrant HNSW tie-break artefact (identical-embedding patterns
+  return in insertion order, so v1 wins).
+
+* **Absent-memory detection** exposes a fundamental architectural
+  mismatch for Hindsight: **0.0 %** because its recall always
+  fuses results from four strategies (semantic + keyword + graph
+  + temporal) and returns *something* for every query. Without a
+  numeric similarity to threshold on, the competitor harness
+  treats "any match returned" as a failure. This is not a
+  retrieval-quality deficiency — it is an API-shape mismatch, and
+  it is surfaced explicitly in Hindsight's
+  `forced_mapping_note`. For workloads where "should we answer
+  this at all?" needs to be inferable, Hindsight callers have to
+  reason about it out-of-band.
 
 Raw JSON:
-[`benchmarks/results/longmemeval_competitor_mem0_2026-04-22.json`](results/longmemeval_competitor_mem0_2026-04-22.json).
 
-**Hindsight (deferred).** Hindsight v0.5.0 ships as a client for a
-running server (`pip install hindsight-client`, plus a Docker-compose
-server stack). Rather than stand up Docker-compose inside the
-benchmark harness, the Hindsight adapter is tracked as follow-up
-work — same protocol as `Mem0Adapter`, new module
-`benchmarks/adapters/hindsight_adapter.py`. Open an issue if you
-have time-sensitive need for the number.
+* Mem0: [`benchmarks/results/longmemeval_competitor_mem0_2026-04-22.json`](results/longmemeval_competitor_mem0_2026-04-22.json)
+* Hindsight: [`benchmarks/results/longmemeval_competitor_hindsight_2026-04-22.json`](results/longmemeval_competitor_hindsight_2026-04-22.json)
 
-**Zep (deferred).** Same reasoning — chat-session memory with
-knowledge-graph extraction, farther from execution-memory than Mem0.
+Reproduce:
+
+```bash
+# Mem0 (no Docker needed, reuses your OPENAI_API_KEY)
+pip install 'mem0ai'
+python -m benchmarks.longmemeval_competitors \
+    --adapter mem0 \
+    --output results/longmemeval_competitor_mem0_YYYY-MM-DD.json
+
+# Hindsight (requires Docker running)
+docker run --rm -d --name hindsight-bench \
+    -p 8888:8888 -p 9999:9999 \
+    -e HINDSIGHT_API_LLM_API_KEY=$OPENAI_API_KEY \
+    ghcr.io/vectorize-io/hindsight:latest
+pip install hindsight-client
+python -m benchmarks.longmemeval_competitors \
+    --adapter hindsight \
+    --output results/longmemeval_competitor_hindsight_YYYY-MM-DD.json
+docker stop hindsight-bench
+```
+
+**Zep (deferred).** Chat-session memory with knowledge-graph
+extraction, farther from execution-memory than Mem0 or Hindsight.
 Adapter will be added when pilot outreach demands it.
 
 If you are a vendor whose system should appear here, open an issue or

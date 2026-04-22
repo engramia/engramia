@@ -312,7 +312,11 @@ def _load_adapter(name: str) -> MemoryAdapter:
         from benchmarks.adapters.mem0_adapter import Mem0Adapter
 
         return Mem0Adapter()
-    raise ValueError(f"Unknown adapter: {name!r}. Known: mem0")
+    if name == "hindsight":
+        from benchmarks.adapters.hindsight_adapter import HindsightAdapter
+
+        return HindsightAdapter()
+    raise ValueError(f"Unknown adapter: {name!r}. Known: mem0, hindsight")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -323,7 +327,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--adapter",
-        choices=["mem0"],
+        choices=["mem0", "hindsight"],
         required=True,
         help="Which competitor adapter to run.",
     )
