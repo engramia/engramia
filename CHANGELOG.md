@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Added — Closed-loop quality signal (survival vs ranking split)
+
+- **`Memory.refine_pattern(pattern_key, eval_score, *, task=None, feedback="")`** —
+  record a fresh quality observation against an existing pattern
+  without running an LLM evaluation. Appends to the eval store so
+  `eval_weighted` recall picks up the new evidence on the next call.
+  Intended for feedback loops where the caller judged pattern
+  usefulness externally (downstream task success, user rating, offline
+  eval pipeline). Does not mutate `Pattern.success_score`;
+  survival and ranking signals stay intentionally orthogonal.
+- **`Memory.evaluate(..., pattern_key=...)`** — optional keyword that
+  routes the evaluation result into the eval store under the caller-
+  supplied pattern key, so `eval_weighted` recall for that pattern
+  sees the updated median. Without the kwarg, the result is keyed by
+  `sha256(code)[:12]` — the pre-0.6.8 behaviour, preserved so
+  free-floating code can still be graded. Raises `ValidationError`
+  when `pattern_key` is set but the pattern does not exist.
+- **Agent Lifecycle Bench** — new `benchmarks/lifecycle.py` exercising
+  five closed-loop scenarios (improvement curve, deprecation speed,
+  conflict resolution, concept drift, signal-to-noise floor). Runs on
+  local sentence-transformer embeddings by default; `--real-l5`
+  opts the noise-rejection scenario into real `mem.evaluate()` calls.
+- **Survival vs ranking documentation** — `docs/concepts.md` and
+  `docs/api-reference.md` now explicitly split the two signal families
+  so readers don't conflate `mark_reused` / `run_aging` (survival)
+  with `eval_weighted` / `refine_pattern` / `recency_weight`
+  (ranking). A regression test (`tests/test_ranking_feedback.py`)
+  pins the decoupling so a future refactor can't accidentally merge
+  them.
+
 ### Added — Recency-aware recall + honest benchmark methodology
 
 - **`Memory.recall(recency_weight=..., recency_half_life_days=...)`** —

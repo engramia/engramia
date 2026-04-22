@@ -1,0 +1,119 @@
+{
+  "metadata": {
+    "benchmark": "AgentLifecycleBench",
+    "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
+    "embedding_model": "all-MiniLM-L6-v2 (local)",
+    "real_l5": false,
+    "timestamp": "2026-04-22T21:54:32.440811Z",
+    "scenarios_run": [
+      "L1_improvement_curve",
+      "L2_deprecation_speed",
+      "L3_conflict_resolution",
+      "L4_concept_drift",
+      "L5_noise_rejection"
+    ]
+  },
+  "results": [
+    {
+      "scenario": "L1_improvement_curve",
+      "engramia_score": 1.0,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": 3.0,
+      "feature_tested": "eval_weighted recall + accumulated quality evidence",
+      "pass_rule": "After 10 iterations of simulated feedback, top-1 must be the ground-truth best approach on at least 80% of tasks.",
+      "notes": [
+        "Random baseline is 1/3 (three candidates per task).",
+        "Uses _storage_patch to blend new quality observations with prior score; in production the same effect is produced by repeated `learn()` calls with on_duplicate='replace_with_better'."
+      ],
+      "raw_metrics": {
+        "iterations": 10,
+        "tasks": 12,
+        "correct": 12
+      },
+      "duration_seconds": 4.06
+    },
+    {
+      "scenario": "L2_deprecation_speed",
+      "engramia_score": 1.0,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": 2.0,
+      "feature_tested": "eval_weighted ranking demotes low success_score patterns",
+      "pass_rule": "≥80% of top-5 matches are from the non-deprecated set.",
+      "notes": [
+        "Simulates 'failure feedback received' by crashing success_score to 0.5.",
+        "In production the same effect comes from multiple failed `evaluate()` runs or manual `delete_pattern` when failures are severe enough."
+      ],
+      "raw_metrics": {
+        "good_top5": 50,
+        "total_top5": 50,
+        "good_patterns": 25,
+        "failed_patterns": 25,
+        "probe_queries": 10
+      },
+      "duration_seconds": 2.22
+    },
+    {
+      "scenario": "L3_conflict_resolution",
+      "engramia_score": 1.0,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": 2.0,
+      "feature_tested": "recency_weight knob + eval_weighted blending",
+      "pass_rule": "Average of (old wins at recency_weight=0, new wins at recency_weight=1) must be ≥ 80%. Random baseline is 50%.",
+      "notes": [
+        "Only systems with a per-query recency knob can flip the ranking; Mem0 and Hindsight have no such knob in their public API.",
+        "The intermediate recency_weight=0.3 reading is informational — its value depends on the cross-over point of this particular seed."
+      ],
+      "raw_metrics": {
+        "old_wins_at_recency_0": 1.0,
+        "new_wins_at_recency_1": 1.0,
+        "new_fraction_at_recency_0p3": 1.0,
+        "probes": 12
+      },
+      "duration_seconds": 1.94
+    },
+    {
+      "scenario": "L4_concept_drift",
+      "engramia_score": 1.0,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": 3.0,
+      "feature_tested": "refine_pattern (quality evidence) + recency_weight (query-time bias)",
+      "pass_rule": "≥60% of top-5 matches come from the fresh v3 cohort despite v2 being 2× more populous.",
+      "notes": [
+        "mark_reused and run_aging are survival signals and do NOT influence ranking; the test exercises eval-store refinement + recency_weight instead."
+      ],
+      "raw_metrics": {
+        "v2_seeded": 20,
+        "v3_seeded": 10,
+        "v3_top5": 50,
+        "total_top5": 50
+      },
+      "duration_seconds": 1.45
+    },
+    {
+      "scenario": "L5_noise_rejection",
+      "engramia_score": 1.0,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": 2.0,
+      "feature_tested": "mem.evaluate() + variance-aware re-scoring downgrades adversarial patterns",
+      "pass_rule": "After one re-evaluation round, top-10 must contain ≤ 20% red herrings (score ≥ 0.8).",
+      "notes": [
+        "mock mode — refine_pattern rewrites the eval-store record to the 'true' score (honest → 7.0, herring → 1.0); the eval_weighted multiplier picks up the latest record on the next recall call.",
+        "Pre-re-eval herring fraction in top-10: 0.0%",
+        "Post-re-eval herring fraction in top-10: 0.0%"
+      ],
+      "raw_metrics": {
+        "honest_seeded": 20,
+        "herring_seeded": 20,
+        "pre_herring_fraction": 0.0,
+        "post_herring_fraction": 0.0,
+        "pre_top10": 50,
+        "post_top10": 50
+      },
+      "duration_seconds": 1.7
+    }
+  ],
+  "summary": {
+    "mean_engramia_score": 1.0,
+    "mean_random_baseline": 0.4333
+  }
+}

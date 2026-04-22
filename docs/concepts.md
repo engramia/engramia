@@ -58,17 +58,49 @@ score *= 0.98 ^ weeks_since_creation
 
 When a score drops below 0.1, the pattern is pruned. This ensures the memory stays fresh — new, high-quality patterns naturally replace old ones.
 
-### Reuse boost
+### Reuse boost — a *survival* signal
 
-When a pattern is recalled and used, its reuse count increments and its effective score gets a **+0.1 boost** (capped at 10.0). Frequently useful patterns survive longer.
+When a pattern is recalled and used, its `reuse_count` increments and its
+`success_score` gets a **+0.1 boost** (capped at 10.0). This is a
+**survival signal**: the boost keeps the pattern above the aging prune
+threshold for longer. **It does NOT change ranking in
+`eval_weighted` recall.** Ranking is driven by the eval store (see
+below). Reuse boost and ranking are intentionally decoupled: popularity
+(reuse) and judged quality (evals) answer different questions.
 
-### Eval-weighted search
+### Eval-weighted search — the *ranking* signal
 
-When recalling patterns, similarity scores are multiplied by an **eval quality multiplier** in the range [0.5, 1.0]:
+When recalling patterns, similarity scores are multiplied by an
+**eval quality multiplier** in the range [0.5, 1.0]. The multiplier
+is driven by the **eval store** — a rolling log of quality
+observations keyed by `pattern_key`. Entry points that write to the
+eval store:
 
-- Patterns with consistently high eval scores get a multiplier close to 1.0
-- Patterns with low or no eval history get 0.75 (neutral)
-- This means high-quality patterns rank higher even if their embedding similarity is slightly lower
+- `learn()` records the score passed as `eval_score` when the pattern
+  is stored (or replaced under `on_duplicate="replace_with_better"`).
+- `evaluate(task, code, pattern_key=...)` appends a multi-evaluator
+  score tied to the given pattern. Without `pattern_key`, the score
+  is tied to a SHA-256 digest of the code — useful for evaluating
+  free-floating code but **not** visible to recall.
+- `refine_pattern(pattern_key, eval_score)` appends a quality
+  observation without running an LLM evaluation. Use this for
+  external feedback loops (downstream task success, user rating,
+  offline eval pipelines).
+
+The multiplier reads the **most recent** eval store entry for a given
+`pattern_key`. Callers can therefore improve or demote a pattern's
+ranking simply by appending a new observation — no storage surgery
+required.
+
+> **Survival vs ranking.** `mark_reused`, `run_aging`, and direct
+> `Pattern.success_score` mutations affect *survival* (whether a
+> pattern is still in storage). `eval_weighted` recall,
+> `refine_pattern`, and `evaluate(pattern_key=...)` affect *ranking*
+> (the order recall returns). The two are orthogonal — a highly
+> reused pattern does not automatically rank higher, and a high-
+> quality pattern does not automatically survive aging longer than a
+> low-quality one. Treating these as one coupled signal would mix
+> popularity with judged quality and confuse both.
 
 ### Feedback clustering
 

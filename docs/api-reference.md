@@ -143,6 +143,8 @@ mem.evaluate(
     code: str,
     output: str | None = None,
     num_evals: int = 3,
+    *,
+    pattern_key: str | None = None,
 ) -> EvalResult
 ```
 
@@ -156,6 +158,7 @@ Run N independent LLM evaluations and aggregate results.
 | `code` | `str` | — | Code to evaluate |
 | `output` | `str \| None` | `None` | Agent output |
 | `num_evals` | `int` | `3` | Number of parallel evaluations (1–10) |
+| `pattern_key` | `str \| None` | `None` | Pattern identifier to attach this evaluation to. When set, the result feeds directly into `eval_weighted` recall for that specific pattern — closing the learn → evaluate → improve loop. When `None` (default), the result is keyed by `sha256(code)[:12]`, preserving the pre-0.6.8 behaviour for free-floating code not tied to a stored pattern. |
 
 **Returns:** `EvalResult` with:
 
@@ -167,11 +170,64 @@ Run N independent LLM evaluations and aggregate results.
 | `feedback` | `str` | Feedback from the worst run |
 | `adversarial_detected` | `bool` | `True` if hardcoded output detected |
 
-**Raises:** `ProviderError` if no LLM configured.
+**Raises:** `ProviderError` if no LLM configured. `ValidationError` if `pattern_key` is provided but no pattern exists under that key.
 
 ```python
-result = mem.evaluate(task="Parse CSV", code=code, num_evals=3)
-print(f"Score: {result.median_score}/10, Variance: {result.variance:.2f}")
+# Evaluate a stored pattern — result feeds into its future recall ranking:
+matches = mem.recall("Parse CSV", limit=1)
+result = mem.evaluate(
+    task="Parse CSV",
+    code=matches[0].pattern.design["code"],
+    pattern_key=matches[0].pattern_key,
+)
+
+# Or evaluate free-floating code — keyed by sha256(code):
+result = mem.evaluate(task="Parse CSV", code=candidate_code)
+```
+
+---
+
+## refine_pattern()
+
+```python
+mem.refine_pattern(
+    pattern_key: str,
+    eval_score: float,
+    *,
+    task: str | None = None,
+    feedback: str = "",
+) -> None
+```
+
+Record a new quality observation against an existing pattern without
+running an LLM evaluation. Appends an entry to the eval store so the
+next `eval_weighted` recall call picks up the updated evidence.
+
+Typical callers: downstream task succeeded / failed; user rated a
+pattern via a UI; an offline eval pipeline produced a score and wants
+it reflected in the live memory.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `pattern_key` | `str` | — | The storage key of the pattern to refine. Obtain from `Match.pattern_key` on a prior `recall()`. |
+| `eval_score` | `float` | — | New quality observation, `[0.0, 10.0]`. The eval-weighted multiplier reads the most recent observation for this key. |
+| `task` | `str \| None` | `None` | Optional task description attached to the eval record; defaults to the pattern's own `task` field. |
+| `feedback` | `str` | `""` | Optional free-form note. Not consulted by ranking, but surfaces in `get_feedback` and evolution pipelines. |
+
+**Returns:** `None`. **Raises:** `ValidationError` if the key does not exist or the score is out of range.
+
+Does not mutate `Pattern.success_score` — survival signals
+(`reuse_count`, `success_score`, aging) remain orthogonal to ranking.
+See `concepts.md` for the full survival-vs-ranking model.
+
+```python
+# Downstream task used a pattern and succeeded — record positive evidence:
+matches = mem.recall("Parse CSV", limit=1)
+mem.refine_pattern(matches[0].pattern_key, 9.0, feedback="shipped to prod")
+
+# The next recall eval-weighted call already sees the boost:
+matches_after = mem.recall("Parse CSV", limit=1, eval_weighted=True)
+# matches_after[0].effective_score is higher than before
 ```
 
 ---

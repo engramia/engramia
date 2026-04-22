@@ -268,6 +268,8 @@ class Memory:
         code: str,
         output: str | None = None,
         num_evals: int = 3,
+        *,
+        pattern_key: str | None = None,
     ) -> EvalResult:
         """Run multi-evaluator scoring on agent code.
 
@@ -279,22 +281,91 @@ class Memory:
             code: Agent source code.
             output: Optional captured output from running the code.
             num_evals: Number of independent evaluator runs.
+            pattern_key: Optional pattern identifier under which the
+                evaluation is recorded in the eval store. When set, the
+                result feeds directly into ``eval_weighted`` recall for
+                that specific pattern — this is the path that closes the
+                learn → evaluate → improve loop. When omitted (default),
+                the evaluation is recorded under a SHA-256 digest of the
+                code, which preserves the pre-0.6.8 behaviour for
+                callers that evaluated free-floating code not tied to a
+                stored pattern. Raises ``ValidationError`` if the key
+                does not exist in storage.
 
         Returns:
             EvalResult with median score, variance, and feedback.
 
         Raises:
             RuntimeError: If no LLM provider was configured.
+            ValidationError: If ``pattern_key`` is provided but no
+                pattern exists under that key.
         """
         self._validate_task(task)
         self._validate_code(code)
         self._require_llm("evaluate")
+        if pattern_key is not None and self._storage.load(pattern_key) is None:
+            raise ValidationError(f"pattern_key {pattern_key!r} does not exist in storage")
         svc = EvaluationService(
             llm=cast("LLMProvider", self._llm),
             eval_store=self._eval_store,
             feedback_store=self._feedback_store,
         )
-        return svc.evaluate(task=task, code=code, output=output, num_evals=num_evals)
+        return svc.evaluate(
+            task=task,
+            code=code,
+            output=output,
+            num_evals=num_evals,
+            pattern_key=pattern_key,
+        )
+
+    def refine_pattern(
+        self,
+        pattern_key: str,
+        eval_score: float,
+        *,
+        task: str | None = None,
+        feedback: str = "",
+    ) -> None:
+        """Record a new quality observation against an existing pattern.
+
+        Appends a fresh eval record under ``pattern_key`` so
+        ``recall(..., eval_weighted=True)`` picks up the updated evidence
+        on the next call. Intended for feedback loops where the caller
+        judged pattern usefulness externally (user rating, offline
+        eval, downstream task success) without going through the
+        ``evaluate()`` LLM path.
+
+        Does not mutate ``Pattern.success_score``. Survival signals
+        (``reuse_count``, ``success_score``, aging decay) remain
+        orthogonal to ranking: this method is the ranking path.
+
+        Args:
+            pattern_key: Storage key of the pattern to refine — as
+                returned by ``Match.pattern_key`` on a prior recall.
+            eval_score: New quality observation, ``[0.0, 10.0]``. The
+                eval-weighted multiplier read back from the eval store
+                is driven by the most recent record for this key.
+            task: Optional task description to attach to the eval
+                record. When omitted, the pattern's own ``task`` is
+                used, which is usually what the caller wants.
+            feedback: Optional free-form feedback note stored alongside
+                the score. Not consulted by ranking, but surfaces in
+                ``get_feedback`` and evolution pipelines.
+
+        Raises:
+            ValidationError: If ``pattern_key`` does not exist or
+                ``eval_score`` is outside ``[0, 10]``.
+        """
+        self._validate_eval_score(eval_score)
+        data = self._storage.load(pattern_key)
+        if data is None:
+            raise ValidationError(f"pattern_key {pattern_key!r} does not exist in storage")
+        task_text = task if task is not None else data.get("task", "")
+        self._eval_store.save(
+            agent_name=pattern_key,
+            task=task_text,
+            scores={"overall": float(eval_score), "feedback": feedback},
+        )
 
     # ------------------------------------------------------------------
     # Compose

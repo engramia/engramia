@@ -43,6 +43,8 @@ class EvaluationService:
         code: str,
         output: str | None = None,
         num_evals: int = 3,
+        *,
+        pattern_key: str | None = None,
     ) -> EvalResult:
         """Run multi-evaluator scoring.
 
@@ -54,6 +56,13 @@ class EvaluationService:
             code: Agent source code.
             output: Optional captured output.
             num_evals: Number of independent evaluator runs.
+            pattern_key: When set, the eval record's ``agent_name`` is the
+                caller-supplied pattern key — so the result flows into
+                ``eval_weighted`` recall for that specific pattern. When
+                ``None`` (default, pre-0.6.8 behaviour), the agent name
+                falls back to a SHA-256 digest of the code, which keeps
+                ``evaluate()`` usable on free-floating code that is not
+                tied to a stored pattern.
 
         Returns:
             EvalResult with median score, variance, and feedback.
@@ -62,7 +71,7 @@ class EvaluationService:
         evaluator = MultiEvaluator(self._llm, num_evals=num_evals)
         result = evaluator.evaluate(task, code, output)
 
-        agent_key = hashlib.sha256(code.encode()).hexdigest()[:12]
+        agent_key = pattern_key if pattern_key is not None else hashlib.sha256(code.encode()).hexdigest()[:12]
         self._eval_store.save(
             agent_name=agent_key,
             task=task,
