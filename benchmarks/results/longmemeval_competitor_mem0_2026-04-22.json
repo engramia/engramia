@@ -1,0 +1,51 @@
+{
+  "metadata": {
+    "benchmark": "LongMemEval (Engramia synthetic) — competitor",
+    "timestamp": "2026-04-22T15:53:55.647557Z",
+    "system_name": "mem0-local",
+    "system_version": "2.0.0",
+    "forced_mapping_note": "Mem0 is a user-preference / fact-extraction memory system, not an execution-memory system. Patterns are stored verbatim via add(infer=False) to avoid the default LLM extraction pass; Mem0 has no eval_weighted or recency_weight equivalent, so those dimensions are exercised against raw Qdrant similarity alone. Returned scores are Qdrant-derived and not on the same distribution as Engramia's raw cosine — thresholds are dropped and pass rules check top-1 text content only.",
+    "noise_threshold": 0.35,
+    "pass_rules_note": "Pass rules loosened vs Engramia-native harness — single_hop drops the SINGLE_HOP_THRESHOLD comparison, knowledge_updates substitutes a text-level 'v3' check for the success_score check. See benchmarks/longmemeval_competitors.py module docstring for full rule table."
+  },
+  "overall": 0.62,
+  "total_correct": 310,
+  "total_tasks": 500,
+  "dimensions": {
+    "single_hop_recall": {
+      "dimension": "single_hop_recall",
+      "score": 0.975,
+      "correct": 117,
+      "total": 120,
+      "duration_seconds": 28.34
+    },
+    "multi_hop_reasoning": {
+      "dimension": "multi_hop_reasoning",
+      "score": 0.81,
+      "correct": 81,
+      "total": 100,
+      "duration_seconds": 21.18
+    },
+    "temporal_reasoning": {
+      "dimension": "temporal_reasoning",
+      "score": 0.26,
+      "correct": 26,
+      "total": 100,
+      "duration_seconds": 20.72
+    },
+    "knowledge_updates": {
+      "dimension": "knowledge_updates",
+      "score": 0.08,
+      "correct": 8,
+      "total": 100,
+      "duration_seconds": 23.34
+    },
+    "absent_memory_detection": {
+      "dimension": "absent_memory_detection",
+      "score": 0.975,
+      "correct": 78,
+      "total": 80,
+      "duration_seconds": 18.09
+    }
+  }
+}

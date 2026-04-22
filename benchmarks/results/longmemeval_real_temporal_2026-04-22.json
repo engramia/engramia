@@ -1,0 +1,2040 @@
+{
+  "metadata": {
+    "benchmark": "LongMemEval (Wu 2024) — Oracle variant",
+    "dataset_version": "longmemeval-cleaned / longmemeval_oracle.json",
+    "engramia_version": "0.6.6.dev0+gf2158879f.d20260404",
+    "embedding_model": "text-embedding-3-small",
+    "synth_model": "gpt-4o-mini",
+    "judge_model": "gpt-4o-mini",
+    "category_filter": "temporal-reasoning",
+    "timestamp": "2026-04-22T15:50:11.988297Z",
+    "duration_seconds": 682.79,
+    "reference_protocol_note": "Paper uses gpt-4o as judge; this run uses gpt-4o-mini. Judge verdict drift vs paper is expected but small on factual Q&A. Scale variant is Oracle (only evidence sessions supplied) — not testing haystack scale-out retrieval."
+  },
+  "results": {
+    "total_questions": 133,
+    "per_category": {
+      "temporal-reasoning": {
+        "total": 133,
+        "retrieval_hit": 133,
+        "retrieval_hit_rate": 1.0,
+        "qa_correct": 39,
+        "qa_scored": 133,
+        "qa_correct_rate": 0.2932
+      }
+    },
+    "overall_retrieval_hit_rate": 1.0,
+    "overall_qa_correct_rate": 0.2932
+  },
+  "cost_estimate_usd": {
+    "embedding_usd": 0.002382,
+    "synthesis_usd": 0.021141,
+    "judge_usd": 0.005877,
+    "total_usd": 0.0294
+  },
+  "raw_token_counts": {
+    "synth_in": 137296,
+    "synth_out": 910,
+    "judge_out": 5016,
+    "judge_in": 19116,
+    "embedding_in": 119109
+  },
+  "per_question": [
+    {
+      "question_id": "gpt4_2655b836",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_4be1b6b4_3",
+        "answer_4be1b6b4_2",
+        "answer_4be1b6b4_3",
+        "answer_4be1b6b4_2",
+        "answer_4be1b6b4_3"
+      ],
+      "hypothesis": "The first issue you had with your new car after its first service was with the GPS system on 3/22.",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference by stating that the issue was with the GPS system, which aligns with the reference answer."
+    },
+    {
+      "question_id": "gpt4_2487a7cb",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_1c6b85ea_2",
+        "answer_1c6b85ea_2",
+        "answer_1c6b85ea_1",
+        "answer_1c6b85ea_2",
+        "answer_1c6b85ea_2"
+      ],
+      "hypothesis": "You attended the 'Effective Time Management' workshop first.",
+      "judge_reason": "The hypothesis states that the 'Effective Time Management' workshop was attended first, which contradicts the reference answer that indicates the 'Data Analysis using Python' webinar was attended first."
+    },
+    {
+      "question_id": "gpt4_76048e76",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_b535969f_2",
+        "answer_b535969f_2",
+        "answer_b535969f_1",
+        "answer_b535969f_1",
+        "answer_b535969f_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the vehicle taken care of first in February, which is necessary to evaluate its factual content against the reference answer."
+    },
+    {
+      "question_id": "gpt4_2312f94c",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_5328c3c2_2",
+        "answer_5328c3c2_1",
+        "answer_5328c3c2_2",
+        "answer_5328c3c2_1",
+        "answer_5328c3c2_1"
+      ],
+      "hypothesis": "You got the Samsung Galaxy S22 first on February 20th.",
+      "judge_reason": "The hypothesis states that the Samsung Galaxy S22 was obtained first, which aligns with the reference answer. The additional detail about the date does not contradict the reference."
+    },
+    {
+      "question_id": "0bb5a684",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_e936197f_1",
+        "answer_e936197f_1",
+        "answer_e936197f_1",
+        "answer_e936197f_2",
+        "answer_e936197f_1"
+      ],
+      "hypothesis": "3 days.",
+      "judge_reason": "The hypothesis states 3 days, which contradicts the reference answer that indicates the preparation was done 7 days before the meeting."
+    },
+    {
+      "question_id": "08f4fc43",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_6ea1541e_2",
+        "answer_6ea1541e_1",
+        "answer_6ea1541e_2",
+        "answer_6ea1541e_2",
+        "answer_6ea1541e_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days between the Sunday mass and Ash Wednesday service, which is the focus of the question."
+    },
+    {
+      "question_id": "2c63a862",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_d39b7977_1",
+        "answer_d39b7977_2",
+        "answer_d39b7977_1",
+        "answer_d39b7977_1",
+        "answer_d39b7977_2"
+      ],
+      "hypothesis": "14 days",
+      "judge_reason": "The hypothesis states '14 days', which matches the reference answer that specifies it took 14 days to find a house loved after starting to work with Rachel."
+    },
+    {
+      "question_id": "gpt4_385a5000",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_7a4a93f1_2",
+        "answer_7a4a93f1_2",
+        "answer_7a4a93f1_2",
+        "answer_7a4a93f1_1",
+        "answer_7a4a93f1_1"
+      ],
+      "hypothesis": "Marigolds were started first on March 3rd.",
+      "judge_reason": "The hypothesis states that marigolds were started first, which directly contradicts the reference answer that states tomatoes were started first."
+    },
+    {
+      "question_id": "2a1811e2",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_1cc3cd0c_1",
+        "answer_1cc3cd0c_1",
+        "answer_1cc3cd0c_1",
+        "answer_1cc3cd0c_2",
+        "answer_1cc3cd0c_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days between the Hindu festival of Holi and the Sunday mass at St. Mary's Church."
+    },
+    {
+      "question_id": "bbf86515",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_b3763b6b_1",
+        "answer_b3763b6b_2",
+        "answer_b3763b6b_1",
+        "answer_b3763b6b_1",
+        "answer_b3763b6b_1"
+      ],
+      "hypothesis": "4 days before 'Rack Fest'.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating '4 days before Rack Fest', which aligns with the reference answer of '4 days'."
+    },
+    {
+      "question_id": "gpt4_5dcc0aab",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_099c1b6c_1",
+        "answer_099c1b6c_3",
+        "answer_099c1b6c_3",
+        "answer_099c1b6c_1",
+        "answer_099c1b6c_5"
+      ],
+      "hypothesis": "You cleaned your white Adidas sneakers last month.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that the white Adidas sneakers were cleaned last month."
+    },
+    {
+      "question_id": "gpt4_0b2f1d21",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_c4e5d969_2",
+        "answer_c4e5d969_2",
+        "answer_c4e5d969_1",
+        "answer_c4e5d969_2",
+        "answer_c4e5d969_2"
+      ],
+      "hypothesis": "The purchase of the coffee maker happened first.",
+      "judge_reason": "The hypothesis contradicts the reference answer, which states that the malfunction of the stand mixer happened first."
+    },
+    {
+      "question_id": "f0853d11",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_932ea3bf_2",
+        "answer_932ea3bf_2",
+        "answer_932ea3bf_2",
+        "answer_932ea3bf_1",
+        "answer_932ea3bf_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days between the two events, which is the main content of the reference answer."
+    },
+    {
+      "question_id": "gpt4_6ed717ea",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_d50a8a33_2",
+        "answer_d50a8a33_1",
+        "answer_d50a8a33_2",
+        "answer_d50a8a33_1",
+        "answer_d50a8a33_2"
+      ],
+      "hypothesis": "The training pads for Luna were purchased first.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that the training pads for Luna were purchased first."
+    },
+    {
+      "question_id": "gpt4_70e84552",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_b3070ec4_1",
+        "answer_b3070ec4_2",
+        "answer_b3070ec4_2",
+        "answer_b3070ec4_1",
+        "answer_b3070ec4_1"
+      ],
+      "hypothesis": "You completed trimming the goats' hooves first, two weeks ago, before fixing the fence three weeks ago.",
+      "judge_reason": "The hypothesis states that trimming the goats' hooves was completed first, which contradicts the reference answer that indicates fixing the fence was done first."
+    },
+    {
+      "question_id": "a3838d2b",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_4ffa04a2_1",
+        "answer_4ffa04a2_1",
+        "answer_4ffa04a2_1",
+        "answer_4ffa04a2_6",
+        "answer_4ffa04a2_6"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the number of charity events participated in, which is necessary to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_93159ced",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_e5131a1b_2",
+        "answer_e5131a1b_2",
+        "answer_e5131a1b_2",
+        "answer_e5131a1b_2",
+        "answer_e5131a1b_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information related to the duration of work before starting the current job at NovaTech, which is required to assess the factual content."
+    },
+    {
+      "question_id": "gpt4_2d58bcd6",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_3e11e0ae_1",
+        "answer_3e11e0ae_1",
+        "answer_3e11e0ae_2",
+        "answer_3e11e0ae_1",
+        "answer_3e11e0ae_1"
+      ],
+      "hypothesis": "You finished reading \"The Hate U Give\" first.",
+      "judge_reason": "The hypothesis accurately reflects the information provided in the reference answer."
+    },
+    {
+      "question_id": "gpt4_65aabe59",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_30dfe889_2",
+        "answer_30dfe889_1",
+        "answer_30dfe889_2",
+        "answer_30dfe889_1",
+        "answer_30dfe889_1"
+      ],
+      "hypothesis": "You set up the smart thermostat first.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that the smart thermostat was set up first."
+    },
+    {
+      "question_id": "982b5123",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_ab603dd5_1",
+        "answer_ab603dd5_2",
+        "answer_ab603dd5_1",
+        "answer_ab603dd5_2",
+        "answer_ab603dd5_2"
+      ],
+      "hypothesis": "2 months ago.",
+      "judge_reason": "The hypothesis states a different time frame (2 months ago) than the reference answer (5 months ago), which conveys a different factual content."
+    },
+    {
+      "question_id": "b9cfe692",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_5e3bb940_2",
+        "answer_5e3bb940_1",
+        "answer_5e3bb940_3",
+        "answer_5e3bb940_3",
+        "answer_5e3bb940_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the duration it took to finish the books, which is essential to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_4edbafa2",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_0a00c163_2",
+        "answer_0a00c163_2",
+        "answer_0a00c163_2",
+        "answer_0a00c163_1",
+        "answer_0a00c163_2"
+      ],
+      "hypothesis": "3rd of June",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference answer, just in a different format."
+    },
+    {
+      "question_id": "c8090214",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_70dc7d08_2",
+        "answer_70dc7d08_1",
+        "answer_70dc7d08_1",
+        "answer_70dc7d08_1",
+        "answer_70dc7d08_2"
+      ],
+      "hypothesis": "7 days",
+      "judge_reason": "The hypothesis states '7 days', which matches the reference answer that specifies '7 days' as the time before buying the iPhone 13 Pro."
+    },
+    {
+      "question_id": "gpt4_483dd43c",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_fb793c87_1",
+        "answer_fb793c87_2",
+        "answer_fb793c87_1",
+        "answer_fb793c87_1",
+        "answer_fb793c87_2"
+      ],
+      "hypothesis": "You started watching \"Game of Thrones\" first.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that 'Game of Thrones' was watched first."
+    },
+    {
+      "question_id": "e4e14d04",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_cf425855_1",
+        "answer_cf425855_2",
+        "answer_cf425855_2",
+        "answer_cf425855_1",
+        "answer_cf425855_1"
+      ],
+      "hypothesis": "You had been a member of 'Book Lovers Unite' for three weeks when you attended the meetup.",
+      "judge_reason": "The hypothesis states that the membership duration was three weeks, which contradicts the reference answer of two weeks."
+    },
+    {
+      "question_id": "c9f37c46",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_cdba3d9f_2",
+        "answer_cdba3d9f_1",
+        "answer_cdba3d9f_1",
+        "answer_cdba3d9f_1",
+        "answer_cdba3d9f_1"
+      ],
+      "hypothesis": "3 months",
+      "judge_reason": "The hypothesis states a duration of 3 months, which contradicts the reference answer of 2 months."
+    },
+    {
+      "question_id": "gpt4_2c50253f",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_9af4e346_2",
+        "answer_9af4e346_1",
+        "answer_9af4e346_2",
+        "answer_9af4e346_1",
+        "answer_9af4e346_2"
+      ],
+      "hypothesis": "7:00 AM",
+      "judge_reason": "The hypothesis states a different wake-up time (7:00 AM) than the reference answer (6:45 AM), which conveys different factual content."
+    },
+    {
+      "question_id": "dcfa8644",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_5e3eeb12_2",
+        "answer_5e3eeb12_1",
+        "answer_5e3eeb12_1",
+        "answer_5e3eeb12_1",
+        "answer_5e3eeb12_1"
+      ],
+      "hypothesis": "24 days.",
+      "judge_reason": "The hypothesis states 24 days, which contradicts the reference answer of 14 days."
+    },
+    {
+      "question_id": "gpt4_b4a80587",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_b9d9150e_2",
+        "answer_b9d9150e_2",
+        "answer_b9d9150e_1",
+        "answer_b9d9150e_2",
+        "answer_b9d9150e_1"
+      ],
+      "hypothesis": "The road trip to the coast happened first.",
+      "judge_reason": "The hypothesis contradicts the reference answer, which states that the arrival of the new prime lens happened first."
+    },
+    {
+      "question_id": "gpt4_9a159967",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_8a42fedf_1",
+        "answer_8a42fedf_1",
+        "answer_8a42fedf_2",
+        "answer_8a42fedf_3",
+        "answer_8a42fedf_3"
+      ],
+      "hypothesis": "United Airlines",
+      "judge_reason": "The hypothesis states the same airline as the reference answer without any contradiction."
+    },
+    {
+      "question_id": "cc6d1ec1",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_be73098b_2",
+        "answer_be73098b_2",
+        "answer_be73098b_2",
+        "answer_be73098b_1",
+        "answer_be73098b_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information related to the duration of bird watching mentioned in the reference answer."
+    },
+    {
+      "question_id": "gpt4_8c8961ae",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_72d9aa58_1",
+        "answer_72d9aa58_1",
+        "answer_72d9aa58_2",
+        "answer_72d9aa58_2",
+        "answer_72d9aa58_2"
+      ],
+      "hypothesis": "You took the trip to Europe with family first.",
+      "judge_reason": "The hypothesis contradicts the reference answer, which states that the solo trip to Thailand was taken first."
+    },
+    {
+      "question_id": "gpt4_d9af6064",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_da704e79_1",
+        "answer_da704e79_1",
+        "answer_da704e79_2",
+        "answer_da704e79_1",
+        "answer_da704e79_1"
+      ],
+      "hypothesis": "You set up the smart thermostat first on 2/10.",
+      "judge_reason": "The hypothesis states that the smart thermostat was set up first, which directly contradicts the reference answer that indicates the new router was set up first."
+    },
+    {
+      "question_id": "gpt4_7de946e7",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_6a78e959_2",
+        "answer_6a78e959_1",
+        "answer_6a78e959_2",
+        "answer_6a78e959_1",
+        "answer_6a78e959_1"
+      ],
+      "hypothesis": "You dealt with the skin tag removal first on February 22nd.",
+      "judge_reason": "The hypothesis states that the skin tag removal was dealt with first, which contradicts the reference answer that indicates the persistent cough was addressed first."
+    },
+    {
+      "question_id": "d01c6aa8",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_991d55e5_2",
+        "answer_991d55e5_1",
+        "answer_991d55e5_2",
+        "answer_991d55e5_2",
+        "answer_991d55e5_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information regarding the age when the individual moved to the United States, which is essential to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "993da5e2",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_54f0d6f9_2",
+        "answer_54f0d6f9_2",
+        "answer_54f0d6f9_1",
+        "answer_54f0d6f9_1",
+        "answer_54f0d6f9_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the duration of using the new area rug before rearranging the living room furniture."
+    },
+    {
+      "question_id": "a3045048",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_016f6bd4_1",
+        "answer_016f6bd4_2",
+        "answer_016f6bd4_1",
+        "answer_016f6bd4_2",
+        "answer_016f6bd4_1"
+      ],
+      "hypothesis": "30 days.",
+      "judge_reason": "The hypothesis states a different number of days (30) than the reference answer (7 days), which does not convey the same factual content."
+    },
+    {
+      "question_id": "gpt4_d31cdae3",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_8464304d_2",
+        "answer_8464304d_2",
+        "answer_8464304d_2",
+        "answer_8464304d_2",
+        "answer_8464304d_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the trips mentioned in the question."
+    },
+    {
+      "question_id": "gpt4_cd90e484",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_aa930b56_1",
+        "answer_aa930b56_2",
+        "answer_aa930b56_1",
+        "answer_aa930b56_2",
+        "answer_aa930b56_1"
+      ],
+      "hypothesis": "You used your new binoculars for three weeks before seeing the American goldfinches returning to the area.",
+      "judge_reason": "The hypothesis states that the binoculars were used for three weeks, which contradicts the reference answer that specifies two weeks."
+    },
+    {
+      "question_id": "gpt4_88806d6e",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_e60a93ff_1",
+        "answer_e60a93ff_1",
+        "answer_e60a93ff_1",
+        "answer_e60a93ff_1",
+        "answer_e60a93ff_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not address the question or provide any relevant information about who was met first."
+    },
+    {
+      "question_id": "gpt4_4cd9eba1",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_5fcca8bc_1",
+        "answer_5fcca8bc_2",
+        "answer_5fcca8bc_1",
+        "answer_5fcca8bc_1",
+        "answer_5fcca8bc_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information related to the reference answer, which states that the duration is one week."
+    },
+    {
+      "question_id": "gpt4_93f6379c",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_544fe66c_3",
+        "answer_544fe66c_3",
+        "answer_544fe66c_2",
+        "answer_544fe66c_1",
+        "answer_544fe66c_2"
+      ],
+      "hypothesis": "You joined \"Page Turners\" first.",
+      "judge_reason": "The hypothesis accurately reflects the factual content of the reference answer, stating that 'Page Turners' was joined first."
+    },
+    {
+      "question_id": "b29f3365",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_436d4309_2",
+        "answer_436d4309_2",
+        "answer_436d4309_1",
+        "answer_436d4309_1",
+        "answer_436d4309_1"
+      ],
+      "hypothesis": "Two weeks.",
+      "judge_reason": "The hypothesis states that the duration of guitar lessons was two weeks, which contradicts the reference answer that states it was four weeks."
+    },
+    {
+      "question_id": "gpt4_2f56ae70",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_7a36e820_1",
+        "answer_7a36e820_2",
+        "answer_7a36e820_1",
+        "answer_7a36e820_3",
+        "answer_7a36e820_3"
+      ],
+      "hypothesis": "Apple TV+",
+      "judge_reason": "The hypothesis states a different streaming service (Apple TV+) than the reference answer (Disney+), which conveys a different factual content."
+    },
+    {
+      "question_id": "6613b389",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_aaf71ce2_2",
+        "answer_aaf71ce2_2",
+        "answer_aaf71ce2_2",
+        "answer_aaf71ce2_2",
+        "answer_aaf71ce2_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the question or the reference answer."
+    },
+    {
+      "question_id": "gpt4_78cf46a3",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_5a78688d_2",
+        "answer_5a78688d_1",
+        "answer_5a78688d_1",
+        "answer_5a78688d_2",
+        "answer_5a78688d_2"
+      ],
+      "hypothesis": "The narrator received their new phone case about a month ago, and they lost their phone charger about two weeks ago. Therefore, the narrator received their new phone case first.",
+      "judge_reason": "The hypothesis accurately conveys that the narrator received their new phone case before losing their phone charger, which aligns with the reference answer."
+    },
+    {
+      "question_id": "gpt4_0a05b494",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_a68db5db_2",
+        "answer_a68db5db_2",
+        "answer_a68db5db_1",
+        "answer_a68db5db_2",
+        "answer_a68db5db_2"
+      ],
+      "hypothesis": "You met the woman selling jam at the farmer's market first.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that the woman selling jam at the farmer's market was met first."
+    },
+    {
+      "question_id": "gpt4_1a1dc16d",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_faad7d7a_1",
+        "answer_faad7d7a_1",
+        "answer_faad7d7a_2",
+        "answer_faad7d7a_2",
+        "answer_faad7d7a_1"
+      ],
+      "hypothesis": "The meeting with Rachel happened first on April 10th, before the pride parade on May 1st.",
+      "judge_reason": "The hypothesis states that the meeting with Rachel happened first, which aligns with the reference answer. The additional details about the specific dates do not contradict the reference."
+    },
+    {
+      "question_id": "gpt4_2f584639",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_11a8f823_2",
+        "answer_11a8f823_1",
+        "answer_11a8f823_1",
+        "answer_11a8f823_2",
+        "answer_11a8f823_1"
+      ],
+      "hypothesis": "The necklace for your sister was bought first.",
+      "judge_reason": "The hypothesis contradicts the reference answer, which states that the photo album for the mom was bought first."
+    },
+    {
+      "question_id": "gpt4_213fd887",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_53582e7e_2",
+        "answer_53582e7e_2",
+        "answer_53582e7e_1",
+        "answer_53582e7e_2",
+        "answer_53582e7e_2"
+      ],
+      "hypothesis": "You participated in the charity 5K run first, about a month ago, before joining the volleyball league two months ago.",
+      "judge_reason": "The hypothesis states that the charity 5K run was participated in first, which contradicts the reference answer that indicates the volleyball league was the first event."
+    },
+    {
+      "question_id": "gpt4_5438fa52",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_b10f3828_1",
+        "answer_b10f3828_2",
+        "answer_b10f3828_2",
+        "answer_b10f3828_2",
+        "answer_b10f3828_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any relevant information regarding the timing of the events mentioned in the reference answer."
+    },
+    {
+      "question_id": "gpt4_c27434e8",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_d8e33f5c_2",
+        "answer_d8e33f5c_2",
+        "answer_d8e33f5c_2",
+        "answer_d8e33f5c_1",
+        "answer_d8e33f5c_2"
+      ],
+      "hypothesis": "You started the Japanese Zero fighter plane model first.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that the Japanese Zero fighter plane model was started first."
+    },
+    {
+      "question_id": "gpt4_fe651585",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_65600ff6_2",
+        "answer_65600ff6_2",
+        "answer_65600ff6_1",
+        "answer_65600ff6_2",
+        "answer_65600ff6_2"
+      ],
+      "hypothesis": "Alex became a parent first.",
+      "judge_reason": "The hypothesis accurately reflects the information provided in the reference answer."
+    },
+    {
+      "question_id": "8c18457d",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_124f5dc3_1",
+        "answer_124f5dc3_2",
+        "answer_124f5dc3_2",
+        "answer_124f5dc3_2",
+        "answer_124f5dc3_1"
+      ],
+      "hypothesis": "7 days",
+      "judge_reason": "The hypothesis states '7 days', which matches the reference answer that specifies 7 days as the time passed."
+    },
+    {
+      "question_id": "gpt4_70e84552_abs",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_b3070ec4_abs_1",
+        "answer_b3070ec4_abs_1",
+        "answer_b3070ec4_abs_2",
+        "answer_b3070ec4_abs_2",
+        "answer_b3070ec4_abs_2"
+      ],
+      "hypothesis": "You fixed the fence first.",
+      "judge_reason": "The hypothesis states that the fence was fixed first, which contradicts the reference answer that indicates there is not enough information to determine the order of tasks."
+    },
+    {
+      "question_id": "gpt4_93159ced_abs",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_e5131a1b_abs_2",
+        "answer_e5131a1b_abs_2",
+        "answer_e5131a1b_abs_1",
+        "answer_e5131a1b_abs_2",
+        "answer_e5131a1b_abs_2"
+      ],
+      "hypothesis": "4 years and 3 months.",
+      "judge_reason": "The hypothesis states a specific duration of work experience, which contradicts the reference answer that indicates the person has not started working at Google yet."
+    },
+    {
+      "question_id": "982b5123_abs",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_ab603dd5_abs_1",
+        "answer_ab603dd5_abs_1",
+        "answer_ab603dd5_abs_2",
+        "answer_ab603dd5_abs_1",
+        "answer_ab603dd5_abs_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not convey the same factual content as the reference, as it does not address the question about the booking in Sacramento and instead states 'NOT_IN_CONTEXT', which is not relevant."
+    },
+    {
+      "question_id": "c8090214_abs",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_70dc7d08_abs_1",
+        "answer_70dc7d08_abs_1",
+        "answer_70dc7d08_abs_2",
+        "answer_70dc7d08_abs_1",
+        "answer_70dc7d08_abs_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis accurately reflects that the reference answer indicates a lack of sufficient information regarding the purchase of an iPad."
+    },
+    {
+      "question_id": "gpt4_c27434e8_abs",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_d8e33f5c_abs_1",
+        "answer_d8e33f5c_abs_1",
+        "answer_d8e33f5c_abs_1",
+        "answer_d8e33f5c_abs_2",
+        "answer_d8e33f5c_abs_2"
+      ],
+      "hypothesis": "Ferrari model.",
+      "judge_reason": "The hypothesis states 'Ferrari model' as the first project, but the reference answer indicates that there is not enough information to determine which project was started first."
+    },
+    {
+      "question_id": "gpt4_fe651585_abs",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_65600ff6_abs_2",
+        "answer_65600ff6_abs_2",
+        "answer_65600ff6_abs_2",
+        "answer_65600ff6_abs_1",
+        "answer_65600ff6_abs_1"
+      ],
+      "hypothesis": "Alex became a parent first.",
+      "judge_reason": "The hypothesis states that Alex became a parent first, which contradicts the reference answer that indicates there is insufficient information to determine who became a parent first."
+    },
+    {
+      "question_id": "gpt4_59149c77",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_d00ba6d0_2",
+        "answer_d00ba6d0_1",
+        "answer_d00ba6d0_2",
+        "answer_d00ba6d0_1",
+        "answer_d00ba6d0_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days between the visits, which is the main content of the reference answer."
+    },
+    {
+      "question_id": "gpt4_f49edff3",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_3e9fce53_3",
+        "answer_3e9fce53_1",
+        "answer_3e9fce53_2",
+        "answer_3e9fce53_1",
+        "answer_3e9fce53_1"
+      ],
+      "hypothesis": "The order from first to last is: the day I helped my cousin pick out stuff for her baby shower, the day I helped my friend prepare the nursery, and the day I ordered a customized phone case for my friend's birthday.",
+      "judge_reason": "The hypothesis presents a different order of events than the reference answer, contradicting the factual content."
+    },
+    {
+      "question_id": "71017276",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_0b4a8adc_1",
+        "answer_0b4a8adc_1",
+        "answer_0b4a8adc_1",
+        "answer_0b4a8adc_1",
+        "answer_0b4a8adc_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information related to the reference answer, which states that the meeting occurred 4 weeks ago."
+    },
+    {
+      "question_id": "b46e15ed",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_4bfcc250_1",
+        "answer_4bfcc250_1",
+        "answer_4bfcc250_3",
+        "answer_4bfcc250_3",
+        "answer_4bfcc250_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not convey any factual content related to the reference answer, which states that 2 months have passed since the events."
+    },
+    {
+      "question_id": "gpt4_fa19884c",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_ff201786_2",
+        "answer_ff201786_1",
+        "answer_ff201786_1",
+        "answer_ff201786_2",
+        "answer_ff201786_1"
+      ],
+      "hypothesis": "11 days",
+      "judge_reason": "The hypothesis states a different number of days (11) than the reference answer (6 days), which does not convey the same factual content."
+    },
+    {
+      "question_id": "0bc8ad92",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_f4ea84fb_3",
+        "answer_f4ea84fb_3",
+        "answer_f4ea84fb_3",
+        "answer_f4ea84fb_1",
+        "answer_f4ea84fb_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information related to the number of months that have passed since the last museum visit, which is essential to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "af082822",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_b51b6115_1",
+        "answer_b51b6115_1",
+        "answer_b51b6115_1",
+        "answer_b51b6115_1",
+        "answer_b51b6115_1"
+      ],
+      "hypothesis": "2 weeks ago.",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference answer, stating the same duration of time."
+    },
+    {
+      "question_id": "gpt4_4929293a",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_add9b012_2",
+        "answer_add9b012_1",
+        "answer_add9b012_1",
+        "answer_add9b012_1",
+        "answer_add9b012_2"
+      ],
+      "hypothesis": "Michael's engagement party happened first.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that Michael's engagement party happened first."
+    },
+    {
+      "question_id": "gpt4_b5700ca9",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_a17423e7_1",
+        "answer_a17423e7_1",
+        "answer_a17423e7_1",
+        "answer_a17423e7_1",
+        "answer_a17423e7_1"
+      ],
+      "hypothesis": "4 days ago.",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference answer, stating the same duration of time."
+    },
+    {
+      "question_id": "9a707b81",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_dba89487_2",
+        "answer_dba89487_1",
+        "answer_dba89487_2",
+        "answer_dba89487_1",
+        "answer_dba89487_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days since attending the baking class, which is essential to convey the same factual content as the reference."
+    },
+    {
+      "question_id": "gpt4_1d4ab0c9",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_febde667_1",
+        "answer_febde667_2",
+        "answer_febde667_2",
+        "answer_febde667_2",
+        "answer_febde667_1"
+      ],
+      "hypothesis": "26 days",
+      "judge_reason": "The hypothesis states 26 days, which does not match the reference answer of 24 days or the acceptable 25 days."
+    },
+    {
+      "question_id": "gpt4_e072b769",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_c19bd2bf_1",
+        "answer_c19bd2bf_1",
+        "answer_c19bd2bf_1",
+        "answer_c19bd2bf_1",
+        "answer_c19bd2bf_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the reference answer about the timeframe of using the cashback app 'Ibotta'."
+    },
+    {
+      "question_id": "0db4c65d",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_b9e32ff8_2",
+        "answer_b9e32ff8_1",
+        "answer_b9e32ff8_1",
+        "answer_b9e32ff8_2",
+        "answer_b9e32ff8_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days that had passed since finishing the book, which is the key factual content of the reference answer."
+    },
+    {
+      "question_id": "gpt4_1d80365e",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_661b711f_1",
+        "answer_661b711f_2",
+        "answer_661b711f_1",
+        "answer_661b711f_1",
+        "answer_661b711f_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the duration of the solo camping trip, which is essential to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_7f6b06db",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_5d8c99d3_1",
+        "answer_5d8c99d3_1",
+        "answer_5d8c99d3_2",
+        "answer_5d8c99d3_1",
+        "answer_5d8c99d3_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not convey any factual content related to the reference answer about the trips taken."
+    },
+    {
+      "question_id": "gpt4_6dc9b45b",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_c4df007f_1",
+        "answer_c4df007f_1",
+        "answer_c4df007f_1",
+        "answer_c4df007f_1",
+        "answer_c4df007f_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information regarding the time frame of attending the Seattle International Film Festival, which is essential to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_8279ba02",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_56521e65_1",
+        "answer_56521e65_1",
+        "answer_56521e65_1",
+        "answer_56521e65_1",
+        "answer_56521e65_1"
+      ],
+      "hypothesis": "10 days ago.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_18c2b244",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_c862f65a_1",
+        "answer_c862f65a_2",
+        "answer_c862f65a_2",
+        "answer_c862f65a_3",
+        "answer_c862f65a_3"
+      ],
+      "hypothesis": "1. 'I signed up for the rewards program at ShopRite'\n2. 'I used a Buy One Get One Free coupon on Luvs diapers at Walmart'\n3. 'I redeemed $12 cashback for a $10 Amazon gift card from Ibotta'",
+      "judge_reason": "The order of events in the hypothesis is reversed compared to the reference answer."
+    },
+    {
+      "question_id": "gpt4_a1b77f9c",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_e9ad5914_3",
+        "answer_e9ad5914_4",
+        "answer_e9ad5914_3",
+        "answer_e9ad5914_1",
+        "answer_e9ad5914_5"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information or context related to the question or the reference answer."
+    },
+    {
+      "question_id": "gpt4_1916e0ea",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_447052a5_2",
+        "answer_447052a5_1",
+        "answer_447052a5_2",
+        "answer_447052a5_1",
+        "answer_447052a5_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days between the cancellation of the FarmFresh subscription and the online grocery shopping from Instacart."
+    },
+    {
+      "question_id": "gpt4_7a0daae1",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_4d5490f1_2",
+        "answer_4d5490f1_1",
+        "answer_4d5490f1_2",
+        "answer_4d5490f1_2",
+        "answer_4d5490f1_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information related to the reference answer, which states that 1 week passed."
+    },
+    {
+      "question_id": "gpt4_468eb063",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_9b09d95b_1",
+        "answer_9b09d95b_1",
+        "answer_9b09d95b_1",
+        "answer_9b09d95b_1",
+        "answer_9b09d95b_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the reference answer about the number of days since meeting Emma."
+    },
+    {
+      "question_id": "gpt4_7abb270c",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_7093d898_5",
+        "answer_7093d898_6",
+        "answer_7093d898_5",
+        "answer_7093d898_1",
+        "answer_7093d898_6"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information about the order of the six museums visited, which is essential to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_1e4a8aeb",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_16bd5ea5_2",
+        "answer_16bd5ea5_2",
+        "answer_16bd5ea5_1",
+        "answer_16bd5ea5_2",
+        "answer_16bd5ea5_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days between the gardening workshop and the planting of the tomato saplings."
+    },
+    {
+      "question_id": "gpt4_4fc4f797",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_be07688f_1",
+        "answer_be07688f_1",
+        "answer_be07688f_1",
+        "answer_be07688f_2",
+        "answer_be07688f_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days between receiving feedback and testing the new suspension setup."
+    },
+    {
+      "question_id": "4dfccbf7",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_4bebc782_1",
+        "answer_4bebc782_1",
+        "answer_4bebc782_2",
+        "answer_4bebc782_1",
+        "answer_4bebc782_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information or context related to the question or reference answer."
+    },
+    {
+      "question_id": "gpt4_61e13b3c",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_e831a29f_1",
+        "answer_e831a29f_1",
+        "answer_e831a29f_2",
+        "answer_e831a29f_2",
+        "answer_e831a29f_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information regarding the time difference between selling homemade baked goods and participating in the Spring Fling Market, which is essential to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_45189cb4",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_e6c20e52_3",
+        "answer_e6c20e52_2",
+        "answer_e6c20e52_3",
+        "answer_e6c20e52_2",
+        "answer_e6c20e52_3"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not convey any factual content related to the reference answer about the order of sports events watched in January."
+    },
+    {
+      "question_id": "2ebe6c90",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_c9d35c00_2",
+        "answer_c9d35c00_1",
+        "answer_c9d35c00_2",
+        "answer_c9d35c00_2",
+        "answer_c9d35c00_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the time taken to finish 'The Nightingale', which is essential to convey the same factual content as the reference."
+    },
+    {
+      "question_id": "gpt4_e061b84f",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_8c64ce25_3",
+        "answer_8c64ce25_1",
+        "answer_8c64ce25_3",
+        "answer_8c64ce25_2",
+        "answer_8c64ce25_3"
+      ],
+      "hypothesis": "Midsummer 5K Run, charity soccer tournament.",
+      "judge_reason": "The hypothesis does not include the Spring Sprint Triathlon and does not convey the correct order of events as stated in the reference answer."
+    },
+    {
+      "question_id": "370a8ff4",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_61d1be50_1",
+        "answer_61d1be50_2",
+        "answer_61d1be50_1",
+        "answer_61d1be50_1",
+        "answer_61d1be50_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information related to the number of weeks that had passed since the flu recovery, which is essential to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_d6585ce8",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_f999b05b_3",
+        "answer_f999b05b_4",
+        "answer_f999b05b_5",
+        "answer_f999b05b_3",
+        "answer_f999b05b_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information or content related to the reference answer."
+    },
+    {
+      "question_id": "gpt4_4ef30696",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_f964cea3_2",
+        "answer_f964cea3_2",
+        "answer_f964cea3_1",
+        "answer_f964cea3_2",
+        "answer_f964cea3_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not address the question or provide any relevant information regarding the time between finishing 'The Nightingale' and starting 'The Hitchhiker's Guide to the Galaxy'."
+    },
+    {
+      "question_id": "gpt4_ec93e27f",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_e3aa84c4_1",
+        "answer_e3aa84c4_2",
+        "answer_e3aa84c4_1",
+        "answer_e3aa84c4_2",
+        "answer_e3aa84c4_2"
+      ],
+      "hypothesis": "train",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference answer, stating that the mode of transport used most recently is a train."
+    },
+    {
+      "question_id": "6e984301",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_88841f26_2",
+        "answer_88841f26_1",
+        "answer_88841f26_1",
+        "answer_88841f26_1",
+        "answer_88841f26_2"
+      ],
+      "hypothesis": "6 weeks",
+      "judge_reason": "The hypothesis states 6 weeks, which contradicts the reference answer of 3 weeks."
+    },
+    {
+      "question_id": "8077ef71",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_0dd54b7c_1",
+        "answer_0dd54b7c_1",
+        "answer_0dd54b7c_1",
+        "answer_0dd54b7c_1",
+        "answer_0dd54b7c_1"
+      ],
+      "hypothesis": "26 days ago.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that the event was attended 26 days ago."
+    },
+    {
+      "question_id": "gpt4_f420262c",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_d8a1af6b_3",
+        "answer_d8a1af6b_4",
+        "answer_d8a1af6b_2",
+        "answer_d8a1af6b_5",
+        "answer_d8a1af6b_5"
+      ],
+      "hypothesis": "American Airlines, United Airlines.",
+      "judge_reason": "The hypothesis does not include all the airlines mentioned in the reference answer and presents an incomplete order."
+    },
+    {
+      "question_id": "gpt4_8e165409",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_d97db962_2",
+        "answer_d97db962_1",
+        "answer_d97db962_2",
+        "answer_d97db962_1",
+        "answer_d97db962_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not address the question or provide any relevant information regarding the number of days between the two events."
+    },
+    {
+      "question_id": "gpt4_74aed68e",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_aed8cf17_2",
+        "answer_aed8cf17_1",
+        "answer_aed8cf17_2",
+        "answer_aed8cf17_2",
+        "answer_aed8cf17_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information or context related to the question or reference answer."
+    },
+    {
+      "question_id": "bcbe585f",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_43ba3965_1",
+        "answer_43ba3965_1",
+        "answer_43ba3965_1",
+        "answer_43ba3965_1",
+        "answer_43ba3965_1"
+      ],
+      "hypothesis": "4 weeks ago.",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference answer by stating '4 weeks ago', which directly corresponds to the reference answer of '4'."
+    },
+    {
+      "question_id": "gpt4_21adecb5",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_1e2369c9_2",
+        "answer_1e2369c9_1",
+        "answer_1e2369c9_1",
+        "answer_1e2369c9_1",
+        "answer_1e2369c9_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the question or the reference answer."
+    },
+    {
+      "question_id": "5e1b23de",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_c18d480b_1",
+        "answer_c18d480b_1",
+        "answer_c18d480b_1",
+        "answer_c18d480b_1",
+        "answer_c18d480b_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not provide any information related to the reference answer, which states that the photography workshop was attended 3 months ago."
+    },
+    {
+      "question_id": "gpt4_98f46fc6",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_5850de18_2",
+        "answer_5850de18_2",
+        "answer_5850de18_2",
+        "answer_5850de18_2",
+        "answer_5850de18_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the events mentioned in the reference answer."
+    },
+    {
+      "question_id": "gpt4_af6db32f",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_184c8f56_1",
+        "answer_184c8f56_1",
+        "answer_184c8f56_1",
+        "answer_184c8f56_1",
+        "answer_184c8f56_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the reference answer about the number of days since watching the Super Bowl."
+    },
+    {
+      "question_id": "eac54adc",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_0d4d0347_2",
+        "answer_0d4d0347_1",
+        "answer_0d4d0347_2",
+        "answer_0d4d0347_2",
+        "answer_0d4d0347_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days since the website launch, which is essential to convey the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_7ddcf75f",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_ad8a76cb_1",
+        "answer_ad8a76cb_1",
+        "answer_ad8a76cb_1",
+        "answer_ad8a76cb_1",
+        "answer_ad8a76cb_1"
+      ],
+      "hypothesis": "3 days ago.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that the trip was 3 days ago."
+    },
+    {
+      "question_id": "gpt4_a2d1d1f6",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_f6d6e33f_1",
+        "answer_f6d6e33f_1",
+        "answer_f6d6e33f_1",
+        "answer_f6d6e33f_1",
+        "answer_f6d6e33f_1"
+      ],
+      "hypothesis": "3 days ago.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_85da3956",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_581ab834_1",
+        "answer_581ab834_1",
+        "answer_581ab834_1",
+        "answer_581ab834_1",
+        "answer_581ab834_1"
+      ],
+      "hypothesis": "3 weeks ago.",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference answer, stating the same time frame of '3 weeks ago'."
+    },
+    {
+      "question_id": "gpt4_b0863698",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_550bb2d1_1",
+        "answer_550bb2d1_1",
+        "answer_550bb2d1_1",
+        "answer_550bb2d1_1",
+        "answer_550bb2d1_1"
+      ],
+      "hypothesis": "7 days ago.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer."
+    },
+    {
+      "question_id": "gpt4_68e94287",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_9793daa3_2",
+        "answer_9793daa3_1",
+        "answer_9793daa3_2",
+        "answer_9793daa3_1",
+        "answer_9793daa3_2"
+      ],
+      "hypothesis": "Your participation in the #PlankChallenge happened on 2023/03/15, while your post about the vegan chili recipe was made on 2023/03/09. Therefore, the vegan chili recipe post happened first.",
+      "judge_reason": "The hypothesis correctly states that the post about the vegan chili recipe happened before the participation in the #PlankChallenge, aligning with the reference answer."
+    },
+    {
+      "question_id": "gpt4_e414231e",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_e28c1f0d_2",
+        "answer_e28c1f0d_1",
+        "answer_e28c1f0d_1",
+        "answer_e28c1f0d_1",
+        "answer_e28c1f0d_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the number of days that passed, which is essential to convey the same factual content as the reference."
+    },
+    {
+      "question_id": "gpt4_7ca326fa",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_cf021b36_1",
+        "answer_cf021b36_1",
+        "answer_cf021b36_3",
+        "answer_cf021b36_1",
+        "answer_cf021b36_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any relevant information regarding the graduation order of Emma, Rachel, and Alex, which is essential to convey the same factual content as the reference."
+    },
+    {
+      "question_id": "gpt4_7bc6cf22",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_e22d6aef_1",
+        "answer_e22d6aef_1",
+        "answer_e22d6aef_1",
+        "answer_e22d6aef_1",
+        "answer_e22d6aef_1"
+      ],
+      "hypothesis": "12 days ago.",
+      "judge_reason": "The hypothesis accurately conveys the same factual content as the reference answer, stating that the reading occurred 12 days ago."
+    },
+    {
+      "question_id": "2ebe6c92",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_c9d35c00_2",
+        "answer_c9d35c00_2",
+        "answer_c9d35c00_1",
+        "answer_c9d35c00_1",
+        "answer_c9d35c00_2"
+      ],
+      "hypothesis": "\"The Nightingale\" by Kristin Hannah.",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference answer by stating the same book title and author."
+    },
+    {
+      "question_id": "gpt4_e061b84g",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_8c64ce26_3",
+        "answer_8c64ce26_3",
+        "answer_8c64ce26_3",
+        "answer_8c64ce26_2",
+        "answer_8c64ce26_2"
+      ],
+      "hypothesis": "charity soccer tournament",
+      "judge_reason": "The hypothesis accurately conveys the essential content of the reference answer by identifying the event as a charity soccer tournament."
+    },
+    {
+      "question_id": "71017277",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_0b4a8adc_1",
+        "answer_0b4a8adc_1",
+        "answer_0b4a8adc_1",
+        "answer_0b4a8adc_1",
+        "answer_0b4a8adc_1"
+      ],
+      "hypothesis": "Your aunt.",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference by identifying the same person (my aunt) who gave the jewelry."
+    },
+    {
+      "question_id": "b46e15ee",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_4bfcc251_1",
+        "answer_4bfcc251_1",
+        "answer_4bfcc251_4",
+        "answer_4bfcc251_1",
+        "answer_4bfcc251_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not convey any factual content related to the reference answer, which specifies the 'Walk for Hunger' charity event."
+    },
+    {
+      "question_id": "gpt4_d6585ce9",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_f999b05c_2",
+        "answer_f999b05c_2",
+        "answer_f999b05c_4",
+        "answer_f999b05c_4",
+        "answer_f999b05c_4"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not convey any factual content related to the reference answer, which specifies that the person went to the music event with their parents."
+    },
+    {
+      "question_id": "gpt4_1e4a8aec",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_16bd5ea6_2",
+        "answer_16bd5ea6_1",
+        "answer_16bd5ea6_1",
+        "answer_16bd5ea6_1",
+        "answer_16bd5ea6_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not convey any factual content related to the reference answer about planting tomato saplings."
+    },
+    {
+      "question_id": "gpt4_f420262d",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_d8a1af6c_2",
+        "answer_d8a1af6c_3",
+        "answer_d8a1af6c_4",
+        "answer_d8a1af6c_1",
+        "answer_d8a1af6c_4"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the reference answer, which states that the airline is American Airlines."
+    },
+    {
+      "question_id": "gpt4_59149c78",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_d00ba6d1_1",
+        "answer_d00ba6d1_2",
+        "answer_d00ba6d1_1",
+        "answer_d00ba6d1_1",
+        "answer_d00ba6d1_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the location of the art-related event mentioned in the reference answer."
+    },
+    {
+      "question_id": "gpt4_e414231f",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_e28c1f0e_1",
+        "answer_e28c1f0e_2",
+        "answer_e28c1f0e_1",
+        "answer_e28c1f0e_2",
+        "answer_e28c1f0e_2"
+      ],
+      "hypothesis": "You fixed the flat tire on your mountain bike.",
+      "judge_reason": "The hypothesis mentions fixing a mountain bike, while the reference answer specifies a road bike, which contradicts the factual content."
+    },
+    {
+      "question_id": "gpt4_4929293b",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_add9b013_1",
+        "answer_add9b013_1",
+        "answer_add9b013_2",
+        "answer_add9b013_2",
+        "answer_add9b013_2"
+      ],
+      "hypothesis": "You participated in your cousin's wedding as a bridesmaid.",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference by stating that the event was the cousin's wedding, and it adds a plausible detail about participating as a bridesmaid, which does not contradict the reference."
+    },
+    {
+      "question_id": "gpt4_468eb064",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_9b09d95b_1",
+        "answer_9b09d95b_1",
+        "answer_9b09d95b_1",
+        "answer_9b09d95b_1",
+        "answer_9b09d95b_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information about who was met during lunch, which is directly addressed in the reference answer."
+    },
+    {
+      "question_id": "gpt4_fa19884d",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_ff201787_2",
+        "answer_ff201787_2",
+        "answer_ff201787_2",
+        "answer_ff201787_1",
+        "answer_ff201787_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not convey any factual content related to the reference answer about a bluegrass band that features a banjo player."
+    },
+    {
+      "question_id": "9a707b82",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_dba89488_2",
+        "answer_dba89488_1",
+        "answer_dba89488_1",
+        "answer_dba89488_1",
+        "answer_dba89488_1"
+      ],
+      "hypothesis": "You baked a chocolate cake for your friend's birthday party.",
+      "judge_reason": "The hypothesis conveys the same factual content as the reference by stating that a chocolate cake was baked for a friend, which aligns with the reference answer."
+    },
+    {
+      "question_id": "eac54add",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_0d4d0348_2",
+        "answer_0d4d0348_1",
+        "answer_0d4d0348_2",
+        "answer_0d4d0348_2",
+        "answer_0d4d0348_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not convey any factual content related to the reference answer, which states a specific business milestone."
+    },
+    {
+      "question_id": "4dfccbf8",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_4bebc783_1",
+        "answer_4bebc783_1",
+        "answer_4bebc783_1",
+        "answer_4bebc783_2",
+        "answer_4bebc783_2"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis 'NOT_IN_CONTEXT' does not convey any factual content related to the reference answer about taking ukulele lessons with Rachel."
+    },
+    {
+      "question_id": "0bc8ad93",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_f4ea84fc_3",
+        "answer_f4ea84fc_3",
+        "answer_f4ea84fc_3",
+        "answer_f4ea84fc_2",
+        "answer_f4ea84fc_3"
+      ],
+      "hypothesis": "Yes, you visited with a friend.",
+      "judge_reason": "The hypothesis contradicts the reference answer, which states that you did not visit with a friend."
+    },
+    {
+      "question_id": "6e984302",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_88841f27_1",
+        "answer_88841f27_2",
+        "answer_88841f27_2",
+        "answer_88841f27_2",
+        "answer_88841f27_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not convey any factual content related to the reference answer, which specifies that the investment was in sculpting tools."
+    },
+    {
+      "question_id": "gpt4_8279ba03",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_56521e66_1",
+        "answer_56521e66_1",
+        "answer_56521e66_1",
+        "answer_56521e66_1",
+        "answer_56521e66_1"
+      ],
+      "hypothesis": "NOT_IN_CONTEXT",
+      "judge_reason": "The hypothesis does not provide any information related to the reference answer, which states that the kitchen appliance bought was a smoker."
+    },
+    {
+      "question_id": "gpt4_b5700ca0",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": true,
+      "recalled_session_ids": [
+        "answer_a17423e8_1",
+        "answer_a17423e8_1",
+        "answer_a17423e8_1",
+        "answer_a17423e8_1",
+        "answer_a17423e8_1"
+      ],
+      "hypothesis": "You attended the Maundy Thursday service at the Episcopal Church.",
+      "judge_reason": "The hypothesis specifies the type of religious activity (Maundy Thursday service) but does not contradict the reference answer, which states that the location was the Episcopal Church."
+    },
+    {
+      "question_id": "gpt4_68e94288",
+      "category": "temporal-reasoning",
+      "retrieval_hit": true,
+      "qa_correct": false,
+      "recalled_session_ids": [
+        "answer_9793daa4_1",
+        "answer_9793daa4_2",
+        "answer_9793daa4_2",
+        "answer_9793daa4_1",
+        "answer_9793daa4_1"
+      ],
+      "hypothesis": "You participated in the #PlankChallenge on 2023/03/15.",
+      "judge_reason": "The hypothesis specifies a date (2023/03/15) that does not align with the reference answer's timeframe of '5 days ago', which could be a different date."
+    }
+  ],
+  "batch_note": "merged from 2 batches (Q0-69, Q70-132) because one-shot run exceeded Bash 10-min timeout"
+}

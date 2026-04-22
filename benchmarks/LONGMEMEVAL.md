@@ -215,15 +215,126 @@ floor, not the absolute number.
 
 ### Competitor comparison
 
-**Not published yet.** Hindsight, Mem0, and Zep need to be re-evaluated on
-this same code path — with each system's stated default configuration — for
-any comparison to be apples-to-apples. The pre-release internal numbers
-(Hindsight 91.4 %, Mem0 82.2 %, Zep 77.8 %) lived under a methodology we no
-longer trust and have been dropped rather than carried forward.
+Re-produced on this exact harness via ``benchmarks/longmemeval_competitors.py``
+and the adapter protocol in ``benchmarks/adapters/``. Every competitor
+carries a ``forced_mapping_note`` in its emitted JSON because
+competitors' semantics rarely overlap Engramia's 1:1 — a single number
+without context is misleading.
 
-If you are a vendor whose system you believe should appear here, open an
-issue or email `support@engramia.dev` with reproduction instructions and we
+**Mem0 (v2.0.0, OSS, local Qdrant, 2026-04-22).** Run with OpenAI
+`text-embedding-3-small` embeddings (same as the Engramia column) and
+`add(infer=False)` so patterns are stored verbatim rather than through
+Mem0's default fact-extraction LLM pass. Pass rules loosened vs.
+Engramia-native (no SINGLE_HOP_THRESHOLD check; knowledge_updates
+substitutes a text-level "v3" check for the success_score ≥ 8.5
+check — Mem0 has no quality multiplier).
+
+| Dimension                | Engramia (post-audit OpenAI) | Mem0 (v2.0.0 local) | Random baseline |
+|--------------------------|-----------------------------:|--------------------:|----------------:|
+| Single-hop recall        |             90.8 % (109/120) |     97.5 % (117/120) |          3.3 % |
+| Multi-hop reasoning      |            100.0 % (100/100) |      81.0 % (81/100) |         15.0 % |
+| Temporal reasoning       |            100.0 % (100/100) |      26.0 % (26/100) |          3.0 % |
+| Knowledge updates        |            100.0 % (100/100) |       8.0 %  (8/100) |         41.0 % |
+| Absent-memory detection  |             100.0 %  (80/80) |       97.5 %  (78/80) |         40.0 % |
+| **Overall**              |         **97.8 % (489/500)** | **62.0 % (310/500)** | **19.0 %** |
+
+Key observations:
+
+* **Single-hop (97.5 %)** — higher than Engramia's 90.8 %, but
+  misleading on its own. Engramia's native harness also enforces
+  `similarity ≥ SINGLE_HOP_THRESHOLD = 0.50` on raw cosine; the
+  competitor harness drops that check because Mem0's Qdrant score
+  distribution is not on the same scale as Engramia's raw cosine.
+  Straight apples-to-apples, Mem0 would land lower here.
+* **Temporal (26 %)** — Mem0 has no recency_weight knob.
+  Engramia scores 100 % here because 0.6.7 added one
+  (see the "Temporal dimension" note above).
+* **Knowledge updates (8 %)** — *below* the 41 % random-recall floor.
+  Mem0's Qdrant HNSW appears to tie-break near-identical-embedding
+  patterns consistently by insertion order (v1 first, v3 last), so
+  v1 tends to win on these queries. The random-recall stub, by
+  contrast, uniformly samples across v1/v2/v3, hitting v3 in a
+  third of queries. The 8 % result is an honest measurement of
+  how Mem0 handles "three near-duplicate patterns with a quality
+  tier" — not a flattering one for this workload, but accurate.
+* **Absent-memory (97.5 %)** — comfortably above the 40 % random
+  floor. Mem0's Qdrant similarity for unrelated queries falls
+  below the 0.35 threshold in 97.5 % of cases, matching Engramia
+  closely on this dimension.
+
+Raw JSON:
+[`benchmarks/results/longmemeval_competitor_mem0_2026-04-22.json`](results/longmemeval_competitor_mem0_2026-04-22.json).
+
+**Hindsight (deferred).** Hindsight v0.5.0 ships as a client for a
+running server (`pip install hindsight-client`, plus a Docker-compose
+server stack). Rather than stand up Docker-compose inside the
+benchmark harness, the Hindsight adapter is tracked as follow-up
+work — same protocol as `Mem0Adapter`, new module
+`benchmarks/adapters/hindsight_adapter.py`. Open an issue if you
+have time-sensitive need for the number.
+
+**Zep (deferred).** Same reasoning — chat-session memory with
+knowledge-graph extraction, farther from execution-memory than Mem0.
+Adapter will be added when pilot outreach demands it.
+
+If you are a vendor whose system should appear here, open an issue or
+email `support@engramia.dev` with reproduction instructions and we
 will run your system on this harness in good faith.
+
+## LongMemEval (Wu 2024) real-dataset port
+
+Separate harness at `benchmarks/longmemeval_real.py` runs Engramia
+against the actual [LongMemEval](https://arxiv.org/abs/2410.10813)
+dataset (Wu et al. 2024). The synthetic 500-task suite above is
+Engramia-native and controls the ranking variables we want to
+isolate (similarity, quality, recency); the Wu 2024 port is the
+established external reference point the pilot-outreach docs can
+cite.
+
+**Variant.** Oracle (15 MB, only evidence sessions per question).
+Oracle supplies a pruned haystack — it is NOT a scale-out
+retrieval test. Engramia's storage scale-out story (`PostgresStorage`
++ pgvector + HNSW) runs the Wu 2024 S (115 k tokens) and M (1.5 M
+tokens) variants; those runs will land when we have wall-clock
+numbers worth publishing.
+
+**Protocol (per question).** Seed a fresh `Memory` with every
+`haystack_session` as one pattern per user/assistant turn pair
+(session dates written to `Pattern.timestamp`). Recall top-5 on the
+question, synthesize a hypothesis with `gpt-4o-mini` given the
+recalled context, judge the hypothesis against the ground-truth
+`answer` with another `gpt-4o-mini` call. Two metrics:
+
+* **Retrieval hit rate** — does the top-5 recall include any session
+  listed in `answer_session_ids`? Objective, cheap.
+* **Q&A correct rate** — does the LLM judge rate the synthesized
+  hypothesis as matching the reference answer? Subjective, captures
+  both retrieval quality AND the reasoner's ability to extract the
+  answer from the recalled context.
+
+**Results (temporal-reasoning category, 133 questions, 2026-04-22)**:
+
+| Metric | Score | Notes |
+|---|--:|---|
+| Retrieval hit rate | **100.0 %** (133/133) | Top-5 always includes at least one evidence session under Oracle. |
+| Q&A correct rate | **29.3 %** (39/133) | gpt-4o-mini judge against gpt-4o-mini synthesizer output. Mostly gated by the synthesizer's temporal-reasoning ability, not by recall. |
+
+Setup: OpenAI `text-embedding-3-small` (embeddings), `gpt-4o-mini`
+(synthesizer + judge), Oracle variant. Cost $0.029 per full temporal
+run. Paper uses `gpt-4o` as judge — expected minor divergence from
+the paper's reported numbers. Raw JSON:
+[`benchmarks/results/longmemeval_real_temporal_2026-04-22.json`](results/longmemeval_real_temporal_2026-04-22.json).
+
+**Interpretation.** The 100 % retrieval rate is a valid but
+not-very-discriminating measurement under Oracle — the haystack is
+tiny (average 2.2 evidence sessions per question), so any reasonable
+semantic retriever will find at least one. The S and M variants of
+Wu 2024, which bury the needles in 30+ and 500+ sessions of noise
+respectively, are where retrieval quality becomes discriminating;
+those runs are tracked separately.
+
+Other LongMemEval categories (multi-session, knowledge-update,
+single-session-*) will land in follow-up commits.
 
 ## Methodology
 

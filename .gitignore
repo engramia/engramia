@@ -38,6 +38,10 @@ credentials*
 # Brain data (local development)
 engramia_data/
 
+# Downloaded benchmark datasets (fetch from source — see
+# benchmarks/longmemeval_real.py for the huggingface_hub URL)
+benchmarks/data/
+
 # Test
 .pytest_cache/
 .pytest_tmp*/
