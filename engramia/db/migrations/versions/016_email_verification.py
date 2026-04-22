@@ -6,8 +6,8 @@ Adds a single-use verification token per pending user, plus a column to
 track when a reminder email has been sent so the cleanup job doesn't
 re-notify the same user on consecutive runs.
 
-Revision ID: 015
-Revises: 014
+Revision ID: 016
+Revises: 015
 Create Date: 2026-04-22
 """
 
@@ -16,8 +16,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "015"
-down_revision: str = "014"
+revision: str = "016"
+down_revision: str = "015"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
