@@ -51,6 +51,9 @@ app.add_typer(governance_app)
 auth_app = typer.Typer(name="auth", help="Cloud auth utilities (JWT key management).")
 app.add_typer(auth_app)
 
+cleanup_app = typer.Typer(name="cleanup", help="Scheduled maintenance tasks (intended for cron).")
+app.add_typer(cleanup_app)
+
 console = Console()
 
 
@@ -871,6 +874,134 @@ def auth_generate_keys(
     console.print(f"  ENGRAMIA_JWT_PUBLIC_KEY={public_path.resolve()}")
     console.print()
     console.print("[red]Keep private_key.pem secret — do not commit it to version control.[/red]")
+
+
+# ---------------------------------------------------------------------------
+# Cleanup commands (scheduled maintenance)
+# ---------------------------------------------------------------------------
+
+
+@cleanup_app.command("unverified-users")
+def cleanup_unverified_users(
+    reminder_after_days: int = typer.Option(
+        7, "--reminder-after-days", help="Send a reminder to users unverified this long."
+    ),
+    delete_after_days: int = typer.Option(
+        14, "--delete-after-days", help="Delete pending accounts unverified this long."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen without making changes."),
+) -> None:
+    """Notify and/or delete cloud users who never confirmed their email.
+
+    Two stages, run in this order:
+      1. Users signed up more than ``--reminder-after-days`` ago, not yet verified,
+         with no prior reminder → send reminder email + stamp ``reminder_sent_at``.
+      2. Users signed up more than ``--delete-after-days`` ago and still not verified
+         → cascade delete (user → tenant → project → api_keys via FK ON DELETE CASCADE).
+
+    Intended to run from cron once a day. Safe to run more frequently — both stages
+    are idempotent (the reminder column guards duplicate emails; delete is monotonic).
+    """
+    from sqlalchemy import create_engine, text
+
+    from engramia.api.cloud_auth import _create_verification_token, _dashboard_url
+    from engramia.email import EmailNotConfigured, send_email
+    from engramia.email.templates import reminder_email
+
+    db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
+    if not db_url:
+        console.print("[red]ENGRAMIA_DATABASE_URL not set[/red]")
+        raise typer.Exit(1)
+
+    if delete_after_days <= reminder_after_days:
+        console.print("[red]--delete-after-days must be greater than --reminder-after-days[/red]")
+        raise typer.Exit(1)
+
+    engine = create_engine(db_url, pool_pre_ping=True)
+
+    # -------- Stage 1: reminders --------
+    with engine.connect() as conn:
+        reminder_rows = conn.execute(
+            text(
+                "SELECT id, email, name, created_at FROM cloud_users "
+                "WHERE email_verified = false "
+                "  AND provider = 'credentials' "
+                "  AND created_at < now() - (:rd || ' days')::interval "
+                "  AND created_at > now() - (:dd || ' days')::interval "
+                "  AND reminder_sent_at IS NULL"
+            ),
+            {"rd": reminder_after_days, "dd": delete_after_days},
+        ).fetchall()
+
+    sent_count = 0
+    for row in reminder_rows:
+        user_id, email, name, created_at = str(row[0]), str(row[1]), row[2], row[3]
+        if dry_run:
+            console.print(f"[yellow]DRY-RUN reminder → {email}[/yellow]")
+            sent_count += 1
+            continue
+
+        token = _create_verification_token(engine, user_id)
+        verify_url = f"{_dashboard_url()}/verify?token={token}"
+        subject, text_body, html = reminder_email(
+            verify_url=verify_url,
+            recipient_name=name,
+            days_since_signup=reminder_after_days,
+            days_until_delete=delete_after_days - reminder_after_days,
+        )
+        try:
+            send_email(to=email, subject=subject, html=html, text=text_body)
+        except EmailNotConfigured:
+            console.print("[red]SMTP not configured — aborting reminder stage[/red]")
+            raise typer.Exit(1) from None
+        except Exception as exc:  # smtplib.SMTPException or network
+            console.print(f"[yellow]Reminder send failed for {email}: {exc}[/yellow]")
+            continue
+
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE cloud_users SET reminder_sent_at = now() WHERE id = :uid"),
+                {"uid": user_id},
+            )
+        sent_count += 1
+
+    # -------- Stage 2: deletes --------
+    with engine.connect() as conn:
+        delete_rows = conn.execute(
+            text(
+                "SELECT id, email, tenant_id FROM cloud_users "
+                "WHERE email_verified = false "
+                "  AND provider = 'credentials' "
+                "  AND created_at < now() - (:dd || ' days')::interval"
+            ),
+            {"dd": delete_after_days},
+        ).fetchall()
+
+    deleted_count = 0
+    for row in delete_rows:
+        user_id, email, tenant_id = str(row[0]), str(row[1]), str(row[2])
+        if dry_run:
+            console.print(f"[red]DRY-RUN delete → {email} (tenant {tenant_id})[/red]")
+            deleted_count += 1
+            continue
+
+        # Delete the user; FK cascade wipes email_verification_tokens.
+        # Tenant + project + api_keys are purged explicitly since cloud_users
+        # references tenants (not the other way around) so cascading stops at
+        # the user row.
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM cloud_users WHERE id = :uid"), {"uid": user_id})
+            conn.execute(text("DELETE FROM api_keys WHERE tenant_id = :tid"), {"tid": tenant_id})
+            conn.execute(text("DELETE FROM projects WHERE tenant_id = :tid"), {"tid": tenant_id})
+            conn.execute(text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_id})
+        console.print(f"[red]Deleted pending account:[/red] {email} (tenant {tenant_id})")
+        deleted_count += 1
+
+    console.print()
+    console.print(
+        f"[green]Cleanup complete[/green] — reminders sent: {sent_count}, accounts deleted: {deleted_count}"
+        f"{' (dry-run)' if dry_run else ''}"
+    )
 
 
 # ---------------------------------------------------------------------------

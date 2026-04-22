@@ -72,10 +72,13 @@ _FAKE_REG = {
 
 @patch("engramia.api.cloud_auth._create_registration", return_value=_FAKE_REG)
 @patch("engramia.api.cloud_auth._hash_password", return_value="$2b$fake")
-@patch("engramia.api.cloud_auth._make_token", return_value="tok.access")
+@patch("engramia.api.cloud_auth._create_verification_token", return_value="verify-token-xyz")
+@patch("engramia.api.cloud_auth._send_verification_email", return_value=True)
 @patch("engramia.api.audit.log_event")
 @patch("engramia.api.audit.log_db_event")
-def test_register_success(mock_log_db, mock_log, mock_tok, mock_hash, mock_create, client, mock_engine):
+def test_register_success(
+    mock_log_db, mock_log, mock_send, mock_vtok, mock_hash, mock_create, client, mock_engine
+):
     # No existing user with this email.
     mock_engine._conn.execute.return_value.fetchone.return_value = None
 
@@ -89,10 +92,37 @@ def test_register_success(mock_log_db, mock_log, mock_tok, mock_hash, mock_creat
     assert data["email"] == "test@example.com"
     assert data["tenant_id"] == "testuser"
     assert data["api_key"].startswith("engramia-")
-    assert "access_token" in data
-    assert "refresh_token" in data
+    # No tokens are returned until the user verifies their email.
+    assert "access_token" not in data
+    assert "refresh_token" not in data
+    assert data["verification_required"] is True
+    assert data["delivery_status"] == "sent"
     mock_hash.assert_called_once_with("SecurePass123!")
     mock_create.assert_called_once()
+    mock_send.assert_called_once()
+
+
+@patch("engramia.api.cloud_auth._create_registration", return_value=_FAKE_REG)
+@patch("engramia.api.cloud_auth._hash_password", return_value="$2b$fake")
+@patch("engramia.api.cloud_auth._create_verification_token", return_value="verify-token-xyz")
+@patch("engramia.api.cloud_auth._send_verification_email", return_value=False)
+@patch("engramia.api.audit.log_event")
+@patch("engramia.api.audit.log_db_event")
+def test_register_email_delivery_failed(
+    mock_log_db, mock_log, mock_send, mock_vtok, mock_hash, mock_create, client, mock_engine
+):
+    """Registration still succeeds when SMTP is down; frontend gets delivery_status=failed."""
+    mock_engine._conn.execute.return_value.fetchone.return_value = None
+
+    resp = client.post(
+        "/auth/register",
+        json={"email": "test@example.com", "password": "SecurePass123!"},
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["delivery_status"] == "failed"
+    assert data["verification_required"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -281,3 +311,183 @@ def test_register_rate_limit_called(mock_rate, client, mock_engine):
     # The mock raises a generic Exception which becomes a 500 in test mode,
     # but the important assertion is that _check_register_rate was called.
     mock_rate.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Login — email not verified
+# ---------------------------------------------------------------------------
+
+
+@patch("engramia.api.cloud_auth._verify_password", return_value=True)
+@patch("engramia.api.audit.log_event")
+def test_login_unverified_returns_structured_error(mock_log, mock_verify, client, mock_engine):
+    """Login with valid password but unverified email returns 403 with structured code."""
+    mock_engine._conn.execute.return_value.fetchone.return_value = (
+        "user-abc",
+        "$2b$fake_hash",
+        "testuser",
+        False,  # email_verified = False
+    )
+
+    resp = client.post(
+        "/auth/login",
+        json={"email": "test@example.com", "password": "SecurePass123!"},
+    )
+
+    assert resp.status_code == 403
+    body = resp.json()
+    # Dict-style detail bubbles up through the app-level exception handler
+    # as error_code; in the bare TestClient it lives under detail or
+    # error_code depending on whether _register_exception_handlers ran.
+    # Both the bare router and create_app() expose the same info, just at
+    # slightly different paths.
+    combined = str(body)
+    assert "email_not_verified" in combined
+    mock_log.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# /auth/verify
+# ---------------------------------------------------------------------------
+
+
+def _make_verify_row(expires_at, consumed_at=None, already_verified=False):
+    """Build the row tuple returned by the /verify SELECT: (user_id, expires_at, consumed_at, email_verified)."""
+    return ("user-abc", expires_at, consumed_at, already_verified)
+
+
+def test_verify_success(client, mock_engine):
+    from datetime import datetime, timedelta, timezone
+
+    future = datetime.now(timezone.utc) + timedelta(hours=12)
+    mock_engine._conn.execute.return_value.fetchone.return_value = _make_verify_row(future)
+
+    resp = client.post("/auth/verify", json={"token": "a" * 32})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["verified"] is True
+
+
+def test_verify_token_expired(client, mock_engine):
+    from datetime import datetime, timedelta, timezone
+
+    past = datetime.now(timezone.utc) - timedelta(hours=1)
+    mock_engine._conn.execute.return_value.fetchone.return_value = _make_verify_row(past)
+
+    resp = client.post("/auth/verify", json={"token": "a" * 32})
+
+    assert resp.status_code == 400
+    assert "expired" in resp.json()["detail"].lower()
+
+
+def test_verify_token_already_consumed(client, mock_engine):
+    from datetime import datetime, timedelta, timezone
+
+    future = datetime.now(timezone.utc) + timedelta(hours=12)
+    consumed = datetime.now(timezone.utc) - timedelta(minutes=5)
+    # User not yet verified but token already burned → 400 (rare race).
+    mock_engine._conn.execute.return_value.fetchone.return_value = _make_verify_row(
+        future, consumed_at=consumed, already_verified=False
+    )
+
+    resp = client.post("/auth/verify", json={"token": "a" * 32})
+
+    assert resp.status_code == 400
+    assert "already been used" in resp.json()["detail"].lower()
+
+
+def test_verify_token_idempotent_when_already_verified(client, mock_engine):
+    """Double-click on the verify link returns success if the user is already verified."""
+    from datetime import datetime, timedelta, timezone
+
+    future = datetime.now(timezone.utc) + timedelta(hours=12)
+    consumed = datetime.now(timezone.utc) - timedelta(minutes=5)
+    mock_engine._conn.execute.return_value.fetchone.return_value = _make_verify_row(
+        future, consumed_at=consumed, already_verified=True
+    )
+
+    resp = client.post("/auth/verify", json={"token": "a" * 32})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["verified"] is True
+    assert body["email_already_verified"] is True
+
+
+def test_verify_token_not_found(client, mock_engine):
+    mock_engine._conn.execute.return_value.fetchone.return_value = None
+
+    resp = client.post("/auth/verify", json={"token": "a" * 32})
+
+    assert resp.status_code == 400
+    assert "invalid" in resp.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# /auth/resend-verification
+# ---------------------------------------------------------------------------
+
+
+@patch("engramia.api.cloud_auth._check_resend_rate")
+@patch("engramia.api.cloud_auth._create_verification_token", return_value="new-token")
+@patch("engramia.api.cloud_auth._send_verification_email", return_value=True)
+def test_resend_verification_success(mock_send, mock_vtok, mock_rate, client, mock_engine):
+    # Unverified user exists.
+    mock_engine._conn.execute.return_value.fetchone.return_value = (
+        "user-abc",
+        "Test User",
+        False,
+    )
+
+    resp = client.post("/auth/resend-verification", json={"email": "test@example.com"})
+
+    assert resp.status_code == 202
+    mock_send.assert_called_once()
+
+
+@patch("engramia.api.cloud_auth._check_resend_rate")
+@patch("engramia.api.cloud_auth._send_verification_email")
+def test_resend_verification_unknown_email_returns_202(mock_send, mock_rate, client, mock_engine):
+    """Unknown email returns 202 without sending — account-enumeration protection."""
+    mock_engine._conn.execute.return_value.fetchone.return_value = None
+
+    resp = client.post("/auth/resend-verification", json={"email": "ghost@example.com"})
+
+    assert resp.status_code == 202
+    mock_send.assert_not_called()
+
+
+@patch("engramia.api.cloud_auth._check_resend_rate")
+@patch("engramia.api.cloud_auth._send_verification_email")
+def test_resend_verification_already_verified_silent(mock_send, mock_rate, client, mock_engine):
+    """Already-verified users get 202 with no email sent — avoids leaking verification state."""
+    mock_engine._conn.execute.return_value.fetchone.return_value = (
+        "user-abc",
+        "Test User",
+        True,  # email_verified = True
+    )
+
+    resp = client.post("/auth/resend-verification", json={"email": "verified@example.com"})
+
+    assert resp.status_code == 202
+    mock_send.assert_not_called()
+
+
+def test_resend_verification_invalid_email_format(client, mock_engine):
+    """Malformed email short-circuits before DB access — still returns 202 (enumeration protection)."""
+    resp = client.post("/auth/resend-verification", json={"email": "not-an-email"})
+    assert resp.status_code == 202
+
+
+def test_resend_verification_rate_limit():
+    """The rate limiter raises 429 after 3 calls within a 60-second window."""
+    from engramia.api.cloud_auth import _check_resend_rate
+
+    # Burn 3 slots for the same (IP, email) within a minute — should be fine.
+    for _ in range(3):
+        _check_resend_rate("1.2.3.4", "burst@example.com")
+    # 4th raises.
+    with pytest.raises(Exception) as exc:
+        _check_resend_rate("1.2.3.4", "burst@example.com")
+    assert "Too many" in str(exc.value) or "429" in str(exc.value)

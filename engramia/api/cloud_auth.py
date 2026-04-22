@@ -389,6 +389,32 @@ def _check_login_rate(ip: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Rate limiting: /auth/resend-verification — max 3 requests/minute per (IP, email)
+# ---------------------------------------------------------------------------
+
+_resend_rate: collections.OrderedDict[tuple[str, str, int], int] = collections.OrderedDict()
+_resend_rate_lock = threading.Lock()
+_RESEND_RATE_LIMIT = 3
+_RESEND_RATE_WINDOW = 60  # seconds
+
+
+def _check_resend_rate(ip: str, email: str) -> None:
+    window = int(time.time()) // _RESEND_RATE_WINDOW
+    key = (ip, email, window)
+    with _resend_rate_lock:
+        count = _resend_rate.get(key, 0) + 1
+        _resend_rate[key] = count
+        stale = [(i, e, w) for i, e, w in list(_resend_rate) if w < window - 1]
+        for sk in stale:
+            _resend_rate.pop(sk, None)
+    if count > _RESEND_RATE_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many resend attempts. Please try again in a minute.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # DB helpers
 # ---------------------------------------------------------------------------
 
@@ -410,6 +436,90 @@ def _generate_api_key() -> tuple[str, str, str]:
     display_prefix = f"engramia-{suffix[:8]}..."
     key_hash = hashlib.sha256(full_key.encode()).hexdigest()
     return full_key, display_prefix, key_hash
+
+
+# ---------------------------------------------------------------------------
+# Email verification tokens
+# ---------------------------------------------------------------------------
+
+#: Lifetime of a freshly-issued email verification token.
+_VERIFY_TOKEN_TTL_SECONDS = 24 * 3600
+
+
+def _dashboard_url() -> str:
+    """Return the frontend origin used in verification email links.
+
+    Falls back to ``http://localhost:3000`` so local development still works
+    without the env var. Production/staging must set ``ENGRAMIA_DASHBOARD_URL``.
+    """
+    return os.environ.get("ENGRAMIA_DASHBOARD_URL", "http://localhost:3000").rstrip("/")
+
+
+def _create_verification_token(engine, user_id: str) -> str:
+    """Issue a single-use verification token for ``user_id``.
+
+    Invalidates any previously-issued unconsumed tokens for this user so only
+    the most recent one remains valid. Returns the plaintext token to embed in
+    the outgoing email; only its SHA-256 hash is persisted.
+    """
+    from sqlalchemy import text
+
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    with engine.begin() as conn:
+        # Invalidate any prior unconsumed tokens for this user.
+        conn.execute(
+            text(
+                "UPDATE email_verification_tokens SET consumed_at = now() "
+                "WHERE user_id = :uid AND consumed_at IS NULL"
+            ),
+            {"uid": user_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO email_verification_tokens (token_hash, user_id, expires_at) "
+                "VALUES (:h, :uid, now() + (:ttl || ' seconds')::interval)"
+            ),
+            {"h": token_hash, "uid": user_id, "ttl": _VERIFY_TOKEN_TTL_SECONDS},
+        )
+    return token
+
+
+def _send_verification_email(
+    *,
+    email: str,
+    name: str | None,
+    token: str,
+) -> bool:
+    """Attempt to send a verification email. Returns True on success.
+
+    Silently swallows SMTP failures and EmailNotConfigured — the caller should
+    surface a ``delivery_status`` to the user so they can request a resend if
+    the email never arrives. This keeps registration usable even when SMTP is
+    temporarily unhealthy.
+    """
+    from engramia.email import EmailNotConfigured, send_email
+    from engramia.email.templates import verification_email
+
+    verify_url = f"{_dashboard_url()}/verify?token={token}"
+    subject, text, html = verification_email(
+        verify_url=verify_url,
+        recipient_name=name,
+        expires_hours=_VERIFY_TOKEN_TTL_SECONDS // 3600,
+    )
+    try:
+        send_email(to=email, subject=subject, html=html, text=text)
+        return True
+    except EmailNotConfigured:
+        _log.warning(
+            "Verification email not sent: SMTP not configured. User %s must request a resend.",
+            email,
+        )
+        return False
+    except Exception as exc:  # smtplib.SMTPException or network issue
+        _log.error("Failed to send verification email to %s: %s", email, exc)
+        return False
 
 
 def _make_tenant_slug(email_prefix: str, engine) -> str:
@@ -627,6 +737,30 @@ class RegisterResponse(BaseModel):
     api_key: str
 
 
+class CredentialsRegisterResponse(BaseModel):
+    """Response for password-based registration.
+
+    No tokens are issued — the user must verify their email first. ``delivery_status``
+    tells the frontend whether the verification email was actually dispatched so it
+    can prompt a resend when SMTP is temporarily unhealthy.
+    """
+
+    user_id: str
+    email: str
+    tenant_id: str
+    api_key: str
+    verification_required: bool = True
+    delivery_status: Literal["sent", "failed"]
+
+
+class VerifyRequest(BaseModel):
+    token: str = Field(..., min_length=16, max_length=128)
+
+
+class ResendVerificationRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254)
+
+
 class LoginResponse(BaseModel):
     user_id: str
     email: str
@@ -658,16 +792,17 @@ class LogoutRequest(BaseModel):
 
 @router.post(
     "/register",
-    response_model=RegisterResponse,
+    response_model=CredentialsRegisterResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new cloud user",
     description=(
-        "Creates a user account with email/password. "
-        "Automatically provisions a new tenant, 'default' project, and API key. "
+        "Creates a user account with email/password. Provisions a tenant, 'default' project "
+        "and API key, then sends an email verification link. No access/refresh tokens are "
+        "returned — the user must click the link before logging in. "
         "Rate-limited to 5 requests/minute per IP."
     ),
 )
-def register(body: RegisterRequest, request: Request) -> RegisterResponse:
+def register(body: RegisterRequest, request: Request) -> CredentialsRegisterResponse:
     ip = request.client.host if request.client else "unknown"
     _check_register_rate(ip)
 
@@ -700,8 +835,8 @@ def register(body: RegisterRequest, request: Request) -> RegisterResponse:
         provider_id=None,
     )
 
-    access_token = _make_token(user_id=result["user_id"], tenant_id=result["tenant_id"], email=email)
-    refresh_token = _make_token(user_id=result["user_id"], tenant_id=result["tenant_id"], email=email, is_refresh=True)
+    token = _create_verification_token(engine, result["user_id"])
+    delivered = _send_verification_email(email=email, name=body.name, token=token)
 
     log_event(AuditEvent.KEY_CREATED, key_id=result["user_id"], source="cloud_register", ip=ip)
     log_db_event(
@@ -713,15 +848,20 @@ def register(body: RegisterRequest, request: Request) -> RegisterResponse:
         resource_id=result["user_id"],
         ip_address=ip,
     )
-    _log.info("Cloud user registered: %s tenant=%s", email, result["tenant_id"])
+    _log.info(
+        "Cloud user registered: %s tenant=%s verification_email_sent=%s",
+        email,
+        result["tenant_id"],
+        delivered,
+    )
 
-    return RegisterResponse(
+    return CredentialsRegisterResponse(
         user_id=result["user_id"],
         email=email,
         tenant_id=result["tenant_id"],
-        access_token=access_token,
-        refresh_token=refresh_token,
         api_key=result["api_key"],
+        verification_required=True,
+        delivery_status="sent" if delivered else "failed",
     )
 
 
@@ -754,10 +894,15 @@ def login(body: LoginRequest, request: Request) -> LoginResponse:
         log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="wrong_password")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
 
-    # TODO: send verification email if not yet verified
     if not email_verified:
         log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="email_not_verified")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Please verify your email first.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error_code": "email_not_verified",
+                "detail": "Please verify your email first. Check your inbox or request a new verification link.",
+            },
+        )
 
     with engine.begin() as conn:
         conn.execute(
@@ -893,6 +1038,130 @@ def oauth_login(body: OAuthRequest, request: Request) -> RegisterResponse:
         refresh_token=refresh_token,
         api_key=result["api_key"],
     )
+
+
+@router.post(
+    "/verify",
+    status_code=status.HTTP_200_OK,
+    summary="Confirm an email verification token",
+    description=(
+        "Consumes a single-use token issued by /auth/register or /auth/resend-verification "
+        "and marks the associated cloud user as email-verified. Tokens expire 24 hours "
+        "after issue. On success the frontend should redirect to /login — no JWTs are "
+        "issued here (the user still needs to log in with their password)."
+    ),
+)
+def verify(body: VerifyRequest, request: Request) -> dict:
+    from sqlalchemy import text
+
+    from engramia.api.audit import AuditEvent, log_event
+
+    engine = _require_engine(request)
+
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "SELECT t.user_id, t.expires_at, t.consumed_at, u.email_verified "
+                "FROM email_verification_tokens t "
+                "JOIN cloud_users u ON u.id = t.user_id "
+                "WHERE t.token_hash = :h LIMIT 1"
+            ),
+            {"h": token_hash},
+        ).fetchone()
+
+        if row is None:
+            log_event(AuditEvent.AUTH_FAILURE, reason="verify_token_not_found")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification link."
+            )
+
+        user_id, expires_at, consumed_at, already_verified = row[0], row[1], row[2], bool(row[3])
+
+        # Idempotent: if the user is already verified, treat this as success even
+        # if the token was previously consumed. Protects against double-clicks.
+        if already_verified and consumed_at is not None:
+            return {"verified": True, "email_already_verified": True}
+
+        if consumed_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This verification link has already been used. Please request a new one if you're not logged in.",
+            )
+
+        # expires_at is a timezone-aware datetime; compare against now().
+        from datetime import datetime, timezone
+
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This verification link has expired. Please request a new one.",
+            )
+
+        conn.execute(
+            text("UPDATE email_verification_tokens SET consumed_at = now() WHERE token_hash = :h"),
+            {"h": token_hash},
+        )
+        conn.execute(
+            text(
+                "UPDATE cloud_users SET email_verified = true, email_verified_at = now() "
+                "WHERE id = :uid"
+            ),
+            {"uid": str(user_id)},
+        )
+
+    _log.info("Email verified for user_id=%s", user_id)
+    return {"verified": True}
+
+
+@router.post(
+    "/resend-verification",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Resend the email verification link",
+    description=(
+        "Issues a fresh verification token and emails it to the user. Any previously-issued "
+        "tokens for the same user are invalidated. Always returns 202 regardless of whether "
+        "the email exists in the system (to avoid account-enumeration). "
+        "Rate-limited to 3 requests/minute per IP+email combination."
+    ),
+)
+def resend_verification(body: ResendVerificationRequest, request: Request) -> dict:
+    from sqlalchemy import text
+
+    engine = _require_engine(request)
+    ip = request.client.host if request.client else "unknown"
+    email = body.email.strip().lower()
+
+    if not _EMAIL_RE.match(email):
+        # Still 202 — enumeration protection.
+        return {"status": "ok"}
+
+    _check_resend_rate(ip, email)
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT id, name, email_verified FROM cloud_users "
+                "WHERE email = :email AND provider = 'credentials' LIMIT 1"
+            ),
+            {"email": email},
+        ).fetchone()
+
+    # Silent 202 when the user doesn't exist or is already verified.
+    if row is None or bool(row[2]):
+        return {"status": "ok"}
+
+    user_id = str(row[0])
+    name = row[1]
+
+    token = _create_verification_token(engine, user_id)
+    _send_verification_email(email=email, name=name, token=token)
+    _log.info("Verification email resent: user_id=%s ip=%s", user_id, ip)
+
+    return {"status": "ok"}
 
 
 @router.post("/refresh", summary="Refresh access token using a refresh token")
