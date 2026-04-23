@@ -9,24 +9,60 @@
     "supports_timestamp_patch": false,
     "embedding_model": "adapter-internal",
     "use_local_embeddings": false,
-    "timestamp": "2026-04-23T06:25:03.245932Z",
+    "timestamp": "2026-04-23T06:41:04.487798Z",
     "scenarios_run": [
-      "L1_improvement_curve",
-      "L2_deprecation_speed",
-      "L3_conflict_resolution",
-      "L4_concept_drift",
-      "L5_noise_rejection"
+      "L1",
+      "L2",
+      "L3",
+      "L4",
+      "L5"
+    ],
+    "difficulties_run": [
+      "easy",
+      "medium",
+      "hard"
     ]
   },
   "results": [
     {
       "scenario": "L1_improvement_curve",
+      "difficulty": "easy",
       "engramia_score": null,
       "random_baseline": 0.3333,
       "discrimination_margin_x": "capability_missing",
       "capability_missing": true,
       "feature_tested": "refine_pattern (repeated quality observations update eval-weighted ranking)",
-      "pass_rule": "After 10 iterations of simulated feedback, top-1 must be the ground-truth best approach on at least 80% of tasks.",
+      "pass_rule": "After 10 iterations with 0% misleading-feedback noise, top-1 must be the ground-truth best approach on at least 80% of tasks.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L1_improvement_curve",
+      "difficulty": "medium",
+      "engramia_score": null,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern (repeated quality observations update eval-weighted ranking)",
+      "pass_rule": "After 10 iterations with 20% misleading-feedback noise, top-1 must be the ground-truth best approach on at least 80% of tasks.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L1_improvement_curve",
+      "difficulty": "hard",
+      "engramia_score": null,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern (repeated quality observations update eval-weighted ranking)",
+      "pass_rule": "After 8 iterations with 40% misleading-feedback noise, top-1 must be the ground-truth best approach on at least 80% of tasks.",
       "notes": [
         "Adapter missing required capability: refine_pattern."
       ],
@@ -35,12 +71,43 @@
     },
     {
       "scenario": "L2_deprecation_speed",
+      "difficulty": "easy",
       "engramia_score": null,
       "random_baseline": 0.5,
       "discrimination_margin_x": "capability_missing",
       "capability_missing": true,
       "feature_tested": "refine_pattern downgrade demotes deprecated patterns out of top-K",
-      "pass_rule": "≥80% of top-5 matches are from the non-deprecated set.",
+      "pass_rule": "≥80% of top-5 matches are from the non-deprecated set (failed eval_score=0.5, good eval_score=7.0).",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L2_deprecation_speed",
+      "difficulty": "medium",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern downgrade demotes deprecated patterns out of top-K",
+      "pass_rule": "≥80% of top-5 matches are from the non-deprecated set (failed eval_score=3.0, good eval_score=7.0).",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L2_deprecation_speed",
+      "difficulty": "hard",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern downgrade demotes deprecated patterns out of top-K",
+      "pass_rule": "≥80% of top-5 matches are from the non-deprecated set (failed eval_score=4.0, good eval_score=6.0).",
       "notes": [
         "Adapter missing required capability: refine_pattern."
       ],
@@ -49,12 +116,43 @@
     },
     {
       "scenario": "L3_conflict_resolution",
+      "difficulty": "easy",
       "engramia_score": null,
       "random_baseline": 0.5,
       "discrimination_margin_x": "capability_missing",
       "capability_missing": true,
       "feature_tested": "recency_weight knob + timestamp-aware ranking",
-      "pass_rule": "Average of (old wins at recency_weight=0, new wins at recency_weight=1) must be ≥ 80%.",
+      "pass_rule": "Average of (old wins at recency_weight=0, new wins at recency_weight=1) ≥ 80% with old-180d / quality 9.0 vs 7.0.",
+      "notes": [
+        "Adapter missing required capability: patch_timestamp (adapter cannot back-date stored patterns)."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L3_conflict_resolution",
+      "difficulty": "medium",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "recency_weight knob + timestamp-aware ranking",
+      "pass_rule": "Average of (old wins at recency_weight=0, new wins at recency_weight=1) ≥ 80% with old-60d / quality 8.5 vs 7.5.",
+      "notes": [
+        "Adapter missing required capability: patch_timestamp (adapter cannot back-date stored patterns)."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L3_conflict_resolution",
+      "difficulty": "hard",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "recency_weight knob + timestamp-aware ranking",
+      "pass_rule": "Average of (old wins at recency_weight=0, new wins at recency_weight=1) ≥ 80% with old-15d / quality 8.0 vs 7.5.",
       "notes": [
         "Adapter missing required capability: patch_timestamp (adapter cannot back-date stored patterns)."
       ],
@@ -63,12 +161,43 @@
     },
     {
       "scenario": "L4_concept_drift",
+      "difficulty": "easy",
       "engramia_score": null,
       "random_baseline": 0.3333,
       "discrimination_margin_x": "capability_missing",
       "capability_missing": true,
       "feature_tested": "refine_pattern quality boost + recency_weight on fresh cohort",
-      "pass_rule": "≥60% of top-5 matches come from the fresh v3 cohort despite v2 being 2× more populous.",
+      "pass_rule": "≥60% of top-5 come from v3 (10 patterns) despite v2 (20) being 2× more populous; v3 refined to eval=9.5.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L4_concept_drift",
+      "difficulty": "medium",
+      "engramia_score": null,
+      "random_baseline": 0.25,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern quality boost + recency_weight on fresh cohort",
+      "pass_rule": "≥60% of top-5 come from v3 (10 patterns) despite v2 (30) being 3× more populous; v3 refined to eval=8.5.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L4_concept_drift",
+      "difficulty": "hard",
+      "engramia_score": null,
+      "random_baseline": 0.2,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern quality boost + recency_weight on fresh cohort",
+      "pass_rule": "≥60% of top-5 come from v3 (10 patterns) despite v2 (40) being 4× more populous; v3 refined to eval=8.0.",
       "notes": [
         "Adapter missing required capability: refine_pattern."
       ],
@@ -77,12 +206,43 @@
     },
     {
       "scenario": "L5_noise_rejection",
+      "difficulty": "easy",
       "engramia_score": null,
       "random_baseline": 0.5,
       "discrimination_margin_x": "capability_missing",
       "capability_missing": true,
       "feature_tested": "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns",
-      "pass_rule": "After one re-evaluation round, top-10 must contain ≤ 20% red herrings (score ≥ 0.8).",
+      "pass_rule": "After re-evaluation (herring claim=9.5, corrected=1.0; honest corrected=7.0), top-10 must contain ≤ 20% red herrings.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L5_noise_rejection",
+      "difficulty": "medium",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns",
+      "pass_rule": "After re-evaluation (herring claim=8.0, corrected=3.0; honest corrected=7.0), top-10 must contain ≤ 20% red herrings.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L5_noise_rejection",
+      "difficulty": "hard",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns",
+      "pass_rule": "After re-evaluation (herring claim=7.5, corrected=5.0; honest corrected=7.0), top-10 must contain ≤ 20% red herrings.",
       "notes": [
         "Adapter missing required capability: refine_pattern."
       ],
@@ -93,8 +253,26 @@
   "summary": {
     "mean_engramia_score": null,
     "mean_random_baseline": 0.0,
-    "scenarios_with_score": 0,
-    "scenarios_capability_missing": 5,
-    "scenarios_errored": 0
+    "scenarios_scored": 0,
+    "scenarios_capability_missing": 15,
+    "scenarios_errored": 0,
+    "headline": "medium-difficulty mean is the realistic workload estimate; easy is a feature-correctness check, hard is stress-test.",
+    "per_difficulty": {
+      "easy": {
+        "mean_score": null,
+        "mean_baseline": 0.0,
+        "scenarios_scored": 0
+      },
+      "medium": {
+        "mean_score": null,
+        "mean_baseline": 0.0,
+        "scenarios_scored": 0
+      },
+      "hard": {
+        "mean_score": null,
+        "mean_baseline": 0.0,
+        "scenarios_scored": 0
+      }
+    }
   }
 }

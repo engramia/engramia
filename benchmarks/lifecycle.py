@@ -36,9 +36,12 @@ import random
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from benchmarks.adapters.base import MatchResult
+
+Difficulty = Literal["easy", "medium", "hard"]
+DIFFICULTIES: tuple[Difficulty, ...] = ("easy", "medium", "hard")
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +140,7 @@ def _supports_timestamp_patch(adapter: Any) -> bool:
 @dataclass
 class ScenarioResult:
     scenario: str
+    difficulty: Difficulty
     engramia_score: float | None
     random_baseline: float
     feature_tested: str
@@ -158,6 +162,7 @@ class ScenarioResult:
         margin = self.discrimination_margin
         return {
             "scenario": self.scenario,
+            "difficulty": self.difficulty,
             "engramia_score": round(self.engramia_score, 4) if self.engramia_score is not None else None,
             "random_baseline": round(self.random_baseline, 4),
             "discrimination_margin_x": (
@@ -173,9 +178,12 @@ class ScenarioResult:
         }
 
 
-def _capability_missing(scenario: str, feature_tested: str, pass_rule: str, baseline: float, missing_capability: str) -> ScenarioResult:
+def _capability_missing(
+    scenario: str, difficulty: Difficulty, feature_tested: str, pass_rule: str, baseline: float, missing_capability: str
+) -> ScenarioResult:
     return ScenarioResult(
         scenario=scenario,
+        difficulty=difficulty,
         engramia_score=None,
         random_baseline=baseline,
         feature_tested=feature_tested,
@@ -190,22 +198,39 @@ def _capability_missing(scenario: str, feature_tested: str, pass_rule: str, base
 # ---------------------------------------------------------------------------
 
 
-def _run_l1_improvement_curve(adapter: _AdapterLike, *, iterations: int = 10, rng_seed: int = 42) -> ScenarioResult:
+# L1 tuning per difficulty: (iterations, noise_prob — chance that a
+# simulated feedback observation lies about which variant is best).
+_L1_CONFIG: dict[Difficulty, tuple[int, float]] = {
+    "easy": (10, 0.0),
+    "medium": (10, 0.20),
+    "hard": (8, 0.40),
+}
+
+
+def _run_l1_improvement_curve(adapter: _AdapterLike, difficulty: Difficulty = "easy", *, rng_seed: int = 42) -> ScenarioResult:
     """Does quality-evidence refinement converge on the designed-best
     approach over repeated usage?
+
+    Difficulty knob: how often feedback lies about which variant was
+    the real best. easy = 0 %, medium = 20 %, hard = 40 %. Under
+    heavy misleading feedback the convergence degrades gracefully
+    rather than collapsing — the profile of score vs noise is the
+    measurement.
     """
+    iterations, noise_prob = _L1_CONFIG[difficulty]
     feature = "refine_pattern (repeated quality observations update eval-weighted ranking)"
     pass_rule = (
-        "After {n} iterations of simulated feedback, top-1 must be the "
-        "ground-truth best approach on at least 80% of tasks."
-    ).format(n=iterations)
+        f"After {iterations} iterations with {int(noise_prob * 100)}% misleading-feedback noise, "
+        "top-1 must be the ground-truth best approach on at least 80% of tasks."
+    )
     baseline = 1 / 3
 
     if not adapter.supports_refine:
-        return _capability_missing("L1_improvement_curve", feature, pass_rule, baseline, "refine_pattern")
+        return _capability_missing("L1_improvement_curve", difficulty, feature, pass_rule, baseline, "refine_pattern")
 
     adapter.reset()
     rng = random.Random(rng_seed)
+    noise_rng = random.Random(rng_seed + 1)
     tasks = list(_DOMAINS)
     all_patterns: list[dict[str, Any]] = []
     for domain in tasks:
@@ -221,6 +246,26 @@ def _run_l1_improvement_curve(adapter: _AdapterLike, *, iterations: int = 10, rn
     true_best = {d: rng.choice(["A", "B", "C"]) for d in tasks}
     score_targets = {"A": 9.0, "B": 5.0, "C": 1.5}
 
+    all_targets = list(score_targets.values())
+
+    def _noisy_score(picked_variant: str, domain: str) -> float:
+        correct_score = (
+            score_targets["A"] if picked_variant == true_best[domain]
+            else (score_targets["B"] if picked_variant == "B" else score_targets["C"])
+        )
+        if noise_prob > 0.0 and noise_rng.random() < noise_prob:
+            # Realistic noise: uniform-random target. 1/3 chance of
+            # landing on truth by accident. This is the "human rater
+            # is sometimes wrong" distribution — NOT adversarial
+            # inversion. An adversarial-inversion model would actively
+            # flip truth to falsehood; real evaluation noise is
+            # uncorrelated with truth. A separate variant could model
+            # adversarial distribution if we wanted a worst-case test.
+            return noise_rng.choice(all_targets)
+        return correct_score
+
+    noisy_feedbacks = 0
+    total_feedbacks = 0
     for _ in range(iterations):
         for domain in tasks:
             matches = adapter.recall(
@@ -238,13 +283,15 @@ def _run_l1_improvement_curve(adapter: _AdapterLike, *, iterations: int = 10, rn
                     break
             if picked_variant == "?":
                 continue
-            if picked_variant == true_best[domain]:
-                new_score = score_targets["A"]
-            elif picked_variant == "B":
-                new_score = score_targets["B"]
-            else:
-                new_score = score_targets["C"]
-            adapter.refine_pattern(picked.pattern_id, new_score, feedback=f"obs in {domain}")
+            total_feedbacks += 1
+            honest_score = (
+                score_targets["A"] if picked_variant == true_best[domain]
+                else (score_targets["B"] if picked_variant == "B" else score_targets["C"])
+            )
+            observed_score = _noisy_score(picked_variant, domain)
+            if observed_score != honest_score:
+                noisy_feedbacks += 1
+            adapter.refine_pattern(picked.pattern_id, observed_score, feedback=f"obs in {domain}")
 
     correct = 0
     for domain in tasks:
@@ -258,12 +305,23 @@ def _run_l1_improvement_curve(adapter: _AdapterLike, *, iterations: int = 10, rn
 
     return ScenarioResult(
         scenario="L1_improvement_curve",
+        difficulty=difficulty,
         engramia_score=correct / len(tasks) if tasks else 0.0,
         random_baseline=baseline,
         feature_tested=feature,
         pass_rule=pass_rule,
-        notes=["Random baseline is 1/3 (three candidates per task)."],
-        raw_metrics={"iterations": iterations, "tasks": len(tasks), "correct": correct},
+        notes=[
+            "Random baseline is 1/3 (three candidates per task).",
+            f"Noise: {noisy_feedbacks} of {total_feedbacks} feedback observations were misleading.",
+        ],
+        raw_metrics={
+            "iterations": iterations,
+            "noise_prob": noise_prob,
+            "tasks": len(tasks),
+            "correct": correct,
+            "noisy_feedbacks": noisy_feedbacks,
+            "total_feedbacks": total_feedbacks,
+        },
     )
 
 
@@ -272,16 +330,34 @@ def _run_l1_improvement_curve(adapter: _AdapterLike, *, iterations: int = 10, rn
 # ---------------------------------------------------------------------------
 
 
-def _run_l2_deprecation_speed(adapter: _AdapterLike) -> ScenarioResult:
+# L2 tuning: (failed_score, good_score) — narrower gap means the
+# multiplier spread has to work harder to demote the failed cohort.
+_L2_CONFIG: dict[Difficulty, tuple[float, float]] = {
+    "easy": (0.5, 7.0),
+    "medium": (3.0, 7.0),
+    "hard": (4.0, 6.0),
+}
+
+
+def _run_l2_deprecation_speed(adapter: _AdapterLike, difficulty: Difficulty = "easy") -> ScenarioResult:
     """Does quality-weighted recall rank failed patterns below good ones
     once failure feedback is recorded?
+
+    Difficulty: easy = large score gap (0.5 vs 7.0); medium = moderate
+    (3.0 vs 7.0); hard = narrow (4.0 vs 6.0). Narrower gap tests
+    whether the quality multiplier has enough spread to discriminate
+    near-equal quality cohorts.
     """
+    failed_score, good_score = _L2_CONFIG[difficulty]
     feature = "refine_pattern downgrade demotes deprecated patterns out of top-K"
-    pass_rule = "≥80% of top-5 matches are from the non-deprecated set."
+    pass_rule = (
+        f"≥80% of top-5 matches are from the non-deprecated set "
+        f"(failed eval_score={failed_score}, good eval_score={good_score})."
+    )
     baseline = 0.5
 
     if not adapter.supports_refine:
-        return _capability_missing("L2_deprecation_speed", feature, pass_rule, baseline, "refine_pattern")
+        return _capability_missing("L2_deprecation_speed", difficulty, feature, pass_rule, baseline, "refine_pattern")
 
     n_good = 25
     n_failed = 25
@@ -295,7 +371,7 @@ def _run_l2_deprecation_speed(adapter: _AdapterLike) -> ScenarioResult:
         patterns.append({
             "task": shared_text,
             "code": f"# good {d} #{i}",
-            "eval_score": 7.0,
+            "eval_score": good_score,
             "pattern_id": f"good_{i}",
         })
     for i in range(n_failed):
@@ -303,7 +379,7 @@ def _run_l2_deprecation_speed(adapter: _AdapterLike) -> ScenarioResult:
         patterns.append({
             "task": shared_text,
             "code": f"# failed {d} #{i}",
-            "eval_score": 7.0,
+            "eval_score": good_score,  # all seeded equal; failure is recorded after
             "pattern_id": f"failed_{i}",
         })
     adapter.seed(patterns)
@@ -311,7 +387,7 @@ def _run_l2_deprecation_speed(adapter: _AdapterLike) -> ScenarioResult:
     good_ids = {f"good_{i}" for i in range(n_good)}
     failed_ids = {f"failed_{i}" for i in range(n_failed)}
     for pid in failed_ids:
-        adapter.refine_pattern(pid, 0.5, feedback="simulated failure feedback")
+        adapter.refine_pattern(pid, failed_score, feedback="simulated failure feedback")
 
     total_top5 = 0
     good_top5 = 0
@@ -324,6 +400,7 @@ def _run_l2_deprecation_speed(adapter: _AdapterLike) -> ScenarioResult:
 
     return ScenarioResult(
         scenario="L2_deprecation_speed",
+        difficulty=difficulty,
         engramia_score=good_top5 / total_top5 if total_top5 else 0.0,
         random_baseline=baseline,
         feature_tested=feature,
@@ -338,6 +415,8 @@ def _run_l2_deprecation_speed(adapter: _AdapterLike) -> ScenarioResult:
             "good_patterns": n_good,
             "failed_patterns": n_failed,
             "probe_queries": len(probe_queries),
+            "failed_score": failed_score,
+            "good_score": good_score,
         },
     )
 
@@ -347,20 +426,36 @@ def _run_l2_deprecation_speed(adapter: _AdapterLike) -> ScenarioResult:
 # ---------------------------------------------------------------------------
 
 
-def _run_l3_conflict_resolution(adapter: _AdapterLike) -> ScenarioResult:
+# L3 tuning: (old_days_ago, old_eval, new_eval). Harder = smaller
+# time gap + narrower quality gap, so the recency knob has to work
+# against a closer starting point.
+_L3_CONFIG: dict[Difficulty, tuple[float, float, float]] = {
+    "easy": (180.0, 9.0, 7.0),
+    "medium": (60.0, 8.5, 7.5),
+    "hard": (15.0, 8.0, 7.5),
+}
+
+
+def _run_l3_conflict_resolution(adapter: _AdapterLike, difficulty: Difficulty = "easy") -> ScenarioResult:
     """Does ``recency_weight`` smoothly tune ranking between old
     high-quality and fresh medium-quality patterns?
+
+    Difficulty: easy = 180 d / 9.0 vs 7.0 (wide gap); medium = 60 d /
+    8.5 vs 7.5; hard = 15 d / 8.0 vs 7.5 (small gap — recency has to
+    overcome near-equal quality across a modest time delta).
     """
+    old_days_ago, old_eval, new_eval = _L3_CONFIG[difficulty]
     feature = "recency_weight knob + timestamp-aware ranking"
     pass_rule = (
-        "Average of (old wins at recency_weight=0, new wins at "
-        "recency_weight=1) must be ≥ 80%."
+        f"Average of (old wins at recency_weight=0, new wins at "
+        f"recency_weight=1) ≥ 80% with old-{int(old_days_ago)}d / "
+        f"quality {old_eval} vs {new_eval}."
     )
     baseline = 0.5
 
     if not _supports_timestamp_patch(adapter):
         return _capability_missing(
-            "L3_conflict_resolution", feature, pass_rule, baseline,
+            "L3_conflict_resolution", difficulty, feature, pass_rule, baseline,
             "patch_timestamp (adapter cannot back-date stored patterns)",
         )
 
@@ -375,7 +470,7 @@ def _run_l3_conflict_resolution(adapter: _AdapterLike) -> ScenarioResult:
         patterns.append({
             "task": shared_text,
             "code": f"# old {d} #{i}",
-            "eval_score": 9.0,
+            "eval_score": old_eval,
             "pattern_id": f"old_{i}",
         })
     for i in range(12):
@@ -383,14 +478,13 @@ def _run_l3_conflict_resolution(adapter: _AdapterLike) -> ScenarioResult:
         patterns.append({
             "task": shared_text,
             "code": f"# new {d} #{i}",
-            "eval_score": 7.0,
+            "eval_score": new_eval,
             "pattern_id": f"new_{i}",
         })
     adapter.seed(patterns)
 
     for i in range(12):
-        adapter.patch_timestamp(f"old_{i}", now - 180 * _DAY)
-    # new_* keep default fresh timestamp.
+        adapter.patch_timestamp(f"old_{i}", now - old_days_ago * _DAY)
 
     old_ids = {f"old_{i}" for i in range(12)}
     new_ids = {f"new_{i}" for i in range(12)}
@@ -411,6 +505,7 @@ def _run_l3_conflict_resolution(adapter: _AdapterLike) -> ScenarioResult:
 
     return ScenarioResult(
         scenario="L3_conflict_resolution",
+        difficulty=difficulty,
         engramia_score=engramia_score,
         random_baseline=baseline,
         feature_tested=feature,
@@ -424,6 +519,9 @@ def _run_l3_conflict_resolution(adapter: _AdapterLike) -> ScenarioResult:
             "new_wins_at_recency_1": new_wins_at_w1,
             "new_fraction_at_recency_0p3": mid_new_fraction,
             "probes": len(probes),
+            "old_days_ago": old_days_ago,
+            "old_eval": old_eval,
+            "new_eval": new_eval,
         },
     )
 
@@ -433,16 +531,30 @@ def _run_l3_conflict_resolution(adapter: _AdapterLike) -> ScenarioResult:
 # ---------------------------------------------------------------------------
 
 
-def _run_l4_concept_drift(adapter: _AdapterLike) -> ScenarioResult:
+# L4 tuning: (n_v2, n_v3, v3_refined_score). Harder = v2 more numerous
+# and v3 less-strongly endorsed; the combination is harder for the
+# recency + quality signal to overcome population bias.
+_L4_CONFIG: dict[Difficulty, tuple[int, int, float]] = {
+    "easy": (20, 10, 9.5),
+    "medium": (30, 10, 8.5),
+    "hard": (40, 10, 8.0),
+}
+
+
+def _run_l4_concept_drift(adapter: _AdapterLike, difficulty: Difficulty = "easy") -> ScenarioResult:
+    n_v2, n_v3, v3_refined_score = _L4_CONFIG[difficulty]
     feature = "refine_pattern quality boost + recency_weight on fresh cohort"
-    pass_rule = "≥60% of top-5 matches come from the fresh v3 cohort despite v2 being 2× more populous."
-    baseline = 10 / 30
+    pass_rule = (
+        f"≥60% of top-5 come from v3 ({n_v3} patterns) despite v2 ({n_v2}) "
+        f"being {n_v2 / n_v3:.0f}× more populous; v3 refined to eval={v3_refined_score}."
+    )
+    baseline = n_v3 / (n_v2 + n_v3)
 
     if not adapter.supports_refine:
-        return _capability_missing("L4_concept_drift", feature, pass_rule, baseline, "refine_pattern")
+        return _capability_missing("L4_concept_drift", difficulty, feature, pass_rule, baseline, "refine_pattern")
     if not _supports_timestamp_patch(adapter):
         return _capability_missing(
-            "L4_concept_drift", feature, pass_rule, baseline,
+            "L4_concept_drift", difficulty, feature, pass_rule, baseline,
             "patch_timestamp (adapter cannot back-date stored patterns)",
         )
 
@@ -452,7 +564,7 @@ def _run_l4_concept_drift(adapter: _AdapterLike) -> ScenarioResult:
     probes = [shared_text] * 10
 
     patterns = []
-    for i in range(20):
+    for i in range(n_v2):
         d = _DOMAINS[i % len(_DOMAINS)]
         patterns.append({
             "task": shared_text,
@@ -460,7 +572,7 @@ def _run_l4_concept_drift(adapter: _AdapterLike) -> ScenarioResult:
             "eval_score": 7.0,
             "pattern_id": f"v2_{i}",
         })
-    for i in range(10):
+    for i in range(n_v3):
         d = _DOMAINS[i % len(_DOMAINS)]
         patterns.append({
             "task": shared_text,
@@ -470,12 +582,12 @@ def _run_l4_concept_drift(adapter: _AdapterLike) -> ScenarioResult:
         })
     adapter.seed(patterns)
 
-    for i in range(20):
+    for i in range(n_v2):
         adapter.patch_timestamp(f"v2_{i}", now - 120 * _DAY)
 
-    v3_ids = {f"v3_{i}" for i in range(10)}
+    v3_ids = {f"v3_{i}" for i in range(n_v3)}
     for pid in v3_ids:
-        adapter.refine_pattern(pid, 9.5, feedback="repeatedly used in production")
+        adapter.refine_pattern(pid, v3_refined_score, feedback="repeatedly used in production")
 
     v3_matches = 0
     total_matches = 0
@@ -489,14 +601,16 @@ def _run_l4_concept_drift(adapter: _AdapterLike) -> ScenarioResult:
 
     return ScenarioResult(
         scenario="L4_concept_drift",
+        difficulty=difficulty,
         engramia_score=engramia_score,
         random_baseline=baseline,
         feature_tested=feature,
         pass_rule=pass_rule,
         notes=[],
         raw_metrics={
-            "v2_seeded": 20,
-            "v3_seeded": 10,
+            "v2_seeded": n_v2,
+            "v3_seeded": n_v3,
+            "v3_refined_score": v3_refined_score,
             "v3_top5": v3_matches,
             "total_top5": total_matches,
         },
@@ -508,13 +622,27 @@ def _run_l4_concept_drift(adapter: _AdapterLike) -> ScenarioResult:
 # ---------------------------------------------------------------------------
 
 
-def _run_l5_noise_rejection(adapter: _AdapterLike) -> ScenarioResult:
+# L5 tuning: (herring_claimed_score, herring_corrected_score, honest_corrected_score).
+# Easy = wide gap; hard = subtle correction (herring still looks ok after re-eval).
+_L5_CONFIG: dict[Difficulty, tuple[float, float, float]] = {
+    "easy": (9.5, 1.0, 7.0),
+    "medium": (8.0, 3.0, 7.0),
+    "hard": (7.5, 5.0, 7.0),
+}
+
+
+def _run_l5_noise_rejection(adapter: _AdapterLike, difficulty: Difficulty = "easy") -> ScenarioResult:
+    herring_claim, herring_corrected, honest_corrected = _L5_CONFIG[difficulty]
     feature = "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns"
-    pass_rule = "After one re-evaluation round, top-10 must contain ≤ 20% red herrings (score ≥ 0.8)."
+    pass_rule = (
+        f"After re-evaluation (herring claim={herring_claim}, "
+        f"corrected={herring_corrected}; honest corrected={honest_corrected}), "
+        "top-10 must contain ≤ 20% red herrings."
+    )
     baseline = 0.5
 
     if not adapter.supports_refine:
-        return _capability_missing("L5_noise_rejection", feature, pass_rule, baseline, "refine_pattern")
+        return _capability_missing("L5_noise_rejection", difficulty, feature, pass_rule, baseline, "refine_pattern")
 
     adapter.reset()
     shared_text = "Implement service layer for the flagship product"
@@ -539,7 +667,7 @@ def _run_l5_noise_rejection(adapter: _AdapterLike) -> ScenarioResult:
         patterns.append({
             "task": shared_text,
             "code": f"# herring {d} #{i}",
-            "eval_score": 9.5,
+            "eval_score": herring_claim,
             "pattern_id": pid,
         })
         herring_ids.append(pid)
@@ -557,9 +685,9 @@ def _run_l5_noise_rejection(adapter: _AdapterLike) -> ScenarioResult:
     pre_herring_fraction = pre_herring / pre_matches if pre_matches else 0.0
 
     for pid in good_ids:
-        adapter.refine_pattern(pid, 7.0, feedback="mock re-eval honest")
+        adapter.refine_pattern(pid, honest_corrected, feedback="mock re-eval honest")
     for pid in herring_ids:
-        adapter.refine_pattern(pid, 1.0, feedback="mock re-eval herring")
+        adapter.refine_pattern(pid, herring_corrected, feedback="mock re-eval herring")
 
     post_matches = 0
     post_herring = 0
@@ -574,6 +702,7 @@ def _run_l5_noise_rejection(adapter: _AdapterLike) -> ScenarioResult:
 
     return ScenarioResult(
         scenario="L5_noise_rejection",
+        difficulty=difficulty,
         engramia_score=engramia_score,
         random_baseline=baseline,
         feature_tested=feature,
@@ -589,6 +718,9 @@ def _run_l5_noise_rejection(adapter: _AdapterLike) -> ScenarioResult:
             "post_herring_fraction": post_herring_fraction,
             "pre_top10": pre_matches,
             "post_top10": post_matches,
+            "herring_claim": herring_claim,
+            "herring_corrected": herring_corrected,
+            "honest_corrected": honest_corrected,
         },
     )
 
@@ -625,44 +757,58 @@ def run_all(
     adapter_kind: str,
     use_local_embeddings: bool,
     scenarios: list[str],
+    difficulties: tuple[Difficulty, ...] = DIFFICULTIES,
 ) -> dict[str, Any]:
     adapter = _make_adapter(adapter_kind, use_local_embeddings=use_local_embeddings)
     results: list[ScenarioResult] = []
 
     for sid in scenarios:
         fn = _SCENARIO_FNS[sid]
-        t0 = time.monotonic()
-        try:
-            result = fn(adapter)
-        except Exception as exc:  # noqa: BLE001 — benchmark resilience
-            logger.exception("[%s] %s failed: %s", adapter.system_name, sid, exc)
-            result = ScenarioResult(
-                scenario=f"{sid}_error",
-                engramia_score=None,
-                random_baseline=0.0,
-                feature_tested="—",
-                pass_rule="—",
-                capability_missing=False,
-                notes=[f"exception: {type(exc).__name__}: {exc}"],
-            )
-        result.duration_seconds = time.monotonic() - t0
-        results.append(result)
-        if result.capability_missing:
-            logger.info("[%s] %s: capability_missing", adapter.system_name, result.scenario)
-        elif result.engramia_score is None:
-            logger.info("[%s] %s: error", adapter.system_name, result.scenario)
-        else:
-            logger.info(
-                "[%s] %s: score=%.1f%% baseline=%.1f%% margin=%s",
-                adapter.system_name, result.scenario,
-                result.engramia_score * 100, result.random_baseline * 100,
-                result.discrimination_margin,
-            )
+        for difficulty in difficulties:
+            t0 = time.monotonic()
+            try:
+                result = fn(adapter, difficulty)
+            except Exception as exc:  # noqa: BLE001 — benchmark resilience
+                logger.exception("[%s] %s/%s failed: %s", adapter.system_name, sid, difficulty, exc)
+                result = ScenarioResult(
+                    scenario=sid,
+                    difficulty=difficulty,
+                    engramia_score=None,
+                    random_baseline=0.0,
+                    feature_tested="—",
+                    pass_rule="—",
+                    capability_missing=False,
+                    notes=[f"exception: {type(exc).__name__}: {exc}"],
+                )
+            result.duration_seconds = time.monotonic() - t0
+            results.append(result)
+            if result.capability_missing:
+                logger.info("[%s] %s/%s: capability_missing", adapter.system_name, result.scenario, difficulty)
+            elif result.engramia_score is None:
+                logger.info("[%s] %s/%s: error", adapter.system_name, result.scenario, difficulty)
+            else:
+                logger.info(
+                    "[%s] %s/%s: score=%.1f%% baseline=%.1f%% margin=%s",
+                    adapter.system_name, result.scenario, difficulty,
+                    result.engramia_score * 100, result.random_baseline * 100,
+                    result.discrimination_margin,
+                )
 
     valid_scores = [r.engramia_score for r in results if r.engramia_score is not None]
     mean_score = sum(valid_scores) / len(valid_scores) if valid_scores else None
     baselines = [r.random_baseline for r in results if r.engramia_score is not None]
     mean_baseline = sum(baselines) / len(baselines) if baselines else 0.0
+
+    # Headline per-difficulty means — what the marketing copy quotes.
+    per_difficulty: dict[str, dict[str, Any]] = {}
+    for diff in difficulties:
+        diff_scores = [r.engramia_score for r in results if r.difficulty == diff and r.engramia_score is not None]
+        diff_baselines = [r.random_baseline for r in results if r.difficulty == diff and r.engramia_score is not None]
+        per_difficulty[diff] = {
+            "mean_score": round(sum(diff_scores) / len(diff_scores), 4) if diff_scores else None,
+            "mean_baseline": round(sum(diff_baselines) / len(diff_baselines), 4) if diff_baselines else 0.0,
+            "scenarios_scored": len(diff_scores),
+        }
 
     return {
         "metadata": {
@@ -676,60 +822,84 @@ def run_all(
             "embedding_model": getattr(adapter, "_embedding_model", "adapter-internal"),
             "use_local_embeddings": use_local_embeddings,
             "timestamp": datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
-            "scenarios_run": [r.scenario for r in results],
+            "scenarios_run": list(scenarios),
+            "difficulties_run": list(difficulties),
         },
         "results": [r.to_dict() for r in results],
         "summary": {
             "mean_engramia_score": round(mean_score, 4) if mean_score is not None else None,
             "mean_random_baseline": round(mean_baseline, 4),
-            "scenarios_with_score": len(valid_scores),
+            "scenarios_scored": len(valid_scores),
             "scenarios_capability_missing": sum(1 for r in results if r.capability_missing),
             "scenarios_errored": sum(1 for r in results if (not r.capability_missing) and r.engramia_score is None),
+            "headline": (
+                "medium-difficulty mean is the realistic workload estimate; "
+                "easy is a feature-correctness check, hard is stress-test."
+            ),
+            "per_difficulty": per_difficulty,
         },
     }
 
 
 def _print_summary(report: dict[str, Any]) -> None:
     meta = report["metadata"]
-    print()
-    print("=" * 76)
-    print(f"  AgentLifecycleBench — {meta['system_name']} {meta['system_version']}")
-    print("=" * 76)
-    print(
-        f"  supports_refine={meta['supports_refine']}   "
-        f"supports_timestamp_patch={meta['supports_timestamp_patch']}"
-    )
-    print(f"  embedding: {meta['embedding_model']}")
-    print()
-    print(f"  {'Scenario':<28} {'Score':>10}  {'Random':>8}  {'Margin':>10}  {'Secs':>6}")
-    print(f"  {'-' * 28} {'-' * 10}  {'-' * 8}  {'-' * 10}  {'-' * 6}")
-    for r in report["results"]:
-        if r["capability_missing"]:
-            score_str = "—"
-            margin_str = "missing"
-        elif r["engramia_score"] is None:
-            score_str = "ERR"
-            margin_str = "ERR"
-        else:
-            score_str = f"{r['engramia_score'] * 100:>8.1f}%"
-            m = r["discrimination_margin_x"]
-            margin_str = f"{m}x" if isinstance(m, (int, float)) else str(m)
-        print(
-            f"  {r['scenario']:<28} {score_str:>10}  "
-            f"{r['random_baseline'] * 100:>7.1f}%  {margin_str:>10}  "
-            f"{r['duration_seconds']:>5.2f}"
-        )
     s = report["summary"]
     print()
-    mean_str = (
-        f"{s['mean_engramia_score'] * 100:>8.1f}%" if s["mean_engramia_score"] is not None else "—"
-    )
+    print("=" * 90)
+    print(f"  AgentLifecycleBench — {meta['system_name']} {meta['system_version']}")
+    print("=" * 90)
     print(
-        f"  MEAN ({s['scenarios_with_score']} scored, "
-        f"{s['scenarios_capability_missing']} capability_missing, "
-        f"{s['scenarios_errored']} errored): {mean_str}"
+        f"  supports_refine={meta['supports_refine']}   "
+        f"supports_timestamp_patch={meta['supports_timestamp_patch']}   "
+        f"embedding: {meta['embedding_model']}"
     )
-    print("=" * 76)
+    print()
+
+    # Pivoted table: one row per scenario, one column per difficulty.
+    results_by_scenario: dict[str, dict[str, dict[str, Any]]] = {}
+    for r in report["results"]:
+        results_by_scenario.setdefault(r["scenario"], {})[r["difficulty"]] = r
+
+    difficulties = meta.get("difficulties_run", ["easy", "medium", "hard"])
+    header = f"  {'Scenario':<26}"
+    for d in difficulties:
+        header += f"  {d:>10}"
+    header += f"  {'Random':>8}"
+    print(header)
+    print("  " + "-" * (len(header) - 2))
+
+    def _cell(r: dict[str, Any] | None) -> str:
+        if r is None:
+            return "—"
+        if r["capability_missing"]:
+            return "missing"
+        if r["engramia_score"] is None:
+            return "ERR"
+        return f"{r['engramia_score'] * 100:>7.1f}%"
+
+    for scenario, by_diff in results_by_scenario.items():
+        row = f"  {scenario:<26}"
+        for d in difficulties:
+            row += f"  {_cell(by_diff.get(d)):>10}"
+        # Use the first available random baseline — same across difficulties for L1/L2/L3/L5.
+        first = next((v for v in by_diff.values() if v), None)
+        if first is not None:
+            row += f"  {first['random_baseline'] * 100:>7.1f}%"
+        print(row)
+
+    print()
+    if s["per_difficulty"]:
+        print("  Per-difficulty means:")
+        for d in difficulties:
+            entry = s["per_difficulty"].get(d, {})
+            mean = entry.get("mean_score")
+            if mean is None:
+                print(f"    {d:<8}  —")
+            else:
+                print(f"    {d:<8}  {mean * 100:>6.1f}%  (over {entry['scenarios_scored']} scenarios)")
+        print()
+        print("  " + s["headline"])
+    print("=" * 90)
 
 
 # ---------------------------------------------------------------------------
