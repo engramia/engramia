@@ -148,6 +148,7 @@ class ScenarioResult:
     capability_missing: bool = False
     notes: list[str] = field(default_factory=list)
     raw_metrics: dict[str, Any] = field(default_factory=dict)
+    curves: dict[str, Any] = field(default_factory=dict)
     duration_seconds: float = 0.0
 
     @property
@@ -174,6 +175,7 @@ class ScenarioResult:
             "pass_rule": self.pass_rule,
             "notes": self.notes,
             "raw_metrics": self.raw_metrics,
+            "curves": self.curves,
             "duration_seconds": round(self.duration_seconds, 2),
         }
 
@@ -264,6 +266,20 @@ def _run_l1_improvement_curve(adapter: _AdapterLike, difficulty: Difficulty = "e
             return noise_rng.choice(all_targets)
         return correct_score
 
+    def _measure_convergence() -> float:
+        """Fraction of tasks whose current top-1 is the ground-truth best."""
+        hit = 0
+        for d in tasks:
+            matches = adapter.recall(
+                query=f"Solve {d.replace('_', ' ')} task",
+                limit=3,
+                eval_weighted=True,
+            )
+            if matches and f"approach_{true_best[d]}" in matches[0].task_text:
+                hit += 1
+        return hit / len(tasks) if tasks else 0.0
+
+    convergence_curve: list[float] = [_measure_convergence()]  # iter 0 baseline
     noisy_feedbacks = 0
     total_feedbacks = 0
     for _ in range(iterations):
@@ -292,21 +308,15 @@ def _run_l1_improvement_curve(adapter: _AdapterLike, difficulty: Difficulty = "e
             if observed_score != honest_score:
                 noisy_feedbacks += 1
             adapter.refine_pattern(picked.pattern_id, observed_score, feedback=f"obs in {domain}")
+        # Snapshot after each full iteration over tasks.
+        convergence_curve.append(_measure_convergence())
 
-    correct = 0
-    for domain in tasks:
-        matches = adapter.recall(
-            query=f"Solve {domain.replace('_', ' ')} task",
-            limit=3,
-            eval_weighted=True,
-        )
-        if matches and f"approach_{true_best[domain]}" in matches[0].task_text:
-            correct += 1
+    correct = round(convergence_curve[-1] * len(tasks))
 
     return ScenarioResult(
         scenario="L1_improvement_curve",
         difficulty=difficulty,
-        engramia_score=correct / len(tasks) if tasks else 0.0,
+        engramia_score=convergence_curve[-1],
         random_baseline=baseline,
         feature_tested=feature,
         pass_rule=pass_rule,
@@ -321,6 +331,16 @@ def _run_l1_improvement_curve(adapter: _AdapterLike, difficulty: Difficulty = "e
             "correct": correct,
             "noisy_feedbacks": noisy_feedbacks,
             "total_feedbacks": total_feedbacks,
+        },
+        curves={
+            "convergence": [round(v, 4) for v in convergence_curve],
+            "convergence_iterations": list(range(len(convergence_curve))),
+            "convergence_interpretation": (
+                "Fraction of 12 tasks whose current top-1 is the ground-truth best "
+                "approach, sampled after each of {n} training iterations (index 0 = "
+                "pre-training baseline). A growing curve indicates feedback "
+                "accumulates; a flat/declining curve indicates noise dominates."
+            ).format(n=iterations),
         },
     )
 
@@ -389,11 +409,23 @@ def _run_l2_deprecation_speed(adapter: _AdapterLike, difficulty: Difficulty = "e
     for pid in failed_ids:
         adapter.refine_pattern(pid, failed_score, feedback="simulated failure feedback")
 
+    precision_at_k: dict[str, float] = {}
+    for k in (1, 3, 5, 10):
+        total = 0
+        hits = 0
+        for q in probe_queries:
+            matches = adapter.recall(q, limit=k, eval_weighted=True)
+            for m in matches:
+                total += 1
+                if m.pattern_id in good_ids:
+                    hits += 1
+        precision_at_k[f"p@{k}"] = round(hits / total, 4) if total else 0.0
+
+    # Top-5 is the pass-rule metric; keep it as engramia_score for continuity.
     total_top5 = 0
     good_top5 = 0
     for q in probe_queries:
-        matches = adapter.recall(q, limit=5, eval_weighted=True)
-        for m in matches:
+        for m in adapter.recall(q, limit=5, eval_weighted=True):
             total_top5 += 1
             if m.pattern_id in good_ids:
                 good_top5 += 1
@@ -417,6 +449,15 @@ def _run_l2_deprecation_speed(adapter: _AdapterLike, difficulty: Difficulty = "e
             "probe_queries": len(probe_queries),
             "failed_score": failed_score,
             "good_score": good_score,
+        },
+        curves={
+            "precision_at_k": precision_at_k,
+            "precision_at_k_interpretation": (
+                "Fraction of the top-K recalled matches that belong to the "
+                "non-deprecated set, for K in {1, 3, 5, 10}. Degradation at "
+                "higher K indicates the quality multiplier discriminates "
+                "well at the head but loses resolution deeper in the list."
+            ),
         },
     )
 
@@ -497,6 +538,16 @@ def _run_l3_conflict_resolution(adapter: _AdapterLike, difficulty: Difficulty = 
                 correct += 1
         return correct / len(probes) if probes else 0.0
 
+    # Sharpness curve: sweep recency_weight in 11 steps from 0 to 1.
+    sharpness_weights = [round(i * 0.1, 2) for i in range(11)]
+    new_fraction_by_weight: list[float] = [_fraction(w, new_ids) for w in sharpness_weights]
+    # Identify the crossover point (first weight at which new beats old in top-1 majority).
+    crossover_weight: float | None = None
+    for w, frac in zip(sharpness_weights, new_fraction_by_weight, strict=True):
+        if frac >= 0.5:
+            crossover_weight = w
+            break
+
     old_wins_at_w0 = _fraction(0.0, old_ids)
     new_wins_at_w1 = _fraction(1.0, new_ids)
     mid_new_fraction = _fraction(0.3, new_ids)
@@ -522,6 +573,19 @@ def _run_l3_conflict_resolution(adapter: _AdapterLike, difficulty: Difficulty = 
             "old_days_ago": old_days_ago,
             "old_eval": old_eval,
             "new_eval": new_eval,
+        },
+        curves={
+            "sharpness_weights": sharpness_weights,
+            "new_fraction_by_weight": [round(v, 4) for v in new_fraction_by_weight],
+            "crossover_weight": crossover_weight,
+            "sharpness_interpretation": (
+                "Fraction of probes whose top-1 comes from the new (fresh) cohort "
+                "as a function of recency_weight. A sharp step function near a "
+                "specific weight indicates the knob flips ranking cleanly at that "
+                "point; a smooth ramp indicates the knob blends the two cohorts "
+                "gradually. Competitors without a recency knob cannot produce "
+                "either shape — their fraction stays flat."
+            ),
         },
     )
 
@@ -589,6 +653,18 @@ def _run_l4_concept_drift(adapter: _AdapterLike, difficulty: Difficulty = "easy"
     for pid in v3_ids:
         adapter.refine_pattern(pid, v3_refined_score, feedback="repeatedly used in production")
 
+    precision_at_k: dict[str, float] = {}
+    for k in (1, 3, 5, 10):
+        total = 0
+        hits = 0
+        for q in probes:
+            matches = adapter.recall(q, limit=100, eval_weighted=True, recency_weight=0.5)
+            for m in matches[:k]:
+                total += 1
+                if m.pattern_id in v3_ids:
+                    hits += 1
+        precision_at_k[f"p@{k}"] = round(hits / total, 4) if total else 0.0
+
     v3_matches = 0
     total_matches = 0
     for q in probes:
@@ -613,6 +689,16 @@ def _run_l4_concept_drift(adapter: _AdapterLike, difficulty: Difficulty = "easy"
             "v3_refined_score": v3_refined_score,
             "v3_top5": v3_matches,
             "total_top5": total_matches,
+        },
+        curves={
+            "precision_at_k": precision_at_k,
+            "precision_at_k_interpretation": (
+                "Fraction of top-K matches that come from the fresh v3 cohort "
+                "(refined quality + fresh timestamp) despite v2 being more "
+                "populous. Drop-off at higher K shows how far the fresh "
+                "cohort's ranking advantage extends."
+            ),
+            "cohort_sizes": {"v2": n_v2, "v3": n_v3},
         },
     )
 
@@ -675,13 +761,22 @@ def _run_l5_noise_rejection(adapter: _AdapterLike, difficulty: Difficulty = "eas
 
     herring_set = set(herring_ids)
 
-    pre_matches = 0
-    pre_herring = 0
-    for q in probes[:5]:
-        for m in adapter.recall(q, limit=10, eval_weighted=True):
-            pre_matches += 1
-            if m.pattern_id in herring_set:
-                pre_herring += 1
+    def _probe_top10() -> tuple[int, int]:
+        # Fetch all 40 patterns then truncate to 10 so the
+        # effective-score re-rank sees the full pool; default fetch
+        # depth would leave insertion-order tie-break dictating the
+        # top-10 and defeat the multiplier signal we're measuring.
+        total = 0
+        herring = 0
+        for q in probes[:5]:
+            matches = adapter.recall(q, limit=100, eval_weighted=True)
+            for m in matches[:10]:
+                total += 1
+                if m.pattern_id in herring_set:
+                    herring += 1
+        return herring, total
+
+    pre_herring, pre_matches = _probe_top10()
     pre_herring_fraction = pre_herring / pre_matches if pre_matches else 0.0
 
     for pid in good_ids:
@@ -689,16 +784,39 @@ def _run_l5_noise_rejection(adapter: _AdapterLike, difficulty: Difficulty = "eas
     for pid in herring_ids:
         adapter.refine_pattern(pid, herring_corrected, feedback="mock re-eval herring")
 
-    post_matches = 0
-    post_herring = 0
-    for q in probes[:5]:
-        for m in adapter.recall(q, limit=10, eval_weighted=True):
-            post_matches += 1
-            if m.pattern_id in herring_set:
-                post_herring += 1
+    post_herring, post_matches = _probe_top10()
     post_herring_fraction = post_herring / post_matches if post_matches else 0.0
 
     engramia_score = max(0.0, 1.0 - post_herring_fraction)
+
+    # Classification metrics treating "honest pattern in the probe's
+    # top-10" as the positive class. Averaged across the five probes so
+    # numbers stay in [0, 1]. Precision = honest / returned; recall =
+    # honest / min(10, total_honest_seeded) — bounded because our top-K
+    # is smaller than the pool.
+    num_probes_scored = len(probes[:5])
+    max_honest_in_topk = min(10, len(good_ids))
+
+    def _metrics(herring_total: int, matches_total: int) -> dict[str, float]:
+        top_count_per_probe = matches_total // max(1, num_probes_scored)
+        honest_total = matches_total - herring_total
+        honest_per_probe = honest_total / max(1, num_probes_scored)
+        # Precision across returned matches.
+        precision = honest_total / matches_total if matches_total else 0.0
+        # Recall bounded by the smaller of top-10 and total seeded.
+        recall = min(1.0, honest_per_probe / max(1, max_honest_in_topk))
+        f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+        return {
+            "precision_honest": round(precision, 4),
+            "recall_honest": round(recall, 4),
+            "f1_honest": round(f1, 4),
+            "herring_fraction_in_top10": round(herring_total / matches_total if matches_total else 0.0, 4),
+            "top_count_per_probe": top_count_per_probe,
+        }
+
+    pre_metrics = _metrics(pre_herring, pre_matches)
+    post_metrics = _metrics(post_herring, post_matches)
+    f1_improvement = round(post_metrics["f1_honest"] - pre_metrics["f1_honest"], 4)
 
     return ScenarioResult(
         scenario="L5_noise_rejection",
@@ -721,6 +839,19 @@ def _run_l5_noise_rejection(adapter: _AdapterLike, difficulty: Difficulty = "eas
             "herring_claim": herring_claim,
             "herring_corrected": herring_corrected,
             "honest_corrected": honest_corrected,
+        },
+        curves={
+            "pre_re_eval": pre_metrics,
+            "post_re_eval": post_metrics,
+            "f1_improvement": f1_improvement,
+            "classification_interpretation": (
+                "Precision / recall / F1 treating 'honest pattern in top-10' as "
+                "the positive class. F1 improvement = post - pre is the net gain "
+                "from one round of refine_pattern re-grading. A positive "
+                "delta indicates re-evaluation successfully identified and "
+                "demoted the adversarial patterns; zero or negative indicates "
+                "the backend cannot act on the corrected scores."
+            ),
         },
     )
 

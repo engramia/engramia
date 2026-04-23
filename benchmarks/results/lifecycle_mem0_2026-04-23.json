@@ -9,7 +9,7 @@
     "supports_timestamp_patch": false,
     "embedding_model": "adapter-internal",
     "use_local_embeddings": false,
-    "timestamp": "2026-04-23T06:40:22.368062Z",
+    "timestamp": "2026-04-23T14:22:38.217369Z",
     "scenarios_run": [
       "L1",
       "L2",
@@ -37,6 +37,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -52,6 +53,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -67,6 +69,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -82,6 +85,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -97,6 +101,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -112,6 +117,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -127,6 +133,7 @@
         "Adapter missing required capability: patch_timestamp (adapter cannot back-date stored patterns)."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -142,6 +149,7 @@
         "Adapter missing required capability: patch_timestamp (adapter cannot back-date stored patterns)."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -157,6 +165,7 @@
         "Adapter missing required capability: patch_timestamp (adapter cannot back-date stored patterns)."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -172,6 +181,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -187,6 +197,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -202,6 +213,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -217,6 +229,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -232,6 +245,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     },
     {
@@ -247,6 +261,7 @@
         "Adapter missing required capability: refine_pattern."
       ],
       "raw_metrics": {},
+      "curves": {},
       "duration_seconds": 0.0
     }
   ],

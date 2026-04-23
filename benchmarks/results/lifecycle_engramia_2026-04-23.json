@@ -9,7 +9,7 @@
     "supports_timestamp_patch": true,
     "embedding_model": "all-MiniLM-L6-v2 (local)",
     "use_local_embeddings": true,
-    "timestamp": "2026-04-23T06:39:24.838426Z",
+    "timestamp": "2026-04-23T14:20:24.871026Z",
     "scenarios_run": [
       "L1",
       "L2",
@@ -45,7 +45,36 @@
         "noisy_feedbacks": 0,
         "total_feedbacks": 120
       },
-      "duration_seconds": 3.77
+      "curves": {
+        "convergence": [
+          0.6667,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "convergence_iterations": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "convergence_interpretation": "Fraction of 12 tasks whose current top-1 is the ground-truth best approach, sampled after each of 10 training iterations (index 0 = pre-training baseline). A growing curve indicates feedback accumulates; a flat/declining curve indicates noise dominates."
+      },
+      "duration_seconds": 6.01
     },
     {
       "scenario": "L1_improvement_curve",
@@ -68,7 +97,36 @@
         "noisy_feedbacks": 24,
         "total_feedbacks": 120
       },
-      "duration_seconds": 5.03
+      "curves": {
+        "convergence": [
+          0.6667,
+          0.8333,
+          0.8333,
+          0.6667,
+          0.5833,
+          0.5833,
+          0.5,
+          0.5833,
+          0.5,
+          0.3333,
+          0.3333
+        ],
+        "convergence_iterations": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "convergence_interpretation": "Fraction of 12 tasks whose current top-1 is the ground-truth best approach, sampled after each of 10 training iterations (index 0 = pre-training baseline). A growing curve indicates feedback accumulates; a flat/declining curve indicates noise dominates."
+      },
+      "duration_seconds": 10.02
     },
     {
       "scenario": "L1_improvement_curve",
@@ -91,7 +149,32 @@
         "noisy_feedbacks": 23,
         "total_feedbacks": 96
       },
-      "duration_seconds": 4.74
+      "curves": {
+        "convergence": [
+          0.6667,
+          0.9167,
+          0.9167,
+          0.6667,
+          0.3333,
+          0.3333,
+          0.4167,
+          0.5,
+          0.5833
+        ],
+        "convergence_iterations": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "convergence_interpretation": "Fraction of 12 tasks whose current top-1 is the ground-truth best approach, sampled after each of 8 training iterations (index 0 = pre-training baseline). A growing curve indicates feedback accumulates; a flat/declining curve indicates noise dominates."
+      },
+      "duration_seconds": 9.44
     },
     {
       "scenario": "L2_deprecation_speed",
@@ -114,7 +197,16 @@
         "failed_score": 0.5,
         "good_score": 7.0
       },
-      "duration_seconds": 3.23
+      "curves": {
+        "precision_at_k": {
+          "p@1": 1.0,
+          "p@3": 1.0,
+          "p@5": 1.0,
+          "p@10": 1.0
+        },
+        "precision_at_k_interpretation": "Fraction of the top-K recalled matches that belong to the non-deprecated set, for K in {1, 3, 5, 10}. Degradation at higher K indicates the quality multiplier discriminates well at the head but loses resolution deeper in the list."
+      },
+      "duration_seconds": 5.6
     },
     {
       "scenario": "L2_deprecation_speed",
@@ -137,7 +229,16 @@
         "failed_score": 3.0,
         "good_score": 7.0
       },
-      "duration_seconds": 3.55
+      "curves": {
+        "precision_at_k": {
+          "p@1": 1.0,
+          "p@3": 1.0,
+          "p@5": 1.0,
+          "p@10": 1.0
+        },
+        "precision_at_k_interpretation": "Fraction of the top-K recalled matches that belong to the non-deprecated set, for K in {1, 3, 5, 10}. Degradation at higher K indicates the quality multiplier discriminates well at the head but loses resolution deeper in the list."
+      },
+      "duration_seconds": 6.05
     },
     {
       "scenario": "L2_deprecation_speed",
@@ -160,7 +261,16 @@
         "failed_score": 4.0,
         "good_score": 6.0
       },
-      "duration_seconds": 3.68
+      "curves": {
+        "precision_at_k": {
+          "p@1": 1.0,
+          "p@3": 1.0,
+          "p@5": 1.0,
+          "p@10": 1.0
+        },
+        "precision_at_k_interpretation": "Fraction of the top-K recalled matches that belong to the non-deprecated set, for K in {1, 3, 5, 10}. Degradation at higher K indicates the quality multiplier discriminates well at the head but loses resolution deeper in the list."
+      },
+      "duration_seconds": 6.29
     },
     {
       "scenario": "L3_conflict_resolution",
@@ -183,7 +293,37 @@
         "old_eval": 9.0,
         "new_eval": 7.0
       },
-      "duration_seconds": 3.68
+      "curves": {
+        "sharpness_weights": [
+          0.0,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.7,
+          0.8,
+          0.9,
+          1.0
+        ],
+        "new_fraction_by_weight": [
+          0.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "crossover_weight": 0.1,
+        "sharpness_interpretation": "Fraction of probes whose top-1 comes from the new (fresh) cohort as a function of recency_weight. A sharp step function near a specific weight indicates the knob flips ranking cleanly at that point; a smooth ramp indicates the knob blends the two cohorts gradually. Competitors without a recency knob cannot produce either shape — their fraction stays flat."
+      },
+      "duration_seconds": 13.82
     },
     {
       "scenario": "L3_conflict_resolution",
@@ -206,7 +346,37 @@
         "old_eval": 8.5,
         "new_eval": 7.5
       },
-      "duration_seconds": 3.14
+      "curves": {
+        "sharpness_weights": [
+          0.0,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.7,
+          0.8,
+          0.9,
+          1.0
+        ],
+        "new_fraction_by_weight": [
+          0.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "crossover_weight": 0.1,
+        "sharpness_interpretation": "Fraction of probes whose top-1 comes from the new (fresh) cohort as a function of recency_weight. A sharp step function near a specific weight indicates the knob flips ranking cleanly at that point; a smooth ramp indicates the knob blends the two cohorts gradually. Competitors without a recency knob cannot produce either shape — their fraction stays flat."
+      },
+      "duration_seconds": 13.4
     },
     {
       "scenario": "L3_conflict_resolution",
@@ -229,7 +399,37 @@
         "old_eval": 8.0,
         "new_eval": 7.5
       },
-      "duration_seconds": 3.1
+      "curves": {
+        "sharpness_weights": [
+          0.0,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.7,
+          0.8,
+          0.9,
+          1.0
+        ],
+        "new_fraction_by_weight": [
+          0.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "crossover_weight": 0.1,
+        "sharpness_interpretation": "Fraction of probes whose top-1 comes from the new (fresh) cohort as a function of recency_weight. A sharp step function near a specific weight indicates the knob flips ranking cleanly at that point; a smooth ramp indicates the knob blends the two cohorts gradually. Competitors without a recency knob cannot produce either shape — their fraction stays flat."
+      },
+      "duration_seconds": 14.34
     },
     {
       "scenario": "L4_concept_drift",
@@ -248,7 +448,20 @@
         "v3_top5": 50,
         "total_top5": 50
       },
-      "duration_seconds": 2.35
+      "curves": {
+        "precision_at_k": {
+          "p@1": 1.0,
+          "p@3": 1.0,
+          "p@5": 1.0,
+          "p@10": 1.0
+        },
+        "precision_at_k_interpretation": "Fraction of top-K matches that come from the fresh v3 cohort (refined quality + fresh timestamp) despite v2 being more populous. Drop-off at higher K shows how far the fresh cohort's ranking advantage extends.",
+        "cohort_sizes": {
+          "v2": 20,
+          "v3": 10
+        }
+      },
+      "duration_seconds": 7.92
     },
     {
       "scenario": "L4_concept_drift",
@@ -267,7 +480,20 @@
         "v3_top5": 50,
         "total_top5": 50
       },
-      "duration_seconds": 3.23
+      "curves": {
+        "precision_at_k": {
+          "p@1": 1.0,
+          "p@3": 1.0,
+          "p@5": 1.0,
+          "p@10": 1.0
+        },
+        "precision_at_k_interpretation": "Fraction of top-K matches that come from the fresh v3 cohort (refined quality + fresh timestamp) despite v2 being more populous. Drop-off at higher K shows how far the fresh cohort's ranking advantage extends.",
+        "cohort_sizes": {
+          "v2": 30,
+          "v3": 10
+        }
+      },
+      "duration_seconds": 9.75
     },
     {
       "scenario": "L4_concept_drift",
@@ -286,7 +512,20 @@
         "v3_top5": 50,
         "total_top5": 50
       },
-      "duration_seconds": 4.25
+      "curves": {
+        "precision_at_k": {
+          "p@1": 1.0,
+          "p@3": 1.0,
+          "p@5": 1.0,
+          "p@10": 1.0
+        },
+        "precision_at_k_interpretation": "Fraction of top-K matches that come from the fresh v3 cohort (refined quality + fresh timestamp) despite v2 being more populous. Drop-off at higher K shows how far the fresh cohort's ranking advantage extends.",
+        "cohort_sizes": {
+          "v2": 40,
+          "v3": 10
+        }
+      },
+      "duration_seconds": 11.01
     },
     {
       "scenario": "L5_noise_rejection",
@@ -298,13 +537,13 @@
       "feature_tested": "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns",
       "pass_rule": "After re-evaluation (herring claim=9.5, corrected=1.0; honest corrected=7.0), top-10 must contain ≤ 20% red herrings.",
       "notes": [
-        "Pre-re-eval herring fraction in top-10: 0.0%",
+        "Pre-re-eval herring fraction in top-10: 100.0%",
         "Post-re-eval herring fraction in top-10: 0.0%"
       ],
       "raw_metrics": {
         "honest_seeded": 20,
         "herring_seeded": 20,
-        "pre_herring_fraction": 0.0,
+        "pre_herring_fraction": 1.0,
         "post_herring_fraction": 0.0,
         "pre_top10": 50,
         "post_top10": 50,
@@ -312,7 +551,25 @@
         "herring_corrected": 1.0,
         "honest_corrected": 7.0
       },
-      "duration_seconds": 3.42
+      "curves": {
+        "pre_re_eval": {
+          "precision_honest": 0.0,
+          "recall_honest": 0.0,
+          "f1_honest": 0.0,
+          "herring_fraction_in_top10": 1.0,
+          "top_count_per_probe": 10
+        },
+        "post_re_eval": {
+          "precision_honest": 1.0,
+          "recall_honest": 1.0,
+          "f1_honest": 1.0,
+          "herring_fraction_in_top10": 0.0,
+          "top_count_per_probe": 10
+        },
+        "f1_improvement": 1.0,
+        "classification_interpretation": "Precision / recall / F1 treating 'honest pattern in top-10' as the positive class. F1 improvement = post - pre is the net gain from one round of refine_pattern re-grading. A positive delta indicates re-evaluation successfully identified and demoted the adversarial patterns; zero or negative indicates the backend cannot act on the corrected scores."
+      },
+      "duration_seconds": 5.3
     },
     {
       "scenario": "L5_noise_rejection",
@@ -324,13 +581,13 @@
       "feature_tested": "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns",
       "pass_rule": "After re-evaluation (herring claim=8.0, corrected=3.0; honest corrected=7.0), top-10 must contain ≤ 20% red herrings.",
       "notes": [
-        "Pre-re-eval herring fraction in top-10: 0.0%",
+        "Pre-re-eval herring fraction in top-10: 100.0%",
         "Post-re-eval herring fraction in top-10: 0.0%"
       ],
       "raw_metrics": {
         "honest_seeded": 20,
         "herring_seeded": 20,
-        "pre_herring_fraction": 0.0,
+        "pre_herring_fraction": 1.0,
         "post_herring_fraction": 0.0,
         "pre_top10": 50,
         "post_top10": 50,
@@ -338,7 +595,25 @@
         "herring_corrected": 3.0,
         "honest_corrected": 7.0
       },
-      "duration_seconds": 3.23
+      "curves": {
+        "pre_re_eval": {
+          "precision_honest": 0.0,
+          "recall_honest": 0.0,
+          "f1_honest": 0.0,
+          "herring_fraction_in_top10": 1.0,
+          "top_count_per_probe": 10
+        },
+        "post_re_eval": {
+          "precision_honest": 1.0,
+          "recall_honest": 1.0,
+          "f1_honest": 1.0,
+          "herring_fraction_in_top10": 0.0,
+          "top_count_per_probe": 10
+        },
+        "f1_improvement": 1.0,
+        "classification_interpretation": "Precision / recall / F1 treating 'honest pattern in top-10' as the positive class. F1 improvement = post - pre is the net gain from one round of refine_pattern re-grading. A positive delta indicates re-evaluation successfully identified and demoted the adversarial patterns; zero or negative indicates the backend cannot act on the corrected scores."
+      },
+      "duration_seconds": 5.09
     },
     {
       "scenario": "L5_noise_rejection",
@@ -350,13 +625,13 @@
       "feature_tested": "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns",
       "pass_rule": "After re-evaluation (herring claim=7.5, corrected=5.0; honest corrected=7.0), top-10 must contain ≤ 20% red herrings.",
       "notes": [
-        "Pre-re-eval herring fraction in top-10: 0.0%",
+        "Pre-re-eval herring fraction in top-10: 100.0%",
         "Post-re-eval herring fraction in top-10: 0.0%"
       ],
       "raw_metrics": {
         "honest_seeded": 20,
         "herring_seeded": 20,
-        "pre_herring_fraction": 0.0,
+        "pre_herring_fraction": 1.0,
         "post_herring_fraction": 0.0,
         "pre_top10": 50,
         "post_top10": 50,
@@ -364,7 +639,25 @@
         "herring_corrected": 5.0,
         "honest_corrected": 7.0
       },
-      "duration_seconds": 3.31
+      "curves": {
+        "pre_re_eval": {
+          "precision_honest": 0.0,
+          "recall_honest": 0.0,
+          "f1_honest": 0.0,
+          "herring_fraction_in_top10": 1.0,
+          "top_count_per_probe": 10
+        },
+        "post_re_eval": {
+          "precision_honest": 1.0,
+          "recall_honest": 1.0,
+          "f1_honest": 1.0,
+          "herring_fraction_in_top10": 0.0,
+          "top_count_per_probe": 10
+        },
+        "f1_improvement": 1.0,
+        "classification_interpretation": "Precision / recall / F1 treating 'honest pattern in top-10' as the positive class. F1 improvement = post - pre is the net gain from one round of refine_pattern re-grading. A positive delta indicates re-evaluation successfully identified and demoted the adversarial patterns; zero or negative indicates the backend cannot act on the corrected scores."
+      },
+      "duration_seconds": 5.03
     }
   ],
   "summary": {
