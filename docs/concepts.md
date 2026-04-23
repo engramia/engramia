@@ -125,6 +125,24 @@ Instead of a single LLM evaluation, Engramia runs **N independent evaluations** 
 - Feedback comes from the **worst run** (most useful for improvement)
 - Adversarial detection catches hardcoded outputs
 
+Pass `pattern_key` to `evaluate()` to route the result through the eval
+store under that pattern's key — the evaluation then feeds `recall
+(eval_weighted=True)` ranking immediately. Without `pattern_key`, the
+result is keyed by `sha256(code)` and stays decoupled from the stored
+pattern, useful for grading free-floating code.
+
+### Closed-loop benchmark (AgentLifecycleBench)
+
+`benchmarks/lifecycle.py` exercises the closed-loop primitives that
+distinguish Engramia from a vector DB: `refine_pattern`,
+`evaluate(pattern_key=...)`, time-decay, and `recency_weight`. Five
+scenarios at three difficulty levels each, with the same adapter
+protocol applied to Engramia, Mem0, and Hindsight. See
+[benchmarks/LIFECYCLE.md](../benchmarks/LIFECYCLE.md) for the full
+methodology, scenario-level curves, and the cross-backend comparison
+(competitors return `capability_missing` because their APIs do not
+expose a refinement write path).
+
 ## Architecture
 
 ```

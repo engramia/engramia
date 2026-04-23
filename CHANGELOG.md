@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Added — AgentLifecycleBench (closed-loop benchmark + adapter protocol)
+
+- **`benchmarks/lifecycle.py`** — five closed-loop scenarios
+  (improvement curve, deprecation speed, conflict resolution,
+  concept drift, signal-to-noise floor) at three difficulty levels
+  each (easy / medium / hard). Every scenario publishes a curve
+  (convergence over iterations, precision@K, recency sharpness,
+  classification F1) alongside the binary pass-rule score.
+- **`benchmarks/adapters/base.py`** — `MemoryAdapter` +
+  `LifecycleAdapter` protocols. `supports_refine` / capability
+  probing lets the harness distinguish "backend failed the test"
+  from "backend's API cannot attempt the test" (`capability_missing`).
+- **`benchmarks/adapters/engramia_adapter.py`** — canonical adapter
+  implementing both protocols; supports refine + timestamp patch.
+- **Mem0 / Hindsight adapter updates** — both declare
+  `supports_refine=False` with module docstrings explaining which
+  upstream API is missing. First lifecycle runs show all 15
+  scenario-difficulty combinations come back `capability_missing`
+  for both — the honest framing the audit-rev drive required.
+- **`benchmarks/LIFECYCLE.md`** — full methodology, scenario-level
+  curves, and cross-backend comparison.
+- **Updated `benchmarks/README.md`** — index with pointers to both
+  LongMemEval and AgentLifecycleBench; flags the legacy "93 %"
+  claim as pre-audit.
+- **Marketing-defensible headline**: Engramia 86.7 % on the
+  medium-difficulty mean (five lifecycle scenarios, 2026-04-23,
+  local MiniLM embeddings). Mem0 and Hindsight cannot produce a
+  comparable number because their public APIs cannot exercise
+  the scenarios.
+
 ### Added — Closed-loop quality signal (survival vs ranking split)
 
 - **`Memory.refine_pattern(pattern_key, eval_score, *, task=None, feedback="")`** —

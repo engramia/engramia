@@ -1,7 +1,33 @@
 # Engramia Benchmark Suite
 
-Reproducible benchmark that validates Engramia's recall quality — the mechanism
-behind the **93% task success rate** observed in Agent Factory V2 (254 runs).
+Three benchmark surfaces, each measuring a different aspect of
+Engramia's behaviour:
+
+1. **[LongMemEval](LONGMEMEVAL.md)** — semantic recall quality on a
+   500-task synthetic suite plus an Oracle port of the Wu 2024
+   real-dataset benchmark. Covers single_hop / multi_hop /
+   temporal / knowledge_updates / absent_memory_detection.
+2. **[AgentLifecycleBench](LIFECYCLE.md)** — closed-loop memory
+   scenarios: improvement curve, deprecation speed, conflict
+   resolution, concept drift, noise rejection. Runs against
+   Engramia, Mem0, and Hindsight through the same adapter
+   protocol; competitors return `capability_missing` on every
+   scenario because they don't expose a refinement write path.
+3. **Legacy 254-task Agent Factory V2 bench** (documented below) —
+   pre-audit harness quoted as "93 % task success rate" in earlier
+   marketing copy. Retained as a reproducible reference, but the
+   93 % number pre-dates the 2026-04-21 methodology audit and
+   should not be cited without the caveat.
+
+---
+
+## Legacy 254-task Agent Factory V2 bench
+
+Reproducible benchmark that validated an earlier milestone — the
+**93 % task success rate** observed in Agent Factory V2 (254 runs).
+All numbers below pre-date the 2026-04-21 methodology audit. For
+current public claims, prefer AgentLifecycleBench medium-difficulty
+numbers and the post-audit LongMemEval columns.
 
 ## What this benchmark proves
 
