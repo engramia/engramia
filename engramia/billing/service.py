@@ -351,7 +351,9 @@ class BillingService:
 
         data = event["data"]["object"]
 
-        if event_type in ("customer.subscription.created", "customer.subscription.updated"):
+        if event_type == "checkout.session.completed":
+            self._link_checkout_session(data)
+        elif event_type in ("customer.subscription.created", "customer.subscription.updated"):
             self._upsert_subscription(data)
         elif event_type == "customer.subscription.deleted":
             self._downgrade_to_sandbox(data["customer"])
@@ -389,6 +391,52 @@ class BillingService:
     # ------------------------------------------------------------------
     # Internal webhook helpers
     # ------------------------------------------------------------------
+
+    def _link_checkout_session(self, session_data: dict) -> None:
+        """Handle checkout.session.completed — link Stripe customer to tenant.
+
+        Payment Link flow carries the tenant_id as client_reference_id through
+        Stripe Checkout. Stripe creates the customer record on-the-fly, so
+        billing_subscriptions has no row yet. Write a stub row keyed by
+        (tenant_id, stripe_customer_id) so the follow-up customer.subscription.
+        created event can resolve tenant_id via _tenant_id_by_customer().
+        """
+        if self._engine is None:
+            return
+        if session_data.get("mode") != "subscription":
+            # One-off payments, setup sessions, etc. — no subscription to link.
+            return
+        tenant_id = session_data.get("client_reference_id")
+        customer_id = session_data.get("customer")
+        if not tenant_id or not customer_id:
+            _log.warning(
+                "checkout.session.completed missing client_reference_id or customer "
+                "(tenant=%r, customer=%r); Payment Link must forward the tenant_id.",
+                tenant_id,
+                customer_id,
+            )
+            return
+
+        try:
+            with self._engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO billing_subscriptions "
+                        "(id, tenant_id, stripe_customer_id, status) "
+                        "VALUES (gen_random_uuid()::text, :tid, :cid, 'incomplete') "
+                        "ON CONFLICT (tenant_id) DO UPDATE SET "
+                        "stripe_customer_id = EXCLUDED.stripe_customer_id, "
+                        "updated_at = now()::text"
+                    ),
+                    {"tid": tenant_id, "cid": customer_id},
+                )
+            _log.info(
+                "Linked tenant=%s to Stripe customer=%s via checkout session",
+                tenant_id,
+                customer_id,
+            )
+        except sqlalchemy.exc.SQLAlchemyError:
+            _log.error("_link_checkout_session DB error", exc_info=True)
 
     def _upsert_subscription(self, sub_data: dict) -> None:
         """Insert or update a billing_subscriptions row from Stripe subscription data."""
