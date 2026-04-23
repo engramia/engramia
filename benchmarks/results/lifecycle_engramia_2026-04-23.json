@@ -1,0 +1,126 @@
+{
+  "metadata": {
+    "benchmark": "AgentLifecycleBench",
+    "adapter_kind": "engramia",
+    "system_name": "engramia",
+    "system_version": "0.6.6.dev0+gf2158879f.d20260404",
+    "forced_mapping_note": "Engramia runs natively on this harness — no forced mapping. Embedding backend: all-MiniLM-L6-v2 (local). Every scenario uses the real public API (learn, recall, refine_pattern) and the real eval store path.",
+    "supports_refine": true,
+    "supports_timestamp_patch": true,
+    "embedding_model": "all-MiniLM-L6-v2 (local)",
+    "use_local_embeddings": true,
+    "timestamp": "2026-04-23T05:29:24.115107Z",
+    "scenarios_run": [
+      "L1_improvement_curve",
+      "L2_deprecation_speed",
+      "L3_conflict_resolution",
+      "L4_concept_drift",
+      "L5_noise_rejection"
+    ]
+  },
+  "results": [
+    {
+      "scenario": "L1_improvement_curve",
+      "engramia_score": 1.0,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": 3.0,
+      "capability_missing": false,
+      "feature_tested": "refine_pattern (repeated quality observations update eval-weighted ranking)",
+      "pass_rule": "After 10 iterations of simulated feedback, top-1 must be the ground-truth best approach on at least 80% of tasks.",
+      "notes": [
+        "Random baseline is 1/3 (three candidates per task)."
+      ],
+      "raw_metrics": {
+        "iterations": 10,
+        "tasks": 12,
+        "correct": 12
+      },
+      "duration_seconds": 4.35
+    },
+    {
+      "scenario": "L2_deprecation_speed",
+      "engramia_score": 1.0,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": 2.0,
+      "capability_missing": false,
+      "feature_tested": "refine_pattern downgrade demotes deprecated patterns out of top-K",
+      "pass_rule": "≥80% of top-5 matches are from the non-deprecated set.",
+      "notes": [
+        "Shared task text eliminates similarity variance so the scored signal is purely the quality multiplier."
+      ],
+      "raw_metrics": {
+        "good_top5": 50,
+        "total_top5": 50,
+        "good_patterns": 25,
+        "failed_patterns": 25,
+        "probe_queries": 10
+      },
+      "duration_seconds": 3.15
+    },
+    {
+      "scenario": "L3_conflict_resolution",
+      "engramia_score": 1.0,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": 2.0,
+      "capability_missing": false,
+      "feature_tested": "recency_weight knob + timestamp-aware ranking",
+      "pass_rule": "Average of (old wins at recency_weight=0, new wins at recency_weight=1) must be ≥ 80%.",
+      "notes": [
+        "Large limit (100) used so recency re-rank sees both cohorts; a small limit hides the competing cohort from the re-rank stage."
+      ],
+      "raw_metrics": {
+        "old_wins_at_recency_0": 1.0,
+        "new_wins_at_recency_1": 1.0,
+        "new_fraction_at_recency_0p3": 1.0,
+        "probes": 12
+      },
+      "duration_seconds": 3.35
+    },
+    {
+      "scenario": "L4_concept_drift",
+      "engramia_score": 1.0,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": 3.0,
+      "capability_missing": false,
+      "feature_tested": "refine_pattern quality boost + recency_weight on fresh cohort",
+      "pass_rule": "≥60% of top-5 matches come from the fresh v3 cohort despite v2 being 2× more populous.",
+      "notes": [],
+      "raw_metrics": {
+        "v2_seeded": 20,
+        "v3_seeded": 10,
+        "v3_top5": 50,
+        "total_top5": 50
+      },
+      "duration_seconds": 2.14
+    },
+    {
+      "scenario": "L5_noise_rejection",
+      "engramia_score": 1.0,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": 2.0,
+      "capability_missing": false,
+      "feature_tested": "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns",
+      "pass_rule": "After one re-evaluation round, top-10 must contain ≤ 20% red herrings (score ≥ 0.8).",
+      "notes": [
+        "Pre-re-eval herring fraction in top-10: 0.0%",
+        "Post-re-eval herring fraction in top-10: 0.0%"
+      ],
+      "raw_metrics": {
+        "honest_seeded": 20,
+        "herring_seeded": 20,
+        "pre_herring_fraction": 0.0,
+        "post_herring_fraction": 0.0,
+        "pre_top10": 50,
+        "post_top10": 50
+      },
+      "duration_seconds": 2.73
+    }
+  ],
+  "summary": {
+    "mean_engramia_score": 1.0,
+    "mean_random_baseline": 0.4333,
+    "scenarios_with_score": 5,
+    "scenarios_capability_missing": 0,
+    "scenarios_errored": 0
+  }
+}

@@ -128,3 +128,47 @@ class MemoryAdapter(Protocol):
     def reset(self) -> None:
         """Drop all stored patterns. Called between dimension runs."""
         ...
+
+
+@runtime_checkable
+class LifecycleAdapter(Protocol):
+    """Optional extension for backends that expose a quality-evidence
+    write path.
+
+    Splitting this off from :class:`MemoryAdapter` reflects a
+    deliberate capability split: a memory system that does semantic
+    recall is not obligated to support closed-loop feedback refinement.
+    The lifecycle benchmark queries ``supports_refine`` on each adapter
+    and records "missing capability" in the result JSON when it is
+    False, so readers can tell a genuine zero from an unused scenario.
+
+    Engramia's adapter implements this via
+    :py:meth:`engramia.Memory.refine_pattern`. Mem0 and Hindsight do
+    not currently expose an equivalent write path — they declare
+    ``supports_refine == False`` and the harness records the gap
+    rather than producing a misleading number.
+    """
+
+    @property
+    def supports_refine(self) -> bool:
+        """``True`` when :meth:`refine_pattern` is usable.
+
+        Defaults to ``False`` on adapters that do not implement it;
+        the lifecycle harness treats a ``False`` here as "scenario
+        cannot exercise this signal on this backend" and records the
+        scenario score as ``None`` + a ``capability_missing`` note.
+        """
+        ...
+
+    def refine_pattern(self, pattern_id: str, eval_score: float, *, feedback: str = "") -> None:
+        """Record a fresh quality observation against ``pattern_id``.
+
+        The next :meth:`recall` call on the same backend must take the
+        updated evidence into account (i.e. the multiplier / ranking
+        weight must reflect the latest observation). Adapters that
+        cannot honour this contract should set
+        ``supports_refine`` to ``False`` rather than silently accept
+        the write — silent acceptance would mask the benchmark
+        signal and produce false equivalence.
+        """
+        ...

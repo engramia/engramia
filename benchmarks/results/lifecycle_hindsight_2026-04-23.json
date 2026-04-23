@@ -1,0 +1,100 @@
+{
+  "metadata": {
+    "benchmark": "AgentLifecycleBench",
+    "adapter_kind": "hindsight",
+    "system_name": "hindsight-client",
+    "system_version": "0.5.4",
+    "forced_mapping_note": "Hindsight combines semantic + keyword + graph + temporal retrieval with LLM-driven fact / entity extraction at retain time; each pattern is far more expensive to store than a single embedding. RecallResult carries no numeric similarity, so absent_memory_detection falls back to 'matches at all is a failure' — Hindsight almost always returns something from its graph + keyword paths, and will therefore score poorly on that dimension for reasons orthogonal to retrieval quality. No delete/reset API, so each adapter instance uses a fresh bank_id and accumulates server-side state.",
+    "supports_refine": false,
+    "supports_timestamp_patch": false,
+    "embedding_model": "adapter-internal",
+    "use_local_embeddings": false,
+    "timestamp": "2026-04-23T06:25:03.245932Z",
+    "scenarios_run": [
+      "L1_improvement_curve",
+      "L2_deprecation_speed",
+      "L3_conflict_resolution",
+      "L4_concept_drift",
+      "L5_noise_rejection"
+    ]
+  },
+  "results": [
+    {
+      "scenario": "L1_improvement_curve",
+      "engramia_score": null,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern (repeated quality observations update eval-weighted ranking)",
+      "pass_rule": "After 10 iterations of simulated feedback, top-1 must be the ground-truth best approach on at least 80% of tasks.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L2_deprecation_speed",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern downgrade demotes deprecated patterns out of top-K",
+      "pass_rule": "≥80% of top-5 matches are from the non-deprecated set.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L3_conflict_resolution",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "recency_weight knob + timestamp-aware ranking",
+      "pass_rule": "Average of (old wins at recency_weight=0, new wins at recency_weight=1) must be ≥ 80%.",
+      "notes": [
+        "Adapter missing required capability: patch_timestamp (adapter cannot back-date stored patterns)."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L4_concept_drift",
+      "engramia_score": null,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern quality boost + recency_weight on fresh cohort",
+      "pass_rule": "≥60% of top-5 matches come from the fresh v3 cohort despite v2 being 2× more populous.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L5_noise_rejection",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns",
+      "pass_rule": "After one re-evaluation round, top-10 must contain ≤ 20% red herrings (score ≥ 0.8).",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    }
+  ],
+  "summary": {
+    "mean_engramia_score": null,
+    "mean_random_baseline": 0.0,
+    "scenarios_with_score": 0,
+    "scenarios_capability_missing": 5,
+    "scenarios_errored": 0
+  }
+}

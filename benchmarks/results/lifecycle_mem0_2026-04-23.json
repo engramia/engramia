@@ -1,0 +1,100 @@
+{
+  "metadata": {
+    "benchmark": "AgentLifecycleBench",
+    "adapter_kind": "mem0",
+    "system_name": "mem0-local",
+    "system_version": "2.0.0",
+    "forced_mapping_note": "Mem0 is a user-preference / fact-extraction memory system, not an execution-memory system. Patterns are stored verbatim via add(infer=False) to avoid the default LLM extraction pass; Mem0 has no eval_weighted or recency_weight equivalent, so those dimensions are exercised against raw Qdrant similarity alone. Returned scores are Qdrant-derived and not on the same distribution as Engramia's raw cosine — thresholds are dropped and pass rules check top-1 text content only.",
+    "supports_refine": false,
+    "supports_timestamp_patch": false,
+    "embedding_model": "adapter-internal",
+    "use_local_embeddings": false,
+    "timestamp": "2026-04-23T05:34:51.189562Z",
+    "scenarios_run": [
+      "L1_improvement_curve",
+      "L2_deprecation_speed",
+      "L3_conflict_resolution",
+      "L4_concept_drift",
+      "L5_noise_rejection"
+    ]
+  },
+  "results": [
+    {
+      "scenario": "L1_improvement_curve",
+      "engramia_score": null,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern (repeated quality observations update eval-weighted ranking)",
+      "pass_rule": "After 10 iterations of simulated feedback, top-1 must be the ground-truth best approach on at least 80% of tasks.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L2_deprecation_speed",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern downgrade demotes deprecated patterns out of top-K",
+      "pass_rule": "≥80% of top-5 matches are from the non-deprecated set.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L3_conflict_resolution",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "recency_weight knob + timestamp-aware ranking",
+      "pass_rule": "Average of (old wins at recency_weight=0, new wins at recency_weight=1) must be ≥ 80%.",
+      "notes": [
+        "Adapter missing required capability: patch_timestamp (adapter cannot back-date stored patterns)."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L4_concept_drift",
+      "engramia_score": null,
+      "random_baseline": 0.3333,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern quality boost + recency_weight on fresh cohort",
+      "pass_rule": "≥60% of top-5 matches come from the fresh v3 cohort despite v2 being 2× more populous.",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    },
+    {
+      "scenario": "L5_noise_rejection",
+      "engramia_score": null,
+      "random_baseline": 0.5,
+      "discrimination_margin_x": "capability_missing",
+      "capability_missing": true,
+      "feature_tested": "refine_pattern re-grading demotes adversarial (spoofed high-score) patterns",
+      "pass_rule": "After one re-evaluation round, top-10 must contain ≤ 20% red herrings (score ≥ 0.8).",
+      "notes": [
+        "Adapter missing required capability: refine_pattern."
+      ],
+      "raw_metrics": {},
+      "duration_seconds": 0.0
+    }
+  ],
+  "summary": {
+    "mean_engramia_score": null,
+    "mean_random_baseline": 0.0,
+    "scenarios_with_score": 0,
+    "scenarios_capability_missing": 5,
+    "scenarios_errored": 0
+  }
+}

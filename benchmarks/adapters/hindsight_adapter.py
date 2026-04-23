@@ -135,6 +135,24 @@ class HindsightAdapter(MemoryAdapter):
     def system_version(self) -> str:
         return self._system_version
 
+    # LifecycleAdapter capability declarations
+    @property
+    def supports_refine(self) -> bool:
+        # Hindsight has no "replace the quality score" endpoint.
+        # `retain()` takes a fresh content string; re-ranking is done
+        # by its server-side RRF pipeline, not by caller-supplied
+        # quality observations.
+        return False
+
+    def refine_pattern(self, pattern_id: str, eval_score: float, *, feedback: str = "") -> None:
+        raise NotImplementedError(
+            "Hindsight does not expose a refine_pattern equivalent — "
+            "its server-side RRF ranking does not consume caller-"
+            "supplied quality observations. Lifecycle scenarios "
+            "depending on refine_pattern should mark Hindsight as "
+            "capability_missing."
+        )
+
     @property
     def forced_mapping_note(self) -> str:
         return (

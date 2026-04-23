@@ -11,6 +11,6 @@ each adapter's module docstring and surface in the output JSON
 under ``metadata.forced_mapping_note``.
 """
 
-from benchmarks.adapters.base import MemoryAdapter, MatchResult
+from benchmarks.adapters.base import LifecycleAdapter, MemoryAdapter, MatchResult
 
-__all__ = ["MemoryAdapter", "MatchResult"]
+__all__ = ["LifecycleAdapter", "MemoryAdapter", "MatchResult"]

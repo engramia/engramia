@@ -97,6 +97,22 @@ class Mem0Adapter(MemoryAdapter):
     def system_version(self) -> str:
         return self._version
 
+    # LifecycleAdapter capability declarations
+    @property
+    def supports_refine(self) -> bool:
+        # Mem0's public API has no endpoint to replace an evaluation
+        # record on an existing memory. ``metadata`` is settable but
+        # Mem0's ranker does not consult it for relevance scoring.
+        return False
+
+    def refine_pattern(self, pattern_id: str, eval_score: float, *, feedback: str = "") -> None:
+        raise NotImplementedError(
+            "Mem0 does not expose a refine_pattern equivalent — its "
+            "ranker does not re-read metadata for relevance. Lifecycle "
+            "scenarios depending on refine_pattern should mark Mem0 "
+            "as capability_missing."
+        )
+
     @property
     def forced_mapping_note(self) -> str:
         return (
