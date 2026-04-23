@@ -381,23 +381,36 @@ def _run_l2_deprecation_speed(adapter: _AdapterLike, difficulty: Difficulty = "e
 
     n_good = 25
     n_failed = 25
-    shared_text = "Build the order-fulfilment pipeline"
-    probe_queries = [shared_text] * 10
+    # easy/medium use shared task text so the ranking signal is purely
+    # the quality multiplier. hard breaks the shared-text assumption:
+    # patterns use per-domain task text, probes use domain-specific
+    # wording, and similarity variance competes with the multiplier.
+    if difficulty == "hard":
+        shared_text: str | None = None
+        probe_queries = [
+            f"Implement {d.replace('_', ' ')} flow"
+            for d in _DOMAINS[:10]
+        ]
+    else:
+        shared_text = "Build the order-fulfilment pipeline"
+        probe_queries = [shared_text] * 10
 
     adapter.reset()
     patterns = []
     for i in range(n_good):
         d = _DOMAINS[i % len(_DOMAINS)]
+        task_text = shared_text if shared_text is not None else f"Implement {d.replace('_', ' ')} task"
         patterns.append({
-            "task": shared_text,
+            "task": task_text,
             "code": f"# good {d} #{i}",
             "eval_score": good_score,
             "pattern_id": f"good_{i}",
         })
     for i in range(n_failed):
         d = _DOMAINS[i % len(_DOMAINS)]
+        task_text = shared_text if shared_text is not None else f"Implement {d.replace('_', ' ')} task"
         patterns.append({
-            "task": shared_text,
+            "task": task_text,
             "code": f"# failed {d} #{i}",
             "eval_score": good_score,  # all seeded equal; failure is recorded after
             "pattern_id": f"failed_{i}",
@@ -624,22 +637,32 @@ def _run_l4_concept_drift(adapter: _AdapterLike, difficulty: Difficulty = "easy"
 
     adapter.reset()
     now = time.time()
-    shared_text = "Provide the HTTP client helper used by the platform"
-    probes = [shared_text] * 10
+    # easy/medium: shared task text → ranking decided by eval_weighted
+    # and recency_weight alone. hard: per-domain task text so
+    # similarity varies per-probe; the combined signal has to beat
+    # similarity bias on top of population imbalance.
+    if difficulty == "hard":
+        shared_text = None
+        probes = [f"Implement {d.replace('_', ' ')} flow" for d in _DOMAINS[:10]]
+    else:
+        shared_text = "Provide the HTTP client helper used by the platform"
+        probes = [shared_text] * 10
 
     patterns = []
     for i in range(n_v2):
         d = _DOMAINS[i % len(_DOMAINS)]
+        task_text = shared_text if shared_text is not None else f"Implement {d.replace('_', ' ')} task"
         patterns.append({
-            "task": shared_text,
+            "task": task_text,
             "code": f"# v2 legacy {d} #{i}",
             "eval_score": 7.0,
             "pattern_id": f"v2_{i}",
         })
     for i in range(n_v3):
         d = _DOMAINS[i % len(_DOMAINS)]
+        task_text = shared_text if shared_text is not None else f"Implement {d.replace('_', ' ')} task"
         patterns.append({
-            "task": shared_text,
+            "task": task_text,
             "code": f"# v3 modern {d} #{i}",
             "eval_score": 7.0,
             "pattern_id": f"v3_{i}",
@@ -731,8 +754,19 @@ def _run_l5_noise_rejection(adapter: _AdapterLike, difficulty: Difficulty = "eas
         return _capability_missing("L5_noise_rejection", difficulty, feature, pass_rule, baseline, "refine_pattern")
 
     adapter.reset()
-    shared_text = "Implement service layer for the flagship product"
-    probes = [shared_text] * 20
+    # easy/medium: shared task text so ranking is driven purely by the
+    # eval store's pre- vs post-refine multiplier. hard: per-domain
+    # task text so similarity variance competes with the corrected
+    # score.
+    if difficulty == "hard":
+        shared_text = None
+        probes = [
+            f"Implement {_DOMAINS[i % len(_DOMAINS)].replace('_', ' ')} flow"
+            for i in range(20)
+        ]
+    else:
+        shared_text = "Implement service layer for the flagship product"
+        probes = [shared_text] * 20
 
     patterns = []
     good_ids: list[str] = []
@@ -740,8 +774,9 @@ def _run_l5_noise_rejection(adapter: _AdapterLike, difficulty: Difficulty = "eas
     for i in range(20):
         d = _DOMAINS[i % len(_DOMAINS)]
         pid = f"honest_{i}"
+        task_text = shared_text if shared_text is not None else f"Implement {d.replace('_', ' ')} task"
         patterns.append({
-            "task": shared_text,
+            "task": task_text,
             "code": f"# honest {d} #{i}",
             "eval_score": 7.0,
             "pattern_id": pid,
@@ -750,8 +785,9 @@ def _run_l5_noise_rejection(adapter: _AdapterLike, difficulty: Difficulty = "eas
     for i in range(20):
         d = _DOMAINS[i % len(_DOMAINS)]
         pid = f"herring_{i}"
+        task_text = shared_text if shared_text is not None else f"Implement {d.replace('_', ' ')} task"
         patterns.append({
-            "task": shared_text,
+            "task": task_text,
             "code": f"# herring {d} #{i}",
             "eval_score": herring_claim,
             "pattern_id": pid,
