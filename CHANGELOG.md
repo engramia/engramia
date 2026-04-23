@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Added — AgentTaskBench (end-to-end agent pass-rate benchmark)
+
+- **`benchmarks/agent_task_bench/`** — new benchmark layer that
+  measures agent pass-rate on HumanEval+ (164 Python coding
+  problems) over N iterations. Two configurations per session:
+  `baseline-no-memory` vs `engramia`. Primary metric is the pass-
+  rate improvement slope — baseline stays flat, Engramia ramps as
+  the pattern pool grows and `refine_pattern` keeps the best
+  completions at the top of recall.
+- **Agent**: `gpt-4o-mini` at `temperature=0`, one generation per
+  task per iteration. Token counts tracked per call.
+- **Scoring**: subprocess-isolated execution of the agent's
+  completion plus the task's `check(...)` test harness with a
+  30-second timeout. Non-zero exit = fail.
+- **Not in CI** per decision D6 of the scope doc — full runs cost
+  roughly $1.35 and take 45–60 minutes on `gpt-4o-mini`. Operators
+  trigger per release candidate; results go to
+  `benchmarks/results/task_bench_<engramia_version>_<date>.json`
+  so cross-release comparison is a git diff of committed JSON.
+- **`benchmarks/TASK_BENCH.md`** — full methodology, expected
+  result shapes, reproduction commands, honesty notes on
+  determinism and workload-shape dependence.
+
 ### Added — AgentLifecycleBench (closed-loop benchmark + adapter protocol)
 
 - **`benchmarks/lifecycle.py`** — five closed-loop scenarios

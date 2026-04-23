@@ -1,6 +1,6 @@
 # Engramia Benchmark Suite
 
-Three benchmark surfaces, each measuring a different aspect of
+Four benchmark surfaces, each measuring a different aspect of
 Engramia's behaviour:
 
 1. **[LongMemEval](LONGMEMEVAL.md)** — semantic recall quality on a
@@ -13,7 +13,13 @@ Engramia's behaviour:
    Engramia, Mem0, and Hindsight through the same adapter
    protocol; competitors return `capability_missing` on every
    scenario because they don't expose a refinement write path.
-3. **Legacy 254-task Agent Factory V2 bench** (documented below) —
+3. **[AgentTaskBench](TASK_BENCH.md)** — end-to-end agent
+   pass-rate on HumanEval+, comparing "agent with Engramia" vs
+   "agent with no memory". The benchmark the buyer question plugs
+   into: does an agent actually complete more work over repeated
+   iterations when it has Engramia? Not in CI — operator-triggered
+   per release candidate.
+4. **Legacy 254-task Agent Factory V2 bench** (documented below) —
    pre-audit harness quoted as "93 % task success rate" in earlier
    marketing copy. Retained as a reproducible reference, but the
    93 % number pre-dates the 2026-04-21 methodology audit and

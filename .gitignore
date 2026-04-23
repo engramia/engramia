@@ -57,6 +57,7 @@ tests/recall_quality/results/
 benchmarks/results/*
 !benchmarks/results/longmemeval_*.json
 !benchmarks/results/lifecycle_*.json
+!benchmarks/results/task_bench_*.json
 
 # OS
 .DS_Store
