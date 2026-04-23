@@ -397,8 +397,17 @@ class BillingService:
         customer_id: str = sub_data["customer"]
         sub_id: str = sub_data["id"]
         status: str = sub_data["status"]
-        interval: str = sub_data["items"]["data"][0]["plan"]["interval"]
-        period_end: str = datetime.datetime.fromtimestamp(sub_data["current_period_end"], tz=datetime.UTC).isoformat()
+        items = sub_data.get("items", {}).get("data", []) or []
+        if not items:
+            raise ValueError(f"Subscription {sub_id} has no items")
+        interval: str = items[0]["plan"]["interval"]
+        # Stripe API 2025-03-31+ moved current_period_end off the subscription
+        # root onto each subscription_item. Fall back to the legacy location
+        # so older pinned API versions still work.
+        raw_period_end = items[0].get("current_period_end") or sub_data.get("current_period_end")
+        if raw_period_end is None:
+            raise ValueError(f"Subscription {sub_id} has no current_period_end on item or root")
+        period_end: str = datetime.datetime.fromtimestamp(raw_period_end, tz=datetime.UTC).isoformat()
 
         # Resolve plan tier from Stripe metadata (set during checkout)
         plan_tier: str = sub_data.get("metadata", {}).get("plan_tier", "pro")
