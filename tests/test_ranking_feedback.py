@@ -60,16 +60,38 @@ class TestRefinePattern:
             mem.refine_pattern(key, 10.5)
 
     def test_refine_updates_eval_multiplier(self, mem):
+        """``get_eval_multiplier`` defaults to median-of-last-5 aggregation
+        as of 0.6.7, so a single refine_pattern shifts the multiplier
+        toward the new score without fully replacing it — one outlier
+        cannot overwrite accumulated evidence. Consistent refinement
+        ramps the multiplier up to its new steady-state."""
         mem.learn(task="Known", code="pass", eval_score=5.0, on_duplicate="keep_both")
         key = _keys_for(mem, "Known")[0]
         before = mem._eval_store.get_eval_multiplier(key, "Known")  # noqa: SLF001
-        # Score 5.0 → multiplier 0.5 + 0.5 * 0.5 = 0.75.
+        # One record at 5.0; median = 5.0 → multiplier 0.75.
         assert before == pytest.approx(0.75)
 
         mem.refine_pattern(key, 9.5)
-        after = mem._eval_store.get_eval_multiplier(key, "Known")  # noqa: SLF001
-        # Score 9.5 → multiplier 0.5 + 0.5 * 0.95 = 0.975.
-        assert after == pytest.approx(0.975)
+        after_one = mem._eval_store.get_eval_multiplier(key, "Known")  # noqa: SLF001
+        # Two records [5.0, 9.5]; median = 7.25 → multiplier 0.8625.
+        # Pre-0.6.7 latest-only behaviour would have jumped straight to
+        # 0.975 and this test pinned that; the 0.8625 observation is
+        # the whole point of the median aggregator.
+        assert after_one == pytest.approx(0.8625)
+
+        for _ in range(4):
+            mem.refine_pattern(key, 9.5)
+        after_many = mem._eval_store.get_eval_multiplier(key, "Known")  # noqa: SLF001
+        # Five refinements at 9.5 (plus the original 5.0 is now out of
+        # the window=5 median); window is [9.5]*5 → median 9.5 →
+        # multiplier 0.975.
+        assert after_many == pytest.approx(0.975)
+
+        # Explicit `aggregation="latest"` still reproduces the pre-0.6.7
+        # behaviour for callers who need it (one outlier dominates).
+        mem.refine_pattern(key, 1.0)
+        latest = mem._eval_store.get_eval_multiplier(key, "Known", aggregation="latest")  # noqa: SLF001
+        assert latest == pytest.approx(0.55)
 
     def test_refine_changes_eval_weighted_ranking(self, mem):
         # Two patterns with identical task text + initial score. Refine

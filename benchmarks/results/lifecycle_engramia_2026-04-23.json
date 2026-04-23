@@ -9,7 +9,7 @@
     "supports_timestamp_patch": true,
     "embedding_model": "all-MiniLM-L6-v2 (local)",
     "use_local_embeddings": true,
-    "timestamp": "2026-04-23T14:20:24.871026Z",
+    "timestamp": "2026-04-23T14:58:11.217570Z",
     "scenarios_run": [
       "L1",
       "L2",
@@ -74,27 +74,27 @@
         ],
         "convergence_interpretation": "Fraction of 12 tasks whose current top-1 is the ground-truth best approach, sampled after each of 10 training iterations (index 0 = pre-training baseline). A growing curve indicates feedback accumulates; a flat/declining curve indicates noise dominates."
       },
-      "duration_seconds": 6.01
+      "duration_seconds": 6.54
     },
     {
       "scenario": "L1_improvement_curve",
       "difficulty": "medium",
-      "engramia_score": 0.3333,
+      "engramia_score": 0.8333,
       "random_baseline": 0.3333,
-      "discrimination_margin_x": 1.0,
+      "discrimination_margin_x": 2.5,
       "capability_missing": false,
       "feature_tested": "refine_pattern (repeated quality observations update eval-weighted ranking)",
       "pass_rule": "After 10 iterations with 20% misleading-feedback noise, top-1 must be the ground-truth best approach on at least 80% of tasks.",
       "notes": [
         "Random baseline is 1/3 (three candidates per task).",
-        "Noise: 24 of 120 feedback observations were misleading."
+        "Noise: 23 of 120 feedback observations were misleading."
       ],
       "raw_metrics": {
         "iterations": 10,
         "noise_prob": 0.2,
         "tasks": 12,
-        "correct": 4,
-        "noisy_feedbacks": 24,
+        "correct": 10,
+        "noisy_feedbacks": 23,
         "total_feedbacks": 120
       },
       "curves": {
@@ -102,14 +102,14 @@
           0.6667,
           0.8333,
           0.8333,
-          0.6667,
-          0.5833,
-          0.5833,
-          0.5,
-          0.5833,
-          0.5,
-          0.3333,
-          0.3333
+          0.8333,
+          0.8333,
+          0.8333,
+          0.8333,
+          0.8333,
+          0.8333,
+          0.8333,
+          0.8333
         ],
         "convergence_iterations": [
           0,
@@ -126,27 +126,27 @@
         ],
         "convergence_interpretation": "Fraction of 12 tasks whose current top-1 is the ground-truth best approach, sampled after each of 10 training iterations (index 0 = pre-training baseline). A growing curve indicates feedback accumulates; a flat/declining curve indicates noise dominates."
       },
-      "duration_seconds": 10.02
+      "duration_seconds": 8.75
     },
     {
       "scenario": "L1_improvement_curve",
       "difficulty": "hard",
-      "engramia_score": 0.5833,
+      "engramia_score": 0.9167,
       "random_baseline": 0.3333,
-      "discrimination_margin_x": 1.75,
+      "discrimination_margin_x": 2.75,
       "capability_missing": false,
       "feature_tested": "refine_pattern (repeated quality observations update eval-weighted ranking)",
       "pass_rule": "After 8 iterations with 40% misleading-feedback noise, top-1 must be the ground-truth best approach on at least 80% of tasks.",
       "notes": [
         "Random baseline is 1/3 (three candidates per task).",
-        "Noise: 23 of 96 feedback observations were misleading."
+        "Noise: 22 of 96 feedback observations were misleading."
       ],
       "raw_metrics": {
         "iterations": 8,
         "noise_prob": 0.4,
         "tasks": 12,
-        "correct": 7,
-        "noisy_feedbacks": 23,
+        "correct": 11,
+        "noisy_feedbacks": 22,
         "total_feedbacks": 96
       },
       "curves": {
@@ -154,12 +154,12 @@
           0.6667,
           0.9167,
           0.9167,
-          0.6667,
-          0.3333,
-          0.3333,
-          0.4167,
-          0.5,
-          0.5833
+          0.9167,
+          0.8333,
+          0.8333,
+          0.9167,
+          0.9167,
+          0.9167
         ],
         "convergence_iterations": [
           0,
@@ -174,7 +174,7 @@
         ],
         "convergence_interpretation": "Fraction of 12 tasks whose current top-1 is the ground-truth best approach, sampled after each of 8 training iterations (index 0 = pre-training baseline). A growing curve indicates feedback accumulates; a flat/declining curve indicates noise dominates."
       },
-      "duration_seconds": 9.44
+      "duration_seconds": 8.84
     },
     {
       "scenario": "L2_deprecation_speed",
@@ -206,7 +206,7 @@
         },
         "precision_at_k_interpretation": "Fraction of the top-K recalled matches that belong to the non-deprecated set, for K in {1, 3, 5, 10}. Degradation at higher K indicates the quality multiplier discriminates well at the head but loses resolution deeper in the list."
       },
-      "duration_seconds": 5.6
+      "duration_seconds": 5.41
     },
     {
       "scenario": "L2_deprecation_speed",
@@ -238,7 +238,7 @@
         },
         "precision_at_k_interpretation": "Fraction of the top-K recalled matches that belong to the non-deprecated set, for K in {1, 3, 5, 10}. Degradation at higher K indicates the quality multiplier discriminates well at the head but loses resolution deeper in the list."
       },
-      "duration_seconds": 6.05
+      "duration_seconds": 5.95
     },
     {
       "scenario": "L2_deprecation_speed",
@@ -270,7 +270,7 @@
         },
         "precision_at_k_interpretation": "Fraction of the top-K recalled matches that belong to the non-deprecated set, for K in {1, 3, 5, 10}. Degradation at higher K indicates the quality multiplier discriminates well at the head but loses resolution deeper in the list."
       },
-      "duration_seconds": 6.29
+      "duration_seconds": 5.25
     },
     {
       "scenario": "L3_conflict_resolution",
@@ -323,7 +323,7 @@
         "crossover_weight": 0.1,
         "sharpness_interpretation": "Fraction of probes whose top-1 comes from the new (fresh) cohort as a function of recency_weight. A sharp step function near a specific weight indicates the knob flips ranking cleanly at that point; a smooth ramp indicates the knob blends the two cohorts gradually. Competitors without a recency knob cannot produce either shape — their fraction stays flat."
       },
-      "duration_seconds": 13.82
+      "duration_seconds": 11.34
     },
     {
       "scenario": "L3_conflict_resolution",
@@ -376,7 +376,7 @@
         "crossover_weight": 0.1,
         "sharpness_interpretation": "Fraction of probes whose top-1 comes from the new (fresh) cohort as a function of recency_weight. A sharp step function near a specific weight indicates the knob flips ranking cleanly at that point; a smooth ramp indicates the knob blends the two cohorts gradually. Competitors without a recency knob cannot produce either shape — their fraction stays flat."
       },
-      "duration_seconds": 13.4
+      "duration_seconds": 11.54
     },
     {
       "scenario": "L3_conflict_resolution",
@@ -429,7 +429,7 @@
         "crossover_weight": 0.1,
         "sharpness_interpretation": "Fraction of probes whose top-1 comes from the new (fresh) cohort as a function of recency_weight. A sharp step function near a specific weight indicates the knob flips ranking cleanly at that point; a smooth ramp indicates the knob blends the two cohorts gradually. Competitors without a recency knob cannot produce either shape — their fraction stays flat."
       },
-      "duration_seconds": 14.34
+      "duration_seconds": 12.03
     },
     {
       "scenario": "L4_concept_drift",
@@ -461,7 +461,7 @@
           "v3": 10
         }
       },
-      "duration_seconds": 7.92
+      "duration_seconds": 5.79
     },
     {
       "scenario": "L4_concept_drift",
@@ -493,7 +493,7 @@
           "v3": 10
         }
       },
-      "duration_seconds": 9.75
+      "duration_seconds": 7.34
     },
     {
       "scenario": "L4_concept_drift",
@@ -525,7 +525,7 @@
           "v3": 10
         }
       },
-      "duration_seconds": 11.01
+      "duration_seconds": 8.8
     },
     {
       "scenario": "L5_noise_rejection",
@@ -569,7 +569,7 @@
         "f1_improvement": 1.0,
         "classification_interpretation": "Precision / recall / F1 treating 'honest pattern in top-10' as the positive class. F1 improvement = post - pre is the net gain from one round of refine_pattern re-grading. A positive delta indicates re-evaluation successfully identified and demoted the adversarial patterns; zero or negative indicates the backend cannot act on the corrected scores."
       },
-      "duration_seconds": 5.3
+      "duration_seconds": 4.38
     },
     {
       "scenario": "L5_noise_rejection",
@@ -613,7 +613,7 @@
         "f1_improvement": 1.0,
         "classification_interpretation": "Precision / recall / F1 treating 'honest pattern in top-10' as the positive class. F1 improvement = post - pre is the net gain from one round of refine_pattern re-grading. A positive delta indicates re-evaluation successfully identified and demoted the adversarial patterns; zero or negative indicates the backend cannot act on the corrected scores."
       },
-      "duration_seconds": 5.09
+      "duration_seconds": 4.22
     },
     {
       "scenario": "L5_noise_rejection",
@@ -657,11 +657,11 @@
         "f1_improvement": 1.0,
         "classification_interpretation": "Precision / recall / F1 treating 'honest pattern in top-10' as the positive class. F1 improvement = post - pre is the net gain from one round of refine_pattern re-grading. A positive delta indicates re-evaluation successfully identified and demoted the adversarial patterns; zero or negative indicates the backend cannot act on the corrected scores."
       },
-      "duration_seconds": 5.03
+      "duration_seconds": 4.19
     }
   ],
   "summary": {
-    "mean_engramia_score": 0.9278,
+    "mean_engramia_score": 0.9833,
     "mean_random_baseline": 0.4189,
     "scenarios_scored": 15,
     "scenarios_capability_missing": 0,
@@ -674,12 +674,12 @@
         "scenarios_scored": 5
       },
       "medium": {
-        "mean_score": 0.8667,
+        "mean_score": 0.9667,
         "mean_baseline": 0.4167,
         "scenarios_scored": 5
       },
       "hard": {
-        "mean_score": 0.9167,
+        "mean_score": 0.9833,
         "mean_baseline": 0.4067,
         "scenarios_scored": 5
       }

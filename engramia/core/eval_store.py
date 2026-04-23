@@ -17,13 +17,18 @@ across tenants or projects.
 """
 
 import logging
+import statistics
+from typing import Literal
 
 from engramia._util import jaccard
 from engramia.providers.base import StorageBackend
 
+Aggregation = Literal["latest", "median", "mean"]
+
 _log = logging.getLogger(__name__)
 
 _MAX_EVALS = 200
+_DEFAULT_AGGREGATION_WINDOW = 5
 
 
 class EvalStore:
@@ -119,6 +124,8 @@ class EvalStore:
         *,
         tenant_id: str = "",
         project_id: str = "",
+        aggregation: Aggregation = "latest",
+        window: int = _DEFAULT_AGGREGATION_WINDOW,
     ) -> float | None:
         """Look up the eval score for a specific agent on a similar task.
 
@@ -140,19 +147,51 @@ class EvalStore:
                 disable the check entirely.
             tenant_id: Scope override; defaults to the instance tenant_id.
             project_id: Scope override; defaults to the instance project_id.
+            aggregation: How to combine the last ``window`` matching
+                records. ``"latest"`` (default for backward compat)
+                returns the most recent score; ``"median"`` returns the
+                median of the last ``window`` scores (robust to single
+                noisy refinements); ``"mean"`` returns the average (less
+                robust to outliers than median).
+            window: Size of the rolling window considered by ``"median"``
+                and ``"mean"``. Ignored for ``"latest"``. Clamped to the
+                number of available records.
 
         Returns:
             Overall score if found, else None.
         """
         key = self._scoped_key(tenant_id or self._tenant_id, project_id or self._project_id)
         evals = self._load_raw(key)
+
+        if aggregation == "latest":
+            for e in reversed(evals):
+                if e["agent_name"] != agent_name:
+                    continue
+                if min_jaccard > 0.0 and jaccard(e["task"], task) < min_jaccard:
+                    continue
+                return e["scores"].get("overall")
+            return None
+
+        # median / mean — walk reversed, collect up to `window` matches.
+        collected: list[float] = []
         for e in reversed(evals):
             if e["agent_name"] != agent_name:
                 continue
             if min_jaccard > 0.0 and jaccard(e["task"], task) < min_jaccard:
                 continue
-            return e["scores"].get("overall")
-        return None
+            score = e["scores"].get("overall")
+            if score is None:
+                continue
+            collected.append(float(score))
+            if len(collected) >= max(1, window):
+                break
+        if not collected:
+            return None
+        if aggregation == "median":
+            return float(statistics.median(collected))
+        if aggregation == "mean":
+            return sum(collected) / len(collected)
+        raise ValueError(f"Unknown aggregation: {aggregation!r}")
 
     def get_average_score(
         self,
@@ -186,6 +225,8 @@ class EvalStore:
         *,
         tenant_id: str = "",
         project_id: str = "",
+        aggregation: Aggregation = "median",
+        window: int = _DEFAULT_AGGREGATION_WINDOW,
     ) -> float:
         """Return an eval-based quality multiplier for search result weighting.
 
@@ -194,11 +235,21 @@ class EvalStore:
         - Score 0.0  → 0.5 (half weight)
         - No eval    → 0.75 (neutral)
 
+        Defaults to the **median** of the last ``window`` (=5) eval records
+        for the pattern — more noise-resistant than the latest-only policy
+        shipped before 0.6.7. A single outlier refinement from a noisy
+        feedback loop no longer overwrites the accumulated quality
+        evidence. Callers wanting the old behaviour can pass
+        ``aggregation="latest"`` explicitly.
+
         Args:
             agent_name: Agent/pattern identifier.
             task: Task to match.
             tenant_id: Scope override; defaults to the instance tenant_id.
             project_id: Scope override; defaults to the instance project_id.
+            aggregation: ``"median"`` (default since 0.6.7), ``"mean"``,
+                or ``"latest"`` (pre-0.6.7 behaviour).
+            window: Size of the rolling window for ``"median"`` / ``"mean"``.
 
         Returns:
             Float multiplier in [0.5, 1.0].
@@ -208,7 +259,15 @@ class EvalStore:
         # otherwise collapse to 0.75 for every pattern as soon as the query
         # uses different words than the stored task, which is the whole
         # point of `eval_weighted` in the first place.
-        score = self.get_agent_score(agent_name, task, min_jaccard=0.0, tenant_id=tenant_id, project_id=project_id)
+        score = self.get_agent_score(
+            agent_name,
+            task,
+            min_jaccard=0.0,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            aggregation=aggregation,
+            window=window,
+        )
         if score is None:
             return 0.75
         return 0.5 + 0.5 * (score / 10.0)
