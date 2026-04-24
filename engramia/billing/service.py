@@ -349,7 +349,11 @@ class BillingService:
             _log.info("stripe_webhook: duplicate event skipped event_id=%s type=%s", event_id, event_type)
             return event_type
 
-        data = event["data"]["object"]
+        # Stripe SDK wraps payloads in StripeObject, which supports __getitem__
+        # but not dict.get(). Normalise to a plain nested dict so every handler
+        # can use the defensive .get() API uniformly.
+        raw_object = event["data"]["object"]
+        data = raw_object.to_dict_recursive() if hasattr(raw_object, "to_dict_recursive") else raw_object
 
         if event_type == "checkout.session.completed":
             self._link_checkout_session(data)
@@ -392,7 +396,7 @@ class BillingService:
     # Internal webhook helpers
     # ------------------------------------------------------------------
 
-    def _link_checkout_session(self, session_data: dict) -> None:
+    def _link_checkout_session(self, session_data) -> None:
         """Handle checkout.session.completed — link Stripe customer to tenant.
 
         Payment Link flow carries the tenant_id as client_reference_id through
