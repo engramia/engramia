@@ -351,9 +351,17 @@ class BillingService:
 
         # Stripe SDK wraps payloads in StripeObject, which supports __getitem__
         # but not dict.get(). Normalise to a plain nested dict so every handler
-        # can use the defensive .get() API uniformly.
+        # can use the defensive .get() API uniformly. The public to_dict() is
+        # only shallow in the current SDK — nested items/price/etc. remain
+        # StripeObject — so we fall back to the internal recursive helper,
+        # which has been stable across SDK minor versions.
         raw_object = event["data"]["object"]
-        data = raw_object.to_dict_recursive() if hasattr(raw_object, "to_dict_recursive") else raw_object
+        if hasattr(raw_object, "_to_dict_recursive"):
+            data = raw_object._to_dict_recursive()
+        elif hasattr(raw_object, "to_dict"):
+            data = raw_object.to_dict()
+        else:
+            data = raw_object
 
         if event_type == "checkout.session.completed":
             self._link_checkout_session(data)
