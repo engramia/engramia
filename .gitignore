@@ -57,7 +57,9 @@ tests/recall_quality/results/
 benchmarks/results/*
 !benchmarks/results/longmemeval_*.json
 !benchmarks/results/lifecycle_*.json
-!benchmarks/results/task_bench_*.json
+# task_bench_*.json is intentionally NOT tracked here. Per-run AgentTaskBench
+# outputs are operator artifacts and live in the private engramia-ops repo;
+# only the harness + methodology ship publicly so anyone can reproduce.
 
 # OS
 .DS_Store

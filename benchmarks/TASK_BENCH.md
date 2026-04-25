@@ -115,7 +115,24 @@ plateau, not just the maximum.
 - `benchmarks/results/task_bench_<version>_<date>.json` — per-run
   output.
 
-## First demo run (2026-04-23, N=3 iterations, abbreviated)
+## Run results
+
+Per-run JSON outputs are operator-controlled artifacts; they are
+**not committed to this public repository**. The harness, the
+methodology, and the reproduction commands are all here so any
+operator (Engramia maintainers or self-hosters) can run the
+benchmark themselves and inspect the numbers; the curation of
+which numbers to publish is a separate marketing decision that
+lives in the private operator repo.
+
+Maintainers: the operator runbook plus the latest cited results
+live in `engramia-ops`. See
+`engramia-ops/internal/agent_task_bench_runbook.md` for the
+step-by-step run procedure and
+`engramia-ops/internal/benchmarks/task_bench_results/` for the
+JSON outputs from each release-candidate run.
+
+## Earlier demo run (2026-04-23, N=3 iterations, smoke)
 
 A short 3-iteration run was executed as a smoke test and a first
 honest data point. Full N=20 runs are operator-triggered outside
