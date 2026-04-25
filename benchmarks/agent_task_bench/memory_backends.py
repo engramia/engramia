@@ -28,7 +28,8 @@ from typing import Protocol
 logger = logging.getLogger(__name__)
 
 _CONTEXT_RECALL_LIMIT = 3
-_CONTEXT_CODE_CHAR_CAP = 400
+_CONTEXT_CODE_CHAR_CAP = 4000
+_CONTEXT_TASK_CHAR_CAP = 1500
 
 
 class MemoryBackend(Protocol):
@@ -128,7 +129,7 @@ class EngramiaBackend:
         for m in matches:
             code = (m.pattern.design or {}).get("code", "")
             blocks.append(
-                f"Prior task: {m.pattern.task[:160]}\n"
+                f"Prior task: {m.pattern.task[:_CONTEXT_TASK_CHAR_CAP]}\n"
                 f"Known-good solution:\n{_truncate(code, _CONTEXT_CODE_CHAR_CAP)}"
             )
         return "\n\n".join(blocks)
