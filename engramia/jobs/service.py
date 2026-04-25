@@ -9,6 +9,7 @@ fallback for JSON storage mode.
 
 import concurrent.futures
 import contextvars
+import json
 import logging
 import time
 import traceback
@@ -373,7 +374,8 @@ class JobService:
                 text(
                     "INSERT INTO jobs (id, tenant_id, project_id, key_id, request_id, operation, "
                     "params, status, attempts, max_attempts, created_at, expires_at, max_execution_seconds) "
-                    "VALUES (:id, :tid, :pid, :kid, :rid, :op, :params, 'pending', 0, 3, :now, :exp, :max_exec)"
+                    "VALUES (:id, :tid, :pid, :kid, :rid, :op, CAST(:params AS JSONB), "
+                    "'pending', 0, 3, :now, :exp, :max_exec)"
                 ),
                 {
                     "id": job_id,
@@ -382,7 +384,7 @@ class JobService:
                     "kid": key_id,
                     "rid": request_id or None,
                     "op": operation,
-                    "params": params,
+                    "params": json.dumps(params),
                     "now": now,
                     "exp": expires,
                     "max_exec": max_execution_seconds,
@@ -537,10 +539,10 @@ class JobService:
             with self._engine.begin() as conn:
                 conn.execute(
                     text(
-                        "UPDATE jobs SET status = 'completed', result = :result, "
+                        "UPDATE jobs SET status = 'completed', result = CAST(:result AS JSONB), "
                         "completed_at = now()::text WHERE id = :id"
                     ),
-                    {"id": job_dict["id"], "result": result},
+                    {"id": job_dict["id"], "result": json.dumps(result)},
                 )
             _log.info("Job %s completed: operation=%s", job_dict["id"], job_dict["operation"])
             _metrics.inc_job_completed(job_dict["operation"], "completed")

@@ -20,7 +20,7 @@ _PROBE_TIMEOUT = 5.0  # seconds — hard limit per probe
 
 # The latest Alembic revision shipped with this version of the codebase.
 # Update this constant whenever a new migration is added.
-EXPECTED_MIGRATION_REVISION = "017"
+EXPECTED_MIGRATION_REVISION = "018"
 
 
 def check_storage(storage) -> dict:
