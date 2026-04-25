@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from engramia import Memory
-from engramia.api.audit import AuditEvent, log_event
+from engramia.api.audit import AuditEvent, log_db_event, log_event
 from engramia.api.auth import require_auth
 from engramia.api.deps import get_auth_context, get_memory
 from engramia.api.errors import ErrorCode
@@ -667,6 +667,18 @@ def delete_pattern(
             tenant_id=auth_ctx.tenant_id if auth_ctx else None,
             key_id=auth_ctx.key_id if auth_ctx else None,
         )
+        engine = getattr(request.app.state, "auth_engine", None)
+        if engine is not None and auth_ctx is not None:
+            log_db_event(
+                engine,
+                tenant_id=auth_ctx.tenant_id,
+                project_id=auth_ctx.project_id,
+                key_id=auth_ctx.key_id,
+                action="pattern_deleted",
+                resource_type="pattern",
+                resource_id=pattern_key,
+                ip_address=ip,
+            )
     return DeletePatternResponse(deleted=deleted, pattern_key=pattern_key)
 
 
@@ -1180,6 +1192,18 @@ def import_patterns(
         tenant_id=auth_ctx.tenant_id if auth_ctx else None,
         key_id=auth_ctx.key_id if auth_ctx else None,
     )
+    engine = getattr(request.app.state, "auth_engine", None)
+    if engine is not None and auth_ctx is not None:
+        log_db_event(
+            engine,
+            tenant_id=auth_ctx.tenant_id,
+            project_id=auth_ctx.project_id,
+            key_id=auth_ctx.key_id,
+            action="bulk_import",
+            resource_type="patterns",
+            resource_id=f"total={len(body.records)},imported={imported},overwrite={body.overwrite}",
+            ip_address=ip,
+        )
     return ImportResponse(imported=imported, total=len(body.records))
 
 
@@ -1218,6 +1242,18 @@ def export_patterns(
         tenant_id=auth_ctx.tenant_id if auth_ctx else None,
         key_id=auth_ctx.key_id if auth_ctx else None,
     )
+    engine = getattr(request.app.state, "auth_engine", None)
+    if engine is not None and auth_ctx is not None:
+        log_db_event(
+            engine,
+            tenant_id=auth_ctx.tenant_id,
+            project_id=auth_ctx.project_id,
+            key_id=auth_ctx.key_id,
+            action="data_exported",
+            resource_type="patterns",
+            resource_id=f"count={len(raw_records)}",
+            ip_address=ip,
+        )
     from engramia.api.schemas import ImportRecord
 
     records = [ImportRecord(version=r["version"], key=r["key"], data=r["data"]) for r in raw_records]

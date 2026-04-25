@@ -18,7 +18,7 @@ from typing import cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 
-from engramia.api.audit import AuditEvent, log_event
+from engramia.api.audit import AuditEvent, log_db_event, log_event
 from engramia.api.auth import require_auth
 from engramia.api.deps import get_auth_context, get_memory
 from engramia.api.permissions import require_permission
@@ -185,6 +185,18 @@ def apply_retention(
         purged_count=result.purged_count,
         dry_run=result.dry_run,
     )
+    if auth_ctx is not None:
+        ip = request.client.host if request.client else "unknown"
+        log_db_event(
+            engine,
+            tenant_id=auth_ctx.tenant_id,
+            project_id=auth_ctx.project_id,
+            key_id=auth_ctx.key_id,
+            action="retention_applied",
+            resource_type="patterns",
+            resource_id=f"purged={result.purged_count},dry_run={result.dry_run}",
+            ip_address=ip,
+        )
     return RetentionApplyResponse(purged_count=result.purged_count, dry_run=result.dry_run)
 
 
@@ -233,6 +245,18 @@ def export_scope(
             yield json.dumps(record, default=str) + "\n"
 
     log_event(AuditEvent.SCOPE_EXPORTED, classification_filter=cls_filter)
+    if auth_ctx is not None:
+        ip = request.client.host if request.client else "unknown"
+        log_db_event(
+            engine,
+            tenant_id=auth_ctx.tenant_id,
+            project_id=auth_ctx.project_id,
+            key_id=auth_ctx.key_id,
+            action="scope_exported",
+            resource_type="patterns",
+            resource_id=f"filter={','.join(cls_filter) if cls_filter else 'all'}",
+            ip_address=ip,
+        )
 
     return StreamingResponse(
         _stream(),
@@ -255,6 +279,7 @@ def export_scope(
 def classify_pattern(
     pattern_key: str,
     body: ClassifyPatternRequest,
+    request: Request,
     auth_ctx: AuthContext | None = Depends(get_auth_context),
     memory=Depends(get_memory),
 ) -> ClassifyPatternResponse:
@@ -271,6 +296,20 @@ def classify_pattern(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pattern not found.")
 
     memory.storage.save_pattern_meta(pattern_key, classification=body.classification)
+
+    engine = getattr(request.app.state, "auth_engine", None)
+    if engine is not None and auth_ctx is not None:
+        ip = request.client.host if request.client else "unknown"
+        log_db_event(
+            engine,
+            tenant_id=auth_ctx.tenant_id,
+            project_id=auth_ctx.project_id,
+            key_id=auth_ctx.key_id,
+            action="pattern_classified",
+            resource_type="pattern",
+            resource_id=f"{pattern_key}:{body.classification}",
+            ip_address=ip,
+        )
     return ClassifyPatternResponse(pattern_key=pattern_key, classification=body.classification)
 
 
@@ -333,6 +372,17 @@ def delete_project(
         patterns_deleted=result.patterns_deleted,
         ip=ip,
     )
+    if auth_ctx is not None:
+        log_db_event(
+            engine,
+            tenant_id=scope.tenant_id,
+            project_id=project_id,
+            key_id=auth_ctx.key_id,
+            action="scope_deleted",
+            resource_type="project",
+            resource_id=project_id,
+            ip_address=ip,
+        )
 
     return ScopedDeleteResponse(
         tenant_id=result.tenant_id,
@@ -387,6 +437,17 @@ def delete_tenant(
         patterns_deleted=result.patterns_deleted,
         ip=ip,
     )
+    if auth_ctx is not None:
+        log_db_event(
+            engine,
+            tenant_id=tenant_id,
+            project_id=auth_ctx.project_id,
+            key_id=auth_ctx.key_id,
+            action="scope_deleted",
+            resource_type="tenant",
+            resource_id=tenant_id,
+            ip_address=ip,
+        )
 
     return ScopedDeleteResponse(
         tenant_id=result.tenant_id,
