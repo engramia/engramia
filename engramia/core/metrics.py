@@ -3,19 +3,28 @@
 """Run and success metrics store.
 
 Tracks aggregate statistics across all Engramia runs. Persisted as a single
-JSON document under the "metrics/_global" storage key.
+JSON document per scope under the "metrics/<tenant>/<project>/_global" key.
+The key is scope-derived rather than a global constant so that two tenants
+on the same Postgres instance do not collide on the global ``key`` primary
+key (legacy from migration 001).
 """
 
 import logging
 import time
 
+from engramia._context import get_scope
 from engramia.providers.base import StorageBackend
 from engramia.types import Metrics
 
 _log = logging.getLogger(__name__)
 
-_KEY = "metrics/_global"
+_KEY_PREFIX = "metrics"
 _MAX_HISTORY = 100
+
+
+def _scoped_key() -> str:
+    scope = get_scope()
+    return f"{_KEY_PREFIX}/{scope.tenant_id}/{scope.project_id}/_global"
 
 
 class MetricsStore:
@@ -60,7 +69,7 @@ class MetricsStore:
         data["run_history"].append(entry)
         data["run_history"] = data["run_history"][-_MAX_HISTORY:]
 
-        self._storage.save(_KEY, data)
+        self._storage.save(_scoped_key(), data)
 
     # ------------------------------------------------------------------
     # Read
@@ -84,7 +93,7 @@ class MetricsStore:
     # ------------------------------------------------------------------
 
     def _load_raw(self) -> dict:
-        data = self._storage.load(_KEY)
+        data = self._storage.load(_scoped_key())
         if data is None:
             return {
                 "runs": 0,

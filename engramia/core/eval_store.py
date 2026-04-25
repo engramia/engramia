@@ -18,6 +18,8 @@ across tenants or projects.
 
 import logging
 import statistics
+
+from engramia._context import get_scope
 from typing import Literal
 
 from engramia._util import jaccard
@@ -81,7 +83,8 @@ class EvalStore:
         """
         import time
 
-        key = self._scoped_key(tenant_id or self._tenant_id, project_id or self._project_id)
+        tid, pid = self._resolve_scope(tenant_id, project_id)
+        key = self._scoped_key(tid, pid)
         evals = self._load_raw(key)
         evals.append({"agent_name": agent_name, "task": task, "scores": scores, "timestamp": time.time()})
         evals = evals[-_MAX_EVALS:]
@@ -110,7 +113,8 @@ class EvalStore:
         Returns:
             List of eval records sorted by overall score descending.
         """
-        key = self._scoped_key(tenant_id or self._tenant_id, project_id or self._project_id)
+        tid, pid = self._resolve_scope(tenant_id, project_id)
+        key = self._scoped_key(tid, pid)
         evals = self._load_raw(key)
         qualified = [e for e in evals if e["scores"].get("overall", 0) >= min_score]
         qualified.sort(key=lambda e: e["scores"].get("overall", 0), reverse=True)
@@ -160,7 +164,8 @@ class EvalStore:
         Returns:
             Overall score if found, else None.
         """
-        key = self._scoped_key(tenant_id or self._tenant_id, project_id or self._project_id)
+        tid, pid = self._resolve_scope(tenant_id, project_id)
+        key = self._scoped_key(tid, pid)
         evals = self._load_raw(key)
 
         if aggregation == "latest":
@@ -208,7 +213,8 @@ class EvalStore:
         Returns:
             Average score, or None if no evals are stored.
         """
-        key = self._scoped_key(tenant_id or self._tenant_id, project_id or self._project_id)
+        tid, pid = self._resolve_scope(tenant_id, project_id)
+        key = self._scoped_key(tid, pid)
         evals = self._load_raw(key)
         if not evals:
             return None
@@ -276,6 +282,23 @@ class EvalStore:
     # Internal
     # ------------------------------------------------------------------
 
+    def _resolve_scope(self, tenant_id: str, project_id: str) -> tuple[str, str]:
+        """Pick the effective scope: explicit override > current request scope > instance default.
+
+        Memory wires EvalStore once at startup (scope ``"default"/"default"``),
+        but learn/evaluate happen per-request with the real tenant in the
+        contextvar. Reading the contextvar avoids two tenants sharing the
+        legacy ``"default"`` key — which would collide on the global ``key``
+        primary key.
+        """
+        if tenant_id and project_id:
+            return tenant_id, project_id
+        scope = get_scope()
+        return (
+            tenant_id or scope.tenant_id or self._tenant_id,
+            project_id or scope.project_id or self._project_id,
+        )
+
     def _scoped_key(self, tenant_id: str, project_id: str) -> str:
         """Build and validate the scoped storage key for eval records.
 
@@ -301,6 +324,7 @@ class EvalStore:
 
     def _load_raw(self, key: str = "") -> list:
         if not key:
-            key = self._scoped_key(self._tenant_id, self._project_id)
+            tid, pid = self._resolve_scope("", "")
+            key = self._scoped_key(tid, pid)
         data = self._storage.load(key)
         return data if isinstance(data, list) else []
