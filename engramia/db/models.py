@@ -19,6 +19,8 @@ HNSW index on ``memory_embeddings.embedding`` enables sub-millisecond ANN
 search via pgvector's ``<=>`` cosine distance operator.
 """
 
+from datetime import datetime
+
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
@@ -174,7 +176,7 @@ class ApiKey(Base):
     created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=func.now())
     last_used_at: Mapped[str | None] = mapped_column(Text, nullable=True)
     revoked_at: Mapped[str | None] = mapped_column(Text, nullable=True)
-    expires_at: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # ---------------------------------------------------------------------------

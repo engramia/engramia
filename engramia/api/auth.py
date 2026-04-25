@@ -144,7 +144,7 @@ def _db_lookup(engine, key_hash: str) -> dict | None:
                     "FROM api_keys "
                     "WHERE key_hash = :h "
                     "  AND revoked_at IS NULL "
-                    "  AND (expires_at IS NULL OR expires_at > now()::text) "
+                    "  AND (expires_at IS NULL OR expires_at > now()) "
                     "LIMIT 1"
                 ),
                 {"h": key_hash},
