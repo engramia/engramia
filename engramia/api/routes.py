@@ -187,6 +187,17 @@ def _check_quota(
                     current=current,
                     limit=project_cap,
                 )
+                engine = getattr(request.app.state, "auth_engine", None) if request else None
+                if engine is not None:
+                    log_db_event(
+                        engine,
+                        tenant_id=auth_ctx.tenant_id,
+                        project_id=auth_ctx.project_id,
+                        key_id=auth_ctx.key_id,
+                        action="quota_exceeded",
+                        resource_type="patterns",
+                        resource_id=f"metric=patterns,current={current},limit={project_cap},level=project",
+                    )
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail={
@@ -215,6 +226,17 @@ def _check_quota(
             current=current,
             limit=auth_ctx.max_patterns,
         )
+        engine = getattr(request.app.state, "auth_engine", None) if request else None
+        if engine is not None:
+            log_db_event(
+                engine,
+                tenant_id=auth_ctx.tenant_id,
+                project_id=auth_ctx.project_id,
+                key_id=auth_ctx.key_id,
+                action="quota_exceeded",
+                resource_type="patterns",
+                resource_id=f"metric=patterns,current={current},limit={auth_ctx.max_patterns},level=key",
+            )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
