@@ -219,6 +219,66 @@ def _db_auth(request: Request, token: str, engine) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Cloud auth JWT — Dashboard sessions hit /v1/* with the JWT issued by
+# /auth/login. We accept it as an alternate to the api_key Bearer token so
+# the entire admin UI can rely on a single credential.
+# ---------------------------------------------------------------------------
+
+
+def _cloud_jwt_auth(request: Request, token: str) -> None:
+    """Validate a cloud-auth JWT and build an AuthContext from its claims.
+
+    Reuses cloud_auth._decode_token for signature, expiry and revocation
+    checks. Looks up the tenant's auto-provisioned 'default' project so the
+    Scope contextvar isolates queries correctly.
+    """
+    from engramia.api.audit import AuditEvent, log_event
+    from engramia.api.cloud_auth import _decode_token
+
+    ip = request.client.host if request.client else "unknown"
+    try:
+        payload = _decode_token(token)
+    except HTTPException:
+        log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="invalid_jwt")
+        raise
+
+    tenant_id = payload["tenant_id"]
+    project_id: str | None = None
+
+    engine = getattr(request.app.state, "auth_engine", None)
+    if engine is not None:
+        try:
+            from sqlalchemy import text
+
+            with engine.connect() as conn:
+                row = conn.execute(
+                    text("SELECT id FROM projects WHERE tenant_id = :tid AND name = 'default' LIMIT 1"),
+                    {"tid": tenant_id},
+                ).fetchone()
+            if row is not None:
+                project_id = str(row[0])
+        except Exception as exc:
+            _log.warning("Cloud JWT auth: project lookup failed for tenant=%s: %s", tenant_id, exc)
+
+    if project_id is None:
+        # Fall back to a synthetic identifier so scope filtering remains tenant-
+        # tight even when the project row is missing. Most v1 endpoints only
+        # consult tenant_id, so failing closed at request time would surprise
+        # a freshly-registered user mid-session.
+        project_id = f"default-{tenant_id}"
+
+    scope = Scope(tenant_id=tenant_id, project_id=project_id)
+    request.state.auth_context = AuthContext(
+        key_id=f"cloud:{payload['sub']}",
+        tenant_id=tenant_id,
+        project_id=project_id,
+        role=payload.get("role", "owner"),
+        scope=scope,
+    )
+    set_scope(scope)
+
+
+# ---------------------------------------------------------------------------
 # Main FastAPI dependency
 # ---------------------------------------------------------------------------
 
@@ -308,6 +368,13 @@ async def require_auth(request: Request) -> None:
         from engramia.api.oidc import oidc_auth
 
         oidc_auth(request, token)
+    elif token.startswith("eyJ"):
+        # Cloud-auth JWT issued by /auth/login or /auth/oauth. Dashboard
+        # forwards it as Bearer for every /v1/* call. Recognise the standard
+        # base64url JWT header prefix and dispatch to the cloud-aware path —
+        # api_keys issued by /v1/keys all start with "engramia-" so the two
+        # token shapes never collide.
+        _cloud_jwt_auth(request, token)
     elif _use_db_auth():
         engine = getattr(request.app.state, "auth_engine", None)
         if engine is None:
