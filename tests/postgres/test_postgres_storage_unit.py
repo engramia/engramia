@@ -199,8 +199,14 @@ class TestPostgresSavePatternMeta:
         )
         begin_conn.execute.assert_called_once()
         params = begin_conn.execute.call_args[0][1]
-        assert params["cls"] == "confidential"
+        # Bind names match the column names directly (selective UPDATE).
+        # Mirror keys (cls_json / src_json) carry the JSON-string form
+        # used by jsonb_set on data->design.
+        assert params["classification"] == "confidential"
+        assert params["source"] == "api"
         assert params["author"] == "alice"
+        assert params["cls_json"] == '"confidential"'
+        assert params["src_json"] == '"api"'
 
     def test_does_not_raise_on_db_error(self):
         engine = MagicMock()
