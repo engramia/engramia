@@ -14,7 +14,7 @@ jobs:
     name: pip-audit (Python dependency CVEs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -35,7 +35,7 @@ jobs:
     name: bandit (Python static security analysis)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -64,7 +64,7 @@ jobs:
     name: Trivy (Docker image CVE scan)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Build Docker image for scanning
         run: |
           docker build -t engramia-scan:${{ github.sha }} .
