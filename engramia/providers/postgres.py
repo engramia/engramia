@@ -268,12 +268,17 @@ class PostgresStorage(StorageBackend):
         json_assignments: list[str] = []
         if "classification" in updates:
             import json as _json
-            json_assignments.append(("'{design,classification}'", ":_cls_json"))
-            bind["_cls_json"] = _json.dumps(updates["classification"])
+            # Bind names without a leading underscore — SQLAlchemy 2.x's
+            # text() parameter regex tolerates underscores but a few of our
+            # adapter layers strip leading-underscore "private" identifiers
+            # before forwarding to psycopg2, which would silently drop the
+            # bind and leave the JSONB unchanged.
+            json_assignments.append(("'{design,classification}'", ":cls_json"))
+            bind["cls_json"] = _json.dumps(updates["classification"])
         if "source" in updates:
             import json as _json
-            json_assignments.append(("'{design,source}'", ":_src_json"))
-            bind["_src_json"] = _json.dumps(updates["source"])
+            json_assignments.append(("'{design,source}'", ":src_json"))
+            bind["src_json"] = _json.dumps(updates["source"])
         if json_assignments:
             inner = "data::jsonb"
             for path, param in json_assignments:
