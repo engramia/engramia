@@ -12,6 +12,7 @@ Responsibilities:
 
 import datetime
 import logging
+import os
 from typing import Any
 
 import sqlalchemy.exc
@@ -30,6 +31,25 @@ from engramia.billing.models import (
 from engramia.billing.stripe_client import StripeClient
 
 _log = logging.getLogger(__name__)
+
+
+def _plan_tier_from_price_id(price_id: str | None) -> str | None:
+    """Map a Stripe price_id to a plan tier via env-var configured ids.
+
+    Stripe Payment Links don't propagate metadata.plan_tier into the
+    Subscription object unless the operator sets it manually on each link.
+    This is a more robust fallback: tie the plan tier to the price ids the
+    deployment actually charges, configured once via env vars.
+    """
+    if not price_id:
+        return None
+    pro_id = os.environ.get("STRIPE_PRO_PRICE_ID", "").strip()
+    team_id = os.environ.get("STRIPE_TEAM_PRICE_ID", "").strip()
+    if pro_id and price_id == pro_id:
+        return "pro"
+    if team_id and price_id == team_id:
+        return "team"
+    return None
 
 # Build a tuple of Stripe-related exception types at import time so that
 # except clauses stay readable.  Falls back to generic network errors when
@@ -498,8 +518,21 @@ class BillingService:
             raise ValueError(f"Subscription {sub_id} has no current_period_end on item or root")
         period_end: str = datetime.datetime.fromtimestamp(raw_period_end, tz=datetime.UTC).isoformat()
 
-        # Resolve plan tier from Stripe metadata (set during checkout)
-        plan_tier: str = sub_data.get("metadata", {}).get("plan_tier", "pro")
+        # Resolve plan tier with three layers of trust, most specific first:
+        #   1. subscription.metadata.plan_tier — set explicitly on the
+        #      Stripe Payment Link / Checkout Session by the operator.
+        #   2. STRIPE_*_PRICE_ID env-var mapping — robust against operators
+        #      who forget to set metadata on Payment Links (the default).
+        #   3. fallback to "pro" — preserves prior behaviour rather than
+        #      degrading new paid subscribers to sandbox limits.
+        plan_tier: str = sub_data.get("metadata", {}).get("plan_tier", "")
+        if not plan_tier:
+            price_id = items[0].get("price", {}).get("id") if isinstance(items[0].get("price"), dict) else None
+            mapped = _plan_tier_from_price_id(price_id)
+            if mapped:
+                plan_tier = mapped
+        if not plan_tier:
+            plan_tier = "pro"
         limits = PLAN_LIMITS.get(plan_tier, PLAN_LIMITS["sandbox"])
 
         tenant_id = self._tenant_id_by_customer(customer_id)
