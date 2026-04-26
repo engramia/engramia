@@ -101,15 +101,21 @@ class ScopedDeletion:
                 )
                 result.jobs_deleted = r.rowcount
 
-                # API keys — revoke only (preserve key_hash for forensics)
+                # API keys — revoke only (preserve key_hash for forensics).
+                # RETURNING key_hash so we can invalidate the in-process auth
+                # cache below; without that step revoked keys keep working
+                # for up to the cache TTL (60 s) — short replay window but
+                # observable in UAT.
                 r = conn.execute(
                     text(
                         "UPDATE api_keys SET revoked_at = :now "
-                        "WHERE tenant_id = :tid AND project_id = :pid AND revoked_at IS NULL"
+                        "WHERE tenant_id = :tid AND project_id = :pid AND revoked_at IS NULL "
+                        "RETURNING key_hash"
                     ),
                     {"now": now, "tid": tenant_id, "pid": project_id},
                 )
-                result.keys_revoked = r.rowcount
+                revoked_hashes: list[str] = [row[0] for row in r.fetchall()]
+                result.keys_revoked = len(revoked_hashes)
 
                 # Audit log — scrub detail but retain rows
                 conn.execute(
@@ -129,6 +135,20 @@ class ScopedDeletion:
         except Exception as exc:
             _log.error("ScopedDeletion.delete_project DB phase failed: %s", exc)
             raise
+
+        # Drop revoked keys from the auth cache so 401s land immediately
+        # rather than waiting for the 60s TTL. Imported lazily to keep the
+        # governance package free of API-layer imports for unit tests.
+        if revoked_hashes:
+            try:
+                from engramia.api.auth import invalidate_key_cache
+
+                for key_hash in revoked_hashes:
+                    invalidate_key_cache(key_hash)
+            except ImportError:
+                # API layer unavailable in this runtime (e.g. CLI use).
+                # Cache is in-process; if the API isn't loaded, nothing to invalidate.
+                pass
 
         _log.warning(
             "GDPR deletion: project %s/%s — patterns=%d jobs=%d keys_revoked=%d",

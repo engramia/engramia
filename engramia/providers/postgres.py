@@ -248,7 +248,22 @@ class PostgresStorage(StorageBackend):
             return
 
         sp = self._scope_params()
-        set_clause = ", ".join(f"{col} = :{col}" for col in updates)
+        set_parts = [f"{col} = :{col}" for col in updates]
+        # Mirror governance metadata into the JSONB design blob so callers
+        # that read pattern.design.classification (e.g. recall's filter in
+        # routes.py) see the same value as the column. Without this mirror
+        # the column and the JSONB diverge on every classify call: the
+        # column updates, the JSONB stays frozen at learn-time, and the
+        # recall classification filter looks at the wrong source.
+        if "classification" in updates:
+            set_parts.append(
+                "data = jsonb_set(data, '{design,classification}', to_jsonb(CAST(:classification AS TEXT)))"
+            )
+        if "source" in updates:
+            set_parts.append(
+                "data = jsonb_set(data, '{design,source}', to_jsonb(CAST(:source AS TEXT)))"
+            )
+        set_clause = ", ".join(set_parts)
         try:
             with self._engine.begin() as conn:
                 conn.execute(
