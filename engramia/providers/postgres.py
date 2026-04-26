@@ -261,18 +261,24 @@ class PostgresStorage(StorageBackend):
         # ``confidential`` (which would parse as a jsonb literal of an
         # invalid identifier and silently no-op).
         bind: dict[str, object] = {**updates, "key": key, **sp}
+        # data column is sa.JSON, not JSONB — need explicit data::jsonb on the
+        # input and ::json on the output for the assignment. Multiple jsonb_set
+        # calls must chain into one expression because the SQL UPDATE can't
+        # assign data twice.
+        json_assignments: list[str] = []
         if "classification" in updates:
             import json as _json
-            set_parts.append(
-                "data = jsonb_set(data, '{design,classification}', :_cls_json::jsonb)"
-            )
+            json_assignments.append(("'{design,classification}'", ":_cls_json"))
             bind["_cls_json"] = _json.dumps(updates["classification"])
         if "source" in updates:
             import json as _json
-            set_parts.append(
-                "data = jsonb_set(data, '{design,source}', :_src_json::jsonb)"
-            )
+            json_assignments.append(("'{design,source}'", ":_src_json"))
             bind["_src_json"] = _json.dumps(updates["source"])
+        if json_assignments:
+            inner = "data::jsonb"
+            for path, param in json_assignments:
+                inner = f"jsonb_set({inner}, {path}, {param}::jsonb)"
+            set_parts.append(f"data = ({inner})::json")
         set_clause = ", ".join(set_parts)
         try:
             with self._engine.begin() as conn:
