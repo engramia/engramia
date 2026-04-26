@@ -449,6 +449,35 @@ class BillingService:
             )
         except sqlalchemy.exc.SQLAlchemyError:
             _log.error("_link_checkout_session DB error", exc_info=True)
+            return
+
+        # Back-fetch the subscription via Stripe API and populate the row.
+        # Stripe does not guarantee webhook delivery order, so when
+        # customer.subscription.created arrives before checkout.session.completed
+        # the no-tenant-yet branch in _upsert_subscription returns early and the
+        # plan_tier / stripe_subscription_id / current_period_end columns stay at
+        # their sandbox defaults. Pulling the Subscription here makes
+        # checkout.session.completed sufficient on its own — the second event is
+        # then a no-op replay (same data through ON CONFLICT DO UPDATE).
+        subscription_id = session_data.get("subscription")
+        if not subscription_id:
+            return  # one-off Checkout, nothing to back-fetch
+        try:
+            sub_obj = self._stripe.retrieve_subscription(subscription_id)
+        except Exception:
+            _log.warning(
+                "Failed to back-fetch subscription %s after checkout.session.completed",
+                subscription_id,
+                exc_info=True,
+            )
+            return
+        if hasattr(sub_obj, "_to_dict_recursive"):
+            sub_data = sub_obj._to_dict_recursive()
+        elif hasattr(sub_obj, "to_dict"):
+            sub_data = sub_obj.to_dict()
+        else:
+            sub_data = sub_obj
+        self._upsert_subscription(sub_data)
 
     def _upsert_subscription(self, sub_data: dict) -> None:
         """Insert or update a billing_subscriptions row from Stripe subscription data."""

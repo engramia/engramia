@@ -117,6 +117,23 @@ class StripeClient:
         return session.url
 
     # ------------------------------------------------------------------
+    # Subscription / customer retrieval
+    # ------------------------------------------------------------------
+
+    def retrieve_subscription(self, subscription_id: str) -> Any:
+        """Fetch a Subscription from Stripe by ID.
+
+        Used by the webhook handler to back-fetch subscription details when
+        the checkout.session.completed event arrives before
+        customer.subscription.created (Stripe does not guarantee delivery
+        order). Returns the raw Stripe Subscription object — caller is
+        expected to call ``_to_dict_recursive`` (or equivalent) to normalise
+        nested StripeObjects into plain dicts.
+        """
+        stripe = self._sdk()
+        return stripe.Subscription.retrieve(subscription_id)
+
+    # ------------------------------------------------------------------
     # Webhook verification
     # ------------------------------------------------------------------
 
