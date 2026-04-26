@@ -265,7 +265,7 @@ class PostgresStorage(StorageBackend):
         # input and ::json on the output for the assignment. Multiple jsonb_set
         # calls must chain into one expression because the SQL UPDATE can't
         # assign data twice.
-        json_assignments: list[str] = []
+        json_assignments: list[tuple[str, str]] = []
         if "classification" in updates:
             import json as _json
 
