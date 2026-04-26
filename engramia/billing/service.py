@@ -51,6 +51,7 @@ def _plan_tier_from_price_id(price_id: str | None) -> str | None:
         return "team"
     return None
 
+
 # Build a tuple of Stripe-related exception types at import time so that
 # except clauses stay readable.  Falls back to generic network errors when
 # the stripe SDK is not installed.

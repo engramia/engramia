@@ -25,7 +25,11 @@ jobs:
       - name: Run pip-audit
         # GHSA-pjjw-68hj-v9mw: uv <0.11.6 — transitive build-tool dep, not used at runtime.
         # No runtime impact; cannot be upgraded without bumping build toolchain.
-        run: pip-audit --skip-editable --ignore-vuln GHSA-pjjw-68hj-v9mw
+        # CVE-2026-3219: pip 26.0.1 archive-format edge case in the GitHub Actions
+        # runner image. Build-time tooling only — the deployed Engramia container
+        # ships its own pip via the base image. Re-evaluate when the runner ships
+        # a fixed pip.
+        run: pip-audit --skip-editable --ignore-vuln GHSA-pjjw-68hj-v9mw --ignore-vuln CVE-2026-3219
 
   bandit:
     name: bandit (Python static security analysis)

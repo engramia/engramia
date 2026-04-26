@@ -66,10 +66,7 @@ def downgrade() -> None:
     # support); operators rolling back must scrub duplicates first.
     op.execute("ALTER TABLE memory_data DROP CONSTRAINT IF EXISTS memory_data_pkey")
     op.execute("ALTER TABLE memory_data ADD PRIMARY KEY (key)")
-    op.execute(
-        "ALTER TABLE memory_data ADD CONSTRAINT uq_memory_data_scope_key "
-        "UNIQUE (tenant_id, project_id, key)"
-    )
+    op.execute("ALTER TABLE memory_data ADD CONSTRAINT uq_memory_data_scope_key UNIQUE (tenant_id, project_id, key)")
 
     op.execute("ALTER TABLE memory_embeddings DROP CONSTRAINT IF EXISTS memory_embeddings_pkey")
     op.execute("ALTER TABLE memory_embeddings ADD PRIMARY KEY (key)")

@@ -58,9 +58,7 @@ def _apply_recency_weight(
         recency_factor = 0.5 ** (age / half_life_seconds)
         base = m.effective_score if m.effective_score is not None else m.similarity
         blended = base * (recency_factor**weight)
-        out.append(
-            m.model_copy(update={"effective_score": round(min(max(blended, 0.0), 1.0), 6)})
-        )
+        out.append(m.model_copy(update={"effective_score": round(min(max(blended, 0.0), 1.0), 6)}))
     out.sort(key=lambda mm: mm.effective_score if mm.effective_score is not None else 0.0, reverse=True)
     return out
 

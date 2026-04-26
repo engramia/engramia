@@ -42,7 +42,5 @@ def downgrade() -> None:
     # do not correspond to api_keys.id (e.g. cloud:* or env-key strings written
     # after this migration). A real rollback would need to scrub those rows.
     op.execute(
-        "ALTER TABLE audit_log "
-        "ADD CONSTRAINT audit_log_key_id_fkey "
-        "FOREIGN KEY (key_id) REFERENCES api_keys(id)"
+        "ALTER TABLE audit_log ADD CONSTRAINT audit_log_key_id_fkey FOREIGN KEY (key_id) REFERENCES api_keys(id)"
     )

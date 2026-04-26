@@ -268,6 +268,7 @@ class PostgresStorage(StorageBackend):
         json_assignments: list[str] = []
         if "classification" in updates:
             import json as _json
+
             # Bind names without a leading underscore — SQLAlchemy 2.x's
             # text() parameter regex tolerates underscores but a few of our
             # adapter layers strip leading-underscore "private" identifiers
@@ -277,6 +278,7 @@ class PostgresStorage(StorageBackend):
             bind["cls_json"] = _json.dumps(updates["classification"])
         if "source" in updates:
             import json as _json
+
             json_assignments.append(("'{design,source}'", ":src_json"))
             bind["src_json"] = _json.dumps(updates["source"])
         if json_assignments:
@@ -290,10 +292,7 @@ class PostgresStorage(StorageBackend):
                 inner = f"jsonb_set({inner}, {path}, CAST({param} AS jsonb))"
             set_parts.append(f"data = CAST({inner} AS json)")
         set_clause = ", ".join(set_parts)
-        sql = (
-            f"UPDATE memory_data SET {set_clause} "
-            "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
-        )
+        sql = f"UPDATE memory_data SET {set_clause} WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
         try:
             with self._engine.begin() as conn:
                 result = conn.execute(self._text(sql), bind)
