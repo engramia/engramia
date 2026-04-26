@@ -60,6 +60,7 @@ def _sub_row(
     projects_limit=3,
     period_end="2026-05-01",
     past_due_since=None,
+    cancel_at_period_end=False,
 ):
     """Return a tuple matching the SELECT column order in get_subscription()."""
     return (
@@ -73,6 +74,7 @@ def _sub_row(
         projects_limit,
         period_end,
         past_due_since,
+        cancel_at_period_end,
     )
 
 

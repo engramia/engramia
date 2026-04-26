@@ -137,7 +137,8 @@ class BillingService:
                     text(
                         "SELECT stripe_customer_id, stripe_subscription_id, plan_tier, "
                         "billing_interval, status, eval_runs_limit, patterns_limit, "
-                        "projects_limit, current_period_end, past_due_since "
+                        "projects_limit, current_period_end, past_due_since, "
+                        "cancel_at_period_end "
                         "FROM billing_subscriptions WHERE tenant_id = :tid"
                     ),
                     {"tid": tenant_id},
@@ -160,6 +161,7 @@ class BillingService:
             projects_limit=row[7],
             current_period_end=row[8],
             past_due_since=row[9],
+            cancel_at_period_end=bool(row[10]),
         )
 
     def get_overage_settings(self, tenant_id: str, metric: str) -> OverageSettings | None:
@@ -215,6 +217,7 @@ class BillingService:
             period_end=sub.current_period_end,
             overage_enabled=overage.enabled if overage else False,
             overage_budget_cap_cents=overage.budget_cap_cents if overage else None,
+            cancel_at_period_end=sub.cancel_at_period_end,
         )
 
     # ------------------------------------------------------------------
@@ -547,6 +550,7 @@ class BillingService:
             _log.warning("_upsert_subscription: no tenant for customer=%s", customer_id)
             return
 
+        cancel_at_period_end = bool(sub_data.get("cancel_at_period_end", False))
         try:
             with self._engine.begin() as conn:
                 conn.execute(
@@ -555,15 +559,16 @@ class BillingService:
                         "(id, tenant_id, stripe_customer_id, stripe_subscription_id, "
                         "plan_tier, billing_interval, status, "
                         "eval_runs_limit, patterns_limit, projects_limit, "
-                        "current_period_end) "
+                        "current_period_end, cancel_at_period_end) "
                         "VALUES (gen_random_uuid()::text, :tid, :cid, :sid, "
                         ":tier, :interval, :status, "
-                        ":eval_lim, :pat_lim, :proj_lim, :period_end) "
+                        ":eval_lim, :pat_lim, :proj_lim, :period_end, :cancel_eop) "
                         "ON CONFLICT (tenant_id) DO UPDATE SET "
                         "stripe_subscription_id = :sid, plan_tier = :tier, "
                         "billing_interval = :interval, status = :status, "
                         "eval_runs_limit = :eval_lim, patterns_limit = :pat_lim, "
                         "projects_limit = :proj_lim, current_period_end = :period_end, "
+                        "cancel_at_period_end = :cancel_eop, "
                         "updated_at = NOW()"
                     ),
                     {
@@ -577,6 +582,7 @@ class BillingService:
                         "pat_lim": limits["patterns"],
                         "proj_lim": limits["projects"],
                         "period_end": period_end,
+                        "cancel_eop": cancel_at_period_end,
                     },
                 )
         except sqlalchemy.exc.SQLAlchemyError:
@@ -594,7 +600,8 @@ class BillingService:
                         "UPDATE billing_subscriptions SET "
                         "plan_tier = 'sandbox', status = 'canceled', "
                         "eval_runs_limit = :eval_lim, patterns_limit = :pat_lim, "
-                        "projects_limit = :proj_lim, updated_at = NOW() "
+                        "projects_limit = :proj_lim, "
+                        "cancel_at_period_end = false, updated_at = NOW() "
                         "WHERE stripe_customer_id = :cid"
                     ),
                     {

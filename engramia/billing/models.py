@@ -63,6 +63,7 @@ class BillingSubscription(BaseModel):
     projects_limit: int | None = 1
     current_period_end: str | None = None
     past_due_since: str | None = None
+    cancel_at_period_end: bool = False
 
     @classmethod
     def sandbox_default(cls, tenant_id: str) -> "BillingSubscription":
@@ -103,3 +104,4 @@ class BillingStatus(BaseModel):
     period_end: str | None
     overage_enabled: bool
     overage_budget_cap_cents: int | None
+    cancel_at_period_end: bool = False
