@@ -53,47 +53,65 @@ def _make_app(billing_service=None, pattern_count: int = 0) -> FastAPI:
 # ---------------------------------------------------------------------------
 
 
+_VALID_BODY = {
+    "plan": "pro",
+    "interval": "yearly",
+    "success_url": "https://app.example.com/success",
+    "cancel_url": "https://app.example.com/cancel",
+}
+
+
 class TestCreateCheckout:
     def test_success_returns_checkout_url(self):
         svc = MagicMock()
         svc.create_checkout_url.return_value = "https://checkout.stripe.com/pay/cs_test_123"
         client = TestClient(_make_app(billing_service=svc))
-        resp = client.post(
-            "/v1/billing/checkout",
-            json={
-                "price_id": "price_pro_monthly",
-                "success_url": "https://app.example.com/success",
-                "cancel_url": "https://app.example.com/cancel",
-            },
-        )
+        resp = client.post("/v1/billing/checkout", json=_VALID_BODY)
         assert resp.status_code == 200
         assert resp.json()["checkout_url"] == "https://checkout.stripe.com/pay/cs_test_123"
 
-    def test_missing_price_id_returns_400(self):
+    def test_missing_plan_returns_400(self):
         svc = MagicMock()
         client = TestClient(_make_app(billing_service=svc))
         resp = client.post(
             "/v1/billing/checkout",
-            json={"success_url": "https://ok", "cancel_url": "https://cancel"},
+            json={k: v for k, v in _VALID_BODY.items() if k != "plan"},
         )
         assert resp.status_code == 400
-        assert "required" in resp.json()["detail"].lower()
+        assert "plan" in resp.json()["detail"].lower()
+
+    def test_invalid_plan_returns_400(self):
+        svc = MagicMock()
+        client = TestClient(_make_app(billing_service=svc))
+        resp = client.post(
+            "/v1/billing/checkout",
+            json={**_VALID_BODY, "plan": "enterprise"},
+        )
+        assert resp.status_code == 400
+        assert "plan" in resp.json()["detail"].lower()
+
+    def test_invalid_interval_returns_400(self):
+        svc = MagicMock()
+        client = TestClient(_make_app(billing_service=svc))
+        resp = client.post(
+            "/v1/billing/checkout",
+            json={**_VALID_BODY, "interval": "weekly"},
+        )
+        assert resp.status_code == 400
+        assert "interval" in resp.json()["detail"].lower()
 
     def test_missing_success_url_returns_400(self):
         svc = MagicMock()
         client = TestClient(_make_app(billing_service=svc))
         resp = client.post(
             "/v1/billing/checkout",
-            json={"price_id": "price_x", "cancel_url": "https://cancel"},
+            json={k: v for k, v in _VALID_BODY.items() if k != "success_url"},
         )
         assert resp.status_code == 400
 
     def test_billing_not_configured_returns_503(self):
         client = TestClient(_make_app(billing_service=None))
-        resp = client.post(
-            "/v1/billing/checkout",
-            json={"price_id": "price_x", "success_url": "https://ok", "cancel_url": "https://cancel"},
-        )
+        resp = client.post("/v1/billing/checkout", json=_VALID_BODY)
         assert resp.status_code == 503
         assert "Billing not configured" in resp.json()["detail"]
 
@@ -102,15 +120,19 @@ class TestCreateCheckout:
         svc = MagicMock()
         svc.create_checkout_url.side_effect = RuntimeError("Stripe API key expired: sk-prod-xxx")
         client = TestClient(_make_app(billing_service=svc))
-        resp = client.post(
-            "/v1/billing/checkout",
-            json={"price_id": "price_x", "success_url": "https://ok", "cancel_url": "https://cancel"},
-        )
+        resp = client.post("/v1/billing/checkout", json=_VALID_BODY)
         assert resp.status_code == 503
-        # Must not contain the internal error message
         assert "sk-prod" not in resp.text
         assert "Stripe API key" not in resp.text
         assert "Checkout session creation failed" in resp.json()["detail"]
+
+    def test_invalid_plan_interval_combination_returns_400(self):
+        """Service-level ValueError (resolved combo unknown) → 400."""
+        svc = MagicMock()
+        svc.create_checkout_url.side_effect = ValueError("Unsupported plan/interval")
+        client = TestClient(_make_app(billing_service=svc))
+        resp = client.post("/v1/billing/checkout", json=_VALID_BODY)
+        assert resp.status_code == 400
 
     def test_invalid_json_body_returns_400(self):
         svc = MagicMock()
@@ -123,17 +145,27 @@ class TestCreateCheckout:
         assert resp.status_code == 400
         assert "Invalid JSON" in resp.json()["detail"]
 
-    def test_tenant_id_from_auth_forwarded_to_service(self):
+    def test_tenant_plan_interval_forwarded_to_service(self):
+        svc = MagicMock()
+        svc.create_checkout_url.return_value = "https://checkout.stripe.com/test"
+        client = TestClient(_make_app(billing_service=svc))
+        client.post("/v1/billing/checkout", json=_VALID_BODY)
+        kwargs = svc.create_checkout_url.call_args.kwargs
+        assert kwargs["tenant_id"] == "default"  # from make_auth_dep() default
+        assert kwargs["plan"] == "pro"
+        assert kwargs["interval"] == "yearly"
+
+    def test_customer_email_optional(self):
+        """customer_email is optional and forwarded as-is when present."""
         svc = MagicMock()
         svc.create_checkout_url.return_value = "https://checkout.stripe.com/test"
         client = TestClient(_make_app(billing_service=svc))
         client.post(
             "/v1/billing/checkout",
-            json={"price_id": "price_x", "success_url": "https://ok", "cancel_url": "https://cancel"},
+            json={**_VALID_BODY, "customer_email": "user@example.com"},
         )
-        # First argument to create_checkout_url should be tenant_id
-        call_args = svc.create_checkout_url.call_args[0]
-        assert call_args[0] == "default"  # from make_auth_dep() default
+        kwargs = svc.create_checkout_url.call_args.kwargs
+        assert kwargs["customer_email"] == "user@example.com"
 
 
 # ---------------------------------------------------------------------------

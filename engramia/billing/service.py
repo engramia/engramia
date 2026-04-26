@@ -33,22 +33,50 @@ from engramia.billing.stripe_client import StripeClient
 _log = logging.getLogger(__name__)
 
 
-def _plan_tier_from_price_id(price_id: str | None) -> str | None:
-    """Map a Stripe price_id to a plan tier via env-var configured ids.
+_PRICE_ENV_VARS: dict[tuple[str, str], str] = {
+    ("pro", "monthly"): "STRIPE_PRICE_PRO_MONTHLY",
+    ("pro", "yearly"): "STRIPE_PRICE_PRO_YEARLY",
+    ("team", "monthly"): "STRIPE_PRICE_TEAM_MONTHLY",
+    ("team", "yearly"): "STRIPE_PRICE_TEAM_YEARLY",
+}
 
-    Stripe Payment Links don't propagate metadata.plan_tier into the
-    Subscription object unless the operator sets it manually on each link.
-    This is a more robust fallback: tie the plan tier to the price ids the
-    deployment actually charges, configured once via env vars.
+
+def _resolve_price_id(plan: str, interval: str) -> str:
+    """Look up the Stripe price ID for a (plan, interval) pair from env.
+
+    Raises ``ValueError`` for an unknown combination, and ``RuntimeError``
+    if the env var exists in the table but is unset — surfacing the
+    misconfiguration loudly instead of silently routing to the wrong plan.
+    """
+    key = (plan, interval)
+    env_var = _PRICE_ENV_VARS.get(key)
+    if env_var is None:
+        raise ValueError(
+            f"Unsupported plan/interval combination: plan={plan!r}, interval={interval!r}. "
+            f"Valid pairs: {sorted(_PRICE_ENV_VARS)}."
+        )
+    price_id = os.environ.get(env_var, "").strip()
+    if not price_id:
+        raise RuntimeError(
+            f"{env_var} is not set. Configure it in the deployment environment "
+            "(e.g. SOPS-encrypted .env) before creating checkout sessions."
+        )
+    return price_id
+
+
+def _plan_tier_from_price_id(price_id: str | None) -> str | None:
+    """Map a Stripe price_id back to a plan tier via the env-var table.
+
+    Stripe webhooks deliver the price_id of the purchased subscription;
+    we reverse-look it up here so the tenant gets the correct plan_limits
+    even if ``subscription.metadata.plan_tier`` is missing.
     """
     if not price_id:
         return None
-    pro_id = os.environ.get("STRIPE_PRO_PRICE_ID", "").strip()
-    team_id = os.environ.get("STRIPE_TEAM_PRICE_ID", "").strip()
-    if pro_id and price_id == pro_id:
-        return "pro"
-    if team_id and price_id == team_id:
-        return "team"
+    for (plan, _interval), env_var in _PRICE_ENV_VARS.items():
+        configured = os.environ.get(env_var, "").strip()
+        if configured and configured == price_id:
+            return plan
     return None
 
 
@@ -227,21 +255,34 @@ class BillingService:
     def create_checkout_url(
         self,
         tenant_id: str,
-        price_id: str,
+        plan: str,
+        interval: str,
         success_url: str,
         cancel_url: str,
+        customer_email: str | None = None,
     ) -> str:
-        """Create a Stripe Checkout Session and return the URL.
+        """Create a Stripe Checkout Session for the given (plan, interval).
 
-        Raises ``RuntimeError`` if Stripe is not configured.
+        The price_id is resolved server-side from env vars
+        (``STRIPE_PRICE_{PRO,TEAM}_{MONTHLY,YEARLY}``) so the dashboard
+        never has to know Stripe identifiers. ``client_reference_id`` is
+        set to ``tenant_id`` so the existing webhook tenant-linking flow
+        keeps working unchanged.
+
+        Raises:
+            ValueError: unknown plan/interval combination.
+            RuntimeError: env var unset, or Stripe not configured.
         """
+        price_id = _resolve_price_id(plan, interval)
         sub = self.get_subscription(tenant_id)
         return self._stripe.create_checkout_session(
             customer_id=sub.stripe_customer_id,
             price_id=price_id,
             success_url=success_url,
             cancel_url=cancel_url,
-            metadata={"tenant_id": tenant_id},
+            metadata={"tenant_id": tenant_id, "plan_tier": plan},
+            customer_email=customer_email,
+            client_reference_id=tenant_id,
         )
 
     def create_portal_url(self, tenant_id: str, return_url: str) -> str:

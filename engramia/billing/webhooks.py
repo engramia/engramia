@@ -136,6 +136,10 @@ def billing_status(request: Request) -> Any:
     return billing_svc.get_status(tenant_id, pattern_count)
 
 
+_VALID_PLANS = {"pro", "team"}
+_VALID_INTERVALS = {"monthly", "yearly"}
+
+
 @router.post(
     "/checkout",
     status_code=status.HTTP_200_OK,
@@ -144,7 +148,19 @@ def billing_status(request: Request) -> Any:
 async def create_checkout(request: Request) -> Any:
     """Create a Stripe Checkout Session and return the redirect URL.
 
-    Expects JSON body: ``{"price_id": "price_...", "success_url": "...", "cancel_url": "..."}``.
+    Expects JSON body::
+
+        {
+          "plan": "pro" | "team",
+          "interval": "monthly" | "yearly",
+          "success_url": "https://app.engramia.dev/setup?checkout=success",
+          "cancel_url":  "https://app.engramia.dev/setup?checkout=cancelled",
+          "customer_email": "user@example.com"   // optional, pre-fills hosted page
+        }
+
+    The actual Stripe price_id is resolved server-side from
+    ``STRIPE_PRICE_{PRO,TEAM}_{MONTHLY,YEARLY}`` env vars so the dashboard
+    never has to know Stripe identifiers.
     """
     import json
 
@@ -170,18 +186,51 @@ async def create_checkout(request: Request) -> Any:
 
     tenant_id = auth_context.tenant_id
 
-    price_id: str = body.get("price_id", "")
+    plan: str = (body.get("plan") or "").strip().lower()
+    interval: str = (body.get("interval") or "").strip().lower()
     success_url: str = body.get("success_url", "")
     cancel_url: str = body.get("cancel_url", "")
+    customer_email: str | None = body.get("customer_email") or None
 
-    if not price_id or not success_url or not cancel_url:
-        raise HTTPException(status_code=400, detail="price_id, success_url, and cancel_url are required.")
+    if plan not in _VALID_PLANS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"plan must be one of {sorted(_VALID_PLANS)}.",
+        )
+    if interval not in _VALID_INTERVALS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"interval must be one of {sorted(_VALID_INTERVALS)}.",
+        )
+    if not success_url or not cancel_url:
+        raise HTTPException(
+            status_code=400, detail="success_url and cancel_url are required."
+        )
 
     try:
-        url = billing_svc.create_checkout_url(tenant_id, price_id, success_url, cancel_url)
+        url = billing_svc.create_checkout_url(
+            tenant_id=tenant_id,
+            plan=plan,
+            interval=interval,
+            success_url=success_url,
+            cancel_url=cancel_url,
+            customer_email=customer_email,
+        )
+    except ValueError as exc:
+        # Unknown (plan, interval) combination — defensive; outer validation
+        # should have caught this already, but raise a sane 400 just in case.
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
-        _log.warning("create_checkout_url failed for tenant=%s: %s", tenant_id, exc)
-        raise HTTPException(status_code=503, detail="Checkout session creation failed.") from exc
+        _log.warning(
+            "create_checkout_url failed for tenant=%s plan=%s interval=%s: %s",
+            tenant_id,
+            plan,
+            interval,
+            exc,
+        )
+        raise HTTPException(
+            status_code=503, detail="Checkout session creation failed."
+        ) from exc
 
     return {"checkout_url": url}
 

@@ -68,6 +68,8 @@ class StripeClient:
         success_url: str,
         cancel_url: str,
         metadata: dict[str, str] | None = None,
+        customer_email: str | None = None,
+        client_reference_id: str | None = None,
     ) -> str:
         """Create a Stripe Checkout Session and return the session URL.
 
@@ -77,6 +79,14 @@ class StripeClient:
 
         ``tax_id_collection`` lets B2B customers enter their VAT ID; Stripe
         then applies the EU reverse-charge rule and prints the ID on invoices.
+
+        ``client_reference_id`` is what the webhook handler reads from
+        ``checkout.session.completed`` to link the Stripe customer to the
+        tenant — set it explicitly here when migrating away from Payment
+        Links (which encoded it via URL query parameter).
+
+        ``customer_email`` pre-fills the email field on the hosted checkout
+        page when no Stripe customer exists yet.
         """
         stripe = self._sdk()
         params: dict[str, Any] = {
@@ -88,8 +98,19 @@ class StripeClient:
             "automatic_tax": {"enabled": True},
             "tax_id_collection": {"enabled": True},
         }
+        # Mirror the top-level metadata onto the subscription so the
+        # customer.subscription.created webhook can resolve tenant_id even
+        # if checkout.session.completed is delayed or replayed alone.
+        if metadata:
+            params["subscription_data"] = {"metadata": metadata}
         if customer_id:
+            # When we already know the Stripe customer, do not also pass
+            # customer_email — Stripe rejects sending both.
             params["customer"] = customer_id
+        elif customer_email:
+            params["customer_email"] = customer_email
+        if client_reference_id:
+            params["client_reference_id"] = client_reference_id
         session = stripe.checkout.Session.create(**params)
         return session.url
 

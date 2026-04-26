@@ -113,6 +113,59 @@ class TestCreateCheckoutSession:
         params = stripe_mock.checkout.Session.create.call_args[1]
         assert params["mode"] == "subscription"
 
+    def test_client_reference_id_forwarded(self):
+        client, stripe_mock = self._client()
+        client.create_checkout_session(
+            None,
+            "price_x",
+            "https://ok",
+            "https://cancel",
+            client_reference_id="tenant-abc",
+        )
+        params = stripe_mock.checkout.Session.create.call_args[1]
+        assert params["client_reference_id"] == "tenant-abc"
+
+    def test_customer_email_forwarded_when_no_customer_id(self):
+        client, stripe_mock = self._client()
+        client.create_checkout_session(
+            None,
+            "price_x",
+            "https://ok",
+            "https://cancel",
+            customer_email="user@example.com",
+        )
+        params = stripe_mock.checkout.Session.create.call_args[1]
+        assert params["customer_email"] == "user@example.com"
+        assert "customer" not in params
+
+    def test_customer_email_ignored_when_customer_id_present(self):
+        """Stripe rejects passing both — customer_id wins."""
+        client, stripe_mock = self._client()
+        client.create_checkout_session(
+            "cus_abc",
+            "price_x",
+            "https://ok",
+            "https://cancel",
+            customer_email="user@example.com",
+        )
+        params = stripe_mock.checkout.Session.create.call_args[1]
+        assert params["customer"] == "cus_abc"
+        assert "customer_email" not in params
+
+    def test_metadata_mirrored_to_subscription_data(self):
+        client, stripe_mock = self._client()
+        client.create_checkout_session(
+            "cus_x",
+            "price_x",
+            "https://ok",
+            "https://cancel",
+            metadata={"tenant_id": "t1", "plan_tier": "pro"},
+        )
+        params = stripe_mock.checkout.Session.create.call_args[1]
+        assert params["subscription_data"] == {
+            "metadata": {"tenant_id": "t1", "plan_tier": "pro"}
+        }
+
 
 # ---------------------------------------------------------------------------
 # create_customer_portal_session()

@@ -237,13 +237,47 @@ class TestMetering:
 
 
 class TestStripeUrls:
-    def test_create_checkout_delegates_to_stripe(self):
+    def test_create_checkout_delegates_to_stripe(self, monkeypatch):
+        monkeypatch.setenv("STRIPE_PRICE_PRO_YEARLY", "price_pro_yearly_test")
         stripe = MagicMock()
         stripe.create_checkout_session.return_value = "https://checkout.stripe.com/pay/cs_test"
         svc = _billing_service(engine=None, stripe_client=stripe)
-        url = svc.create_checkout_url("t1", "price_pro", "https://ok", "https://cancel")
+        url = svc.create_checkout_url(
+            tenant_id="t1",
+            plan="pro",
+            interval="yearly",
+            success_url="https://ok",
+            cancel_url="https://cancel",
+        )
         assert url == "https://checkout.stripe.com/pay/cs_test"
         stripe.create_checkout_session.assert_called_once()
+        kwargs = stripe.create_checkout_session.call_args.kwargs
+        assert kwargs["price_id"] == "price_pro_yearly_test"
+        assert kwargs["client_reference_id"] == "t1"
+        assert kwargs["metadata"] == {"tenant_id": "t1", "plan_tier": "pro"}
+
+    def test_create_checkout_unknown_combination_raises(self):
+        svc = _billing_service(engine=None)
+        with pytest.raises(ValueError, match="Unsupported plan/interval"):
+            svc.create_checkout_url(
+                tenant_id="t1",
+                plan="enterprise",
+                interval="yearly",
+                success_url="https://ok",
+                cancel_url="https://cancel",
+            )
+
+    def test_create_checkout_missing_env_var_raises(self, monkeypatch):
+        monkeypatch.delenv("STRIPE_PRICE_TEAM_MONTHLY", raising=False)
+        svc = _billing_service(engine=None)
+        with pytest.raises(RuntimeError, match="STRIPE_PRICE_TEAM_MONTHLY is not set"):
+            svc.create_checkout_url(
+                tenant_id="t1",
+                plan="team",
+                interval="monthly",
+                success_url="https://ok",
+                cancel_url="https://cancel",
+            )
 
     def test_create_portal_no_customer_raises(self):
         svc = _billing_service(engine=None)
@@ -756,3 +790,77 @@ class TestSubscriptionLifecycleEdgeCases:
         engine.begin.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
         svc = _billing_service(engine=engine)
         svc._downgrade_to_sandbox("cus_x")  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# _resolve_price_id() / _plan_tier_from_price_id()
+# ---------------------------------------------------------------------------
+
+
+class TestResolvePriceId:
+    def test_pro_yearly_reads_env_var(self, monkeypatch):
+        from engramia.billing.service import _resolve_price_id
+
+        monkeypatch.setenv("STRIPE_PRICE_PRO_YEARLY", "price_pro_yearly_xyz")
+        assert _resolve_price_id("pro", "yearly") == "price_pro_yearly_xyz"
+
+    def test_team_monthly_reads_env_var(self, monkeypatch):
+        from engramia.billing.service import _resolve_price_id
+
+        monkeypatch.setenv("STRIPE_PRICE_TEAM_MONTHLY", "price_team_monthly_xyz")
+        assert _resolve_price_id("team", "monthly") == "price_team_monthly_xyz"
+
+    def test_unknown_plan_raises_value_error(self):
+        from engramia.billing.service import _resolve_price_id
+
+        with pytest.raises(ValueError, match="Unsupported plan/interval"):
+            _resolve_price_id("enterprise", "yearly")
+
+    def test_unknown_interval_raises_value_error(self):
+        from engramia.billing.service import _resolve_price_id
+
+        with pytest.raises(ValueError, match="Unsupported plan/interval"):
+            _resolve_price_id("pro", "weekly")
+
+    def test_missing_env_var_raises_runtime_error(self, monkeypatch):
+        from engramia.billing.service import _resolve_price_id
+
+        monkeypatch.delenv("STRIPE_PRICE_PRO_MONTHLY", raising=False)
+        with pytest.raises(RuntimeError, match="STRIPE_PRICE_PRO_MONTHLY is not set"):
+            _resolve_price_id("pro", "monthly")
+
+    def test_blank_env_var_treated_as_unset(self, monkeypatch):
+        from engramia.billing.service import _resolve_price_id
+
+        monkeypatch.setenv("STRIPE_PRICE_TEAM_YEARLY", "   ")
+        with pytest.raises(RuntimeError, match="STRIPE_PRICE_TEAM_YEARLY is not set"):
+            _resolve_price_id("team", "yearly")
+
+
+class TestPlanTierFromPriceId:
+    def test_returns_none_for_blank_input(self):
+        from engramia.billing.service import _plan_tier_from_price_id
+
+        assert _plan_tier_from_price_id(None) is None
+        assert _plan_tier_from_price_id("") is None
+
+    def test_pro_yearly_resolves_to_pro(self, monkeypatch):
+        from engramia.billing.service import _plan_tier_from_price_id
+
+        monkeypatch.setenv("STRIPE_PRICE_PRO_YEARLY", "price_yearly_xyz")
+        assert _plan_tier_from_price_id("price_yearly_xyz") == "pro"
+
+    def test_team_monthly_resolves_to_team(self, monkeypatch):
+        from engramia.billing.service import _plan_tier_from_price_id
+
+        monkeypatch.setenv("STRIPE_PRICE_TEAM_MONTHLY", "price_monthly_xyz")
+        assert _plan_tier_from_price_id("price_monthly_xyz") == "team"
+
+    def test_unknown_price_returns_none(self, monkeypatch):
+        from engramia.billing.service import _plan_tier_from_price_id
+
+        monkeypatch.delenv("STRIPE_PRICE_PRO_MONTHLY", raising=False)
+        monkeypatch.delenv("STRIPE_PRICE_PRO_YEARLY", raising=False)
+        monkeypatch.delenv("STRIPE_PRICE_TEAM_MONTHLY", raising=False)
+        monkeypatch.delenv("STRIPE_PRICE_TEAM_YEARLY", raising=False)
+        assert _plan_tier_from_price_id("price_unknown") is None
