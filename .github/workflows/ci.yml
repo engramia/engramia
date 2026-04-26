@@ -185,7 +185,9 @@ jobs:
         run: |
           pip install pip-audit
           # GHSA-pjjw-68hj-v9mw: uv <0.11.6 — transitive build-tool dep, not runtime.
-          pip-audit --desc --skip-editable --ignore-vuln GHSA-pjjw-68hj-v9mw
+          # CVE-2026-3219: pip 26.0.1 in the runner image — build-time only;
+          # the deployed Engramia container ships its own pip via the base image.
+          pip-audit --desc --skip-editable --ignore-vuln GHSA-pjjw-68hj-v9mw --ignore-vuln CVE-2026-3219
 
       - name: SAST (bandit)
         run: |
