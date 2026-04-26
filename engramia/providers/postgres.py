@@ -285,17 +285,17 @@ class PostgresStorage(StorageBackend):
                 inner = f"jsonb_set({inner}, {path}, {param}::jsonb)"
             set_parts.append(f"data = ({inner})::json")
         set_clause = ", ".join(set_parts)
+        sql = (
+            f"UPDATE memory_data SET {set_clause} "
+            "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
+        )
+        _log.info("save_pattern_meta SQL: %s | bind keys: %s", sql, sorted(bind.keys()))
         try:
             with self._engine.begin() as conn:
-                conn.execute(
-                    self._text(
-                        f"UPDATE memory_data SET {set_clause} "
-                        "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
-                    ),
-                    bind,
-                )
+                result = conn.execute(self._text(sql), bind)
+                _log.info("save_pattern_meta rowcount=%d for key=%r", result.rowcount, key)
         except Exception as exc:
-            _log.warning("save_pattern_meta failed for key %r: %s", key, exc)
+            _log.warning("save_pattern_meta failed for key %r: %s", key, exc, exc_info=True)
 
     def delete_scope(self, tenant_id: str, project_id: str) -> int:
         """Bulk-delete all memory_data and memory_embeddings rows for a scope."""
