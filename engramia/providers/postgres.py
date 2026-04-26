@@ -294,11 +294,14 @@ class PostgresStorage(StorageBackend):
             f"UPDATE memory_data SET {set_clause} "
             "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
         )
-        _log.info("save_pattern_meta SQL: %s | bind keys: %s", sql, sorted(bind.keys()))
         try:
             with self._engine.begin() as conn:
                 result = conn.execute(self._text(sql), bind)
-                _log.info("save_pattern_meta rowcount=%d for key=%r", result.rowcount, key)
+            if result.rowcount == 0:
+                _log.warning(
+                    "save_pattern_meta updated 0 rows for key=%r — pattern missing or scope mismatch",
+                    key,
+                )
         except Exception as exc:
             _log.warning("save_pattern_meta failed for key %r: %s", key, exc, exc_info=True)
 
