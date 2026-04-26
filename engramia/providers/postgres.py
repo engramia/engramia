@@ -255,14 +255,24 @@ class PostgresStorage(StorageBackend):
         # the column and the JSONB diverge on every classify call: the
         # column updates, the JSONB stays frozen at learn-time, and the
         # recall classification filter looks at the wrong source.
+        #
+        # Pre-serialise the JSON-string form so the bind param ends up as
+        # ``"confidential"`` (a JSONB scalar string) rather than
+        # ``confidential`` (which would parse as a jsonb literal of an
+        # invalid identifier and silently no-op).
+        bind: dict[str, object] = {**updates, "key": key, **sp}
         if "classification" in updates:
+            import json as _json
             set_parts.append(
-                "data = jsonb_set(data, '{design,classification}', to_jsonb(CAST(:classification AS TEXT)))"
+                "data = jsonb_set(data, '{design,classification}', :_cls_json::jsonb)"
             )
+            bind["_cls_json"] = _json.dumps(updates["classification"])
         if "source" in updates:
+            import json as _json
             set_parts.append(
-                "data = jsonb_set(data, '{design,source}', to_jsonb(CAST(:source AS TEXT)))"
+                "data = jsonb_set(data, '{design,source}', :_src_json::jsonb)"
             )
+            bind["_src_json"] = _json.dumps(updates["source"])
         set_clause = ", ".join(set_parts)
         try:
             with self._engine.begin() as conn:
@@ -271,7 +281,7 @@ class PostgresStorage(StorageBackend):
                         f"UPDATE memory_data SET {set_clause} "
                         "WHERE key = :key AND tenant_id = :tid AND project_id = :pid"
                     ),
-                    {**updates, "key": key, **sp},
+                    bind,
                 )
         except Exception as exc:
             _log.warning("save_pattern_meta failed for key %r: %s", key, exc)
