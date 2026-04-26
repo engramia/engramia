@@ -11,6 +11,7 @@ require authentication via ``require_auth``.
 """
 
 import logging
+import os
 from typing import Any
 from urllib.parse import urlparse
 
@@ -21,6 +22,23 @@ from engramia.api.auth import require_auth
 _log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/billing")
+
+
+def _allowed_return_netlocs(request: Request) -> set[str]:
+    """Hosts permitted as ``return_url`` for the customer portal redirect.
+
+    Always includes the API's own origin (so direct curl/SDK callers work).
+    Adds the dashboard origin from ``ENGRAMIA_DASHBOARD_URL`` when set, since
+    the dashboard runs on a separate subdomain (e.g. ``app.engramia.dev``)
+    from the API (``api.engramia.dev``).
+    """
+    netlocs = {urlparse(str(request.base_url)).netloc}
+    dashboard = os.environ.get("ENGRAMIA_DASHBOARD_URL", "").strip()
+    if dashboard:
+        dashboard_netloc = urlparse(dashboard).netloc
+        if dashboard_netloc:
+            netlocs.add(dashboard_netloc)
+    return netlocs
 
 
 @router.post(
@@ -192,8 +210,7 @@ def customer_portal(request: Request, return_url: str = "") -> Any:
         return_url = str(request.base_url)
     else:
         parsed = urlparse(return_url)
-        allowed_netloc = urlparse(str(request.base_url)).netloc
-        if parsed.scheme not in ("http", "https") or parsed.netloc != allowed_netloc:
+        if parsed.scheme not in ("http", "https") or parsed.netloc not in _allowed_return_netlocs(request):
             raise HTTPException(status_code=400, detail="Invalid return_url.")
 
     try:

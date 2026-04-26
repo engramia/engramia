@@ -177,6 +177,46 @@ class TestCustomerPortal:
         call_args = svc.create_portal_url.call_args[0]
         assert "testserver" in call_args[1] or call_args[1] != ""
 
+    def test_cross_origin_dashboard_return_url_accepted(self, monkeypatch):
+        """Dashboard runs on a different subdomain from the API; ENGRAMIA_DASHBOARD_URL must whitelist it."""
+        monkeypatch.setenv("ENGRAMIA_DASHBOARD_URL", "https://app.engramia.dev")
+        svc = MagicMock()
+        svc.create_portal_url.return_value = "https://billing.stripe.com/session/xyz"
+        client = TestClient(_make_app(billing_service=svc))
+        resp = client.get(
+            "/v1/billing/portal",
+            params={"return_url": "https://app.engramia.dev/billing/"},
+        )
+        assert resp.status_code == 200
+        # Service was called with the dashboard URL, not the API base_url
+        call_args = svc.create_portal_url.call_args[0]
+        assert call_args[1] == "https://app.engramia.dev/billing/"
+
+    def test_return_url_unrelated_origin_rejected(self, monkeypatch):
+        """Even with ENGRAMIA_DASHBOARD_URL set, only the dashboard host is allowed."""
+        monkeypatch.setenv("ENGRAMIA_DASHBOARD_URL", "https://app.engramia.dev")
+        svc = MagicMock()
+        client = TestClient(_make_app(billing_service=svc))
+        resp = client.get(
+            "/v1/billing/portal",
+            params={"return_url": "https://evil.example.com/steal"},
+        )
+        assert resp.status_code == 400
+        assert "Invalid return_url" in resp.json()["detail"]
+        svc.create_portal_url.assert_not_called()
+
+    def test_return_url_without_dashboard_env_only_api_origin_allowed(self, monkeypatch):
+        """When ENGRAMIA_DASHBOARD_URL is unset, cross-origin return_url is rejected."""
+        monkeypatch.delenv("ENGRAMIA_DASHBOARD_URL", raising=False)
+        svc = MagicMock()
+        client = TestClient(_make_app(billing_service=svc))
+        resp = client.get(
+            "/v1/billing/portal",
+            params={"return_url": "https://app.engramia.dev/billing/"},
+        )
+        assert resp.status_code == 400
+        assert "Invalid return_url" in resp.json()["detail"]
+
 
 # ---------------------------------------------------------------------------
 # PATCH /v1/billing/overage
