@@ -18,10 +18,9 @@ across tenants or projects.
 
 import logging
 import statistics
-
-from engramia._context import get_scope
 from typing import Literal
 
+from engramia._context import get_scope
 from engramia._util import jaccard
 from engramia.providers.base import StorageBackend
 
