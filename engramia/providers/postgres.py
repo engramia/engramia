@@ -280,10 +280,15 @@ class PostgresStorage(StorageBackend):
             json_assignments.append(("'{design,source}'", ":src_json"))
             bind["src_json"] = _json.dumps(updates["source"])
         if json_assignments:
-            inner = "data::jsonb"
+            # Use CAST(... AS ...) instead of the ::type shorthand. SQLAlchemy
+            # text()'s bind-param regex has a `(?!:)` lookahead that drops
+            # `:name::type` because the trailing `::` looks like another
+            # parameter prefix. Spelled-out CAST has no `::` so each `:name`
+            # is recognised cleanly.
+            inner = "CAST(data AS jsonb)"
             for path, param in json_assignments:
-                inner = f"jsonb_set({inner}, {path}, {param}::jsonb)"
-            set_parts.append(f"data = ({inner})::json")
+                inner = f"jsonb_set({inner}, {path}, CAST({param} AS jsonb))"
+            set_parts.append(f"data = CAST({inner} AS json)")
         set_clause = ", ".join(set_parts)
         sql = (
             f"UPDATE memory_data SET {set_clause} "
