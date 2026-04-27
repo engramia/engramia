@@ -1056,8 +1056,7 @@ def cleanup_deleted_accounts(
         user_id, tenant_id, deleted_at = str(row[0]), str(row[1]), row[2]
         if dry_run:
             console.print(
-                f"[yellow]DRY-RUN hard-delete[/yellow] user={user_id} tenant={tenant_id} "
-                f"(soft-deleted at {deleted_at})"
+                f"[yellow]DRY-RUN hard-delete[/yellow] user={user_id} tenant={tenant_id} (soft-deleted at {deleted_at})"
             )
             hard_deleted += 1
             continue
@@ -1076,15 +1075,12 @@ def cleanup_deleted_accounts(
             conn.execute(text("DELETE FROM projects WHERE tenant_id = :tid"), {"tid": tenant_id})
             conn.execute(text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_id})
 
-        console.print(
-            f"[red]Hard-deleted[/red] user={user_id} tenant={tenant_id} (soft-deleted at {deleted_at})"
-        )
+        console.print(f"[red]Hard-deleted[/red] user={user_id} tenant={tenant_id} (soft-deleted at {deleted_at})")
         hard_deleted += 1
 
     console.print()
     console.print(
-        f"[green]Hard-delete complete[/green] — accounts removed: {hard_deleted}"
-        f"{' (dry-run)' if dry_run else ''}"
+        f"[green]Hard-delete complete[/green] — accounts removed: {hard_deleted}{' (dry-run)' if dry_run else ''}"
     )
 
 

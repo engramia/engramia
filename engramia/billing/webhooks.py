@@ -203,9 +203,7 @@ async def create_checkout(request: Request) -> Any:
             detail=f"interval must be one of {sorted(_VALID_INTERVALS)}.",
         )
     if not success_url or not cancel_url:
-        raise HTTPException(
-            status_code=400, detail="success_url and cancel_url are required."
-        )
+        raise HTTPException(status_code=400, detail="success_url and cancel_url are required.")
 
     try:
         url = billing_svc.create_checkout_url(
@@ -228,9 +226,7 @@ async def create_checkout(request: Request) -> Any:
             interval,
             exc,
         )
-        raise HTTPException(
-            status_code=503, detail="Checkout session creation failed."
-        ) from exc
+        raise HTTPException(status_code=503, detail="Checkout session creation failed.") from exc
     except Exception as exc:
         # Stripe SDK raises stripe._error.StripeError subclasses for upstream
         # errors. We don't import the SDK here (it's an optional dep), so
