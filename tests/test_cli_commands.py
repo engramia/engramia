@@ -311,6 +311,161 @@ class TestGovernancePurgeProject:
 
 
 # ---------------------------------------------------------------------------
+# cloud create-account / list-accounts (mocked DB)
+# ---------------------------------------------------------------------------
+
+
+class TestCloudCreateAccount:
+    """Unit tests for `engramia cloud create-account` — DB calls mocked."""
+
+    def _patch_engine(self, *, existing_email: bool):
+        """Build a mock engine where the existence check returns a row or None."""
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock
+
+        engine = MagicMock(name="engine")
+
+        @contextmanager
+        def _connect():
+            conn = MagicMock(name="conn")
+            row = ("existing-uuid",) if existing_email else None
+            conn.execute.return_value.fetchone.return_value = row
+            yield conn
+
+        @contextmanager
+        def _begin():
+            yield MagicMock(name="conn-begin")
+
+        engine.connect = _connect
+        engine.begin = _begin
+        return engine
+
+    def test_invalid_plan_exits_1(self):
+        with patch("engramia.cli.main._make_db_engine") as eng:
+            eng.return_value = self._patch_engine(existing_email=False)
+            result = runner.invoke(app, ["cloud", "create-account", "x@y.z", "--plan", "bogus"])
+        assert result.exit_code == 1
+        assert "Invalid plan tier" in result.output
+
+    def test_existing_email_exits_1(self):
+        with patch("engramia.cli.main._make_db_engine") as eng:
+            eng.return_value = self._patch_engine(existing_email=True)
+            result = runner.invoke(app, ["cloud", "create-account", "dup@example.com"])
+        assert result.exit_code == 1
+        assert "Account already exists" in result.output
+
+    def test_success_with_generated_password(self):
+        with (
+            patch("engramia.cli.main._make_db_engine") as eng,
+            patch("engramia.api.cloud_auth._hash_password", return_value="hash"),
+            patch(
+                "engramia.api.cloud_auth._create_registration",
+                return_value={
+                    "user_id": "uid-1",
+                    "tenant_id": "tid-1",
+                    "project_id": "pid-1",
+                    "api_key": "engramia-secret",
+                },
+            ),
+        ):
+            eng.return_value = self._patch_engine(existing_email=False)
+            result = runner.invoke(app, ["cloud", "create-account", "new@example.com"])
+        assert result.exit_code == 0
+        assert "Account created" in result.output
+        assert "new@example.com" in result.output
+        assert "tid-1" in result.output
+        assert "engramia-secret" in result.output
+        assert "auto-generated" in result.output
+
+    def test_success_with_explicit_password_and_pro_plan(self):
+        with (
+            patch("engramia.cli.main._make_db_engine") as eng,
+            patch("engramia.api.cloud_auth._hash_password", return_value="hash"),
+            patch(
+                "engramia.api.cloud_auth._create_registration",
+                return_value={
+                    "user_id": "uid-2",
+                    "tenant_id": "tid-2",
+                    "project_id": "pid-2",
+                    "api_key": "engramia-pro-key",
+                },
+            ),
+        ):
+            eng.return_value = self._patch_engine(existing_email=False)
+            result = runner.invoke(
+                app,
+                [
+                    "cloud",
+                    "create-account",
+                    "pro@example.com",
+                    "--password",
+                    "supplied-pw",
+                    "--plan",
+                    "pro",
+                    "--name",
+                    "Pro User",
+                ],
+            )
+        assert result.exit_code == 0
+        assert "as supplied" in result.output
+        assert "plan       : pro" in result.output
+
+
+class TestCloudListAccounts:
+    def test_list_empty(self):
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock
+
+        engine = MagicMock()
+
+        @contextmanager
+        def _connect():
+            conn = MagicMock()
+            conn.execute.return_value.fetchall.return_value = []
+            yield conn
+
+        engine.connect = _connect
+
+        with patch("engramia.cli.main._make_db_engine", return_value=engine):
+            result = runner.invoke(app, ["cloud", "list-accounts"])
+        assert result.exit_code == 0
+        assert "No accounts found" in result.output
+
+    def test_list_with_rows(self):
+        import datetime
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock
+
+        engine = MagicMock()
+        rows = [
+            (
+                "alice@example.com",
+                "alice-corp",
+                "pro",
+                datetime.datetime(2026, 4, 20, 10, 0),
+                datetime.datetime(2026, 4, 27, 18, 0),
+            ),
+            ("bob@example.com", "bob-co", "sandbox", datetime.datetime(2026, 4, 25, 12, 0), None),
+        ]
+
+        @contextmanager
+        def _connect():
+            conn = MagicMock()
+            conn.execute.return_value.fetchall.return_value = rows
+            yield conn
+
+        engine.connect = _connect
+
+        with patch("engramia.cli.main._make_db_engine", return_value=engine):
+            result = runner.invoke(app, ["cloud", "list-accounts", "--plan", "pro"])
+        assert result.exit_code == 0
+        assert "alice@example.com" in result.output
+        assert "bob@example.com" in result.output
+        assert "never" in result.output  # bob has no last_login
+        assert "2 account(s)" in result.output
+
+
+# ---------------------------------------------------------------------------
 # serve (error path only — cannot start real uvicorn in tests)
 # ---------------------------------------------------------------------------
 
