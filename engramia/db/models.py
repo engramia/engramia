@@ -191,7 +191,8 @@ class AuditLogEntry(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     tenant_id: Mapped[str] = mapped_column(Text, nullable=False)
-    project_id: Mapped[str] = mapped_column(Text, nullable=False)
+    # NULL for tenant-level events (e.g. account deletion) — see migration 022.
+    project_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     key_id: Mapped[str | None] = mapped_column(Text, ForeignKey("api_keys.id"), nullable=True)
     action: Mapped[str] = mapped_column(Text, nullable=False)  # e.g. "learn", "key_created"
     resource_type: Mapped[str | None] = mapped_column(Text, nullable=True)

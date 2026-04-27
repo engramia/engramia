@@ -63,7 +63,7 @@ def log_db_event(
     engine,
     *,
     tenant_id: str,
-    project_id: str,
+    project_id: str | None,
     action: str,
     key_id: str | None = None,
     resource_type: str | None = None,
@@ -79,7 +79,9 @@ def log_db_event(
     Args:
         engine: SQLAlchemy engine (from app.state.auth_engine).
         tenant_id: Tenant the event belongs to.
-        project_id: Project the event belongs to.
+        project_id: Project the event belongs to. ``None`` for tenant-level
+            events (e.g. account deletion) — column is nullable since
+            migration 022.
         action: Event action string (e.g. 'key_created', 'key_revoked').
         key_id: UUID of the API key involved, if applicable.
         resource_type: Type of resource affected (e.g. 'api_key').
