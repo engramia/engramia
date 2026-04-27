@@ -949,6 +949,21 @@ curl -X DELETE http://localhost:8000/v1/governance/tenants/{tenant_id} \
   -H "Authorization: Bearer $API_KEY"
 ```
 
+### Self-service Account Deletion (cloud users only)
+
+If you signed up via the cloud dashboard, you can delete your account end-to-end without contacting support. This is the GDPR Art. 17 right-to-erasure flow surfaced as a two-step double-opt-in:
+
+1. In the dashboard, open **Settings → Account** and click **Delete account**. The dashboard calls `POST /auth/me/deletion-request` which generates a 24-hour confirmation token and emails the link to your verified address.
+2. Open the email and click the link. The dashboard then calls `DELETE /auth/me?token=...`, which:
+   - Cancels your active Stripe subscription (no refund for the unused period)
+   - Cascades deletion of all patterns, embeddings, jobs, and API keys for your tenant
+   - Anonymises your `cloud_users` row (email is rewritten to `deleted-<uuid>@deleted.engramia.dev`; password and name are nulled)
+   - Final hard-delete happens after a 30-day grace window via the `engramia cleanup deleted-accounts` cron job
+
+Idempotent: clicking the link a second time returns `410 Gone`. If you start the flow twice within 24 hours, the second `POST /auth/me/deletion-request` is rejected with `409 deletion_already_pending`.
+
+Use `GET /v1/export` (Art. 20 portability) before triggering deletion if you want a backup of your patterns.
+
 ### Retention Policy
 
 Configure automatic data expiration:

@@ -88,6 +88,12 @@ Separately from retention, patterns decay in quality over time:
 
 **Per-tenant**: `DELETE /v1/governance/tenants/{id}` — same cascade, all projects under tenant
 
+**Self-service (cloud users only)**: `POST /auth/me/deletion-request` → email confirmation → `DELETE /auth/me?token=...`
+- Two-step double-opt-in: dashboard request emits a 24h confirmation token; the link in the email is what actually triggers the cascade
+- Cancels active Stripe subscription (best-effort), runs the same per-tenant cascade, then anonymises the `cloud_users` row (email rewritten to `deleted-<uuid>@deleted.engramia.dev`)
+- 30-day grace window before final hard-delete by the `engramia cleanup deleted-accounts` cron command
+- Owner-only as a guard against accidental loss; refuses with `409 deletion_already_pending` while a previous request is unconsumed
+
 ---
 
 ## Data Portability (GDPR Art. 20)

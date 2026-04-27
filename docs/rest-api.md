@@ -369,3 +369,65 @@ Delete ALL data for a project (GDPR Art. 17). Permission: `governance:delete`. I
 ### DELETE /v1/governance/tenants/{tenant_id}
 
 Delete ALL data for a tenant. Owner only. Irreversible.
+
+## Cloud Auth (`/auth`)
+
+Cloud authentication endpoints used by the dashboard. Available when the API runs with `ENGRAMIA_DATABASE_URL` configured (cloud auth mode).
+
+### POST /auth/register
+
+Email/password registration. Provisions a tenant + project + API key and emails a verification link. Rate-limited to 5 req/min per IP.
+
+### POST /auth/verify
+
+Consume a verification token issued by `/auth/register` or `/auth/resend-verification`. Marks the user `email_verified=true`.
+
+### POST /auth/resend-verification
+
+Issue a fresh verification token. Always returns 202 to prevent account enumeration. Rate-limited to 3 req/min per (IP, email).
+
+### POST /auth/login
+
+Email/password login. Returns access + refresh JWT tokens. Refuses unverified accounts with `403 email_not_verified`. Rate-limited to 10 req/min per IP.
+
+### POST /auth/oauth
+
+Google / Apple OAuth login or registration.
+
+### GET /auth/me
+
+Return the current user's profile from the JWT. Requires `Authorization: Bearer <access_token>`.
+
+### POST /auth/refresh
+
+Exchange a refresh token for a new access token.
+
+### POST /auth/logout
+
+Blocklists the access token (and optional refresh token in the body) by JTI for the remainder of its TTL.
+
+### POST /auth/me/deletion-request
+
+**Self-service account deletion (GDPR Art. 17), step 1 of 2.** Generates a single-use 24-hour token and emails the confirmation link. Optional body: `{"reason": "free text ≤500 chars"}` (persisted on `cloud_users.deletion_reason` for product analytics). Requires Bearer auth. Returns `409 deletion_already_pending` when an unconsumed request already exists. Rate-limited to 3 req/min per IP.
+
+Response (202):
+```json
+{ "expires_at": "2026-04-28T18:50:00Z", "delivery_status": "sent" }
+```
+
+### DELETE /auth/me?token=...
+
+**Self-service account deletion, step 2 of 2.** No Bearer auth required — the email-bound token is the authentication. Cancels the tenant's Stripe subscription (best-effort), runs `ScopedDeletion.delete_tenant(anonymise_users=True)` to cascade-delete patterns, embeddings, jobs and to anonymise the `cloud_users` row. Returns `410 Gone` for already-deleted accounts and `400` for expired/invalid tokens.
+
+Response (200):
+```json
+{
+  "deleted": true,
+  "tenant_id": "your-tenant",
+  "patterns_deleted": 42,
+  "keys_revoked": 2,
+  "stripe_subscription_cancelled": true
+}
+```
+
+The `cloud_users` row is soft-deleted (email rewritten to `deleted-<uuid>@deleted.engramia.dev`, password/name nulled) and hard-deleted by the `engramia cleanup deleted-accounts` cron job after a 30-day grace period.

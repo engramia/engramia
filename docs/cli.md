@@ -135,6 +135,33 @@ Permanently delete all data for a project (GDPR Art. 17). Irreversible.
 engramia governance purge-project my-project --tenant default --yes
 ```
 
+## Scheduled cleanup (`engramia cleanup`)
+
+Daily cron-friendly tasks. Both subcommands accept `--dry-run` for safe previews.
+
+### cleanup unverified-users
+
+Two-stage cleanup of pending registrations that never confirmed their email:
+
+1. Re-send a reminder email to users older than `--reminder-after-days` (default 7d)
+2. Hard-delete users older than `--delete-after-days` (default 14d) — cascades through `cloud_users → tenants → projects → api_keys`
+
+```bash
+engramia cleanup unverified-users
+engramia cleanup unverified-users --reminder-after-days 7 --delete-after-days 14 --dry-run
+```
+
+### cleanup deleted-accounts
+
+Hard-deletes `cloud_users` + `tenants` rows that were soft-deleted by the self-service flow (`DELETE /auth/me`) and have aged past the grace window. Default 30-day grace gives support an opportunity to reverse an accidental deletion before the data is irrecoverable.
+
+```bash
+engramia cleanup deleted-accounts                        # 30-day grace, real run
+engramia cleanup deleted-accounts --grace-period-days 30 --dry-run
+```
+
+Idempotent and safe to run from cron daily.
+
 ## Environment variables
 
 The CLI uses the same environment variables as the REST API. See [Environment Variables](environment-variables.md) for the complete reference.
