@@ -285,6 +285,42 @@ class BillingService:
             client_reference_id=tenant_id,
         )
 
+    def cancel_subscription_for_tenant(self, tenant_id: str) -> bool:
+        """Cancel the active Stripe subscription for a tenant, if any.
+
+        Used by the account-deletion flow before ``ScopedDeletion`` wipes the
+        tenant data. Best-effort: if Stripe is unconfigured, the tenant has no
+        subscription, or the cancel call fails, we log and return False rather
+        than blocking deletion — losing a paid sub is reversible from the
+        Stripe Dashboard, but a stuck deletion request is not.
+
+        Returns:
+            True when a Subscription.delete call was made successfully.
+            False when there was nothing to cancel or Stripe was unavailable.
+        """
+        if self._engine is None:
+            return False
+        sub = self.get_subscription(tenant_id)
+        if not sub.stripe_subscription_id:
+            return False
+        try:
+            self._stripe.cancel_subscription(sub.stripe_subscription_id)
+            return True
+        except RuntimeError:
+            # Stripe SDK not installed or STRIPE_SECRET_KEY unset — dev/test mode.
+            _log.debug("cancel_subscription_for_tenant: Stripe not configured; skipping")
+            return False
+        except _STRIPE_ERRORS as exc:
+            # InvalidRequestError covers "subscription already cancelled" — log
+            # and proceed with deletion. Webhook may still arrive and reconcile.
+            _log.warning(
+                "cancel_subscription_for_tenant: Stripe cancel failed for tenant=%s sub=%s: %s",
+                tenant_id,
+                sub.stripe_subscription_id,
+                exc,
+            )
+            return False
+
     def create_portal_url(self, tenant_id: str, return_url: str) -> str:
         """Create a Stripe Customer Portal session URL.
 

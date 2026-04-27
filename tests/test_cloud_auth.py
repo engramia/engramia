@@ -6,6 +6,7 @@ All DB calls are mocked — no real database required.
 passlib/PyJWT are patched so the tests run without the cloud-auth extra installed.
 """
 
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -76,9 +77,7 @@ _FAKE_REG = {
 @patch("engramia.api.cloud_auth._send_verification_email", return_value=True)
 @patch("engramia.api.audit.log_event")
 @patch("engramia.api.audit.log_db_event")
-def test_register_success(
-    mock_log_db, mock_log, mock_send, mock_vtok, mock_hash, mock_create, client, mock_engine
-):
+def test_register_success(mock_log_db, mock_log, mock_send, mock_vtok, mock_hash, mock_create, client, mock_engine):
     # No existing user with this email.
     mock_engine._conn.execute.return_value.fetchone.return_value = None
 
@@ -357,9 +356,9 @@ def _make_verify_row(expires_at, consumed_at=None, already_verified=False):
 
 
 def test_verify_success(client, mock_engine):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    future = datetime.now(timezone.utc) + timedelta(hours=12)
+    future = datetime.now(UTC) + timedelta(hours=12)
     mock_engine._conn.execute.return_value.fetchone.return_value = _make_verify_row(future)
 
     resp = client.post("/auth/verify", json={"token": "a" * 32})
@@ -370,9 +369,9 @@ def test_verify_success(client, mock_engine):
 
 
 def test_verify_token_expired(client, mock_engine):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    past = datetime.now(timezone.utc) - timedelta(hours=1)
+    past = datetime.now(UTC) - timedelta(hours=1)
     mock_engine._conn.execute.return_value.fetchone.return_value = _make_verify_row(past)
 
     resp = client.post("/auth/verify", json={"token": "a" * 32})
@@ -382,10 +381,10 @@ def test_verify_token_expired(client, mock_engine):
 
 
 def test_verify_token_already_consumed(client, mock_engine):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    future = datetime.now(timezone.utc) + timedelta(hours=12)
-    consumed = datetime.now(timezone.utc) - timedelta(minutes=5)
+    future = datetime.now(UTC) + timedelta(hours=12)
+    consumed = datetime.now(UTC) - timedelta(minutes=5)
     # User not yet verified but token already burned → 400 (rare race).
     mock_engine._conn.execute.return_value.fetchone.return_value = _make_verify_row(
         future, consumed_at=consumed, already_verified=False
@@ -399,10 +398,10 @@ def test_verify_token_already_consumed(client, mock_engine):
 
 def test_verify_token_idempotent_when_already_verified(client, mock_engine):
     """Double-click on the verify link returns success if the user is already verified."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    future = datetime.now(timezone.utc) + timedelta(hours=12)
-    consumed = datetime.now(timezone.utc) - timedelta(minutes=5)
+    future = datetime.now(UTC) + timedelta(hours=12)
+    consumed = datetime.now(UTC) - timedelta(minutes=5)
     mock_engine._conn.execute.return_value.fetchone.return_value = _make_verify_row(
         future, consumed_at=consumed, already_verified=True
     )
@@ -491,3 +490,263 @@ def test_resend_verification_rate_limit():
     with pytest.raises(Exception) as exc:
         _check_resend_rate("1.2.3.4", "burst@example.com")
     assert "Too many" in str(exc.value) or "429" in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# Self-service account deletion — POST /me/deletion-request
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_deletion_rate_limiter():
+    """Clear the deletion-request rate limiter between tests so per-test IP
+    counters don't leak across cases (TestClient reuses 'testclient' as IP)."""
+    from engramia.api.cloud_auth import _deletion_request_rate
+
+    _deletion_request_rate.clear()
+    yield
+    _deletion_request_rate.clear()
+
+
+@patch("engramia.api.cloud_auth._decode_token", return_value=_FAKE_PAYLOAD)
+@patch("engramia.api.cloud_auth._has_pending_deletion_request", return_value=False)
+@patch("engramia.api.cloud_auth._create_deletion_token", return_value="del-token-abc")
+@patch("engramia.api.cloud_auth._send_deletion_email", return_value=True)
+@patch("engramia.api.audit.log_db_event")
+def test_request_deletion_success(mock_log_db, mock_send, mock_token, mock_pending, mock_decode, client, mock_engine):
+    # cloud_user lookup: (email, name, deleted_at)
+    mock_engine._conn.execute.return_value.fetchone.return_value = (
+        "test@example.com",
+        "Test User",
+        None,
+    )
+
+    resp = client.post(
+        "/auth/me/deletion-request",
+        headers={"Authorization": "Bearer valid.token.here"},
+        json={"reason": "no longer needed"},
+    )
+
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["delivery_status"] == "sent"
+    assert "expires_at" in data
+
+    mock_token.assert_called_once()
+    # Reason is forwarded to the token writer for analytics.
+    assert mock_token.call_args.kwargs.get("reason") == "no longer needed" or (
+        len(mock_token.call_args.args) >= 3 and mock_token.call_args.args[2] == "no longer needed"
+    )
+    mock_send.assert_called_once()
+    mock_log_db.assert_called_once()
+
+
+@patch("engramia.api.cloud_auth._decode_token", return_value=_FAKE_PAYLOAD)
+def test_request_deletion_user_already_soft_deleted(mock_decode, client, mock_engine):
+    """If the user row was soft-deleted previously, the JWT is stale → 404."""
+    import datetime
+
+    mock_engine._conn.execute.return_value.fetchone.return_value = (
+        "test@example.com",
+        "Test User",
+        datetime.datetime(2026, 4, 20, tzinfo=datetime.UTC),
+    )
+
+    resp = client.post(
+        "/auth/me/deletion-request",
+        headers={"Authorization": "Bearer stale.token"},
+    )
+
+    assert resp.status_code == 404
+
+
+@patch("engramia.api.cloud_auth._decode_token", return_value=_FAKE_PAYLOAD)
+@patch("engramia.api.cloud_auth._has_pending_deletion_request", return_value=True)
+def test_request_deletion_already_pending(mock_pending, mock_decode, client, mock_engine):
+    mock_engine._conn.execute.return_value.fetchone.return_value = (
+        "test@example.com",
+        "Test User",
+        None,
+    )
+
+    resp = client.post(
+        "/auth/me/deletion-request",
+        headers={"Authorization": "Bearer valid.token.here"},
+    )
+
+    assert resp.status_code == 409
+    detail = resp.json()["detail"]
+    assert detail["error_code"] == "deletion_already_pending"
+
+
+def test_request_deletion_no_auth(client, mock_engine):
+    resp = client.post("/auth/me/deletion-request")
+    assert resp.status_code == 401
+
+
+@patch("engramia.api.cloud_auth._decode_token", return_value=_FAKE_PAYLOAD)
+@patch("engramia.api.cloud_auth._has_pending_deletion_request", return_value=False)
+@patch("engramia.api.cloud_auth._create_deletion_token", return_value="del-token-abc")
+@patch("engramia.api.cloud_auth._send_deletion_email", return_value=False)
+@patch("engramia.api.audit.log_db_event")
+def test_request_deletion_email_delivery_failed(
+    mock_log_db, mock_send, mock_token, mock_pending, mock_decode, client, mock_engine
+):
+    """SMTP failure surfaces as delivery_status='failed' but the request still 202s.
+
+    The user gets a 'resend' affordance in the dashboard rather than the request
+    looking like a hard failure."""
+    mock_engine._conn.execute.return_value.fetchone.return_value = (
+        "test@example.com",
+        "Test User",
+        None,
+    )
+
+    resp = client.post(
+        "/auth/me/deletion-request",
+        headers={"Authorization": "Bearer valid.token.here"},
+    )
+
+    assert resp.status_code == 202
+    assert resp.json()["delivery_status"] == "failed"
+
+
+# ---------------------------------------------------------------------------
+# Self-service account deletion — DELETE /me?token=...
+# ---------------------------------------------------------------------------
+
+
+def _row(*values):
+    """Helper: build a sequence-like row that matches both row[i] and unpacking."""
+    return tuple(values)
+
+
+@patch("engramia.governance.deletion.ScopedDeletion")
+@patch("engramia.api.deps.get_memory")
+@patch("engramia.api.audit.log_db_event")
+def test_delete_me_success(mock_log_db, mock_get_memory, mock_scoped_deletion_cls, client, mock_engine):
+    # Phase 1 SELECT result: (user_id, expires_at, consumed_at, reason, tenant_id, user_deleted_at)
+    import datetime
+
+    from engramia.governance.deletion import DeletionResult
+
+    future = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
+    mock_engine._conn.execute.return_value.fetchone.return_value = _row(
+        "user-abc", future, None, "leaving", "testuser", None
+    )
+
+    # ScopedDeletion result fixture
+    fake_result = DeletionResult(
+        tenant_id="testuser",
+        project_id="*",
+        patterns_deleted=42,
+        keys_revoked=2,
+        cloud_users_deleted=1,
+    )
+    mock_scoped_deletion = MagicMock()
+    mock_scoped_deletion.delete_tenant.return_value = fake_result
+    mock_scoped_deletion_cls.return_value = mock_scoped_deletion
+
+    # Stub Memory facade
+    mock_get_memory.return_value = MagicMock(storage=MagicMock())
+
+    # BillingService stub on app.state — confirms Stripe path is exercised
+    billing = MagicMock()
+    billing.cancel_subscription_for_tenant.return_value = True
+    client.app.state.billing_service = billing
+
+    resp = client.delete("/auth/me?token=" + "a" * 32)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["deleted"] is True
+    assert data["tenant_id"] == "testuser"
+    assert data["patterns_deleted"] == 42
+    assert data["keys_revoked"] == 2
+    assert data["stripe_subscription_cancelled"] is True
+
+    billing.cancel_subscription_for_tenant.assert_called_once_with("testuser")
+    mock_scoped_deletion.delete_tenant.assert_called_once()
+    kwargs = mock_scoped_deletion.delete_tenant.call_args.kwargs
+    assert kwargs["tenant_id"] == "testuser"
+    assert kwargs["anonymise_users"] is True
+    assert kwargs["deletion_reason"] == "leaving"
+
+
+def test_delete_me_short_token_rejected(client, mock_engine):
+    resp = client.delete("/auth/me?token=short")
+    assert resp.status_code == 400
+
+
+def test_delete_me_unknown_token(client, mock_engine):
+    mock_engine._conn.execute.return_value.fetchone.return_value = None
+    resp = client.delete("/auth/me?token=" + "z" * 32)
+    assert resp.status_code == 400
+
+
+def test_delete_me_token_consumed(client, mock_engine):
+    import datetime
+
+    future = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
+    consumed = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=5)
+    mock_engine._conn.execute.return_value.fetchone.return_value = _row(
+        "user-abc", future, consumed, None, "testuser", None
+    )
+    resp = client.delete("/auth/me?token=" + "a" * 32)
+    assert resp.status_code == 410
+
+
+def test_delete_me_user_already_deleted(client, mock_engine):
+    """JWT/token outlived the actual cloud_user row — return 410 idempotently."""
+    import datetime
+
+    future = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
+    user_deleted = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=1)
+    mock_engine._conn.execute.return_value.fetchone.return_value = _row(
+        "user-abc", future, None, None, "testuser", user_deleted
+    )
+    resp = client.delete("/auth/me?token=" + "a" * 32)
+    assert resp.status_code == 410
+
+
+def test_delete_me_token_expired(client, mock_engine):
+    import datetime
+
+    past = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=1)
+    mock_engine._conn.execute.return_value.fetchone.return_value = _row("user-abc", past, None, None, "testuser", None)
+    resp = client.delete("/auth/me?token=" + "a" * 32)
+    assert resp.status_code == 400
+
+
+@patch("engramia.governance.deletion.ScopedDeletion")
+@patch("engramia.api.deps.get_memory")
+@patch("engramia.api.audit.log_db_event")
+def test_delete_me_stripe_failure_does_not_block_deletion(
+    mock_log_db, mock_get_memory, mock_scoped_deletion_cls, client, mock_engine
+):
+    """A Stripe API outage must not strand the user with un-deleted data —
+    the cascade still runs and the response reports stripe_cancelled=False."""
+    import datetime
+
+    from engramia.governance.deletion import DeletionResult
+
+    future = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
+    mock_engine._conn.execute.return_value.fetchone.return_value = _row(
+        "user-abc", future, None, None, "testuser", None
+    )
+
+    fake_result = DeletionResult(tenant_id="testuser", project_id="*")
+    mock_scoped_deletion = MagicMock()
+    mock_scoped_deletion.delete_tenant.return_value = fake_result
+    mock_scoped_deletion_cls.return_value = mock_scoped_deletion
+    mock_get_memory.return_value = MagicMock(storage=MagicMock())
+
+    billing = MagicMock()
+    billing.cancel_subscription_for_tenant.side_effect = RuntimeError("Stripe API timeout")
+    client.app.state.billing_service = billing
+
+    resp = client.delete("/auth/me?token=" + "a" * 32)
+
+    assert resp.status_code == 200
+    assert resp.json()["stripe_subscription_cancelled"] is False
+    mock_scoped_deletion.delete_tenant.assert_called_once()

@@ -150,6 +150,23 @@ class StripeClient:
     # Subscription / customer retrieval
     # ------------------------------------------------------------------
 
+    def cancel_subscription(self, subscription_id: str) -> None:
+        """Cancel a Stripe subscription immediately (no proration credit).
+
+        Used by the self-service account-deletion flow: the user has chosen to
+        leave, so we don't refund the unused portion of the period. The
+        ``customer.subscription.deleted`` webhook fires asynchronously and the
+        existing ``_downgrade_to_sandbox`` handler will set status='canceled' on
+        the local row — so this method only needs to call the Stripe API.
+
+        Idempotent: a subscription that has already been cancelled (or never
+        existed) yields ``stripe.error.InvalidRequestError`` which the caller
+        should swallow rather than block deletion on.
+        """
+        stripe = self._sdk()
+        stripe.Subscription.delete(subscription_id, prorate=False)
+        _log.info("Stripe subscription cancelled: %s", subscription_id)
+
     def retrieve_subscription(self, subscription_id: str) -> Any:
         """Fetch a Subscription from Stripe by ID.
 

@@ -1004,6 +1004,90 @@ def cleanup_unverified_users(
     )
 
 
+@cleanup_app.command("deleted-accounts")
+def cleanup_deleted_accounts(
+    grace_period_days: int = typer.Option(
+        30,
+        "--grace-period-days",
+        help="Days to keep soft-deleted users before hard-delete. Mirrors the GDPR-friendly window we promise in the Privacy Policy.",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen without making changes."),
+) -> None:
+    """Hard-delete cloud_users + tenants soft-deleted by self-service flow >= grace period.
+
+    Phase 1 of the self-service deletion flow (DELETE /v1/me) anonymises the
+    cloud_user row and soft-deletes the tenant immediately, but keeps the rows
+    around for a 30-day grace period — long enough that an accidental deletion
+    can be reversed by support before the data is irrecoverable, short enough
+    to satisfy GDPR Art. 5(1)(e) ("storage limitation").
+
+    This command runs Phase 2: walk every cloud_user with
+    ``deleted_at < now() - grace_period_days`` and delete the underlying rows
+    plus the orphaned consumed deletion-request tokens. Audit log entries for
+    the deletion event itself are preserved (regulatory record).
+
+    Idempotent and safe to run from cron daily.
+    """
+    from sqlalchemy import create_engine, text
+
+    db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
+    if not db_url:
+        console.print("[red]ENGRAMIA_DATABASE_URL not set[/red]")
+        raise typer.Exit(1)
+
+    engine = create_engine(db_url, pool_pre_ping=True)
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT id, tenant_id, deleted_at FROM cloud_users "
+                "WHERE deleted_at IS NOT NULL "
+                "  AND deleted_at < now() - (:gd || ' days')::interval"
+            ),
+            {"gd": grace_period_days},
+        ).fetchall()
+
+    if not rows:
+        console.print(f"[green]Nothing to clean up[/green] (no users soft-deleted >= {grace_period_days}d ago)")
+        return
+
+    hard_deleted = 0
+    for row in rows:
+        user_id, tenant_id, deleted_at = str(row[0]), str(row[1]), row[2]
+        if dry_run:
+            console.print(
+                f"[yellow]DRY-RUN hard-delete[/yellow] user={user_id} tenant={tenant_id} "
+                f"(soft-deleted at {deleted_at})"
+            )
+            hard_deleted += 1
+            continue
+
+        # Order matters: children first (consumed deletion tokens, api_keys
+        # rows that ScopedDeletion only revoked but kept), then user, then
+        # tenant. Audit log + email_verification_tokens have ON DELETE CASCADE
+        # to cloud_users / tenants so they go with the parent.
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM account_deletion_requests WHERE user_id = :uid"),
+                {"uid": user_id},
+            )
+            conn.execute(text("DELETE FROM api_keys WHERE tenant_id = :tid"), {"tid": tenant_id})
+            conn.execute(text("DELETE FROM cloud_users WHERE id = :uid"), {"uid": user_id})
+            conn.execute(text("DELETE FROM projects WHERE tenant_id = :tid"), {"tid": tenant_id})
+            conn.execute(text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_id})
+
+        console.print(
+            f"[red]Hard-deleted[/red] user={user_id} tenant={tenant_id} (soft-deleted at {deleted_at})"
+        )
+        hard_deleted += 1
+
+    console.print()
+    console.print(
+        f"[green]Hard-delete complete[/green] — accounts removed: {hard_deleted}"
+        f"{' (dry-run)' if dry_run else ''}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------

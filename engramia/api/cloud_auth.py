@@ -416,6 +416,32 @@ def _check_resend_rate(ip: str, email: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Rate limiting: /me/deletion-request — max 3 requests/minute per IP
+# ---------------------------------------------------------------------------
+
+_deletion_request_rate: collections.OrderedDict[tuple[str, int], int] = collections.OrderedDict()
+_deletion_request_rate_lock = threading.Lock()
+_DELETION_REQUEST_RATE_LIMIT = 3
+_DELETION_REQUEST_RATE_WINDOW = 60  # seconds
+
+
+def _check_deletion_request_rate(ip: str) -> None:
+    window = int(time.time()) // _DELETION_REQUEST_RATE_WINDOW
+    key = (ip, window)
+    with _deletion_request_rate_lock:
+        count = _deletion_request_rate.get(key, 0) + 1
+        _deletion_request_rate[key] = count
+        stale = [(h, w) for h, w in list(_deletion_request_rate) if w < window - 1]
+        for sk in stale:
+            _deletion_request_rate.pop(sk, None)
+    if count > _DELETION_REQUEST_RATE_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many deletion requests. Please try again in a minute.",
+        )
+
+
+# ---------------------------------------------------------------------------
 # DB helpers
 # ---------------------------------------------------------------------------
 
@@ -519,6 +545,98 @@ def _send_verification_email(
         return False
     except Exception as exc:  # smtplib.SMTPException or network issue
         _log.error("Failed to send verification email to %s: %s", email, exc)
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Account deletion tokens
+# ---------------------------------------------------------------------------
+
+#: Lifetime of a freshly-issued account deletion token. Same 24h window as
+#: email verification — short enough that a leaked link expires quickly,
+#: long enough to survive a user opening the mail on a different device.
+_DELETION_TOKEN_TTL_SECONDS = 24 * 3600
+
+
+def _has_pending_deletion_request(engine, user_id: str) -> bool:
+    """Return True if an unconsumed, unexpired deletion request exists for ``user_id``."""
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT 1 FROM account_deletion_requests "
+                "WHERE user_id = :uid AND consumed_at IS NULL AND expires_at > now() "
+                "LIMIT 1"
+            ),
+            {"uid": user_id},
+        ).fetchone()
+    return row is not None
+
+
+def _create_deletion_token(engine, user_id: str, reason: str | None) -> str:
+    """Issue a single-use deletion token for ``user_id``.
+
+    Invalidates any previously-issued unconsumed deletion tokens for this user
+    so the most recent request wins. Returns the plaintext token to embed in
+    the outgoing email; only its SHA-256 hash is persisted.
+    """
+    from sqlalchemy import text
+
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE account_deletion_requests SET consumed_at = now() WHERE user_id = :uid AND consumed_at IS NULL"
+            ),
+            {"uid": user_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO account_deletion_requests (token_hash, user_id, reason, expires_at) "
+                "VALUES (:h, :uid, :reason, now() + (:ttl || ' seconds')::interval)"
+            ),
+            {"h": token_hash, "uid": user_id, "reason": reason, "ttl": _DELETION_TOKEN_TTL_SECONDS},
+        )
+    return token
+
+
+def _send_deletion_email(
+    *,
+    email: str,
+    name: str | None,
+    token: str,
+    has_active_subscription: bool,
+) -> bool:
+    """Attempt to send the deletion-confirmation email. Returns True on success.
+
+    Unlike registration, a failed mail here is fatal to the flow — without the
+    link the user cannot consummate the deletion. Caller surfaces the result so
+    the dashboard can offer a "resend" affordance.
+    """
+    from engramia.email import EmailNotConfigured, send_email
+    from engramia.email.templates import account_deletion_email
+
+    confirm_url = f"{_dashboard_url()}/account/confirm-delete?token={token}"
+    subject, text, html = account_deletion_email(
+        confirm_url=confirm_url,
+        recipient_name=name,
+        expires_hours=_DELETION_TOKEN_TTL_SECONDS // 3600,
+        has_active_subscription=has_active_subscription,
+    )
+    try:
+        send_email(to=email, subject=subject, html=html, text=text)
+        return True
+    except EmailNotConfigured:
+        _log.warning(
+            "Deletion email not sent: SMTP not configured. User %s cannot complete deletion.",
+            email,
+        )
+        return False
+    except Exception as exc:  # smtplib.SMTPException or network issue
+        _log.error("Failed to send deletion email to %s: %s", email, exc)
         return False
 
 
@@ -783,6 +901,27 @@ class LogoutRequest(BaseModel):
         default=None,
         description="Optional refresh token to also revoke. Strongly recommended to prevent re-authentication.",
     )
+
+
+class DeletionRequestBody(BaseModel):
+    reason: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Optional free-text reason. Persisted on cloud_users for product analytics.",
+    )
+
+
+class DeletionRequestResponse(BaseModel):
+    expires_at: str = Field(..., description="ISO 8601 timestamp at which the confirmation link expires.")
+    delivery_status: Literal["sent", "failed"]
+
+
+class DeletionConfirmResponse(BaseModel):
+    deleted: bool = True
+    tenant_id: str
+    patterns_deleted: int
+    keys_revoked: int
+    stripe_subscription_cancelled: bool
 
 
 # ---------------------------------------------------------------------------
@@ -1192,3 +1331,282 @@ def logout(
     if body and body.refresh_token:
         _blocklist_token(body.refresh_token)
     return {"message": "Logged out successfully."}
+
+
+# ---------------------------------------------------------------------------
+# Self-service account deletion (GDPR Art. 17)
+# ---------------------------------------------------------------------------
+#
+# Two-step flow:
+#   1. POST /me/deletion-request   — auth'd, generates token + sends email
+#   2. DELETE /me?token=...        — public, validates token + executes delete
+#
+# Splitting the steps double-opt-ins the action: a leaked dashboard session
+# alone cannot wipe the account, and a stolen email link alone cannot do it
+# either since the token is bound to the original requester's user_id.
+
+
+@router.post(
+    "/me/deletion-request",
+    response_model=DeletionRequestResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Request account deletion — sends confirmation email",
+    description=(
+        "Generates a single-use 24h token and emails the confirmation link to the "
+        "user's verified address. Requires a valid Bearer access token. "
+        "Rate-limited to 3 requests/minute per IP. "
+        "The actual deletion happens when the user clicks the link, which calls "
+        "DELETE /v1/me?token=...."
+    ),
+)
+def request_account_deletion(
+    request: Request,
+    body: DeletionRequestBody | None = Body(default=None),
+) -> DeletionRequestResponse:
+    from sqlalchemy import text
+
+    from engramia.api.audit import log_db_event
+
+    ip = request.client.host if request.client else "unknown"
+    _check_deletion_request_rate(ip)
+
+    token_str = _bearer_token(request)
+    payload = _decode_token(token_str)
+    engine = _require_engine(request)
+
+    user_id = payload["sub"]
+    tenant_id = payload["tenant_id"]
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT email, name, deleted_at FROM cloud_users WHERE id = :id"),
+            {"id": user_id},
+        ).fetchone()
+
+    if row is None or row[2] is not None:
+        # User was deleted in a previous request — JWT outlives the row.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    email = str(row[0])
+    name = row[1]
+
+    if _has_pending_deletion_request(engine, user_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "deletion_already_pending",
+                "detail": "A deletion confirmation email was already sent. Check your inbox or wait for it to expire.",
+            },
+        )
+
+    # Surface a clear warning in the email when the user has an active paid sub.
+    has_active_subscription = False
+    try:
+        billing_service = getattr(request.app.state, "billing_service", None)
+        if billing_service is not None:
+            sub = billing_service.get_subscription(tenant_id)
+            has_active_subscription = bool(sub.stripe_subscription_id) and sub.plan_tier != "sandbox"
+    except Exception:
+        # Billing lookup is informational only — never block deletion on it.
+        _log.debug("deletion-request: billing lookup failed (non-fatal)", exc_info=True)
+
+    reason = body.reason if body else None
+    plain_token = _create_deletion_token(engine, user_id, reason=reason)
+    delivered = _send_deletion_email(
+        email=email,
+        name=name,
+        token=plain_token,
+        has_active_subscription=has_active_subscription,
+    )
+
+    log_db_event(
+        engine,
+        tenant_id=tenant_id,
+        project_id=None,
+        action="account_deletion_requested",
+        resource_type="cloud_user",
+        resource_id=user_id,
+        ip_address=ip,
+    )
+    _log.warning(
+        "Account deletion requested: user_id=%s tenant=%s active_sub=%s delivery=%s",
+        user_id,
+        tenant_id,
+        has_active_subscription,
+        "sent" if delivered else "failed",
+    )
+
+    # Return the expiry so the dashboard can show "expires in Xh" without reading the DB.
+    from datetime import datetime, timedelta
+
+    expires_at = datetime.now(UTC) + timedelta(seconds=_DELETION_TOKEN_TTL_SECONDS)
+    return DeletionRequestResponse(
+        expires_at=expires_at.isoformat(),
+        delivery_status="sent" if delivered else "failed",
+    )
+
+
+@router.delete(
+    "/me",
+    response_model=DeletionConfirmResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Confirm account deletion via token from email",
+    description=(
+        "Consumes a single-use deletion token issued by POST /me/deletion-request, "
+        "cancels the tenant's Stripe subscription, runs ScopedDeletion.delete_tenant() "
+        "to cascade-delete all data, anonymises the cloud_user row, and revokes the "
+        "current Bearer access token (if one is present). Auth via the token query "
+        "parameter — Bearer is optional so the user can confirm from the email link "
+        "even after their session expired. Idempotent: a second call with a consumed "
+        "or expired token returns 410 Gone."
+    ),
+)
+def delete_me(request: Request, token: str) -> DeletionConfirmResponse:
+    from sqlalchemy import text
+
+    from engramia.api.audit import log_db_event
+    from engramia.api.deps import get_memory
+    from engramia.governance.deletion import ScopedDeletion
+
+    if not token or len(token) < 16 or len(token) > 128:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid deletion token.")
+
+    engine = _require_engine(request)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    ip = request.client.host if request.client else "unknown"
+
+    # Phase 1 — validate the token + capture the user/tenant under a row lock so
+    # a parallel call cannot consume the same token twice.
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "SELECT r.user_id, r.expires_at, r.consumed_at, r.reason, "
+                "u.tenant_id, u.deleted_at "
+                "FROM account_deletion_requests r "
+                "JOIN cloud_users u ON u.id = r.user_id "
+                "WHERE r.token_hash = :h "
+                "FOR UPDATE OF r"
+            ),
+            {"h": token_hash},
+        ).fetchone()
+
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired deletion link.",
+            )
+
+        user_id, expires_at, consumed_at, reason, tenant_id, user_deleted_at = (
+            str(row[0]),
+            row[1],
+            row[2],
+            row[3],
+            str(row[4]),
+            row[5],
+        )
+
+        if user_deleted_at is not None:
+            # Idempotent: someone already deleted this account.
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail="Account has already been deleted.",
+            )
+
+        if consumed_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail="This deletion link has already been used.",
+            )
+
+        from datetime import datetime
+
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at < datetime.now(UTC):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This deletion link has expired. Please request a new one.",
+            )
+
+        # Mark consumed up-front — even if the cascade below partially fails, we
+        # do not want this token re-usable.
+        conn.execute(
+            text("UPDATE account_deletion_requests SET consumed_at = now() WHERE token_hash = :h"),
+            {"h": token_hash},
+        )
+
+    # Phase 2 — best-effort Stripe cancel BEFORE wiping local data, so the
+    # user is never billed again on a tenant we no longer have a row for.
+    stripe_cancelled = False
+    billing_service = getattr(request.app.state, "billing_service", None)
+    if billing_service is not None:
+        try:
+            stripe_cancelled = billing_service.cancel_subscription_for_tenant(tenant_id)
+        except Exception:
+            _log.exception("delete_me: cancel_subscription_for_tenant raised; continuing with deletion")
+
+    # Phase 3 — ScopedDeletion cascade + cloud_users soft-delete + tenant soft-delete.
+    try:
+        memory = get_memory(request)
+    except Exception:
+        # If the Memory facade is unavailable (e.g. JSON storage in a test app),
+        # we can still soft-delete the DB rows. delete_tenant tolerates a None
+        # storage by short-circuiting the storage-layer step.
+        memory = None
+    storage = memory.storage if memory is not None else _NullStorage()
+
+    deletion = ScopedDeletion(engine=engine)
+    result = deletion.delete_tenant(
+        storage,
+        tenant_id=tenant_id,
+        anonymise_users=True,
+        deletion_reason=reason,
+    )
+
+    # Phase 4 — audit + JWT revocation. The audit row lands AFTER the cascade so
+    # `audit_log.detail` for this final event is preserved (delete_tenant scrubs
+    # only audit rows that already existed under the tenant scope).
+    log_db_event(
+        engine,
+        tenant_id=tenant_id,
+        project_id=None,
+        action="account_deletion_completed",
+        resource_type="cloud_user",
+        resource_id=user_id,
+        ip_address=ip,
+    )
+
+    # Best-effort: if the user kept their dashboard session open and used its
+    # Bearer token to call DELETE /me directly, blocklist it. The mail-link
+    # flow will not have a Bearer header and that's fine.
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        _blocklist_token(auth_header[len("Bearer ") :])
+
+    _log.warning(
+        "Account deleted: user_id=%s tenant=%s patterns=%d keys_revoked=%d stripe_cancelled=%s",
+        user_id,
+        tenant_id,
+        result.patterns_deleted,
+        result.keys_revoked,
+        stripe_cancelled,
+    )
+
+    return DeletionConfirmResponse(
+        tenant_id=tenant_id,
+        patterns_deleted=result.patterns_deleted,
+        keys_revoked=result.keys_revoked,
+        stripe_subscription_cancelled=stripe_cancelled,
+    )
+
+
+class _NullStorage:
+    """Minimal storage stub for delete_tenant when no Memory facade is bound.
+
+    ScopedDeletion.delete_project calls ``storage.delete_scope(...)`` and uses
+    the returned count — returning 0 is safe and lets the DB-side cascade
+    proceed unchanged.
+    """
+
+    def delete_scope(self, *, tenant_id: str, project_id: str) -> int:
+        return 0

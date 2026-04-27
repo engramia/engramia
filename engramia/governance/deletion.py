@@ -36,6 +36,9 @@ class DeletionResult:
         jobs_deleted: Number of job records removed.
         keys_revoked: Number of API keys revoked (not deleted — key hash retained).
         projects_deleted: Number of projects soft-deleted (tenant-wide deletion only).
+        cloud_users_deleted: Number of cloud_user rows soft-deleted + anonymised
+            (tenant-wide deletion only — a project-scoped delete never touches
+            cloud_users since users belong to tenants, not projects).
     """
 
     tenant_id: str
@@ -45,6 +48,7 @@ class DeletionResult:
     jobs_deleted: int = 0
     keys_revoked: int = 0
     projects_deleted: int = 0
+    cloud_users_deleted: int = 0
 
 
 class ScopedDeletion:
@@ -160,12 +164,30 @@ class ScopedDeletion:
         )
         return result
 
-    def delete_tenant(self, storage, tenant_id: str) -> DeletionResult:
+    def delete_tenant(
+        self,
+        storage,
+        tenant_id: str,
+        *,
+        anonymise_users: bool = False,
+        deletion_reason: str | None = None,
+    ) -> DeletionResult:
         """Delete all data for every project in a tenant.
 
         Args:
             storage: StorageBackend.
             tenant_id: Tenant to wipe.
+            anonymise_users: When True, every ``cloud_users`` row in the tenant
+                is soft-deleted: ``deleted_at`` is stamped, ``email`` is replaced
+                with ``sha256(email)+"@deleted.engramia.dev"`` (so the unique
+                index keeps holding while the original address is no longer
+                derivable), ``name`` and ``password_hash`` are nulled. Default
+                False preserves the existing admin-deletion behaviour where
+                cloud_users rows are kept (admin uses governance API to wipe
+                tenant data without dropping the human account).
+            deletion_reason: Optional free-text reason from the user, persisted
+                onto cloud_users.deletion_reason for analytics. Ignored when
+                ``anonymise_users`` is False.
 
         Returns:
             DeletionResult aggregated across all projects.
@@ -193,10 +215,34 @@ class ScopedDeletion:
             aggregate.keys_revoked += r.keys_revoked
             aggregate.projects_deleted += 1
 
-        # Soft-delete the tenant itself
         if self._engine is not None:
             try:
                 with self._engine.begin() as conn:
+                    if anonymise_users:
+                        # The original email is replaced with
+                        # ``deleted-<user_id>@deleted.engramia.dev`` — uniqueness
+                        # rides on the existing UUID PK so the (email) UNIQUE
+                        # index keeps holding without leaking anything about the
+                        # original mailbox (a sha256 hash would be reversible
+                        # against a known address dictionary).
+                        # password_hash is nulled to prevent any future login
+                        # attempt from succeeding even if a stale JWT or session
+                        # somehow survives the JTI blocklist.
+                        r = conn.execute(
+                            text(
+                                "UPDATE cloud_users SET "
+                                "deleted_at = now(), "
+                                "deletion_reason = :reason, "
+                                "email = 'deleted-' || id::text || '@deleted.engramia.dev', "
+                                "name = NULL, "
+                                "password_hash = NULL, "
+                                "provider_id = NULL "
+                                "WHERE tenant_id = :tid AND deleted_at IS NULL"
+                            ),
+                            {"tid": tenant_id, "reason": deletion_reason},
+                        )
+                        aggregate.cloud_users_deleted = r.rowcount
+
                     conn.execute(
                         text("UPDATE tenants SET deleted_at = :now WHERE id = :tid AND deleted_at IS NULL"),
                         {"now": now, "tid": tenant_id},
@@ -206,11 +252,12 @@ class ScopedDeletion:
                 raise
 
         _log.warning(
-            "GDPR deletion: tenant %s — projects=%d patterns=%d jobs=%d keys_revoked=%d",
+            "GDPR deletion: tenant %s — projects=%d patterns=%d jobs=%d keys_revoked=%d users=%d",
             tenant_id,
             aggregate.projects_deleted,
             aggregate.patterns_deleted,
             aggregate.jobs_deleted,
             aggregate.keys_revoked,
+            aggregate.cloud_users_deleted,
         )
         return aggregate

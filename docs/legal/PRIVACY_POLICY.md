@@ -2,7 +2,7 @@
 
 **Engramia — Reusable Execution Memory for AI Agents**
 
-Last updated: 2026-04-19
+Last updated: 2026-04-27
 
 ---
 
@@ -219,6 +219,25 @@ If you are in the EU/EEA, you have the following rights regarding your personal 
 | **Complaint** (Art. 77) | Lodge a complaint with a supervisory authority |
 
 To exercise any of these rights, contact us at support@engramia.dev. We will respond within 30 days.
+
+### 9.1 Self-service account deletion (Art. 17)
+
+You can delete your Engramia account directly from the dashboard without contacting support:
+
+1. Sign in and open **Settings → Account**.
+2. In the **Danger zone**, click **Delete account** and confirm by typing your email address.
+3. We send a confirmation link to your registered email address (valid for 24 hours).
+4. Open the link to permanently delete your account.
+
+What gets deleted when you confirm:
+- All patterns, embeddings, async jobs, and the detail field of audit log entries scoped to your tenant
+- All API keys (revoked; the SHA-256 hash is retained for forensic purposes only — see Section 6)
+- Your tenant and all projects
+- Your `cloud_users` record is anonymised immediately and hard-deleted after a 30-day grace period
+
+If you have an active paid subscription, the link above also cancels your Stripe subscription with no refund for the remainder of the billing period. The cancellation is recorded against your tenant; payment will not resume even if the deletion completes after a billing event.
+
+The action cannot be undone. If you want to take a backup of your patterns before deletion, use **GET `/v1/export`** (Art. 20 portability) while still signed in.
 
 **Supervisory authority:** If you are in the Czech Republic, the relevant authority is the Office for Personal Data Protection (Úřad pro ochranu osobních údajů, ÚOOÚ), https://www.uoou.cz.
 
