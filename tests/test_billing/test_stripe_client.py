@@ -93,12 +93,21 @@ class TestCreateCheckoutSession:
         client.create_checkout_session("cus_abc", "price_x", "https://ok", "https://cancel")
         params = stripe_mock.checkout.Session.create.call_args[1]
         assert params["customer"] == "cus_abc"
+        # tax_id_collection on an existing customer needs explicit
+        # customer_update permissions or Stripe rejects the session.
+        assert params["customer_update"] == {
+            "name": "auto",
+            "address": "auto",
+            "shipping": "auto",
+        }
 
     def test_no_customer_id_omits_customer_param(self):
         client, stripe_mock = self._client()
         client.create_checkout_session(None, "price_x", "https://ok", "https://cancel")
         params = stripe_mock.checkout.Session.create.call_args[1]
         assert "customer" not in params
+        # customer_update is only valid when customer is also set.
+        assert "customer_update" not in params
 
     def test_metadata_passed(self):
         client, stripe_mock = self._client()

@@ -107,6 +107,15 @@ class StripeClient:
             # When we already know the Stripe customer, do not also pass
             # customer_email — Stripe rejects sending both.
             params["customer"] = customer_id
+            # tax_id_collection on an existing customer needs explicit
+            # permission to update the customer's name/address/shipping —
+            # otherwise Stripe rejects the session with an InvalidRequestError
+            # on the first checkout for a returning paid customer.
+            params["customer_update"] = {
+                "name": "auto",
+                "address": "auto",
+                "shipping": "auto",
+            }
         elif customer_email:
             params["customer_email"] = customer_email
         if client_reference_id:

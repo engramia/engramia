@@ -134,6 +134,29 @@ class TestCreateCheckout:
         resp = client.post("/v1/billing/checkout", json=_VALID_BODY)
         assert resp.status_code == 400
 
+    def test_stripe_error_returns_502(self):
+        """Stripe SDK raising InvalidRequestError must not 500 — 502 with
+        a clean message keeps CORS headers on the response and lets the
+        dashboard surface a real error instead of 'Failed to fetch'."""
+        # Build a fake exception whose __module__ starts with 'stripe.' so
+        # the endpoint's module-path check classifies it as a Stripe error
+        # without importing the optional SDK in tests.
+        fake_stripe_error = type(
+            "InvalidRequestError",
+            (Exception,),
+            {"__module__": "stripe._error"},
+        )
+        svc = MagicMock()
+        svc.create_checkout_url.side_effect = fake_stripe_error(
+            "Tax ID collection requires updating business name on the customer."
+        )
+        client = TestClient(_make_app(billing_service=svc))
+        resp = client.post("/v1/billing/checkout", json=_VALID_BODY)
+        assert resp.status_code == 502
+        # Internal Stripe message must not leak.
+        assert "Tax ID" not in resp.text
+        assert "Stripe rejected" in resp.json()["detail"]
+
     def test_invalid_json_body_returns_400(self):
         svc = MagicMock()
         client = TestClient(_make_app(billing_service=svc))

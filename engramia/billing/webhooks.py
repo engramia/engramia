@@ -231,6 +231,24 @@ async def create_checkout(request: Request) -> Any:
         raise HTTPException(
             status_code=503, detail="Checkout session creation failed."
         ) from exc
+    except Exception as exc:
+        # Stripe SDK raises stripe._error.StripeError subclasses for upstream
+        # errors. We don't import the SDK here (it's an optional dep), so
+        # match by module path. Other unexpected exceptions fall through to
+        # the global 500 handler.
+        if exc.__class__.__module__.startswith("stripe."):
+            _log.warning(
+                "Stripe rejected checkout for tenant=%s plan=%s interval=%s: %s",
+                tenant_id,
+                plan,
+                interval,
+                exc,
+            )
+            raise HTTPException(
+                status_code=502,
+                detail="Stripe rejected the checkout request.",
+            ) from exc
+        raise
 
     return {"checkout_url": url}
 
