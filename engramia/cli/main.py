@@ -54,6 +54,9 @@ app.add_typer(auth_app)
 cleanup_app = typer.Typer(name="cleanup", help="Scheduled maintenance tasks (intended for cron).")
 app.add_typer(cleanup_app)
 
+cloud_app = typer.Typer(name="cloud", help="Cloud admin: manual tenant onboarding.")
+app.add_typer(cloud_app)
+
 console = Console()
 
 
@@ -1082,6 +1085,126 @@ def cleanup_deleted_accounts(
     console.print(
         f"[green]Hard-delete complete[/green] — accounts removed: {hard_deleted}{' (dry-run)' if dry_run else ''}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Cloud admin (manual tenant onboarding)
+# ---------------------------------------------------------------------------
+
+
+@cloud_app.command("create-account")
+def cloud_create_account(
+    email: str = typer.Argument(..., help="User email address (also the login)."),
+    name: str | None = typer.Option(None, "--name", help="Display name; defaults to email local-part."),
+    password: str | None = typer.Option(
+        None,
+        "--password",
+        help="Login password. If omitted, a random 16-char password is generated and printed.",
+    ),
+    plan: str = typer.Option(
+        "sandbox",
+        "--plan",
+        help="Plan tier (sandbox | pro | team | enterprise). Sets tenants.plan_tier.",
+    ),
+) -> None:
+    """Manually onboard a cloud tenant — bypasses email verification and SMTP.
+
+    Creates tenant + project + cloud_user (email_verified=True) + owner API key
+    in a single transaction, then prints the credentials. Intended for pilot
+    onboarding before self-serve registration is exposed publicly.
+
+    Requires ``ENGRAMIA_DATABASE_URL`` to point at the cloud database.
+    """
+    import secrets
+
+    from sqlalchemy import text
+
+    from engramia.api.cloud_auth import _create_registration, _hash_password
+
+    if plan not in {"sandbox", "pro", "team", "enterprise"}:
+        console.print(f"[red]Invalid plan tier:[/red] {plan!r} (expected sandbox|pro|team|enterprise)")
+        raise typer.Exit(1)
+
+    engine = _make_db_engine()
+
+    with engine.connect() as conn:
+        existing = conn.execute(
+            text("SELECT id FROM cloud_users WHERE email = :email AND deleted_at IS NULL"),
+            {"email": email},
+        ).fetchone()
+    if existing is not None:
+        console.print(f"[red]Account already exists[/red] for {email} (id={existing[0]})")
+        raise typer.Exit(1)
+
+    plain_password = password or secrets.token_urlsafe(12)
+    password_hash = _hash_password(plain_password)
+
+    result = _create_registration(
+        engine,
+        email=email,
+        password_hash=password_hash,
+        name=name or email.split("@")[0],
+        provider="credentials",
+        provider_id=None,
+        email_verified=True,
+    )
+
+    if plan != "sandbox":
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE tenants SET plan_tier = :plan WHERE id = :tid"),
+                {"plan": plan, "tid": result["tenant_id"]},
+            )
+
+    console.print()
+    console.print("[green]Account created[/green]")
+    console.print(f"  email      : {email}")
+    if password is None:
+        console.print(f"  password   : [bold]{plain_password}[/bold]  (auto-generated — share securely)")
+    else:
+        console.print("  password   : (as supplied)")
+    console.print(f"  plan       : {plan}")
+    console.print(f"  tenant_id  : {result['tenant_id']}")
+    console.print(f"  project_id : {result['project_id']}")
+    console.print(f"  user_id    : {result['user_id']}")
+    console.print(f"  api_key    : [bold]{result['api_key']}[/bold]  (owner role — show once, store securely)")
+    console.print()
+    console.print("[yellow]Note:[/yellow] email_verified=True; the user can log in immediately.")
+
+
+@cloud_app.command("list-accounts")
+def cloud_list_accounts(
+    limit: int = typer.Option(50, "--limit", help="Max rows to return."),
+    plan: str | None = typer.Option(None, "--plan", help="Filter by plan tier."),
+) -> None:
+    """List active cloud accounts (skips soft-deleted users)."""
+    from sqlalchemy import text
+
+    engine = _make_db_engine()
+    sql = (
+        "SELECT u.email, u.tenant_id, t.plan_tier, u.created_at, u.last_login_at "
+        "FROM cloud_users u JOIN tenants t ON t.id = u.tenant_id "
+        "WHERE u.deleted_at IS NULL"
+    )
+    params: dict = {"lim": limit}
+    if plan:
+        sql += " AND t.plan_tier = :plan"
+        params["plan"] = plan
+    sql += " ORDER BY u.created_at DESC LIMIT :lim"
+
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), params).fetchall()
+
+    if not rows:
+        console.print("[dim]No accounts found.[/dim]")
+        return
+
+    for email, tenant_id, plan_tier, created_at, last_login in rows:
+        last = last_login.isoformat() if last_login else "never"
+        console.print(
+            f"  {email:<40} tenant={tenant_id:<24} plan={plan_tier:<10} created={created_at} last_login={last}"
+        )
+    console.print(f"\n[dim]{len(rows)} account(s)[/dim]")
 
 
 # ---------------------------------------------------------------------------
