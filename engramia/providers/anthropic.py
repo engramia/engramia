@@ -7,6 +7,12 @@ Requires the ``anthropic`` extra:
 
 Uses lazy imports so the module can be imported without the ``anthropic``
 package installed — the ImportError is raised at instantiation.
+
+BYOK update (Phase 6.6): ``api_key`` is a constructor parameter. When
+omitted, the anthropic SDK falls back to the ``ANTHROPIC_API_KEY`` env
+var, preserving backward compatibility for self-hosted single-tenant
+deployments. The cloud factory passes the plaintext key resolved by
+:class:`engramia.credentials.resolver.CredentialResolver`.
 """
 
 import logging
@@ -35,6 +41,9 @@ class AnthropicProvider(LLMProvider):
         model: Model ID to use (default: ``claude-sonnet-4-6``).
         max_retries: Number of attempts before raising the last exception.
         max_tokens: Maximum tokens in the response (default: 4096).
+        timeout: Per-request timeout in seconds.
+        api_key: Optional explicit key (BYOK path). Falls back to
+            ``ANTHROPIC_API_KEY`` env var when None.
     """
 
     def __init__(
@@ -43,11 +52,16 @@ class AnthropicProvider(LLMProvider):
         max_retries: int = 3,
         max_tokens: int = 4096,
         timeout: float = 30.0,
+        *,
+        api_key: str | None = None,
     ) -> None:
         try:
             from anthropic import Anthropic
 
-            self._client = Anthropic(timeout=timeout)
+            kwargs: dict = {"timeout": timeout}
+            if api_key is not None:
+                kwargs["api_key"] = api_key
+            self._client = Anthropic(**kwargs)
         except ImportError:
             raise ImportError(_ANTHROPIC_INSTALL_MSG) from None
         self._model = model

@@ -7,6 +7,12 @@ Requires the ``openai`` extra:
 
 Both providers use lazy imports so the module can be imported without the
 ``openai`` package installed — the ImportError is raised at instantiation.
+
+BYOK update (Phase 6.6): ``api_key`` and ``base_url`` are constructor
+parameters. When omitted, the openai SDK falls back to the
+``OPENAI_API_KEY`` env var, preserving backward compatibility for
+self-hosted single-tenant deployments. The cloud factory passes the
+plaintext key resolved by :class:`engramia.credentials.resolver.CredentialResolver`.
 """
 
 import logging
@@ -33,6 +39,15 @@ class OpenAIProvider(LLMProvider):
     Args:
         model: Model ID to use (default: ``gpt-4.1``).
         max_retries: Number of attempts before raising the last exception.
+        timeout: Per-request timeout in seconds.
+        api_key: Optional explicit key. When ``None`` (default), the openai
+            SDK reads ``OPENAI_API_KEY`` from the environment — this is the
+            self-hosted / single-tenant path. The cloud factory passes a
+            decrypted per-tenant key here.
+        base_url: Optional override for the API base URL. Used for Azure
+            OpenAI, Together, Groq, Fireworks, vLLM, and any other
+            OpenAI-compatible endpoint. ``None`` (default) routes to
+            ``https://api.openai.com``.
     """
 
     def __init__(
@@ -40,6 +55,9 @@ class OpenAIProvider(LLMProvider):
         model: str = "gpt-4.1",
         max_retries: int = 3,
         timeout: float = 30.0,
+        *,
+        api_key: str | None = None,
+        base_url: str | None = None,
     ) -> None:
         try:
             import openai  # noqa: F401 — presence check, client built lazily
@@ -48,6 +66,8 @@ class OpenAIProvider(LLMProvider):
         self._model = model
         self._max_retries = max_retries
         self._timeout = timeout
+        self._api_key = api_key
+        self._base_url = base_url
         self._client_cache: Any = None
 
     @property
@@ -55,7 +75,12 @@ class OpenAIProvider(LLMProvider):
         if self._client_cache is None:
             from openai import OpenAI
 
-            self._client_cache = OpenAI(timeout=self._timeout)
+            kwargs: dict[str, Any] = {"timeout": self._timeout}
+            if self._api_key is not None:
+                kwargs["api_key"] = self._api_key
+            if self._base_url is not None:
+                kwargs["base_url"] = self._base_url
+            self._client_cache = OpenAI(**kwargs)
         return self._client_cache
 
     @_client.setter
@@ -107,6 +132,11 @@ class OpenAIEmbeddings(EmbeddingProvider):
     Args:
         model: Embedding model ID (default: ``text-embedding-3-small``).
             Produces 1536-dimensional vectors.
+        timeout: Per-request timeout in seconds.
+        max_retries: Number of attempts before raising the last exception.
+        api_key: Optional explicit key (BYOK path). Falls back to
+            ``OPENAI_API_KEY`` env var when None.
+        base_url: Optional override for the API base URL.
     """
 
     def __init__(
@@ -114,6 +144,9 @@ class OpenAIEmbeddings(EmbeddingProvider):
         model: str = "text-embedding-3-small",
         timeout: float = 15.0,
         max_retries: int = 3,
+        *,
+        api_key: str | None = None,
+        base_url: str | None = None,
     ) -> None:
         try:
             import openai  # noqa: F401 — presence check, client built lazily
@@ -122,6 +155,8 @@ class OpenAIEmbeddings(EmbeddingProvider):
         self._model = model
         self._max_retries = max_retries
         self._timeout = timeout
+        self._api_key = api_key
+        self._base_url = base_url
         self._client_cache: Any = None
 
     @property
@@ -129,7 +164,12 @@ class OpenAIEmbeddings(EmbeddingProvider):
         if self._client_cache is None:
             from openai import OpenAI
 
-            self._client_cache = OpenAI(timeout=self._timeout)
+            kwargs: dict[str, Any] = {"timeout": self._timeout}
+            if self._api_key is not None:
+                kwargs["api_key"] = self._api_key
+            if self._base_url is not None:
+                kwargs["base_url"] = self._base_url
+            self._client_cache = OpenAI(**kwargs)
         return self._client_cache
 
     @_client.setter
