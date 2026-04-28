@@ -1,0 +1,68 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.engramia/engramia",
+  "title": "Engramia",
+  "description": "Persistent memory for AI agents — eval-weighted recall, multi-evaluator consensus, GDPR Art. 17/20 governance, multi-tenant RBAC, and audit logging built in.",
+  "websiteUrl": "https://engramia.dev",
+  "repository": {
+    "url": "https://github.com/engramia/engramia",
+    "source": "github"
+  },
+  "version": "0.6.6",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "engramia",
+      "version": "0.6.6",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "OPENAI_API_KEY",
+          "description": "OpenAI API key. Required when ENGRAMIA_LLM_PROVIDER is openai (the default) — used for chat completions and text-embedding-3-small.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "ENGRAMIA_STORAGE",
+          "description": "Storage backend: 'json' (file-based, dev default) or 'postgres' (production with pgvector).",
+          "isRequired": false
+        },
+        {
+          "name": "ENGRAMIA_DATA_PATH",
+          "description": "Path for JSON storage when ENGRAMIA_STORAGE=json. Defaults to ./engramia_data.",
+          "isRequired": false
+        },
+        {
+          "name": "ENGRAMIA_DATABASE_URL",
+          "description": "PostgreSQL connection URL when ENGRAMIA_STORAGE=postgres. Required for production usage.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "ENGRAMIA_LLM_PROVIDER",
+          "description": "LLM provider for evaluation and prompt evolution: 'openai' (default) or 'anthropic'.",
+          "isRequired": false
+        },
+        {
+          "name": "ENGRAMIA_LLM_MODEL",
+          "description": "LLM model identifier. Defaults to 'gpt-4.1' for openai or 'claude-sonnet-4-6' for anthropic.",
+          "isRequired": false
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "description": "Anthropic API key. Required when ENGRAMIA_LLM_PROVIDER=anthropic.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "ENGRAMIA_LOCAL_EMBEDDINGS",
+          "description": "Set to 'true' to use sentence-transformers locally instead of OpenAI embeddings. Removes the OPENAI_API_KEY requirement.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

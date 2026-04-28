@@ -701,6 +701,8 @@ engramia aging --path ./engramia_data
 
 ## MCP Server
 
+<!-- mcp-name: io.github.engramia/engramia -->
+
 Engramia can be run as an **MCP server** (Model Context Protocol) and connected
 directly to Claude Desktop, Cursor, Windsurf, or VS Code Copilot.
 
