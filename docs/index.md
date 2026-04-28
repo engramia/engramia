@@ -74,6 +74,7 @@ what works, forget what does not, reuse proven solutions, and improve over time.
 
 - [Security Overview](security.md) — summary of measures
 - [Security Architecture](architecture/security-architecture.md) — threat model and defense layers
+- [Credential Storage (BYOK)](architecture/credentials.md) — per-tenant LLM key encryption, master-key separation, Vault/KMS extensions
 - [SOC 2 Controls](soc2-controls.md) — SOC 2 Type II control mapping
 
 ## Operations

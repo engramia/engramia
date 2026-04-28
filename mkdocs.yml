@@ -93,6 +93,7 @@ nav:
   - Security:
       - Overview: security.md
       - Security Architecture: architecture/security-architecture.md
+      - Credential Storage (BYOK): architecture/credentials.md
       - SOC 2 Controls: soc2-controls.md
   - Legal:
       - Terms of Service: legal/TERMS_OF_SERVICE.md
