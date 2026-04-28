@@ -379,9 +379,10 @@ def _register_exception_handlers(app: FastAPI) -> None:
         )
 
 
-def _setup_byok(app: FastAPI, engine) -> None:
+def _setup_byok(app: FastAPI, engine):
     """Wire credential store + resolver + cipher onto ``app.state`` when
-    ``ENGRAMIA_BYOK_ENABLED=true``. No-op otherwise (default behaviour).
+    ``ENGRAMIA_BYOK_ENABLED=true``. Returns the resolver (or None when
+    disabled) so the caller can pass it to ``make_llm`` / ``make_embeddings``.
 
     The flag is checked at startup, not per-request: flipping it on a
     running process requires a restart so credentials load consistently.
@@ -394,7 +395,7 @@ def _setup_byok(app: FastAPI, engine) -> None:
         app.state.credential_resolver = None
         app.state.credential_cipher = None
         _log.info("BYOK disabled (ENGRAMIA_BYOK_ENABLED=false). Self-hosted env-var auth path active.")
-        return
+        return None
 
     if engine is None:
         # BYOK requires a DB. Refuse to start if the operator turned the
@@ -418,6 +419,7 @@ def _setup_byok(app: FastAPI, engine) -> None:
     app.state.credential_resolver = resolver
     app.state.credential_cipher = cipher
     _log.info("BYOK credential subsystem initialised (master key loaded, cache TTL 1 h).")
+    return resolver
 
 
 def _register_routers(app: FastAPI, storage) -> None:
@@ -553,17 +555,31 @@ def create_app() -> FastAPI:
     _register_exception_handlers(app)
 
     # ------------------------------------------------------------------
+    # Auth engine (DB auth mode) — needed early for BYOK
+    # ------------------------------------------------------------------
+    app.state.auth_engine = _make_auth_engine()
+
+    # ------------------------------------------------------------------
+    # BYOK credential subsystem (Phase 6.6) — opt-in via flag
+    # When enabled, the resolver is passed to make_llm/make_embeddings
+    # so they return tenant-scoped wrappers instead of process-wide
+    # singletons.
+    # ------------------------------------------------------------------
+    _byok_engine = app.state.auth_engine  # will be replaced after storage init
+    byok_resolver = _setup_byok(app, _byok_engine)
+
+    # ------------------------------------------------------------------
     # Memory instance
     # ------------------------------------------------------------------
     storage = make_storage()
-    embeddings = make_embeddings()
+    embeddings = make_embeddings(resolver=byok_resolver)
     if embeddings is None:
         _log.warning(
             "No embedding provider configured — learn() and recall() will return "
             "503 ProviderError. Set ENGRAMIA_EMBEDDING_MODEL and install 'engramia[openai]' "
             "to enable semantic search."
         )
-    llm = make_llm()
+    llm = make_llm(resolver=byok_resolver)
 
     # Redaction is enabled by default to protect PII/secrets at rest.
     # Set ENGRAMIA_REDACTION=false to disable (dev/local use only).
@@ -583,10 +599,8 @@ def create_app() -> FastAPI:
         redaction=redaction,
     )
 
-    # ------------------------------------------------------------------
-    # Auth engine (DB auth mode)
-    # ------------------------------------------------------------------
-    app.state.auth_engine = _make_auth_engine()
+    # auth_engine and BYOK resolver were initialised above (before Memory)
+    # so make_llm / make_embeddings could use them. Don't re-initialise here.
 
     # Load persisted revoked JTIs from DB so revocations survive restarts (M-02).
     from engramia.api.cloud_auth import set_blocklist_engine
@@ -631,10 +645,8 @@ def create_app() -> FastAPI:
     else:
         _log.info("Billing service in no-op mode (no DB engine — dev/JSON storage).")
 
-    # ------------------------------------------------------------------
-    # BYOK credential subsystem (Phase 6.6) — opt-in via flag
-    # ------------------------------------------------------------------
-    _setup_byok(app, billing_engine)
+    # BYOK was initialised earlier (before Memory) so make_llm could
+    # receive the resolver. Nothing more to wire here.
 
     _register_routers(app, storage)
 

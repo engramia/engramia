@@ -173,9 +173,7 @@ class _FakeStore(CredentialStore):
         row = self.get_by_id(tenant_id, credential_id)
         if row is None or row.status == "revoked":
             return False
-        self._rows[row.id] = StoredCredential(
-            **{**row.__dict__, "status": "revoked"}
-        )
+        self._rows[row.id] = StoredCredential(**{**row.__dict__, "status": "revoked"})
         return True
 
     def mark_invalid(self, credential_id: str, error: str) -> None:  # type: ignore[override]
@@ -239,8 +237,8 @@ def app_with_byok(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Any:
     mock_embeddings.embed.return_value = [0.1] * 1536
     mock_llm = MagicMock()
     mock_llm.call.return_value = "{}"
-    monkeypatch.setattr(factory, "make_embeddings", lambda: mock_embeddings)
-    monkeypatch.setattr(factory, "make_llm", lambda: mock_llm)
+    monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None: mock_embeddings)
+    monkeypatch.setattr(factory, "make_llm", lambda resolver=None: mock_llm)
 
     from engramia.api.app import create_app
 
@@ -256,9 +254,7 @@ def app_with_byok(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Any:
 
 @pytest.fixture
 def admin_client(app_with_byok: Any) -> TestClient:
-    app_with_byok.dependency_overrides[require_auth] = make_auth_dep(
-        role="admin", tenant_id="tenant-A"
-    )
+    app_with_byok.dependency_overrides[require_auth] = make_auth_dep(role="admin", tenant_id="tenant-A")
     return TestClient(app_with_byok)
 
 
@@ -273,9 +269,7 @@ def switch_tenant(app_with_byok: Any):
     """
 
     def _switch(role: str, tenant_id: str) -> TestClient:
-        app_with_byok.dependency_overrides[require_auth] = make_auth_dep(
-            role=role, tenant_id=tenant_id
-        )
+        app_with_byok.dependency_overrides[require_auth] = make_auth_dep(role=role, tenant_id=tenant_id)
         return TestClient(app_with_byok)
 
     return _switch
@@ -289,9 +283,7 @@ def mock_validation_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         validator,
         "validate",
-        lambda provider, api_key, base_url=None: validator.ValidationResult(
-            success=True, error=None, category="ok"
-        ),
+        lambda provider, api_key, base_url=None: validator.ValidationResult(success=True, error=None, category="ok"),
     )
     # Also patch in the route module
     from engramia.api import credentials as credentials_route
@@ -299,9 +291,7 @@ def mock_validation_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         credentials_route,
         "validate_credential",
-        lambda provider, api_key, base_url=None: validator.ValidationResult(
-            success=True, error=None, category="ok"
-        ),
+        lambda provider, api_key, base_url=None: validator.ValidationResult(success=True, error=None, category="ok"),
     )
 
 
@@ -343,9 +333,7 @@ class TestCreateCredential:
         assert "..." in body["key_fingerprint"]
         assert body["key_fingerprint"].endswith("CDEF")
 
-    def test_validation_failure_returns_400(
-        self, admin_client: TestClient, mock_validation_auth_failed
-    ) -> None:
+    def test_validation_failure_returns_400(self, admin_client: TestClient, mock_validation_auth_failed) -> None:
         resp = admin_client.post(
             "/v1/credentials",
             json={
@@ -496,9 +484,7 @@ class TestCrossTenantIsolation:
 
 
 class TestPatch:
-    def test_updates_default_model(
-        self, admin_client: TestClient, mock_validation_ok
-    ) -> None:
+    def test_updates_default_model(self, admin_client: TestClient, mock_validation_ok) -> None:
         cred = admin_client.post(
             "/v1/credentials",
             json={"provider": "openai", "api_key": "sk-test-1234567890ABCDEF"},
@@ -510,9 +496,7 @@ class TestPatch:
         assert resp.status_code == 200
         assert resp.json()["default_model"] == "gpt-5"
 
-    def test_role_models_round_trip(
-        self, admin_client: TestClient, mock_validation_ok
-    ) -> None:
+    def test_role_models_round_trip(self, admin_client: TestClient, mock_validation_ok) -> None:
         cred = admin_client.post(
             "/v1/credentials",
             json={"provider": "openai", "api_key": "sk-test-1234567890ABCDEF"},
@@ -541,9 +525,7 @@ class TestPatch:
 
 
 class TestDelete:
-    def test_revokes_active_credential(
-        self, admin_client: TestClient, mock_validation_ok
-    ) -> None:
+    def test_revokes_active_credential(self, admin_client: TestClient, mock_validation_ok) -> None:
         cred = admin_client.post(
             "/v1/credentials",
             json={"provider": "openai", "api_key": "sk-test-1234567890ABCDEF"},
@@ -551,9 +533,7 @@ class TestDelete:
         resp = admin_client.delete(f"/v1/credentials/{cred['id']}")
         assert resp.status_code == 204
 
-    def test_404_when_already_revoked(
-        self, admin_client: TestClient, mock_validation_ok
-    ) -> None:
+    def test_404_when_already_revoked(self, admin_client: TestClient, mock_validation_ok) -> None:
         cred = admin_client.post(
             "/v1/credentials",
             json={"provider": "openai", "api_key": "sk-test-1234567890ABCDEF"},

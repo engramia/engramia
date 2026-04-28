@@ -43,6 +43,7 @@ def _reset_scope_contextvar():
     yield
     _scope_var.reset(token)
 
+
 # ---------------------------------------------------------------------------
 # Fixed LLM response for deterministic eval/compose tests
 # ---------------------------------------------------------------------------
@@ -136,8 +137,10 @@ def app_client(tmp_path, monkeypatch):
     _mock_llm = MagicMock()
     _mock_llm.call.return_value = EVAL_RESPONSE
 
-    monkeypatch.setattr(factory, "make_embeddings", lambda: mock_embeddings)
-    monkeypatch.setattr(factory, "make_llm", lambda: _mock_llm)
+    # Accept the new BYOK ``resolver`` kwarg added in Phase 6.6 — the
+    # mocks ignore it because the fixture intentionally bypasses BYOK.
+    monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None: mock_embeddings)
+    monkeypatch.setattr(factory, "make_llm", lambda resolver=None: _mock_llm)
 
     from engramia.api.app import create_app
 

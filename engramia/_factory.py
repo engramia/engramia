@@ -3,11 +3,38 @@
 """Shared Engramia provider factory helpers.
 
 Used by both the REST API (api/app.py) and the MCP server (mcp/server.py)
-to construct provider instances from environment variables.
+to construct provider instances.
+
+Two modes:
+
+- **Self-hosted / single-tenant** (default): providers are built from
+  process-wide environment variables — ``OPENAI_API_KEY``, ``ENGRAMIA_LLM_MODEL``,
+  etc. One provider instance per process; the Memory facade reuses it
+  for every request.
+
+- **BYOK / multi-tenant cloud** (``ENGRAMIA_BYOK_ENABLED=true``): the
+  ``make_llm`` and ``make_embeddings`` helpers return a thin wrapper
+  (:class:`TenantScopedLLMProvider` /
+  :class:`TenantScopedEmbeddingProvider`) that resolves the active
+  tenant's credential per call via :class:`CredentialResolver`. The
+  caller passes the resolver to the factory; if a tenant has no
+  credential, the wrapper falls back to :class:`DemoProvider`.
+
+The factory itself does not read ``ENGRAMIA_BYOK_ENABLED`` — that flag
+is read in ``api/app.py`` so the wiring decision is observable in the
+startup log. The factory just exposes the option of passing a
+``resolver`` argument, which is what flips the behaviour.
 """
+
+from __future__ import annotations
 
 import logging
 import os
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from engramia.credentials.resolver import CredentialResolver
+    from engramia.providers.base import EmbeddingProvider, LLMProvider
 
 _log = logging.getLogger(__name__)
 
@@ -25,13 +52,26 @@ def make_storage():
     return JSONStorage(path=path)
 
 
-def make_embeddings():
-    """Create embedding provider from ENGRAMIA_EMBEDDING_MODEL env var.
+def make_embeddings(resolver: CredentialResolver | None = None) -> EmbeddingProvider | None:
+    """Create an embedding provider.
 
-    Returns None when ENGRAMIA_EMBEDDING_MODEL is set to "none" or when the
-    required provider package (openai) is not installed.  The API will start
-    without semantic-search features in either case.
+    Args:
+        resolver: When provided, returns a
+            :class:`TenantScopedEmbeddingProvider` that resolves
+            credentials per request. Used in BYOK / cloud mode.
+            When ``None`` (default), falls back to the env-var-driven
+            single-instance path used by self-hosted deployments.
+
+    Returns:
+        An :class:`EmbeddingProvider` or ``None`` when
+        ``ENGRAMIA_EMBEDDING_MODEL=none`` (semantic search disabled).
     """
+    if resolver is not None:
+        from engramia.providers.tenant_scoped import TenantScopedEmbeddingProvider
+
+        _log.info("Embedding provider: TenantScopedEmbeddingProvider (BYOK mode).")
+        return TenantScopedEmbeddingProvider(resolver=resolver)
+
     model = os.environ.get("ENGRAMIA_EMBEDDING_MODEL", "text-embedding-3-small")
     if model.lower() == "none":
         _log.info("ENGRAMIA_EMBEDDING_MODEL=none — semantic search disabled")
@@ -47,11 +87,33 @@ def make_embeddings():
         return None
 
 
-def make_llm():
-    """Create LLM provider from ENGRAMIA_LLM_PROVIDER / ENGRAMIA_LLM_MODEL env vars.
+def make_llm(resolver: CredentialResolver | None = None) -> LLMProvider | None:
+    """Create an LLM provider.
 
-    Timeout is configurable via ENGRAMIA_LLM_TIMEOUT (seconds, default 30.0).
+    Args:
+        resolver: When provided, returns a
+            :class:`TenantScopedLLMProvider` that dispatches per-request
+            to the credential-resolved provider, falling back to
+            :class:`DemoProvider` when no credential exists. Used in
+            BYOK / cloud mode.
+            When ``None`` (default), falls back to the env-var-driven
+            single-instance path used by self-hosted deployments.
+
+    Returns:
+        An :class:`LLMProvider` or ``None`` when
+        ``ENGRAMIA_LLM_PROVIDER=none``.
+
+    Env vars consumed (self-hosted mode only):
+        ENGRAMIA_LLM_PROVIDER  openai | anthropic | none  (default: openai)
+        ENGRAMIA_LLM_MODEL     model id  (default: gpt-4.1)
+        ENGRAMIA_LLM_TIMEOUT   seconds   (default: 30.0)
     """
+    if resolver is not None:
+        from engramia.providers.tenant_scoped import TenantScopedLLMProvider
+
+        _log.info("LLM provider: TenantScopedLLMProvider (BYOK mode).")
+        return TenantScopedLLMProvider(resolver=resolver)
+
     provider = os.environ.get("ENGRAMIA_LLM_PROVIDER", "openai").lower()
     model = os.environ.get("ENGRAMIA_LLM_MODEL", "gpt-4.1")
     timeout = float(os.environ.get("ENGRAMIA_LLM_TIMEOUT", "30.0"))
@@ -63,6 +125,10 @@ def make_llm():
         from engramia.providers.anthropic import AnthropicProvider
 
         return AnthropicProvider(model=model, timeout=timeout)
+    if provider == "gemini":
+        from engramia.providers.gemini import GeminiProvider
+
+        return GeminiProvider(model=model, timeout=timeout)
     if provider != "none":
         _log.warning("Unknown ENGRAMIA_LLM_PROVIDER %r — LLM features will be unavailable", provider)
     return None

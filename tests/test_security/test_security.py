@@ -50,8 +50,8 @@ def api_client(tmp_path, monkeypatch):
     _mock_llm = MagicMock()
     _mock_llm.call.return_value = EVAL_RESPONSE
 
-    monkeypatch.setattr(factory, "make_embeddings", lambda: mock_embeddings)
-    monkeypatch.setattr(factory, "make_llm", lambda: _mock_llm)
+    monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None: mock_embeddings)
+    monkeypatch.setattr(factory, "make_llm", lambda resolver=None: _mock_llm)
 
     from engramia.api.app import create_app
 

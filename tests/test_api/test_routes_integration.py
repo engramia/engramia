@@ -133,8 +133,8 @@ class TestBodySizeLimit:
 
         mock_embeddings = MagicMock()
         mock_embeddings.embed.return_value = [0.1] * 1536
-        monkeypatch.setattr(factory, "make_embeddings", lambda: mock_embeddings)
-        monkeypatch.setattr(factory, "make_llm", lambda: MagicMock())
+        monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None: mock_embeddings)
+        monkeypatch.setattr(factory, "make_llm", lambda resolver=None: MagicMock())
 
         from engramia.api.app import create_app
 
