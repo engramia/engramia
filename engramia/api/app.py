@@ -48,6 +48,7 @@ from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
 from engramia.api.analytics import router as analytics_router
 from engramia.api.cloud_auth import router as cloud_auth_router
+from engramia.api.credentials import router as credentials_router
 from engramia.api.errors import STATUS_TO_ERROR_CODE, ErrorCode
 from engramia.api.governance import router as governance_router
 from engramia.api.jobs import router as jobs_router
@@ -267,7 +268,22 @@ def _register_exception_handlers(app: FastAPI) -> None:
         }
     )
     # Context keys promoted to error_context for structured consumers.
-    _CONTEXT_KEYS = frozenset({"current", "limit", "current_count", "retry_after", "reset_date", "metric", "max_bytes"})
+    _CONTEXT_KEYS = frozenset(
+        {
+            "current",
+            "limit",
+            "current_count",
+            "retry_after",
+            "reset_date",
+            "metric",
+            "max_bytes",
+            # Phase 6.6 BYOK
+            "provider",
+            "category",
+            "current_tier",
+            "min_tier",
+        }
+    )
 
     def _build_error_body(status_code: int, detail) -> dict:
         """Convert an HTTPException detail into a structured ErrorResponse body."""
@@ -363,6 +379,47 @@ def _register_exception_handlers(app: FastAPI) -> None:
         )
 
 
+def _setup_byok(app: FastAPI, engine) -> None:
+    """Wire credential store + resolver + cipher onto ``app.state`` when
+    ``ENGRAMIA_BYOK_ENABLED=true``. No-op otherwise (default behaviour).
+
+    The flag is checked at startup, not per-request: flipping it on a
+    running process requires a restart so credentials load consistently.
+    """
+    from engramia.credentials import AESGCMCipher, CredentialResolver, CredentialStore
+
+    enabled = os.environ.get("ENGRAMIA_BYOK_ENABLED", "false").lower() in {"true", "1", "yes"}
+    if not enabled:
+        app.state.credential_store = None
+        app.state.credential_resolver = None
+        app.state.credential_cipher = None
+        _log.info("BYOK disabled (ENGRAMIA_BYOK_ENABLED=false). Self-hosted env-var auth path active.")
+        return
+
+    if engine is None:
+        # BYOK requires a DB. Refuse to start if the operator turned the
+        # flag on without a database — this is a misconfiguration we want
+        # to surface loudly rather than silently fall back to no-op.
+        raise RuntimeError(
+            "ENGRAMIA_BYOK_ENABLED=true but no database engine is configured. "
+            "Set ENGRAMIA_DATABASE_URL or disable BYOK."
+        )
+    try:
+        cipher = AESGCMCipher.from_env()
+    except Exception as exc:
+        raise RuntimeError(
+            f"BYOK enabled but master key load failed: {exc}. "
+            "Set ENGRAMIA_CREDENTIALS_KEY (base64-encoded 32 bytes) in the environment."
+        ) from exc
+
+    store = CredentialStore(engine)
+    resolver = CredentialResolver(store=store, cipher=cipher)
+    app.state.credential_store = store
+    app.state.credential_resolver = resolver
+    app.state.credential_cipher = cipher
+    _log.info("BYOK credential subsystem initialised (master key loaded, cache TTL 1 h).")
+
+
 def _register_routers(app: FastAPI, storage) -> None:
     """Mount all API routers and static files onto the app."""
     # Cloud auth routes (no /v1 prefix — web registration flow)
@@ -376,6 +433,7 @@ def _register_routers(app: FastAPI, storage) -> None:
     app.include_router(governance_router, prefix="/v1")
     app.include_router(analytics_router, prefix="/v1")
     app.include_router(billing_router, prefix="/v1")
+    app.include_router(credentials_router, prefix="/v1")
 
     # ------------------------------------------------------------------
     # Prometheus /metrics endpoint (opt-in via ENGRAMIA_METRICS=true)
@@ -572,6 +630,11 @@ def create_app() -> FastAPI:
         _log.info("Billing service initialised (DB engine available).")
     else:
         _log.info("Billing service in no-op mode (no DB engine — dev/JSON storage).")
+
+    # ------------------------------------------------------------------
+    # BYOK credential subsystem (Phase 6.6) — opt-in via flag
+    # ------------------------------------------------------------------
+    _setup_byok(app, billing_engine)
 
     _register_routers(app, storage)
 

@@ -36,6 +36,11 @@ class ErrorCode(str):
     STORAGE_ERROR = "STORAGE_ERROR"
     SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
 
+    # Phase 6.6: BYOK
+    CREDENTIAL_VALIDATION_FAILED = "CREDENTIAL_VALIDATION_FAILED"
+    CREDENTIAL_NOT_FOUND = "CREDENTIAL_NOT_FOUND"
+    BYOK_NOT_ENABLED = "BYOK_NOT_ENABLED"
+
 
 # Maps HTTP status codes to a default ErrorCode when the exception detail
 # does not supply an explicit ``error_code``.

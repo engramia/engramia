@@ -37,8 +37,10 @@ credentials*
 !docs/architecture/credentials.md
 !engramia/credentials/
 !engramia/credentials/**
+!engramia/api/credentials.py
 !tests/test_credentials/
 !tests/test_credentials/**
+!tests/test_api/test_credentials.py
 # Re-ignore __pycache__ which the allow-list above accidentally re-includes
 **/__pycache__/
 

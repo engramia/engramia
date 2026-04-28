@@ -71,6 +71,12 @@ _ADMIN_PERMS: frozenset[str] = _EDITOR_PERMS | frozenset(
         "governance:delete",
         # Phase 6.0: Audit log access (dashboard audit viewer)
         "audit:read",
+        # Phase 6.6: BYOK credential management (admin+ only — these
+        # endpoints write the LLM provider key the tenant uses, so the
+        # blast radius of a compromised editor-tier key would otherwise
+        # extend to every paid model call).
+        "credentials:read",
+        "credentials:write",
     }
 )
 
