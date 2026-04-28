@@ -35,6 +35,12 @@ venv/
 *.p12
 credentials*
 !docs/architecture/credentials.md
+!engramia/credentials/
+!engramia/credentials/**
+!tests/test_credentials/
+!tests/test_credentials/**
+# Re-ignore __pycache__ which the allow-list above accidentally re-includes
+**/__pycache__/
 
 # Brain data (local development)
 engramia_data/

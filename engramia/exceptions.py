@@ -8,9 +8,14 @@ for more precise error handling.
 Hierarchy::
 
     EngramiaError (base)
-    ├── ProviderError   — LLM or embedding provider missing or failed
-    ├── StorageError    — Storage backend read/write failures
-    └── ValidationError — Input data failed validation
+    ├── ProviderError       — LLM or embedding provider missing or failed
+    ├── StorageError        — Storage backend read/write failures
+    ├── ValidationError     — Input data failed validation
+    ├── QuotaExceededError  — Quota reached
+    ├── AuthorizationError  — Operation not permitted for role
+    └── CredentialsError    — Credential storage / encryption failures
+        ├── MasterKeyError      — Master encryption key missing or invalid
+        └── DecryptionError     — Ciphertext decryption failed (tampered or wrong key)
 """
 
 
@@ -52,3 +57,28 @@ class QuotaExceededError(EngramiaError):
 
 class AuthorizationError(EngramiaError):
     """Raised when an operation is not permitted for the current role."""
+
+
+class CredentialsError(EngramiaError):
+    """Base class for credential storage and encryption errors."""
+
+
+class MasterKeyError(CredentialsError):
+    """Raised when the credential master key is missing, malformed, or wrong size.
+
+    The credential subsystem requires a 32-byte AES-256 master key supplied via
+    the ``ENGRAMIA_CREDENTIALS_KEY`` environment variable as a base64 string.
+    Operators with BYOK enabled (``ENGRAMIA_BYOK_ENABLED=true``) must configure
+    this before startup; the API refuses to serve credential operations
+    otherwise.
+    """
+
+
+class DecryptionError(CredentialsError):
+    """Raised when AES-GCM decryption fails — wrong key, tampered ciphertext,
+    AAD mismatch, or nonce reuse.
+
+    Logged at WARNING level by ``CredentialResolver`` so security alerts can
+    fire on suspected tampering. The plaintext is *not* recoverable by retry —
+    the row is marked invalid and the tenant must re-enter the credential.
+    """
