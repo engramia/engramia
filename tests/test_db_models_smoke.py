@@ -23,6 +23,7 @@ from engramia.db.models import (
     ProcessedWebhookEvent,
     Project,
     Tenant,
+    TenantCredential,
     UsageCounter,
 )
 
@@ -43,6 +44,7 @@ def test_all_expected_tables_registered():
         "data_subject_requests",
         "processed_webhook_events",  # migration 011
         "cloud_users",  # migration 013
+        "tenant_credentials",  # migration 023
     }
     actual = set(Base.metadata.tables.keys())
     missing = expected - actual
@@ -81,6 +83,49 @@ def test_cloud_user_password_hash_is_nullable():
     assert pw.nullable is True
 
 
+def test_tenant_credential_unique_triple():
+    """Migration 023 enforces UNIQUE(tenant_id, provider, purpose).
+    The ORM must declare the matching constraint so SQLAlchemy DDL stays
+    in sync with Alembic."""
+    cols = {c.name for c in TenantCredential.__table__.columns}
+    assert {"tenant_id", "provider", "purpose"}.issubset(cols)
+    constraints = TenantCredential.__table__.constraints
+    unique_names = {c.name for c in constraints if hasattr(c, "name") and c.name}
+    assert "uq_tenant_credentials_provider_purpose" in unique_names
+
+
+def test_tenant_credential_encryption_columns_are_binary():
+    """encrypted_key, nonce, auth_tag must be BYTEA (LargeBinary), not TEXT —
+    storing ciphertext as text would force base64 round-tripping per request."""
+    from sqlalchemy import LargeBinary
+
+    for col_name in ("encrypted_key", "nonce", "auth_tag"):
+        col = TenantCredential.__table__.columns[col_name]
+        assert col.nullable is False, f"{col_name} must be NOT NULL"
+        assert isinstance(col.type, LargeBinary), f"{col_name} must be LargeBinary, got {type(col.type)}"
+
+
+def test_tenant_credential_role_models_is_jsonb_nullable():
+    """role_models is the Business-tier per-role routing column. Nullable
+    because Developer/Pro tenants leave it empty."""
+    col = TenantCredential.__table__.columns["role_models"]
+    assert col.nullable is True
+
+
+def test_tenant_credential_status_has_default():
+    """Default 'active' so a freshly inserted row is immediately resolvable."""
+    col = TenantCredential.__table__.columns["status"]
+    assert col.nullable is False
+    assert col.server_default is not None
+
+
+def test_tenant_credential_cascades_on_tenant_delete():
+    """When a tenant is deleted (GDPR Art. 17), credentials must cascade-
+    delete so plaintext residue cannot survive an anonymisation request."""
+    fk = next(iter(TenantCredential.__table__.columns["tenant_id"].foreign_keys))
+    assert fk.ondelete == "CASCADE"
+
+
 def test_all_models_share_one_metadata():
     """Declarative Base metadata must be consistent across modules."""
     shared = {
@@ -97,5 +142,6 @@ def test_all_models_share_one_metadata():
         DataSubjectRequest.metadata,
         ProcessedWebhookEvent.metadata,
         CloudUser.metadata,
+        TenantCredential.metadata,
     }
     assert len(shared) == 1

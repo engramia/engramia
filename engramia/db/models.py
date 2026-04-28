@@ -29,6 +29,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     SmallInteger,
     Text,
     UniqueConstraint,
@@ -432,3 +433,72 @@ class CloudUser(Base):
 
 cloud_users_email_index = Index("idx_cloud_users_email", CloudUser.email)
 cloud_users_tenant_index = Index("idx_cloud_users_tenant", CloudUser.tenant_id)
+
+
+# ---------------------------------------------------------------------------
+# BYOK credentials (Phase 6.6 — migration 023)
+# ---------------------------------------------------------------------------
+
+
+class TenantCredential(Base):
+    """Per-tenant LLM provider API key, encrypted at rest with AES-256-GCM.
+
+    The plaintext key is never persisted: only ``encrypted_key`` (ciphertext),
+    ``nonce`` (12 bytes), and ``auth_tag`` (16 bytes) are stored, decryptable
+    only with the operator's master key from ``ENGRAMIA_CREDENTIALS_KEY``.
+
+    The CredentialResolver derives the AAD as
+    ``f"{tenant_id}:{provider}:{purpose}".encode()`` so that swapping a row
+    between tenants fails the GCM authentication check.
+
+    UNIQUE ``(tenant_id, provider, purpose)`` enforces one key per role per
+    tenant; replacing a key is a UPSERT on this triple from
+    ``POST /v1/credentials``.
+
+    See ``docs/architecture/credentials.md`` for the full subsystem
+    architecture, threat model, and rotation procedure.
+    """
+
+    __tablename__ = "tenant_credentials"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "provider",
+            "purpose",
+            name="uq_tenant_credentials_provider_purpose",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    encrypted_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    nonce: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    auth_tag: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    key_version: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="1")
+    key_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    base_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    default_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    default_embed_model: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Per-role model routing (Business+ tier). E.g.
+    # {"eval": "gpt-4.1-mini", "evolve": "claude-opus-4-7"}.
+    # NULL means use ``default_model`` for every role.
+    role_models: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="active")
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_by: Mapped[str] = mapped_column(Text, nullable=False)  # cloud_users.id of creator
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+tenant_credentials_tenant_index = Index(
+    "idx_tenant_credentials_tenant",
+    TenantCredential.tenant_id,
+)

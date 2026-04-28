@@ -127,6 +127,7 @@ class TestMigrationForwardBackward:
         assert "billing_subscriptions" in tables
         assert "usage_counters" in tables
         assert "overage_settings" in tables
+        assert "tenant_credentials" in tables  # migration 023 (BYOK)
 
     def test_downgrade_to_base_removes_all_managed_tables(self, pg_url):
         """downgrade base → tables created by migration 001 must be gone."""
