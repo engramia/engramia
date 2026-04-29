@@ -14,6 +14,7 @@ Evaluation dimensions:
 - overall:          Weighted composite (0-10).
 """
 
+import contextvars
 import logging
 import statistics
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -128,8 +129,19 @@ class MultiEvaluator:
         prompt = _EVAL_USER.format(task=task, code=code, output=output or "(no output captured)")
 
         scores: list[EvalScore] = []
+        # Capture the parent context so each worker thread inherits the
+        # tenant/project scope contextvar set by the auth dependency.
+        # Without this, ThreadPoolExecutor workers start in a fresh
+        # default context — for BYOK that means TenantScopedLLMProvider
+        # resolves the wrong tenant (or `default`, which has no
+        # credential) and silently falls through to DemoProvider.
+        # Single-tenant deployments never noticed because the default
+        # context already matches the only tenant.
+        ctx = contextvars.copy_context()
         with ThreadPoolExecutor(max_workers=self._num_evals) as executor:
-            futures = [executor.submit(self._single_eval, prompt) for _ in range(self._num_evals)]
+            futures = [
+                executor.submit(ctx.run, self._single_eval, prompt) for _ in range(self._num_evals)
+            ]
             for future in as_completed(futures):
                 result = future.result()
                 if result is not None:
