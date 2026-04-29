@@ -624,7 +624,7 @@ Extend `GET /v1/health/deep` with credentials subsystem check:
 
 ## 15. Implementation effort summary
 
-Per [Phase 6.6 in roadmap.md](../../../Ops/internal/roadmap.md):
+Per Phase 6.6 in the operator roadmap (Ops repo, private):
 
 | Component | Effort |
 |---|---|
@@ -638,7 +638,7 @@ Per [Phase 6.6 in roadmap.md](../../../Ops/internal/roadmap.md):
 | Documentation (this file + provider setup guides) | 2 d |
 | Stripe pricing migration to 5-tier | 0.5 d |
 
-**Total BYOK foundation: ~14 days** of focused work. Tier-gated features (Hosted MCP, per-role routing, cross-agent memory, Vault backend, etc.) follow per the [pricing tier roadmap](../../../Ops/internal/PRICING_TIERS_260428.md).
+**Total BYOK foundation: ~14 days** of focused work. Tier-gated features (Hosted MCP, per-role routing, cross-agent memory, Vault backend, etc.) follow per the internal pricing-tier roadmap (Ops repo, private).
 
 ---
 

@@ -69,6 +69,12 @@ nav:
       - API Versioning: api-versioning.md
   - CLI: cli.md
   - Providers: providers.md
+  - BYOK Setup:
+      - Overview: byok/index.md
+      - OpenAI: byok/openai.md
+      - Anthropic: byok/anthropic.md
+      - Google Gemini: byok/gemini.md
+      - Ollama: byok/ollama.md
   - Integrations:
       - Overview & Examples: integrations/examples.md
       - LangChain: integrations/langchain.md

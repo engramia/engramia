@@ -45,6 +45,7 @@ what works, forget what does not, reuse proven solutions, and improve over time.
 4. [Admin Guide](admin-guide.md) — dashboard, tenant management, RBAC
 5. [Monitoring](monitoring.md) — Prometheus metrics, Grafana, alerting
 6. [ROI Calibration](roi-calibration.md) — interpret and improve your ROI score
+7. [BYOK Setup](byok/index.md) — bring your own LLM key (OpenAI / Anthropic / Gemini / Ollama)
 
 ---
 
