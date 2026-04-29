@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Marek Čermák
+#
+# Slim image that runs Engramia in MCP stdio mode — for clients that talk
+# the Model Context Protocol directly (Claude Desktop, Cursor, Windsurf,
+# Glama scorecard, …). The default Dockerfile in this repo is the REST
+# API image; this one is intentionally separate so the two surfaces stay
+# independent.
+#
+# Build:
+#     docker build -f Dockerfile.mcp -t engramia-mcp .
+#
+# Run (stdio — typically launched as a subprocess by the MCP client, not
+# directly by you):
+#     docker run --rm -i \
+#         -e OPENAI_API_KEY=sk-... \
+#         engramia-mcp
+#
+# The image installs the public `engramia` PyPI package rather than
+# building from source — small image, fast cold start, no extra wheels.
+
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN pip install "engramia[mcp,openai]==0.6.6"
+
+# Default to JSON storage so the server starts without a Postgres URL.
+# Override at runtime when wiring up production: ENGRAMIA_STORAGE=postgres
+# + ENGRAMIA_DATABASE_URL=...
+ENV ENGRAMIA_STORAGE=json \
+    ENGRAMIA_DATA_PATH=/data/engramia_data
+
+VOLUME ["/data"]
+
+# Drop privileges.
+RUN useradd --create-home --shell /bin/bash engramia \
+    && mkdir -p /data/engramia_data \
+    && chown -R engramia:engramia /data
+USER engramia
+
+ENTRYPOINT ["engramia-mcp"]
