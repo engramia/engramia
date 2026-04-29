@@ -79,5 +79,6 @@ Thumbs.db
 CLAUDE.md
 docs/legal/key-legal-design-decisions.md
 
-# GitNexus local index - never commit
+# GitNexus tooling — local-only, never commit anything related to it
 .gitnexus/
+AGENTS.md
