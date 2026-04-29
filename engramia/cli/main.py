@@ -1102,9 +1102,9 @@ def cloud_create_account(
         help="Login password. If omitted, a random 16-char password is generated and printed.",
     ),
     plan: str = typer.Option(
-        "sandbox",
+        "developer",
         "--plan",
-        help="Plan tier (sandbox | pro | team | enterprise). Sets tenants.plan_tier.",
+        help="Plan tier (developer | pro | team | business | enterprise). Sets tenants.plan_tier.",
     ),
 ) -> None:
     """Manually onboard a cloud tenant — bypasses email verification and SMTP.
@@ -1121,9 +1121,19 @@ def cloud_create_account(
 
     from engramia.api.cloud_auth import _create_registration, _hash_password
 
-    if plan not in {"sandbox", "pro", "team", "enterprise"}:
-        console.print(f"[red]Invalid plan tier:[/red] {plan!r} (expected sandbox|pro|team|enterprise)")
+    # "sandbox" is the legacy free-tier name (pre-Phase-6.6); we still
+    # accept it for compatibility with operator scripts that haven't
+    # caught up to the rename, but log a deprecation hint.
+    valid_plans = {"developer", "pro", "team", "business", "enterprise", "sandbox"}
+    if plan not in valid_plans:
+        console.print(
+            f"[red]Invalid plan tier:[/red] {plan!r} "
+            "(expected developer|pro|team|business|enterprise)"
+        )
         raise typer.Exit(1)
+    if plan == "sandbox":
+        console.print("[yellow]Note:[/yellow] 'sandbox' is deprecated — using 'developer' instead.")
+        plan = "developer"
 
     engine = _make_db_engine()
 
@@ -1149,7 +1159,7 @@ def cloud_create_account(
         email_verified=True,
     )
 
-    if plan != "sandbox":
+    if plan != "developer":
         with engine.begin() as conn:
             conn.execute(
                 text("UPDATE tenants SET plan_tier = :plan WHERE id = :tid"),

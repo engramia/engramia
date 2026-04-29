@@ -117,7 +117,7 @@ def billing_status(request: Request) -> Any:
 
     if billing_svc is None:
         return BillingStatus(
-            plan_tier="sandbox",
+            plan_tier="developer",
             status="active",
             billing_interval="month",
             eval_runs_used=0,

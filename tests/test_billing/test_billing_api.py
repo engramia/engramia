@@ -201,21 +201,22 @@ class TestStripeWebhook:
 
 
 class TestBillingStatus:
-    def test_sandbox_mode_returns_200_with_defaults(self):
-        """Without billing_service, endpoint returns sandbox plan defaults."""
+    def test_developer_mode_returns_200_with_defaults(self):
+        """Without billing_service, endpoint returns developer plan defaults."""
         client = TestClient(_make_app(billing_service=None))
         resp = client.get("/v1/billing/status")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["plan_tier"] == "sandbox"
+        # Phase 6.6 BYOK: free tier renamed sandbox -> developer.
+        assert data["plan_tier"] == "developer"
         assert data["status"] == "active"
         assert data["billing_interval"] == "month"
         assert data["eval_runs_used"] == 0
         assert data["overage_enabled"] is False
         assert data["overage_budget_cap_cents"] is None
 
-    def test_sandbox_mode_limits_are_zero_or_null(self):
-        """Sandbox defaults: usage fields should be zero (no activity yet)."""
+    def test_developer_mode_limits_are_zero_or_null(self):
+        """Developer defaults: usage fields should be zero (no activity yet)."""
         client = TestClient(_make_app(billing_service=None))
         data = client.get("/v1/billing/status").json()
         assert data["eval_runs_used"] == 0

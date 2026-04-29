@@ -1405,7 +1405,12 @@ def request_account_deletion(
         billing_service = getattr(request.app.state, "billing_service", None)
         if billing_service is not None:
             sub = billing_service.get_subscription(tenant_id)
-            has_active_subscription = bool(sub.stripe_subscription_id) and sub.plan_tier != "sandbox"
+            # "developer" is the post-Phase-6.6 free tier; "sandbox" is the
+            # legacy alias kept for any rows migration 024 missed.
+            has_active_subscription = bool(sub.stripe_subscription_id) and sub.plan_tier not in (
+                "developer",
+                "sandbox",
+            )
     except Exception:
         # Billing lookup is informational only — never block deletion on it.
         _log.debug("deletion-request: billing lookup failed (non-fatal)", exc_info=True)

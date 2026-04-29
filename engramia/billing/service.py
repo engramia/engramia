@@ -38,6 +38,11 @@ _PRICE_ENV_VARS: dict[tuple[str, str], str] = {
     ("pro", "yearly"): "STRIPE_PRICE_PRO_YEARLY",
     ("team", "monthly"): "STRIPE_PRICE_TEAM_MONTHLY",
     ("team", "yearly"): "STRIPE_PRICE_TEAM_YEARLY",
+    # Phase 6.6 BYOK pricing — Business tier added between Team and
+    # Enterprise. Operators must create the corresponding Stripe Prices
+    # before the env var is referenced (see PRICING_TIERS_260428.md).
+    ("business", "monthly"): "STRIPE_PRICE_BUSINESS_MONTHLY",
+    ("business", "yearly"): "STRIPE_PRICE_BUSINESS_YEARLY",
 }
 
 
@@ -181,7 +186,7 @@ class BillingService:
             tenant_id=tenant_id,
             stripe_customer_id=row[0],
             stripe_subscription_id=row[1],
-            plan_tier=row[2] or "sandbox",
+            plan_tier=row[2] or "developer",
             billing_interval=row[3] or "month",
             status=row[4] or "active",
             eval_runs_limit=row[5],
@@ -359,7 +364,7 @@ class BillingService:
         if self._engine is None:
             return customer_id
         try:
-            limits = PLAN_LIMITS["sandbox"]
+            limits = PLAN_LIMITS["developer"]
             with self._engine.begin() as conn:
                 conn.execute(
                     text(
@@ -614,7 +619,7 @@ class BillingService:
                 plan_tier = mapped
         if not plan_tier:
             plan_tier = "pro"
-        limits = PLAN_LIMITS.get(plan_tier, PLAN_LIMITS["sandbox"])
+        limits = PLAN_LIMITS.get(plan_tier, PLAN_LIMITS["developer"])
 
         tenant_id = self._tenant_id_by_customer(customer_id)
         if not tenant_id:
@@ -669,7 +674,7 @@ class BillingService:
         """Downgrade a cancelled subscription to sandbox tier."""
         if self._engine is None:
             return
-        limits = PLAN_LIMITS["sandbox"]
+        limits = PLAN_LIMITS["developer"]
         try:
             with self._engine.begin() as conn:
                 conn.execute(

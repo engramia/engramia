@@ -287,7 +287,7 @@ class AuthContext(BaseModel):
     project_id: str
     role: str
     max_patterns: int | None = None
-    plan_tier: str = "sandbox"
+    plan_tier: str = "developer"
     scope: Scope
 
 

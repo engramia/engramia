@@ -55,9 +55,10 @@ def _sub_row(
     plan_tier="pro",
     interval="month",
     status="active",
-    eval_runs_limit=3000,
-    patterns_limit=50000,
-    projects_limit=3,
+    # Phase 6.6 BYOK pricing — Pro tier defaults rebased upward.
+    eval_runs_limit=50_000,
+    patterns_limit=100_000,
+    projects_limit=10,
     period_end="2026-05-01",
     past_due_since=None,
     cancel_at_period_end=False,
@@ -96,7 +97,7 @@ class TestGetSubscription:
     def test_no_engine_returns_sandbox_default(self):
         svc = _billing_service(engine=None)
         sub = svc.get_subscription("t1")
-        assert sub.plan_tier == "sandbox"
+        assert sub.plan_tier == "developer"
         assert sub.tenant_id == "t1"
 
     def test_db_row_found_returns_subscription(self):
@@ -105,20 +106,21 @@ class TestGetSubscription:
         sub = svc.get_subscription("t1")
         assert sub.plan_tier == "pro"
         assert sub.stripe_customer_id == "cus_abc"
-        assert sub.eval_runs_limit == 3000
+        # Phase 6.6 BYOK pricing — Pro tier is 50,000 eval runs / month.
+        assert sub.eval_runs_limit == 50_000
 
     def test_db_row_missing_returns_sandbox(self):
         engine, _ = _engine_with_row(None)
         svc = _billing_service(engine=engine)
         sub = svc.get_subscription("t1")
-        assert sub.plan_tier == "sandbox"
+        assert sub.plan_tier == "developer"
 
     def test_db_error_returns_sandbox_default(self):
         engine = MagicMock()
         engine.connect.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
         svc = _billing_service(engine=engine)
         sub = svc.get_subscription("t1")
-        assert sub.plan_tier == "sandbox"
+        assert sub.plan_tier == "developer"
 
     def test_tenant_id_passed_to_query(self):
         engine, conn = _engine_with_row(None)
@@ -167,10 +169,10 @@ class TestGetOverageSettings:
 
 
 class TestGetStatus:
-    def test_no_engine_returns_sandbox_status(self):
+    def test_no_engine_returns_developer_status(self):
         svc = _billing_service(engine=None)
         status = svc.get_status("t1", current_pattern_count=5)
-        assert status.plan_tier == "sandbox"
+        assert status.plan_tier == "developer"
         assert status.patterns_used == 5
 
     def test_with_engine_aggregates_meter_and_subscription(self):

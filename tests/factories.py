@@ -32,7 +32,7 @@ def make_auth_ctx(
     tenant_id: str = "default",
     project_id: str = "default",
     key_id: str = "test-key-001",
-    plan_tier: str = "sandbox",
+    plan_tier: str = "developer",
     max_patterns: int | None = None,
 ) -> AuthContext:
     """Build an AuthContext with sensible defaults for tests.
