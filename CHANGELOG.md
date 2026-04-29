@@ -9,6 +9,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Added — Phase 6.6 Bring-Your-Own-Key (BYOK) credential subsystem
+
+Engramia Cloud now requires tenants to supply their own LLM provider
+API keys (OpenAI, Anthropic, Google Gemini, Ollama, OpenAI-compatible
+endpoints) instead of running on a shared server-side key. The change
+moves LLM cost from Engramia to the tenant — Engramia stops being an
+LLM reseller and the eval-runs limit becomes a fair-use rate cap
+rather than an LLM cost recovery.
+
+- **`engramia/credentials/`** — new package: AES-256-GCM cipher with
+  per-record nonces and AAD bound to `(tenant_id, provider, purpose)`,
+  Pydantic models, store (raw SQL via SQLAlchemy text), per-tenant
+  resolver with bounded TTL cache (1 h hard TTL + event-driven
+  invalidation, capacity 512), and provider-side validator with
+  5-second timeout.
+- **`engramia/providers/`** — new providers: `gemini.py`
+  (`GeminiProvider`, `GeminiEmbeddings`), `ollama.py`
+  (`OllamaProvider`, `OllamaEmbeddings` — use-at-own-risk for v0.7),
+  `demo.py` (`DemoProvider` + `DemoMeter` with 50 calls/month/tenant
+  cap), `tenant_scoped.py` (`TenantScopedLLMProvider`,
+  `TenantScopedEmbeddingProvider` — request-scoped wrappers that
+  resolve credentials per tenant via `_context.get_scope()`).
+  `OpenAIProvider`, `OpenAIEmbeddings`, `AnthropicProvider` gained
+  optional `api_key` + `base_url` constructor kwargs that pass through
+  to the SDK; env-var fallback path is unchanged for self-hosters.
+- **`engramia/api/credentials.py`** — REST endpoints
+  `POST/GET/PATCH/DELETE/{id}/validate` at `/v1/credentials/*`,
+  admin+ only (`credentials:read` / `credentials:write` permissions).
+  Plaintext `api_key` is write-only — no GET ever returns the key,
+  only the last-4-char fingerprint (`sk-...abcd`).
+- **`engramia/api/app.py`** — `_setup_byok` runs before Memory
+  initialisation and threads the resolver into
+  `make_llm` / `make_embeddings`. Gated by `ENGRAMIA_BYOK_ENABLED`
+  (default `false` — self-hosters keep the env-var path; cloud flips
+  it to `true`).
+- **Migrations 023 + 024** — `tenant_credentials` table (BYTEA
+  ciphertext + nonce + auth_tag, JSONB `role_models`, FK to
+  `tenants` ON DELETE CASCADE, UNIQUE `(tenant_id, provider, purpose)`)
+  and `sandbox` → `developer` plan tier rename (with `business`
+  added between Team and Enterprise).
+- **`engramia/billing/models.py`** — five-tier pricing: Developer
+  (free, 5,000 evals), Pro ($19/mo, 50k evals), Team ($59/mo,
+  250k evals), Business ($199/mo, 1M evals — new), Enterprise
+  (unlimited). Yearly discount bumped from -20 % to -25 %.
+  `STRIPE_PRICE_BUSINESS_{MONTHLY,YEARLY}` env vars added.
+- **`docs/architecture/credentials.md`** — full architecture spec
+  (threat model, data model, encryption design, per-request
+  resolution flow, demo mode, migration plan, future Vault/KMS
+  extensions).
+- **`docs/byok/{openai,anthropic,gemini,ollama}.md`** — provider-
+  specific setup guides.
+
+### Fixed — MultiEvaluator lost the request scope in worker threads
+
+- `MultiEvaluator.evaluate()` now wraps each `executor.submit` with
+  `contextvars.copy_context().run(...)` so the scope contextvar set
+  by the auth dependency propagates into the parallel eval workers.
+  Without the copy, `ThreadPoolExecutor` workers started in a fresh
+  default context — single-tenant deployments never noticed (the
+  default context already matched the only tenant), but the BYOK
+  refactor exposed it: `TenantScopedLLMProvider` saw `tenant_id="default"`
+  in workers, the resolver found no credential, and every evaluation
+  silently fell through to `DemoProvider`. Detected during the
+  staging smoke test on 2026-04-29.
+
 ### Added — AgentTaskBench (end-to-end agent pass-rate benchmark)
 
 - **`benchmarks/agent_task_bench/`** — new benchmark layer that
