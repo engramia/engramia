@@ -62,6 +62,7 @@ anthropic-agents = ["claude-agent-sdk>=0.1"]
 pydantic-ai = ["pydantic-ai>=1.80.0"]
 autogen = ["autogen-agentchat>=0.4"]
 mcp = ["mcp>=1.20,<2"]
+vault = ["hvac>=2.3,<3"]
 oidc = ["PyJWT>=2.8", "cryptography>=46.0.7"]
 cloud-auth = [
     "bcrypt>=5.0.0",

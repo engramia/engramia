@@ -57,24 +57,29 @@ class PatchOutcome(enum.Enum):
 _log = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(init=False)
 class StoredCredential:
     """Raw row data as returned by SELECT — encrypted, not yet usable.
 
-    Fields mirror the migrations 023 + 025 schema. The store returns these
-    to the resolver, which decrypts ``encrypted_key`` and constructs a
+    Fields mirror the migrations 023, 025, 026, 028 schema. The store
+    returns these to the resolver, which decrypts ``ciphertext_blob`` via
+    the per-row ``backend`` and constructs a
     :class:`engramia.credentials.models.TenantCredential` for downstream
-    use. Defaults are set for fields added in later migrations
-    (``failover_chain`` from 025, ``updated_at`` from 023) so test
+    use. Defaults are set for fields added in later migrations so test
     fixtures that pre-date the change keep working without explicit
     keyword args.
+
+    The ``encrypted_key`` property is a back-compat alias for
+    ``ciphertext_blob`` — the column was renamed in migration 028 to
+    reflect that the bytes are backend-opaque (AES-GCM ciphertext for
+    the local backend, ``vault:vN:...`` for the Vault backend).
     """
 
     id: str
     tenant_id: str
     provider: ProviderType
     purpose: PurposeType
-    encrypted_key: bytes
+    ciphertext_blob: bytes
     nonce: bytes
     auth_tag: bytes
     key_version: int
@@ -92,24 +97,91 @@ class StoredCredential:
     failover_chain: list[str] = None  # type: ignore[assignment]
     updated_at: datetime.datetime | None = None
     role_cost_limits: dict[str, int] = None  # type: ignore[assignment]
+    #: Backend marker from migration 028. ``"local"`` for AES-GCM rows
+    #: (the default since 028's NOT NULL DEFAULT clause), ``"vault"``
+    #: for rows re-encrypted by the bulk migration script. The resolver
+    #: dispatches per-row to the matching :class:`CredentialBackend`.
+    backend: str = "local"
 
-    def __post_init__(self) -> None:
-        # ``failover_chain=None`` and ``role_cost_limits=None`` are the
-        # on-disk representations when their columns are NULL; downstream
-        # code assumes empty list / dict. Normalise here so every reader
-        # sees the same shape regardless of column nullability.
-        if self.failover_chain is None:
-            self.failover_chain = []
-        if self.role_cost_limits is None:
-            self.role_cost_limits = {}
+    def __init__(
+        self,
+        *,
+        id: str,
+        tenant_id: str,
+        provider: ProviderType,
+        purpose: PurposeType,
+        key_version: int,
+        key_fingerprint: str,
+        base_url: str | None,
+        default_model: str | None,
+        default_embed_model: str | None,
+        role_models: dict[str, str],
+        status: StatusType,
+        last_used_at: datetime.datetime | None,
+        last_validated_at: datetime.datetime | None,
+        last_validation_error: str | None,
+        created_at: datetime.datetime | None,
+        created_by: str | None,
+        nonce: bytes = b"",
+        auth_tag: bytes = b"",
+        ciphertext_blob: bytes | None = None,
+        encrypted_key: bytes | None = None,
+        failover_chain: list[str] | None = None,
+        updated_at: datetime.datetime | None = None,
+        role_cost_limits: dict[str, int] | None = None,
+        backend: str = "local",
+    ) -> None:
+        # Back-compat: accept either ``ciphertext_blob`` (new name from
+        # migration 028) or ``encrypted_key`` (pre-028 name still used in
+        # test fixtures and the api/credentials.py revalidation path).
+        if ciphertext_blob is None and encrypted_key is None:
+            raise TypeError(
+                "StoredCredential requires either 'ciphertext_blob' or "
+                "'encrypted_key' (back-compat alias)."
+            )
+        self.id = id
+        self.tenant_id = tenant_id
+        self.provider = provider
+        self.purpose = purpose
+        self.ciphertext_blob = ciphertext_blob if ciphertext_blob is not None else encrypted_key
+        self.nonce = nonce
+        self.auth_tag = auth_tag
+        self.key_version = key_version
+        self.key_fingerprint = key_fingerprint
+        self.base_url = base_url
+        self.default_model = default_model
+        self.default_embed_model = default_embed_model
+        self.role_models = role_models
+        self.status = status
+        self.last_used_at = last_used_at
+        self.last_validated_at = last_validated_at
+        self.last_validation_error = last_validation_error
+        self.created_at = created_at
+        self.created_by = created_by
+        # Empty list / dict normalisation: NULL columns become [] / {}
+        # so downstream readers see one shape regardless of nullability.
+        self.failover_chain = failover_chain if failover_chain is not None else []
+        self.updated_at = updated_at
+        self.role_cost_limits = role_cost_limits if role_cost_limits is not None else {}
+        self.backend = backend
+
+    @property
+    def encrypted_key(self) -> bytes:
+        """Back-compat alias for ``ciphertext_blob`` (renamed in 028).
+
+        Existing callers (tests, ``api/credentials.py`` revalidation
+        path) reference ``row.encrypted_key`` — keep them working
+        without a sweep. New code should use ``ciphertext_blob``.
+        """
+        return self.ciphertext_blob
 
 
 _SELECT_COLUMNS = (
     "id, tenant_id, provider, purpose, "
-    "encrypted_key, nonce, auth_tag, key_version, key_fingerprint, "
+    "ciphertext_blob, nonce, auth_tag, key_version, key_fingerprint, "
     "base_url, default_model, default_embed_model, role_models, failover_chain, "
     "status, last_used_at, last_validated_at, last_validation_error, "
-    "created_at, created_by, updated_at, role_cost_limits"
+    "created_at, created_by, updated_at, role_cost_limits, backend"
 )
 
 
@@ -120,7 +192,7 @@ def _row_to_stored(row: Any) -> StoredCredential:
         tenant_id=row[1],
         provider=row[2],
         purpose=row[3],
-        encrypted_key=bytes(row[4]),
+        ciphertext_blob=bytes(row[4]),
         nonce=bytes(row[5]),
         auth_tag=bytes(row[6]),
         key_version=row[7],
@@ -138,6 +210,9 @@ def _row_to_stored(row: Any) -> StoredCredential:
         created_by=row[19],
         updated_at=row[20],
         role_cost_limits=row[21] if len(row) > 21 else None,
+        # Migration 028 sets the column with NOT NULL DEFAULT 'local',
+        # so older test fixtures inserting fewer columns still resolve.
+        backend=(row[22] if len(row) > 22 else "local"),
     )
 
 
@@ -283,14 +358,20 @@ class CredentialStore:
         default_model: str | None,
         default_embed_model: str | None,
         created_by: str,
+        backend: str = "local",
     ) -> str | None:
         """Insert or replace the credential for ``(tenant_id, provider, purpose)``.
 
         On conflict on the unique triple, the existing row is updated:
-        ciphertext + fingerprint + base_url + default_model are replaced,
-        ``status`` is reset to ``active`` (so a previously-revoked key slot
-        is re-activated by the new value), and ``role_models`` is left
-        intact (PATCH endpoint owns it).
+        ciphertext + fingerprint + base_url + default_model + backend are
+        replaced, ``status`` is reset to ``active`` (so a previously-
+        revoked key slot is re-activated by the new value), and
+        ``role_models`` is left intact (PATCH endpoint owns it).
+
+        ``encrypted_key`` is the historical kw arg name; it is the bytes
+        that go into the ``ciphertext_blob`` column post-migration-028.
+        Local backend rows fill ``nonce``/``auth_tag`` with real bytes;
+        Vault backend rows pass ``b""`` for both.
 
         Returns the row id of the new or updated record, or ``None`` if
         ``engine`` is unset.
@@ -314,25 +395,26 @@ class CredentialStore:
             "dm": default_model,
             "dem": default_embed_model,
             "cb": created_by,
+            "be": backend,
         }
         with self._engine.begin() as conn:
             row = conn.execute(
                 text("""
                     INSERT INTO tenant_credentials (
                         tenant_id, provider, purpose,
-                        encrypted_key, nonce, auth_tag,
+                        ciphertext_blob, nonce, auth_tag,
                         key_version, key_fingerprint,
                         base_url, default_model, default_embed_model,
-                        status, created_by
+                        status, created_by, backend
                     ) VALUES (
                         :tid, :prov, :purp,
                         :ek, :nonce, :tag,
                         :kv, :fp,
                         :burl, :dm, :dem,
-                        'active', :cb
+                        'active', :cb, :be
                     )
                     ON CONFLICT (tenant_id, provider, purpose) DO UPDATE SET
-                        encrypted_key = EXCLUDED.encrypted_key,
+                        ciphertext_blob = EXCLUDED.ciphertext_blob,
                         nonce = EXCLUDED.nonce,
                         auth_tag = EXCLUDED.auth_tag,
                         key_version = EXCLUDED.key_version,
@@ -340,6 +422,7 @@ class CredentialStore:
                         base_url = EXCLUDED.base_url,
                         default_model = EXCLUDED.default_model,
                         default_embed_model = EXCLUDED.default_embed_model,
+                        backend = EXCLUDED.backend,
                         status = 'active',
                         last_validation_error = NULL,
                         updated_at = now()

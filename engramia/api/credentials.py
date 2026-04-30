@@ -82,6 +82,10 @@ def _byok_components(request: Request) -> tuple[CredentialStore, CredentialResol
     ``ENGRAMIA_BYOK_ENABLED=true``. When disabled, every credential
     endpoint returns 503 — the dashboard knows to hide the LLM-Providers
     section in that case via the same flag exposed at /v1/version.
+
+    The ``cipher`` element is back-compat only — populated for the local
+    backend, ``None`` for vault. New code should use :func:`_byok_backend`
+    instead, which returns the unified :class:`CredentialBackend` interface.
     """
     state = request.app.state
     store: CredentialStore | None = getattr(state, "credential_store", None)
@@ -95,11 +99,31 @@ def _byok_components(request: Request) -> tuple[CredentialStore, CredentialResol
                 "detail": (
                     "BYOK is not enabled on this Engramia instance. "
                     "Set ENGRAMIA_BYOK_ENABLED=true and provide "
-                    "ENGRAMIA_CREDENTIALS_KEY to enable per-tenant credentials."
+                    "ENGRAMIA_CREDENTIALS_KEY (local backend) or "
+                    "ENGRAMIA_VAULT_* (vault backend) to enable "
+                    "per-tenant credentials."
                 ),
             },
         )
     return store, resolver, cipher
+
+
+def _byok_backend(request: Request):  # type: ignore[no-untyped-def]
+    """Return the configured :class:`CredentialBackend` or fail with 503.
+
+    Backend-agnostic alternative to :func:`_byok_components` for callers
+    that only need to encrypt / decrypt (POST + revalidation handlers).
+    """
+    backend = getattr(request.app.state, "credential_backend", None)
+    if backend is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error_code": ErrorCode.BYOK_NOT_ENABLED,
+                "detail": "Credential backend not configured.",
+            },
+        )
+    return backend
 
 
 def _to_public_view(row: StoredCredential) -> CredentialPublicView:
@@ -333,18 +357,10 @@ def create_credential(
     On success, the LRU cache for this tenant is invalidated so the next
     /v1/evaluate request observes the new key without TTL delay.
     """
-    store, resolver, cipher = _byok_components(request)
-    if cipher is None:
-        # Defensive — _byok_components only returns when store+resolver are
-        # set, but cipher could in principle be None if BYOK is configured
-        # in resolver-only mode (used in tests). Reject create.
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "error_code": ErrorCode.BYOK_NOT_ENABLED,
-                "detail": "Credential cipher not configured (master key missing).",
-            },
-        )
+    store, resolver, _cipher = _byok_components(request)
+    # Backend is checked by _byok_backend() further down (used at encrypt
+    # time). The legacy ``cipher`` is back-compat only — vault rows skip
+    # it entirely.
 
     tenant_id = (auth_ctx.tenant_id if auth_ctx else None) or get_scope().tenant_id
     creator_id = (auth_ctx.key_id if auth_ctx else None) or "system"
@@ -381,24 +397,32 @@ def create_credential(
             },
         )
 
-    # Encrypt with AAD bound to the (tenant, provider, purpose) triple.
-    aad = f"{tenant_id}:{body.provider}:{body.purpose}".encode()
-    encrypted_key, nonce, auth_tag = cipher.encrypt(plaintext, aad)
+    # Encrypt via the configured backend (local AES-GCM or Vault Transit).
+    # Both bind the ciphertext to the (tenant, provider, purpose) triple
+    # for row-substitution defence.
+    backend = _byok_backend(request)
+    blob = backend.encrypt(
+        tenant_id=tenant_id,
+        provider=body.provider,
+        purpose=body.purpose,
+        plaintext=plaintext,
+    )
 
     # Persist via UPSERT.
     row_id = store.upsert(
         tenant_id=tenant_id,
         provider=body.provider,
         purpose=body.purpose,
-        encrypted_key=encrypted_key,
-        nonce=nonce,
-        auth_tag=auth_tag,
-        key_version=cipher.key_version,
+        encrypted_key=blob.ciphertext,
+        nonce=blob.nonce,
+        auth_tag=blob.auth_tag,
+        key_version=blob.key_version,
         key_fingerprint=fingerprint,
         base_url=body.base_url,
         default_model=body.default_model,
         default_embed_model=body.default_embed_model,
         created_by=creator_id,
+        backend=backend.backend_id,
     )
     if row_id is None:
         raise HTTPException(
@@ -959,15 +983,10 @@ def validate_existing_credential(
     Rate-limited at 1/min per tenant (TODO once a per-route limiter is
     available; for now the global per-key limiter applies).
     """
-    store, resolver, cipher = _byok_components(request)
-    if cipher is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "error_code": ErrorCode.BYOK_NOT_ENABLED,
-                "detail": "Credential cipher not configured.",
-            },
-        )
+    store, resolver, _cipher = _byok_components(request)
+    # Surface 503 fast if no backend wired (vault outage / misconfig);
+    # actual decryption uses ``row.backend`` dispatch via the resolver.
+    _byok_backend(request)
 
     tenant_id = (auth_ctx.tenant_id if auth_ctx else None) or get_scope().tenant_id
     row = store.get_by_id(tenant_id, credential_id)
@@ -977,9 +996,35 @@ def validate_existing_credential(
             detail={"error_code": ErrorCode.CREDENTIAL_NOT_FOUND, "detail": "Credential not found."},
         )
 
-    aad = f"{row.tenant_id}:{row.provider}:{row.purpose}".encode()
+    # Dispatch decryption to the row's configured backend — the resolver
+    # holds the per-row backend map (see resolver._decrypt). For
+    # revalidation we don't go through the cache; we want the freshest
+    # decrypt result.
+    from engramia.credentials.backend import EncryptedBlob
+
+    blob = EncryptedBlob(
+        ciphertext=row.ciphertext_blob,
+        nonce=row.nonce,
+        auth_tag=row.auth_tag,
+        key_version=row.key_version,
+    )
+    row_backend = resolver._backends.get(row.backend)  # type: ignore[attr-defined]
+    if row_backend is None:
+        store.mark_invalid(credential_id, f"Backend {row.backend!r} not configured")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": ErrorCode.INTERNAL_ERROR,
+                "detail": f"Backend {row.backend!r} not configured on this instance.",
+            },
+        )
     try:
-        plaintext = cipher.decrypt(row.encrypted_key, row.nonce, row.auth_tag, aad)
+        plaintext = row_backend.decrypt(
+            tenant_id=row.tenant_id,
+            provider=row.provider,
+            purpose=row.purpose,
+            blob=blob,
+        )
     except Exception:
         store.mark_invalid(credential_id, "Decryption failed")
         raise HTTPException(
@@ -1004,7 +1049,7 @@ def validate_existing_credential(
                 tenant_id=row.tenant_id,
                 provider=row.provider,
                 purpose=row.purpose,
-                encrypted_key=row.encrypted_key,
+                encrypted_key=row.ciphertext_blob,
                 nonce=row.nonce,
                 auth_tag=row.auth_tag,
                 key_version=row.key_version,
@@ -1013,6 +1058,7 @@ def validate_existing_credential(
                 default_model=row.default_model,
                 default_embed_model=row.default_embed_model,
                 created_by="system_revalidate",
+                backend=row.backend,
             )
             resolver.invalidate(tenant_id)
     else:

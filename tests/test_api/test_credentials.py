@@ -59,6 +59,7 @@ class _FakeStore(CredentialStore):
         default_model: str | None,
         default_embed_model: str | None,
         created_by: str,
+        backend: str = "local",
     ) -> str | None:
         # Look for existing (tenant, provider, purpose) row
         for rid in self._tenant_index[tenant_id]:
@@ -272,10 +273,17 @@ def app_with_byok(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Any:
     app = create_app()
     cipher = AESGCMCipher(_TEST_KEY)
     store = _FakeStore()
-    resolver = CredentialResolver(store=store, cipher=cipher)
+    # Phase 6.6 #6: backends dispatch. The cipher kw arg is back-compat;
+    # the resolver wraps it into a LocalAESGCMBackend internally. We also
+    # set ``app.state.credential_backend`` for the credentials route
+    # handlers that read it directly (encrypt + revalidate).
+    from engramia.credentials.backends.local import LocalAESGCMBackend
+    backend = LocalAESGCMBackend(cipher)
+    resolver = CredentialResolver(store=store, backends={backend.backend_id: backend})
     app.state.credential_store = store
     app.state.credential_resolver = resolver
     app.state.credential_cipher = cipher
+    app.state.credential_backend = backend
     return app
 
 

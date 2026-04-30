@@ -57,6 +57,12 @@ app.add_typer(cleanup_app)
 cloud_app = typer.Typer(name="cloud", help="Cloud admin: manual tenant onboarding.")
 app.add_typer(cloud_app)
 
+credentials_app = typer.Typer(
+    name="credentials",
+    help="BYOK credential subsystem operations (Phase 6.6).",
+)
+app.add_typer(credentials_app)
+
 console = Console()
 
 
@@ -1215,6 +1221,171 @@ def cloud_list_accounts(
             f"  {email:<40} tenant={tenant_id:<24} plan={plan_tier:<10} created={created_at} last_login={last}"
         )
     console.print(f"\n[dim]{len(rows)} account(s)[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Credentials backend migration (Phase 6.6 #6)
+# ---------------------------------------------------------------------------
+
+
+@credentials_app.command("migrate-to-vault")
+def credentials_migrate_to_vault(
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be migrated without writing back."
+    ),
+    tenant: str | None = typer.Option(
+        None, "--tenant", help="Limit migration to one tenant id (default: all)."
+    ),
+    batch_size: int = typer.Option(
+        100, "--batch-size", min=1, max=1000, help="Rows per checkpoint."
+    ),
+    continue_from: str | None = typer.Option(
+        None, "--continue-from", help="Resume from a specific row id (after a crashed run)."
+    ),
+    reverse: bool = typer.Option(
+        False, "--reverse", help="Migrate vault → local instead (rollback path).",
+    ),
+) -> None:
+    """Bulk migrate ``tenant_credentials`` rows between backends.
+
+    Default direction is ``local → vault``: reads each row whose
+    ``backend = 'local'``, decrypts via the local AES-GCM backend
+    (operator must still hold ``ENGRAMIA_CREDENTIALS_KEY`` at migration
+    time), re-encrypts via the configured Vault backend, and writes the
+    new ciphertext back with ``backend = 'vault'``.
+
+    With ``--reverse``: ``vault → local``. Useful for rollback after a
+    failed Vault rollout.
+
+    The script is idempotent: rows already at the destination backend
+    are skipped (the WHERE clause filters by source backend). A crashed
+    run can be resumed with ``--continue-from <last_id>``.
+
+    Required env:
+        ENGRAMIA_DATABASE_URL — DB connection.
+        ENGRAMIA_CREDENTIALS_KEY — local backend (always; even on reverse,
+            we re-encrypt to local).
+        ENGRAMIA_VAULT_* — vault backend env vars (always; same reason).
+    """
+    engine = _make_db_engine()
+
+    # Build BOTH backends — migration needs source AND destination
+    # available simultaneously regardless of direction.
+    from engramia.credentials.backends.local import LocalAESGCMBackend
+    from engramia.credentials.backends.vault import VaultTransitBackend
+
+    try:
+        local = LocalAESGCMBackend.from_env()
+    except Exception as exc:
+        console.print(f"[red]Local backend init failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    try:
+        vault = VaultTransitBackend.from_env(dict(os.environ))
+    except Exception as exc:
+        console.print(f"[red]Vault backend init failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    src_backend, dst_backend = (vault, local) if reverse else (local, vault)
+    src_id, dst_id = src_backend.backend_id, dst_backend.backend_id
+
+    from sqlalchemy import text
+
+    from engramia.credentials.backend import EncryptedBlob
+
+    direction_label = f"{src_id} → {dst_id}"
+    console.print(f"[bold]Credential backend migration:[/bold] {direction_label}")
+    if dry_run:
+        console.print("[yellow]DRY RUN[/yellow] — no rows will be written.")
+
+    # Read rows in batches keyed by id (stable ordering, resumable).
+    where = "backend = :src"
+    params: dict[str, object] = {"src": src_id}
+    if tenant is not None:
+        where += " AND tenant_id = :tid"
+        params["tid"] = tenant
+    if continue_from is not None:
+        where += " AND id > :cf"
+        params["cf"] = continue_from
+
+    select_sql = (
+        "SELECT id, tenant_id, provider, purpose, ciphertext_blob, nonce, auth_tag, "
+        "key_version FROM tenant_credentials "
+        f"WHERE {where} ORDER BY id ASC LIMIT :lim"
+    )
+    update_sql = (
+        "UPDATE tenant_credentials SET "
+        "ciphertext_blob = :blob, nonce = :nonce, auth_tag = :tag, "
+        "key_version = :kv, backend = :be, updated_at = now() "
+        "WHERE id = :id"
+    )
+
+    migrated = 0
+    skipped = 0
+    last_id = continue_from
+    while True:
+        with engine.connect() as conn:
+            params["lim"] = batch_size
+            if last_id is not None:
+                params["cf"] = last_id
+            rows = conn.execute(text(select_sql), params).fetchall()
+
+        if not rows:
+            break
+
+        for row in rows:
+            row_id, tenant_id, provider, purpose, ct_blob, nonce, auth_tag, key_version = row
+            src_blob = EncryptedBlob(
+                ciphertext=bytes(ct_blob),
+                nonce=bytes(nonce),
+                auth_tag=bytes(auth_tag),
+                key_version=key_version,
+            )
+            try:
+                plaintext = src_backend.decrypt(
+                    tenant_id=tenant_id, provider=provider, purpose=purpose, blob=src_blob
+                )
+            except Exception as exc:
+                console.print(
+                    f"[red]decrypt failed[/red] row={row_id} tenant={tenant_id}: {exc}"
+                )
+                skipped += 1
+                last_id = row_id
+                continue
+
+            dst_blob = dst_backend.encrypt(
+                tenant_id=tenant_id, provider=provider, purpose=purpose, plaintext=plaintext
+            )
+
+            if not dry_run:
+                with engine.begin() as conn:
+                    conn.execute(
+                        text(update_sql),
+                        {
+                            "id": row_id,
+                            "blob": dst_blob.ciphertext,
+                            "nonce": dst_blob.nonce,
+                            "tag": dst_blob.auth_tag,
+                            "kv": dst_blob.key_version,
+                            "be": dst_id,
+                        },
+                    )
+            migrated += 1
+            last_id = row_id
+
+        console.print(
+            f"[dim]checkpoint[/dim] migrated={migrated} skipped={skipped} last_id={last_id}"
+        )
+
+    console.print(
+        f"[green]done[/green] migrated={migrated} skipped={skipped} direction={direction_label}"
+    )
+    if skipped:
+        console.print(
+            "[yellow]Some rows could not be decrypted (likely tampered or "
+            "wrong key). They remain on the source backend; investigate or "
+            "mark them invalid manually.[/yellow]"
+        )
 
 
 # ---------------------------------------------------------------------------

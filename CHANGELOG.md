@@ -9,6 +9,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Added — Phase 6.6 #6 HashiCorp Vault Transit credential backend
+
+Alternative to the local AES-256-GCM credential backend for Enterprise
+deployments where compliance auditors require master-key separation
+(SOC2 / HIPAA / regulated finance). Master key never leaves Vault;
+every encrypt and decrypt is logged in Vault's audit backend; rotation
+is a single Vault operation with no Engramia-side data migration.
+
+- **`engramia/credentials/backend.py`** — new module with the
+  `CredentialBackend` Protocol and `EncryptedBlob` dataclass. The
+  Protocol takes `tenant_id`/`provider`/`purpose` plus plaintext or
+  blob; AAD-equivalent shape (row-substitution defence) is the
+  responsibility of each implementation.
+- **`engramia/credentials/backends/`** — new package: `local.py`
+  (`LocalAESGCMBackend`, identity-preserving wrapper around the
+  existing `AESGCMCipher`), `vault.py` (`VaultTransitBackend` using
+  Vault Transit `derived: true` keys with per-row `context` for the
+  same row-substitution defence), `vault_client.py` (hvac wrapper
+  with AppRole login at startup, half-TTL token renewal, auto
+  re-login on 403), and `__init__.py` (`make_backend_from_env`
+  factory dispatching on `ENGRAMIA_CREDENTIALS_BACKEND`).
+- **`engramia/credentials/store.py`** — `StoredCredential` gains a
+  `backend` field (default `'local'`) and renames `encrypted_key` to
+  `ciphertext_blob`. Back-compat preserved: the constructor accepts
+  either name, and a `.encrypted_key` property still reads the bytes.
+  `upsert()` accepts a new `backend=` kw arg.
+- **`engramia/credentials/resolver.py`** — per-row backend dispatch
+  via `_backends[row.backend]`. Handles `VaultBackendError` by
+  returning `None` without marking the row invalid (the credential
+  is fine; the infrastructure isn't), so a Vault recovery does not
+  require any operator action. `DecryptionError` still marks rows
+  invalid (real tampering signal).
+- **`engramia/api/app.py`** — `_setup_byok` now uses the backend
+  factory; sets `app.state.credential_backend`. `app.state.credential_cipher`
+  remains populated for the local backend (back-compat for callers
+  that still read it directly).
+- **`engramia/api/credentials.py`** — POST and revalidation handlers
+  encrypt/decrypt via the backend (no longer call `cipher.encrypt`
+  / `cipher.decrypt` directly). New `_byok_backend(request)` helper
+  returns 503 fast when the backend isn't wired.
+- **`engramia/cli/main.py`** — new Typer subcommand
+  `engramia credentials migrate-to-vault` for the bulk re-encryption
+  migration. Supports `--dry-run`, `--continue-from <id>` (resume
+  after crash), `--reverse` (vault → local rollback), `--tenant <id>`
+  (one-tenant migration), and `--batch-size`.
+- **`engramia/exceptions.py`** — new `VaultBackendError` distinct
+  from `DecryptionError` so audit logs can tell "Vault is down" from
+  "row is corrupt".
+- **Migration `028_credential_backend`** — renames `encrypted_key →
+  ciphertext_blob` and adds `backend TEXT NOT NULL DEFAULT 'local'`.
+  Both operations are metadata-only on PostgreSQL ≥11 (no row
+  rewrite, no downtime).
+- **`pyproject.toml`** — new optional extra `vault = ["hvac>=2.3,<3"]`.
+  Self-hosters under BSL do not need to install hvac unless they
+  switch to the Vault backend.
+- **Docs**: `Core/docs/byok/vault.md` (operator setup runbook with
+  Vault commands, troubleshooting matrix, migration walk-through);
+  `Core/docs/byok/index.md` updated with a link.
+- **Architecture spec**: `Ops/internal/vault-credential-backend-architecture.md`
+  (private — 13 sections, 6 ADRs, 6 risks, sequence diagrams).
+
+Tests: +23 new (`tests/test_credentials_backends.py` 13,
+`tests/test_credentials_vault_backend.py` 10 with mocked Vault client).
+Existing 3× sibling test fixtures (`test_credentials_role_models`,
+`test_credentials_failover_chain`, `test_credentials_role_cost_limits`)
+updated to inject `app.state.credential_backend`. Full suite: 766
+passed, 1 skipped.
+
+Env vars (all optional with sane defaults):
+- `ENGRAMIA_CREDENTIALS_BACKEND` (default `local`; `vault` opts in)
+- `ENGRAMIA_VAULT_ADDR` / `_ROLE_ID` / `_SECRET_ID` (required for vault)
+- `ENGRAMIA_VAULT_NAMESPACE` (Vault Enterprise; optional)
+- `ENGRAMIA_VAULT_TRANSIT_PATH` / `_TRANSIT_KEY` (default `transit` / `engramia`)
+- `ENGRAMIA_VAULT_TLS_VERIFY` / `_CA_CERT` / `_REQUEST_TIMEOUT`
+
+Operator migration path: `engramia credentials migrate-to-vault
+--dry-run` then real run. Online by default; pre-customer phase has
+zero rows to migrate, so the script is also the regression test for
+the full encryption round-trip.
+
 ### Added — Phase 6.6 #1 Hosted MCP server (Streamable HTTP transport)
 
 Engramia Cloud now exposes its MCP tools over HTTP at `/v1/mcp` so MCP

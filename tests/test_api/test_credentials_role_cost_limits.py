@@ -64,10 +64,13 @@ def app_with_byok_billing(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Any:
     app = create_app()
     cipher = AESGCMCipher(_TEST_KEY)
     store = _FakeStore()
-    resolver = CredentialResolver(store=store, cipher=cipher)
+    from engramia.credentials.backends.local import LocalAESGCMBackend
+    backend = LocalAESGCMBackend(cipher)
+    resolver = CredentialResolver(store=store, backends={backend.backend_id: backend})
     app.state.credential_store = store
     app.state.credential_resolver = resolver
     app.state.credential_cipher = cipher
+    app.state.credential_backend = backend
     app.state.billing_service = _StubBilling(tier="business")
     return app
 

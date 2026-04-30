@@ -14,8 +14,9 @@ Hierarchy::
     ├── QuotaExceededError  — Quota reached
     ├── AuthorizationError  — Operation not permitted for role
     └── CredentialsError    — Credential storage / encryption failures
-        ├── MasterKeyError      — Master encryption key missing or invalid
-        └── DecryptionError     — Ciphertext decryption failed (tampered or wrong key)
+        ├── MasterKeyError       — Master encryption key missing or invalid
+        ├── DecryptionError      — Ciphertext decryption failed (tampered or wrong key)
+        └── VaultBackendError    — Vault Transit backend unreachable / auth failed
 """
 
 
@@ -81,4 +82,17 @@ class DecryptionError(CredentialsError):
     Logged at WARNING level by ``CredentialResolver`` so security alerts can
     fire on suspected tampering. The plaintext is *not* recoverable by retry —
     the row is marked invalid and the tenant must re-enter the credential.
+    """
+
+
+class VaultBackendError(CredentialsError):
+    """Raised when the Vault Transit backend cannot complete a request.
+
+    Specifically used by ``VaultTransitBackend`` for transport errors,
+    authentication failures, and 5xx responses from the Vault server.
+    Distinct from :class:`DecryptionError` because the failure mode is
+    *infrastructure* (Vault unreachable, token expired, network) rather
+    than *integrity* (wrong key, tampered blob). The resolver maps both
+    to ``None`` for the caller, but the audit log distinguishes them so
+    operators can tell "row is corrupt" from "Vault is down".
     """

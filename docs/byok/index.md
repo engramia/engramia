@@ -74,6 +74,11 @@ Two BYOK extensions are gated to the Business and Enterprise plans:
 - [**Per-role cost ceiling**](cost-ceiling.md) — monthly $ cap per role
   override; on reach, falls back to `default_model` (no 429). Safety
   net against bill-shock from misconfigured role mappings.
+- [**Vault Transit credential backend**](vault.md) — replace the local
+  AES-GCM master key with a HashiCorp Vault Transit key. Master key
+  never leaves Vault; every decrypt is logged in Vault's audit
+  backend. Required by SOC2 / HIPAA / regulated finance buyers; opt-in
+  via `ENGRAMIA_CREDENTIALS_BACKEND=vault`.
 
 Both are edited via dedicated `PATCH /v1/credentials/{id}/role-models`
 and `PATCH /v1/credentials/{id}/failover-chain` endpoints. They share

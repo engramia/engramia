@@ -380,20 +380,28 @@ def _register_exception_handlers(app: FastAPI) -> None:
 
 
 def _setup_byok(app: FastAPI, engine):
-    """Wire credential store + resolver + cipher onto ``app.state`` when
+    """Wire credential store + resolver + backend onto ``app.state`` when
     ``ENGRAMIA_BYOK_ENABLED=true``. Returns the resolver (or None when
     disabled) so the caller can pass it to ``make_llm`` / ``make_embeddings``.
 
     The flag is checked at startup, not per-request: flipping it on a
     running process requires a restart so credentials load consistently.
+
+    Backend selection (Phase 6.6 #6) happens via
+    ``ENGRAMIA_CREDENTIALS_BACKEND`` (default ``local``). The factory
+    returns either :class:`LocalAESGCMBackend` (master key in env) or
+    :class:`VaultTransitBackend` (master key in HashiCorp Vault). Both
+    satisfy :class:`CredentialBackend` so the resolver is backend-agnostic.
     """
-    from engramia.credentials import AESGCMCipher, CredentialResolver, CredentialStore
+    from engramia.credentials import CredentialResolver, CredentialStore
+    from engramia.credentials.backends import make_backend_from_env
 
     enabled = os.environ.get("ENGRAMIA_BYOK_ENABLED", "false").lower() in {"true", "1", "yes"}
     if not enabled:
         app.state.credential_store = None
         app.state.credential_resolver = None
         app.state.credential_cipher = None
+        app.state.credential_backend = None
         _log.info("BYOK disabled (ENGRAMIA_BYOK_ENABLED=false). Self-hosted env-var auth path active.")
         return None
 
@@ -406,18 +414,28 @@ def _setup_byok(app: FastAPI, engine):
             "Set ENGRAMIA_DATABASE_URL or disable BYOK."
         )
     try:
-        cipher = AESGCMCipher.from_env()
+        backend = make_backend_from_env()
     except Exception as exc:
         raise RuntimeError(
-            f"BYOK enabled but master key load failed: {exc}. "
-            "Set ENGRAMIA_CREDENTIALS_KEY (base64-encoded 32 bytes) in the environment."
+            f"BYOK enabled but credential backend init failed: {exc}. "
+            "For local backend: set ENGRAMIA_CREDENTIALS_KEY (base64 32 B). "
+            "For vault backend: set ENGRAMIA_VAULT_ADDR/ROLE_ID/SECRET_ID and "
+            "install engramia[vault]."
         ) from exc
 
     store = CredentialStore(engine)
-    resolver = CredentialResolver(store=store, cipher=cipher)
+    resolver = CredentialResolver(store=store, backends={backend.backend_id: backend})
     app.state.credential_store = store
     app.state.credential_resolver = resolver
-    app.state.credential_cipher = cipher
+    app.state.credential_backend = backend
+    # Back-compat: existing callers still read ``app.state.credential_cipher``
+    # for the AESGCMCipher (used by api/credentials.py write paths). Local
+    # backend exposes its underlying cipher; vault backend has no cipher
+    # equivalent — the create endpoint will detect this and route through
+    # the backend instead.
+    app.state.credential_cipher = (
+        backend._cipher if backend.backend_id == "local" else None  # type: ignore[attr-defined]
+    )
 
     # Phase 6.6 #2b: per-role cost ceiling. The role_meter shares the
     # same engine as the rest of the BYOK subsystem; both must succeed
