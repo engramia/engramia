@@ -97,9 +97,7 @@ class SessionMetadata(TypedDict):
 # Contextvar handshake between FastAPI request handler and SDK lifespan.
 # ---------------------------------------------------------------------------
 
-_PENDING_SESSION_INIT: ContextVar[SessionInit | None] = ContextVar(
-    "engramia_mcp_pending_session_init", default=None
-)
+_PENDING_SESSION_INIT: ContextVar[SessionInit | None] = ContextVar("engramia_mcp_pending_session_init", default=None)
 
 
 def stash_pending_init(init: SessionInit) -> object:
@@ -160,8 +158,7 @@ def build_lifespan(audit_log_event):  # type: ignore[no-untyped-def]
             # robustness: yield a sentinel session with no auth so any tool
             # call inside this session fails closed.
             _log.error(
-                "MCP lifespan started without SessionInit in contextvar — "
-                "this is a bug; failing the session closed."
+                "MCP lifespan started without SessionInit in contextvar — this is a bug; failing the session closed."
             )
             raise RuntimeError("MCP session started without authentication context")
 
@@ -203,9 +200,7 @@ def build_lifespan(audit_log_event):  # type: ignore[no-untyped-def]
                     detail={
                         "plan_tier": init.auth.plan_tier,
                         "tool_calls": meta["tool_calls"],
-                        "duration_seconds": (
-                            datetime.now(tz=UTC) - init.opened_at
-                        ).total_seconds(),
+                        "duration_seconds": (datetime.now(tz=UTC) - init.opened_at).total_seconds(),
                     },
                 )
             except Exception:  # pragma: no cover

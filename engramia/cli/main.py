@@ -1132,10 +1132,7 @@ def cloud_create_account(
     # caught up to the rename, but log a deprecation hint.
     valid_plans = {"developer", "pro", "team", "business", "enterprise", "sandbox"}
     if plan not in valid_plans:
-        console.print(
-            f"[red]Invalid plan tier:[/red] {plan!r} "
-            "(expected developer|pro|team|business|enterprise)"
-        )
+        console.print(f"[red]Invalid plan tier:[/red] {plan!r} (expected developer|pro|team|business|enterprise)")
         raise typer.Exit(1)
     if plan == "sandbox":
         console.print("[yellow]Note:[/yellow] 'sandbox' is deprecated — using 'developer' instead.")
@@ -1230,20 +1227,16 @@ def cloud_list_accounts(
 
 @credentials_app.command("migrate-to-vault")
 def credentials_migrate_to_vault(
-    dry_run: bool = typer.Option(
-        False, "--dry-run", help="Show what would be migrated without writing back."
-    ),
-    tenant: str | None = typer.Option(
-        None, "--tenant", help="Limit migration to one tenant id (default: all)."
-    ),
-    batch_size: int = typer.Option(
-        100, "--batch-size", min=1, max=1000, help="Rows per checkpoint."
-    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be migrated without writing back."),
+    tenant: str | None = typer.Option(None, "--tenant", help="Limit migration to one tenant id (default: all)."),
+    batch_size: int = typer.Option(100, "--batch-size", min=1, max=1000, help="Rows per checkpoint."),
     continue_from: str | None = typer.Option(
         None, "--continue-from", help="Resume from a specific row id (after a crashed run)."
     ),
     reverse: bool = typer.Option(
-        False, "--reverse", help="Migrate vault → local instead (rollback path).",
+        False,
+        "--reverse",
+        help="Migrate vault → local instead (rollback path).",
     ),
 ) -> None:
     """Bulk migrate ``tenant_credentials`` rows between backends.
@@ -1342,20 +1335,14 @@ def credentials_migrate_to_vault(
                 key_version=key_version,
             )
             try:
-                plaintext = src_backend.decrypt(
-                    tenant_id=tenant_id, provider=provider, purpose=purpose, blob=src_blob
-                )
+                plaintext = src_backend.decrypt(tenant_id=tenant_id, provider=provider, purpose=purpose, blob=src_blob)
             except Exception as exc:
-                console.print(
-                    f"[red]decrypt failed[/red] row={row_id} tenant={tenant_id}: {exc}"
-                )
+                console.print(f"[red]decrypt failed[/red] row={row_id} tenant={tenant_id}: {exc}")
                 skipped += 1
                 last_id = row_id
                 continue
 
-            dst_blob = dst_backend.encrypt(
-                tenant_id=tenant_id, provider=provider, purpose=purpose, plaintext=plaintext
-            )
+            dst_blob = dst_backend.encrypt(tenant_id=tenant_id, provider=provider, purpose=purpose, plaintext=plaintext)
 
             if not dry_run:
                 with engine.begin() as conn:
@@ -1373,13 +1360,9 @@ def credentials_migrate_to_vault(
             migrated += 1
             last_id = row_id
 
-        console.print(
-            f"[dim]checkpoint[/dim] migrated={migrated} skipped={skipped} last_id={last_id}"
-        )
+        console.print(f"[dim]checkpoint[/dim] migrated={migrated} skipped={skipped} last_id={last_id}")
 
-    console.print(
-        f"[green]done[/green] migrated={migrated} skipped={skipped} direction={direction_label}"
-    )
+    console.print(f"[green]done[/green] migrated={migrated} skipped={skipped} direction={direction_label}")
     if skipped:
         console.print(
             "[yellow]Some rows could not be decrypted (likely tampered or "

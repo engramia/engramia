@@ -114,10 +114,7 @@ _TOOL_RECALL = types.Tool(
 
 _TOOL_EVALUATE = types.Tool(
     name="engramia_evaluate",
-    description=(
-        "Run N independent LLM evaluations on an agent run and return median "
-        "score, variance, and feedback."
-    ),
+    description=("Run N independent LLM evaluations on an agent run and return median score, variance, and feedback."),
     inputSchema={
         "type": "object",
         "properties": {
@@ -215,9 +212,7 @@ _TOOL_EVOLVE = types.Tool(
 
 _TOOL_ANALYZE_FAILURES = types.Tool(
     name="engramia_analyze_failures",
-    description=(
-        "Cluster recurring failure feedback into systemic issues with counts and example feedback strings."
-    ),
+    description=("Cluster recurring failure feedback into systemic issues with counts and example feedback strings."),
     inputSchema={
         "type": "object",
         "properties": {
@@ -274,15 +269,15 @@ class ToolEntry:
 
 
 ALL_TOOLS: list[ToolEntry] = [
-    ToolEntry("engramia_learn",             _TOOL_LEARN,            "learn",            "team",     "patterns"),
-    ToolEntry("engramia_recall",            _TOOL_RECALL,           "recall",           "team",     "none"),
-    ToolEntry("engramia_evaluate",          _TOOL_EVALUATE,         "evaluate",         "team",     "eval_runs"),
-    ToolEntry("engramia_feedback",          _TOOL_FEEDBACK,         "feedback:read",    "team",     "none"),
-    ToolEntry("engramia_metrics",           _TOOL_METRICS,          "metrics",          "team",     "none"),
-    ToolEntry("engramia_aging",             _TOOL_AGING,            "aging",            "team",     "none"),
-    ToolEntry("engramia_compose",           _TOOL_COMPOSE,          "compose",          "business", "none"),
-    ToolEntry("engramia_evolve",            _TOOL_EVOLVE,           "evolve",           "business", "eval_runs"),
-    ToolEntry("engramia_analyze_failures",  _TOOL_ANALYZE_FAILURES, "analyze_failures", "business", "none"),
+    ToolEntry("engramia_learn", _TOOL_LEARN, "learn", "team", "patterns"),
+    ToolEntry("engramia_recall", _TOOL_RECALL, "recall", "team", "none"),
+    ToolEntry("engramia_evaluate", _TOOL_EVALUATE, "evaluate", "team", "eval_runs"),
+    ToolEntry("engramia_feedback", _TOOL_FEEDBACK, "feedback:read", "team", "none"),
+    ToolEntry("engramia_metrics", _TOOL_METRICS, "metrics", "team", "none"),
+    ToolEntry("engramia_aging", _TOOL_AGING, "aging", "team", "none"),
+    ToolEntry("engramia_compose", _TOOL_COMPOSE, "compose", "business", "none"),
+    ToolEntry("engramia_evolve", _TOOL_EVOLVE, "evolve", "business", "eval_runs"),
+    ToolEntry("engramia_analyze_failures", _TOOL_ANALYZE_FAILURES, "analyze_failures", "business", "none"),
 ]
 
 

@@ -38,15 +38,11 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # 1. Rename existing sandbox rows.
-    op.execute(
-        "UPDATE billing_subscriptions SET plan_tier = 'developer' WHERE plan_tier = 'sandbox'"
-    )
+    op.execute("UPDATE billing_subscriptions SET plan_tier = 'developer' WHERE plan_tier = 'sandbox'")
     op.execute("UPDATE tenants SET plan_tier = 'developer' WHERE plan_tier = 'sandbox'")
 
     # 2. Update server defaults so future INSERTs land on the new name.
-    op.execute(
-        "ALTER TABLE billing_subscriptions ALTER COLUMN plan_tier SET DEFAULT 'developer'"
-    )
+    op.execute("ALTER TABLE billing_subscriptions ALTER COLUMN plan_tier SET DEFAULT 'developer'")
     op.execute("ALTER TABLE tenants ALTER COLUMN plan_tier SET DEFAULT 'developer'")
 
 
@@ -54,12 +50,8 @@ def downgrade() -> None:
     # Revert: rename developer back to sandbox + restore old defaults.
     # This is lossy if any "business" rows exist (no sandbox<->business
     # mapping); leave them on "business" and let the operator decide.
-    op.execute(
-        "ALTER TABLE billing_subscriptions ALTER COLUMN plan_tier SET DEFAULT 'sandbox'"
-    )
+    op.execute("ALTER TABLE billing_subscriptions ALTER COLUMN plan_tier SET DEFAULT 'sandbox'")
     op.execute("ALTER TABLE tenants ALTER COLUMN plan_tier SET DEFAULT 'sandbox'")
 
-    op.execute(
-        "UPDATE billing_subscriptions SET plan_tier = 'sandbox' WHERE plan_tier = 'developer'"
-    )
+    op.execute("UPDATE billing_subscriptions SET plan_tier = 'sandbox' WHERE plan_tier = 'developer'")
     op.execute("UPDATE tenants SET plan_tier = 'sandbox' WHERE plan_tier = 'developer'")

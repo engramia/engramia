@@ -76,9 +76,7 @@ class VaultTransitBackend(CredentialBackend):
         required = ("ENGRAMIA_VAULT_ADDR", "ENGRAMIA_VAULT_ROLE_ID", "ENGRAMIA_VAULT_SECRET_ID")
         missing = [k for k in required if not env.get(k, "").strip()]
         if missing:
-            raise ValueError(
-                f"Missing required env vars for vault backend: {', '.join(missing)}"
-            )
+            raise ValueError(f"Missing required env vars for vault backend: {', '.join(missing)}")
 
         verify_env = env.get("ENGRAMIA_VAULT_TLS_VERIFY", "true").strip().lower()
         ca_cert = env.get("ENGRAMIA_VAULT_CA_CERT", "").strip()

@@ -54,6 +54,7 @@ class PatchOutcome(enum.Enum):
     PRECONDITION_FAILED = "precondition_failed"  # If-Match mismatch
     NO_DB = "no_db"  # engine is None — dev/JSON storage
 
+
 _log = logging.getLogger(__name__)
 
 
@@ -136,8 +137,7 @@ class StoredCredential:
         # test fixtures and the api/credentials.py revalidation path).
         if ciphertext_blob is None and encrypted_key is None:
             raise TypeError(
-                "StoredCredential requires either 'ciphertext_blob' or "
-                "'encrypted_key' (back-compat alias)."
+                "StoredCredential requires either 'ciphertext_blob' or 'encrypted_key' (back-compat alias)."
             )
         self.id = id
         self.tenant_id = tenant_id

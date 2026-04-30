@@ -293,8 +293,7 @@ class CredentialResolver:
             # request. Indicates a misconfigured deployment (e.g. vault
             # row but engramia[vault] extra not installed).
             _log.error(
-                "UNKNOWN_BACKEND row_id=%s tenant=%s backend=%r — "
-                "marking invalid (configured backends: %s)",
+                "UNKNOWN_BACKEND row_id=%s tenant=%s backend=%r — marking invalid (configured backends: %s)",
                 row.id,
                 row.tenant_id,
                 row.backend,

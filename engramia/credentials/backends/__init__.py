@@ -91,8 +91,7 @@ def make_backend_from_env(env: dict[str, str] | None = None) -> CredentialBacken
         return VaultTransitBackend.from_env(e)
 
     raise ValueError(
-        f"Unknown ENGRAMIA_CREDENTIALS_BACKEND={backend!r}. "
-        f"Expected one of: {LOCAL_BACKEND_ID}, {VAULT_BACKEND_ID}."
+        f"Unknown ENGRAMIA_CREDENTIALS_BACKEND={backend!r}. Expected one of: {LOCAL_BACKEND_ID}, {VAULT_BACKEND_ID}."
     )
 
 

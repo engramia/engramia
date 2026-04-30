@@ -223,17 +223,13 @@ def _build_mcp_server(audit_emit) -> Server:  # type: ignore[no-untyped-def]
             scope_token = set_scope(auth.scope)
             try:
                 memory = _APP_HOLDER.app.state.memory  # type: ignore[union-attr]
-                result = await asyncio.to_thread(
-                    _dispatch_mod.dispatch_to_memory, memory, name, arguments
-                )
+                result = await asyncio.to_thread(_dispatch_mod.dispatch_to_memory, memory, name, arguments)
             finally:
                 reset_scope(scope_token)
 
             meta["tool_calls"] += 1
 
-            _metrics.MCP_TOOL_CALLS_TOTAL.labels(
-                tool=name, plan_tier=auth.plan_tier, status="ok"
-            ).inc()
+            _metrics.MCP_TOOL_CALLS_TOTAL.labels(tool=name, plan_tier=auth.plan_tier, status="ok").inc()
 
             audit_emit(
                 "mcp_tool_called",
@@ -249,9 +245,7 @@ def _build_mcp_server(audit_emit) -> Server:  # type: ignore[no-untyped-def]
             ]
 
         except TierGateError as exc:
-            _metrics.MCP_TOOL_CALLS_TOTAL.labels(
-                tool=name, plan_tier=auth.plan_tier, status="tier_blocked"
-            ).inc()
+            _metrics.MCP_TOOL_CALLS_TOTAL.labels(tool=name, plan_tier=auth.plan_tier, status="tier_blocked").inc()
             audit_emit(
                 "mcp_tool_blocked_by_tier",
                 auth=auth,
@@ -294,11 +288,7 @@ def _build_mcp_server(audit_emit) -> Server:  # type: ignore[no-untyped-def]
                 auth=auth,
                 detail={"tool": name, "status_code": exc.status_code},
             )
-            detail_str = (
-                exc.detail.get("message", str(exc.detail))
-                if isinstance(exc.detail, dict)
-                else str(exc.detail)
-            )
+            detail_str = exc.detail.get("message", str(exc.detail)) if isinstance(exc.detail, dict) else str(exc.detail)
             return [
                 mcp_types.TextContent(
                     type="text",
@@ -410,9 +400,7 @@ def _make_asgi_handler(
             try:
                 slot = await limiter.acquire(auth.tenant_id, auth.plan_tier)
             except ConnectionLimitExceeded as exc:
-                _metrics.MCP_CONNECTION_LIMIT_REJECTIONS_TOTAL.labels(
-                    plan_tier=auth.plan_tier
-                ).inc()
+                _metrics.MCP_CONNECTION_LIMIT_REJECTIONS_TOTAL.labels(plan_tier=auth.plan_tier).inc()
                 audit_emit(
                     "mcp_connection_limit_exceeded",
                     auth=auth,

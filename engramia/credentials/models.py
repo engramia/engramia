@@ -336,24 +336,19 @@ class RoleCostLimitsUpdate(BaseModel):
         if not isinstance(v, dict):
             raise ValueError("role_cost_limits must be a JSON object")
         if len(v) > _ROLE_MODELS_MAX_ENTRIES:
-            raise ValueError(
-                f"role_cost_limits supports max {_ROLE_MODELS_MAX_ENTRIES} entries (got {len(v)})"
-            )
+            raise ValueError(f"role_cost_limits supports max {_ROLE_MODELS_MAX_ENTRIES} entries (got {len(v)})")
         out: dict[str, int] = {}
         for raw_role, cents in v.items():
             if not isinstance(raw_role, str):
                 raise ValueError("role_cost_limits keys must be strings")
             role = raw_role.lower()
             if not _ROLE_NAME_RE.match(role):
-                raise ValueError(
-                    f"invalid role name: {raw_role!r} (lowercase letters/digits/underscore, 1-32 chars)"
-                )
+                raise ValueError(f"invalid role name: {raw_role!r} (lowercase letters/digits/underscore, 1-32 chars)")
             if not isinstance(cents, int) or isinstance(cents, bool):
                 raise ValueError(f"role_cost_limits[{role!r}] must be an integer (cents)")
             if cents <= 0:
                 raise ValueError(
-                    f"role_cost_limits[{role!r}] must be positive (got {cents}); "
-                    f"send {{}} to clear all ceilings"
+                    f"role_cost_limits[{role!r}] must be positive (got {cents}); send {{}} to clear all ceilings"
                 )
             if cents > _ROLE_COST_LIMIT_MAX_CENTS:
                 raise ValueError(

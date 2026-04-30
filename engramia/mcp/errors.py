@@ -39,9 +39,7 @@ class ConnectionLimitExceeded(MCPError):
     session cap (5 / 25 / 100 by tier). Mapped to HTTP 429."""
 
     def __init__(self, *, tenant_id: str, plan_tier: str, used: int, cap: int) -> None:
-        super().__init__(
-            f"Tenant connection limit reached ({used}/{cap} for {plan_tier} tier)."
-        )
+        super().__init__(f"Tenant connection limit reached ({used}/{cap} for {plan_tier} tier).")
         self.tenant_id = tenant_id
         self.plan_tier = plan_tier
         self.used = used
@@ -66,10 +64,7 @@ class ToolPermissionError(MCPError):
     """
 
     def __init__(self, *, tool: str, required_permission: str, role: str) -> None:
-        super().__init__(
-            f"Role '{role}' does not have permission '{required_permission}' "
-            f"required by tool '{tool}'."
-        )
+        super().__init__(f"Role '{role}' does not have permission '{required_permission}' required by tool '{tool}'.")
         self.tool = tool
         self.required_permission = required_permission
         self.role = role

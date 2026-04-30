@@ -78,9 +78,7 @@ class VaultClient:
         try:
             import hvac
         except ImportError as exc:  # pragma: no cover  — guarded by factory
-            raise ImportError(
-                "VaultClient requires 'hvac'. Install with: pip install 'engramia[vault]'"
-            ) from exc
+            raise ImportError("VaultClient requires 'hvac'. Install with: pip install 'engramia[vault]'") from exc
 
         self._hvac = hvac
         self._addr = addr
@@ -228,9 +226,7 @@ class VaultClient:
                 secret_id=self._secret_id,
             )
         except Exception as exc:
-            raise VaultBackendError(
-                f"AppRole login to Vault at {self._addr} failed: {exc}"
-            ) from exc
+            raise VaultBackendError(f"AppRole login to Vault at {self._addr} failed: {exc}") from exc
 
         auth = resp.get("auth") or {}
         token = auth.get("client_token")

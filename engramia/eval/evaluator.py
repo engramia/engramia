@@ -139,9 +139,7 @@ class MultiEvaluator:
         # context already matches the only tenant.
         ctx = contextvars.copy_context()
         with ThreadPoolExecutor(max_workers=self._num_evals) as executor:
-            futures = [
-                executor.submit(ctx.run, self._single_eval, prompt) for _ in range(self._num_evals)
-            ]
+            futures = [executor.submit(ctx.run, self._single_eval, prompt) for _ in range(self._num_evals)]
             for future in as_completed(futures):
                 result = future.result()
                 if result is not None:

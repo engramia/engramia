@@ -532,9 +532,7 @@ class RoleSpendCounter(Base):
     """
 
     __tablename__ = "role_spend_counters"
-    __table_args__ = (
-        Index("idx_role_spend_counters_tenant_month", "tenant_id", "month"),
-    )
+    __table_args__ = (Index("idx_role_spend_counters_tenant_month", "tenant_id", "month"),)
 
     tenant_id: Mapped[str] = mapped_column(Text, primary_key=True)
     credential_id: Mapped[str] = mapped_column(

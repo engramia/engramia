@@ -60,10 +60,7 @@ def upgrade() -> None:
     # Lookup index for "list this tenant's role spend in current month" —
     # the dashboard's per-role budget bar reads via this. Without it the
     # query falls back to a PK-prefix scan that pulls every month.
-    op.execute(
-        "CREATE INDEX idx_role_spend_counters_tenant_month "
-        "ON role_spend_counters (tenant_id, month)"
-    )
+    op.execute("CREATE INDEX idx_role_spend_counters_tenant_month ON role_spend_counters (tenant_id, month)")
 
 
 def downgrade() -> None:
