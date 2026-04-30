@@ -594,3 +594,133 @@ class TestByokDisabled:
         resp = client.get("/v1/credentials")
         assert resp.status_code == 503
         assert resp.json()["error_code"] == "BYOK_NOT_ENABLED"
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/credentials/{id}/models — Ollama discovery (Phase 6.6 #4)
+# ---------------------------------------------------------------------------
+
+
+class TestListCredentialModels:
+    """Ollama-only model discovery surface used by the dashboard's model
+    dropdowns. Hits the shared OllamaModelCache (1 h TTL) so the typical
+    refresh is a memory hit, not a network round trip.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_ollama_cache(self):
+        from engramia.providers._ollama_native import get_default_cache
+
+        get_default_cache().clear()
+        yield
+        get_default_cache().clear()
+
+    def _create_ollama_credential(self, admin_client: TestClient, mock_validation_ok) -> str:
+        """Helper: POST /v1/credentials with provider=ollama, return the id."""
+        resp = admin_client.post(
+            "/v1/credentials",
+            json={
+                "provider": "ollama",
+                "purpose": "llm",
+                "api_key": "ollama-placeholder",
+                "base_url": "http://localhost:11434/v1",
+                "default_model": "llama3.3",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        return resp.json()["id"]
+
+    def test_returns_models_for_ollama_credential(
+        self, admin_client: TestClient, mock_validation_ok
+    ) -> None:
+        from unittest.mock import patch
+
+        from engramia.providers._ollama_native import OllamaModel
+
+        cred_id = self._create_ollama_credential(admin_client, mock_validation_ok)
+
+        models = [
+            OllamaModel(name="llama3.3:latest", size_bytes=12345, param_count="70B"),
+            OllamaModel(name="qwen2.5:7b", size_bytes=6789, param_count="7B"),
+        ]
+        with patch("engramia.providers._ollama_native.list_models", return_value=models):
+            resp = admin_client.get(f"/v1/credentials/{cred_id}/models")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body["models"]) == 2
+        assert body["models"][0]["name"] == "llama3.3:latest"
+        assert body["models"][0]["param_count"] == "70B"
+        assert body["from_cache"] is False
+        assert "fetched_at" in body
+
+    def test_second_call_hits_cache(
+        self, admin_client: TestClient, mock_validation_ok
+    ) -> None:
+        from unittest.mock import patch
+
+        from engramia.providers._ollama_native import OllamaModel
+
+        cred_id = self._create_ollama_credential(admin_client, mock_validation_ok)
+
+        models = [OllamaModel(name="llama3.3:latest")]
+        with patch(
+            "engramia.providers._ollama_native.list_models", return_value=models
+        ) as mock_list:
+            admin_client.get(f"/v1/credentials/{cred_id}/models")
+            resp2 = admin_client.get(f"/v1/credentials/{cred_id}/models")
+
+        assert resp2.json()["from_cache"] is True
+        assert mock_list.call_count == 1  # second hit served from cache
+
+    def test_force_refresh_bypasses_cache(
+        self, admin_client: TestClient, mock_validation_ok
+    ) -> None:
+        from unittest.mock import patch
+
+        from engramia.providers._ollama_native import OllamaModel
+
+        cred_id = self._create_ollama_credential(admin_client, mock_validation_ok)
+
+        with patch(
+            "engramia.providers._ollama_native.list_models",
+            return_value=[OllamaModel(name="x:latest")],
+        ) as mock_list:
+            admin_client.get(f"/v1/credentials/{cred_id}/models")
+            resp2 = admin_client.get(f"/v1/credentials/{cred_id}/models?force_refresh=true")
+
+        assert resp2.json()["from_cache"] is False
+        assert mock_list.call_count == 2
+
+    def test_400_for_non_ollama_credential(
+        self, admin_client: TestClient, mock_validation_ok
+    ) -> None:
+        cred = admin_client.post(
+            "/v1/credentials",
+            json={"provider": "openai", "api_key": "sk-test-1234567890ABCDEF"},
+        ).json()
+        resp = admin_client.get(f"/v1/credentials/{cred['id']}/models")
+        assert resp.status_code == 400
+        assert "only supported for Ollama" in resp.json()["detail"]
+
+    def test_404_for_unknown_credential(self, admin_client: TestClient) -> None:
+        resp = admin_client.get("/v1/credentials/nonexistent-id/models")
+        assert resp.status_code == 404
+
+    def test_502_when_ollama_unreachable(
+        self, admin_client: TestClient, mock_validation_ok
+    ) -> None:
+        from unittest.mock import patch
+
+        import httpx
+
+        cred_id = self._create_ollama_credential(admin_client, mock_validation_ok)
+
+        with patch(
+            "engramia.providers._ollama_native.list_models",
+            side_effect=httpx.ConnectError("refused"),
+        ):
+            resp = admin_client.get(f"/v1/credentials/{cred_id}/models")
+
+        assert resp.status_code == 502
+        assert "unreachable" in resp.json()["detail"]

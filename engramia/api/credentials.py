@@ -1032,3 +1032,144 @@ def validate_existing_credential(
     refreshed = store.get_by_id(tenant_id, credential_id)
     assert refreshed is not None
     return _to_public_view(refreshed)
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/credentials/{id}/models — Ollama model discovery (Phase 6.6 #4)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{credential_id}/models",
+    dependencies=[require_permission("credentials:read")],
+)
+def list_credential_models(
+    credential_id: str,
+    request: Request,
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+    force_refresh: bool = False,
+) -> dict:
+    """Return the list of pulled models for an Ollama credential.
+
+    Phase 6.6 #4 surface for the dashboard's model dropdowns. Reads the
+    process-wide :class:`OllamaModelCache` (1 h TTL) so the typical
+    dashboard refresh is a memory hit, not a network round trip. Pass
+    ``force_refresh=true`` to bypass the cache after the operator has
+    pulled a new model on the server.
+
+    Only valid for ``provider == "ollama"``. Other providers return 400 —
+    they don't have a meaningful "list of pulled models" surface (OpenAI
+    has hundreds of variants, Anthropic likewise; tenants pick by
+    knowledge, not from a dropdown).
+
+    Response shape:
+
+    .. code-block:: json
+
+        {
+          "models": [
+            {"name": "llama3.3:latest", "size_bytes": 12345, "param_count": "70B"},
+            ...
+          ],
+          "fetched_at": "2026-04-29T15:00:00Z",
+          "from_cache": true
+        }
+
+    The ``from_cache`` flag tells the dashboard whether the response is
+    fresh or up-to-an-hour stale; UIs that want to surface "last
+    refreshed" timestamps can show the value to the user.
+    """
+    import datetime as _dt
+
+    import httpx
+
+    store, _resolver, _cipher = _byok_components(request)
+    tenant_id = (auth_ctx.tenant_id if auth_ctx else None) or get_scope().tenant_id
+
+    row = store.get_by_id(tenant_id, credential_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_code": ErrorCode.CREDENTIAL_NOT_FOUND, "detail": "Credential not found."},
+        )
+
+    if row.provider != "ollama":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": ErrorCode.VALIDATION_ERROR,
+                "detail": (
+                    f"Model listing is only supported for Ollama credentials. "
+                    f"This credential uses provider={row.provider!r}."
+                ),
+            },
+        )
+
+    if not row.base_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": ErrorCode.VALIDATION_ERROR,
+                "detail": "Ollama credential is missing base_url.",
+            },
+        )
+
+    from engramia.providers._ollama_native import (
+        get_default_cache,
+    )
+    from engramia.providers._ollama_native import (
+        list_models as _list_models,
+    )
+
+    cache = get_default_cache()
+    from_cache = False
+
+    if not force_refresh:
+        cached = cache.get(row.base_url)
+        if cached is not None:
+            models = cached
+            from_cache = True
+        else:
+            try:
+                models = _list_models(row.base_url)
+            except httpx.HTTPError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail={
+                        "error_code": ErrorCode.PROVIDER_NOT_CONFIGURED,
+                        "detail": (
+                            f"Ollama server unreachable: {exc.__class__.__name__}. "
+                            "Check that the server is up and the credential's base_url is correct."
+                        ),
+                    },
+                ) from None
+            cache.put(row.base_url, models)
+    else:
+        try:
+            models = _list_models(row.base_url)
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={
+                    "error_code": ErrorCode.PROVIDER_NOT_CONFIGURED,
+                    "detail": (
+                        f"Ollama server unreachable: {exc.__class__.__name__}. "
+                        "Check that the server is up and the credential's base_url is correct."
+                    ),
+                },
+            ) from None
+        cache.put(row.base_url, models)
+
+    return {
+        "models": [
+            {
+                "name": m.name,
+                "size_bytes": m.size_bytes,
+                "param_count": m.param_count,
+                "quantization": m.quantization,
+            }
+            for m in models
+        ],
+        "fetched_at": _dt.datetime.now(_dt.UTC).isoformat(),
+        "from_cache": from_cache,
+    }
