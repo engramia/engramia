@@ -180,9 +180,7 @@ class _FakeStore(CredentialStore):
             default_embed_model=(default_embed_model if default_embed_model is not None else row.default_embed_model),
             role_models=role_models if role_models is not None else row.role_models,
             failover_chain=failover_chain if failover_chain is not None else row.failover_chain,
-            role_cost_limits=(
-                role_cost_limits if role_cost_limits is not None else row.role_cost_limits
-            ),
+            role_cost_limits=(role_cost_limits if role_cost_limits is not None else row.role_cost_limits),
             status=row.status,
             last_used_at=row.last_used_at,
             last_validated_at=row.last_validated_at,
@@ -309,10 +307,13 @@ def mock_validation_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stub the validator so tests don't make real outbound HTTPS calls."""
     from engramia.credentials import validator
 
+    # Lambdas accept arbitrary kwargs because the validator signature
+    # grows over time (Phase 6.6 #4 added default_model for Ollama
+    # pulled-model checks). Tests only assert on outcome, not args.
     monkeypatch.setattr(
         validator,
         "validate",
-        lambda provider, api_key, base_url=None: validator.ValidationResult(success=True, error=None, category="ok"),
+        lambda *args, **kwargs: validator.ValidationResult(success=True, error=None, category="ok"),
     )
     # Also patch in the route module
     from engramia.api import credentials as credentials_route
@@ -320,7 +321,7 @@ def mock_validation_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         credentials_route,
         "validate_credential",
-        lambda provider, api_key, base_url=None: validator.ValidationResult(success=True, error=None, category="ok"),
+        lambda *args, **kwargs: validator.ValidationResult(success=True, error=None, category="ok"),
     )
 
 
@@ -525,9 +526,7 @@ class TestPatch:
         assert resp.status_code == 200
         assert resp.json()["default_model"] == "gpt-5"
 
-    def test_role_models_field_no_longer_on_main_patch(
-        self, admin_client: TestClient, mock_validation_ok
-    ) -> None:
+    def test_role_models_field_no_longer_on_main_patch(self, admin_client: TestClient, mock_validation_ok) -> None:
         """Phase 6.6 #2 moved role_models to the dedicated sub-resource.
 
         Sending it through the main PATCH is silently ignored (Pydantic

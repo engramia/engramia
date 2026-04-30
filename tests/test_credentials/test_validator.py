@@ -17,6 +17,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import httpx
+import pytest
 
 from engramia.credentials.validator import ValidationResult, validate
 
@@ -147,26 +148,48 @@ class TestGemini:
 
 
 class TestOllama:
+    """Validator dispatch + URL handling for Ollama. The deeper coverage
+    (default_model pulled-check, model list surfacing, model_missing
+    category) lives in tests/test_credentials/test_validator_ollama.py
+    — added in Phase 6.6 #4 alongside the native /api/tags integration.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_ollama_cache(self):
+        from engramia.providers._ollama_native import get_default_cache
+
+        get_default_cache().clear()
+        yield
+        get_default_cache().clear()
+
     def test_200_returns_ok(self) -> None:
-        with patch("httpx.get", return_value=_mock_response(200)):
+        from engramia.providers._ollama_native import OllamaModel
+
+        with patch(
+            "engramia.providers._ollama_native.list_models",
+            return_value=[OllamaModel(name="llama3.3:latest")],
+        ):
             result = validate("ollama", "ignored", base_url="http://localhost:11434")
         assert result.success is True
         assert result.category == "ok"
 
     def test_uses_default_base_url_when_none(self) -> None:
-        with patch("httpx.get", return_value=_mock_response(200)) as mock:
-            validate("ollama", "ignored")
-        url = mock.call_args[0][0]
-        assert "localhost:11434" in url
+        from engramia.providers._ollama_native import OllamaModel
 
-    def test_pings_api_tags(self) -> None:
-        with patch("httpx.get", return_value=_mock_response(200)) as mock:
-            validate("ollama", "ignored", base_url="http://192.168.1.10:11434")
-        url = mock.call_args[0][0]
-        assert url.endswith("/api/tags")
+        with patch(
+            "engramia.providers._ollama_native.list_models",
+            return_value=[OllamaModel(name="llama3.3:latest")],
+        ) as mock:
+            validate("ollama", "ignored")
+        # First positional arg is the base URL; default is localhost:11434
+        url_arg = mock.call_args[0][0]
+        assert "localhost:11434" in url_arg
 
     def test_unreachable_when_no_response(self) -> None:
-        with patch("httpx.get", side_effect=httpx.ConnectError("refused")):
+        with patch(
+            "engramia.providers._ollama_native.list_models",
+            side_effect=httpx.ConnectError("refused"),
+        ):
             result = validate("ollama", "ignored", base_url="http://10.0.0.99:11434")
         assert result.category == "unreachable"
         assert "10.0.0.99" in (result.error or "")  # netloc surfaced

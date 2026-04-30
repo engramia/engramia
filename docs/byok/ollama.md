@@ -1,10 +1,12 @@
 # Ollama — BYOK Setup
 
-> **Status: use at your own risk** for v0.7. Engramia connects to Ollama
-> via its OpenAI-compatible endpoint but does not validate model
-> availability or auto-discover what's installed. Native Ollama support
-> with model discovery, hot-reload, and per-model timeouts is on the
-> [Phase 6.6 #4 roadmap](https://github.com/engramia/engramia-ops/blob/main/internal/roadmap.md).
+> **Status: supported** as of Phase 6.6 #4 (2026-04-29). Engramia validates
+> the configured `default_model` against the Ollama server's pulled-model
+> list at credential-create time, surfaces available models to the
+> dashboard via a 1 h-cached `/api/tags` snapshot, and auto-sizes the
+> per-call timeout based on the model's parameter count
+> (60 s for 1 B, 120 s for 7 B, 600 s for 70 B, default 300 s when
+> the param size is unknown).
 
 Ollama runs LLMs locally on your hardware (CPU or GPU). It's the right
 choice for:
@@ -144,15 +146,19 @@ production-ish use:
 
 Pull whichever you want with `ollama pull <name>`.
 
-## Known limitations (v0.7)
+## Known limitations
 
 - **No streaming** — Engramia uses sync calls, you don't get
   token-by-token output.
 - **No tool/function calling validation** — Ollama supports it on
   newer models but Engramia doesn't introspect; you may get silent
   no-ops on older models.
-- **No model auto-discovery** — Engramia trusts the `default_model`
-  field; if the model isn't pulled, you get an error on first call.
+- **Hot-reload requires manual refresh** — when you `ollama pull` a
+  new model, the model-list cache holds the previous snapshot for up
+  to 1 h. Click "Refresh models" in the dashboard to bypass the cache,
+  or wait the TTL out. Validation against the new model still works
+  immediately because re-validating a credential always hits
+  `/api/tags` fresh.
 - **Connection pool** — the openai SDK's default pool of 10 may be
   too high for a single-GPU Ollama; reduce `ENGRAMIA_LLM_CONCURRENCY=2`
   on the Engramia side.
@@ -164,6 +170,16 @@ Pull whichever you want with `ollama pull <name>`.
   (`ollama ps`) and that the URL is reachable from the Engramia
   process (curl from inside the container if dockerised).
 
+**400 `category=config` — "no models pulled"**
+: Your Ollama server is reachable but has zero models installed.
+  Run `ollama pull <model>` on the server, then re-validate the
+  credential.
+
+**400 `category=model_missing`**
+: The `default_model` you configured isn't pulled on the server.
+  The error message includes up to 8 of the available model names
+  so you can pick one or run `ollama pull <correct-name>`.
+
 **400 `category=auth_failed` with `ollama` placeholder**
 : You fronted Ollama with auth and forgot to update the credential.
   Use the real bearer token in the **API key** field.
@@ -173,6 +189,8 @@ Pull whichever you want with `ollama pull <name>`.
   `OLLAMA_KEEP_ALIVE=24h` to keep it loaded; subsequent calls will
   be much faster.
 
-**"model not found" errors**
-: You haven't run `ollama pull <model>` for the model name in your
-  Engramia credential's `default_model` field.
+**"model not found" errors at runtime (not validation)**
+: The `default_model` was valid at credential-create time, but
+  someone ran `ollama rm` on the server since then. Re-validate the
+  credential via the dashboard (or `POST /v1/credentials/{id}/validate`)
+  to surface the missing-model state.

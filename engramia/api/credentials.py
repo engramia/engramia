@@ -160,9 +160,7 @@ def _parse_if_match(header_value: str | None) -> datetime | None:
         return datetime.fromisoformat("1970-01-01T00:00:00+00:00")
 
 
-def _require_if_match(
-    request: Request, current_row: StoredCredential
-) -> datetime:
+def _require_if_match(request: Request, current_row: StoredCredential) -> datetime:
     """Enforce mandatory ``If-Match`` on the role-models / failover endpoints.
 
     Per design B9: both endpoints require ``If-Match`` to make lost-update
@@ -237,9 +235,7 @@ def _invalidate_provider_cache(request: Request, tenant_id: str) -> None:
                 _log.debug("provider cache invalidate failed (non-fatal)", exc_info=True)
 
 
-def _role_models_diff(
-    before: dict[str, str], after: dict[str, str]
-) -> dict[str, Any]:
+def _role_models_diff(before: dict[str, str], after: dict[str, str]) -> dict[str, Any]:
     """Compute an audit-friendly diff for ``credential_role_models_updated``.
 
     The diff is published in structured logs (Loki) so an operator
@@ -249,15 +245,11 @@ def _role_models_diff(
     """
     added = {k: after[k] for k in after if k not in before}
     removed = sorted([k for k in before if k not in after])
-    changed = {
-        k: [before[k], after[k]] for k in before if k in after and before[k] != after[k]
-    }
+    changed = {k: [before[k], after[k]] for k in before if k in after and before[k] != after[k]}
     return {"added": added, "removed": removed, "changed": changed}
 
 
-def _role_cost_limits_diff(
-    before: dict[str, int], after: dict[str, int]
-) -> dict[str, Any]:
+def _role_cost_limits_diff(before: dict[str, int], after: dict[str, int]) -> dict[str, Any]:
     """Audit diff for ``credential_role_cost_limits_updated`` events.
 
     Same shape as the role-models diff — kept separate so the values are
@@ -266,9 +258,7 @@ def _role_cost_limits_diff(
     """
     added = {k: after[k] for k in after if k not in before}
     removed = sorted([k for k in before if k not in after])
-    changed = {
-        k: [before[k], after[k]] for k in before if k in after and before[k] != after[k]
-    }
+    changed = {k: [before[k], after[k]] for k in before if k in after and before[k] != after[k]}
     return {"added": added, "removed": removed, "changed": changed}
 
 
@@ -362,8 +352,16 @@ def create_credential(
     plaintext = body.api_key.get_secret_value()
     fingerprint = fingerprint_for(plaintext)
 
-    # Synchronous validation ping (decision A3, A4).
-    result = validate_credential(body.provider, plaintext, base_url=body.base_url)
+    # Synchronous validation ping (decision A3, A4). For Ollama the
+    # validator additionally checks that ``default_model`` is pulled on
+    # the server (Phase 6.6 #4) — passing it through saves the tenant a
+    # later runtime failure on the first /v1/evaluate call.
+    result = validate_credential(
+        body.provider,
+        plaintext,
+        base_url=body.base_url,
+        default_model=body.default_model,
+    )
     if not result.success:
         # Audit the rejection (no fingerprint logged because the row was
         # not persisted — the tenant just submitted a bad key).
@@ -992,7 +990,12 @@ def validate_existing_credential(
             },
         ) from None
 
-    result = validate_credential(row.provider, plaintext, base_url=row.base_url)
+    result = validate_credential(
+        row.provider,
+        plaintext,
+        base_url=row.base_url,
+        default_model=row.default_model,
+    )
     if result.success:
         store.mark_validated(credential_id, error=None)
         # If the row was previously invalid, flip it back to active.

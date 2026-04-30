@@ -52,14 +52,23 @@ class ValidationResult:
             is usable for at least the model-list endpoint.
         error: Human-readable description for invalid / inconclusive cases.
             Safe to show to the tenant. Never contains the api_key.
-        category: One of ``"ok" | "auth_failed" | "unreachable" | "config"``.
-            ``auth_failed`` is the only category that justifies persisting
-            with ``status='invalid'``; the others should be retried.
+        category: One of ``"ok" | "auth_failed" | "unreachable" | "config"
+            | "model_missing"``.
+            ``auth_failed`` and ``model_missing`` are the categories that
+            justify persisting with ``status='invalid'`` (config error
+            the tenant must fix); the others should be retried.
+        models_available: For Ollama (and any future native-list capable
+            provider), the list of model names the server reports as
+            pulled. Surfaced to the dashboard so the tenant sees what
+            they have without re-validating. ``None`` for providers
+            where listing is not part of validation (OpenAI / Anthropic
+            return many hundreds of models — not useful in a UI dropdown).
     """
 
     success: bool
     error: str | None
-    category: str  # "ok" | "auth_failed" | "unreachable" | "config"
+    category: str  # "ok" | "auth_failed" | "unreachable" | "config" | "model_missing"
+    models_available: list[str] | None = None
 
 
 def _validate_openai_compat(api_key: str, base_url: str) -> ValidationResult:
@@ -138,28 +147,80 @@ def _validate_gemini(api_key: str) -> ValidationResult:
     )
 
 
-def _validate_ollama(base_url: str) -> ValidationResult:
-    """Ping Ollama /api/tags. Ollama is on-prem, has no real auth — we
-    only check that the server responds."""
+def _validate_ollama(base_url: str, *, default_model: str | None = None) -> ValidationResult:
+    """Validate an Ollama credential via the native ``/api/tags`` endpoint.
+
+    Three things checked, in order:
+
+    1. **Reachable** — server answers ``/api/version`` within the
+       validation timeout.
+    2. **Has models** — ``/api/tags`` returns at least one entry; an
+       Ollama server with zero models pulled is technically up but
+       unusable for inference, so we surface that as a config error.
+    3. **Default model exists** — if the credential specifies a
+       ``default_model``, it must be in the pulled list (matching the
+       ``foo`` ↔ ``foo:latest`` shorthand convention). A misspelled
+       model name caught here is far better than a runtime error on
+       the first /v1/evaluate call.
+
+    Pre-Phase 6.6 #4 this function pinged ``{base_url}/api/tags`` —
+    which 404'd whenever the credential's ``base_url`` carried the
+    OpenAI-compat ``/v1`` suffix the SDK actually needs (most cases).
+    The native helper's :func:`native_base_url` strips that suffix.
+    """
+    from engramia.providers._ollama_native import (
+        get_default_cache,
+        list_models,
+        model_is_pulled,
+    )
+
     parsed = urlparse(base_url)
     if not parsed.scheme or not parsed.netloc:
         return ValidationResult(False, "base_url must be a full URL", "config")
-    url = f"{base_url.rstrip('/')}/api/tags"
+
     try:
-        resp = httpx.get(url, timeout=_VALIDATION_TIMEOUT_S)
+        models = list_models(base_url, timeout=_VALIDATION_TIMEOUT_S)
+    except httpx.TimeoutException:
+        return ValidationResult(
+            False,
+            f"Ollama at {parsed.netloc} timed out — server not responding",
+            "unreachable",
+        )
     except httpx.HTTPError as exc:
         return ValidationResult(
             False,
             f"Ollama unreachable at {parsed.netloc}: {exc.__class__.__name__}",
             "unreachable",
         )
-    if resp.status_code == 200:
-        return ValidationResult(True, None, "ok")
-    return ValidationResult(
-        False,
-        f"Ollama responded HTTP {resp.status_code} at {parsed.netloc}",
-        "unreachable",
-    )
+
+    available = [m.name for m in models]
+    # Refresh the shared cache so the dashboard's next request lands
+    # on a hit rather than re-pinging.
+    get_default_cache().put(base_url, models)
+
+    if not models:
+        return ValidationResult(
+            False,
+            f"Ollama at {parsed.netloc} has no models pulled. Run `ollama pull <model>` on the server first.",
+            "config",
+            models_available=available,
+        )
+
+    if default_model and not model_is_pulled(models, default_model):
+        return ValidationResult(
+            False,
+            (
+                f"Default model {default_model!r} is not pulled on the Ollama server. "
+                f"Available: {', '.join(available[:8])}"
+                f"{', ...' if len(available) > 8 else ''}. "
+                "Run `ollama pull "
+                f"{default_model}` on the server, or set a different default_model."
+            ),
+            "model_missing",
+            models_available=available,
+        )
+
+    return ValidationResult(True, None, "ok", models_available=available)
 
 
 def validate(
@@ -167,6 +228,7 @@ def validate(
     api_key: str,
     *,
     base_url: str | None = None,
+    default_model: str | None = None,
 ) -> ValidationResult:
     """Dispatch credential validation to the right provider implementation.
 
@@ -176,11 +238,17 @@ def validate(
             error messages.
         base_url: Required for ``ollama`` and ``openai_compat``. Optional
             override for ``openai`` (e.g. Azure OpenAI).
+        default_model: Optional model name used by the credential. Only
+            consumed by Ollama validation today, where it gates on the
+            model being pulled on the server (``model_missing`` category).
+            Other providers ignore it because their model lists are too
+            large to enumerate at credential-create time.
 
     Returns:
         :class:`ValidationResult`. The route handler converts the category
         to an HTTP status: ``ok`` → 201 (persist), ``auth_failed`` /
-        ``unreachable`` / ``config`` → 400 with the error message.
+        ``unreachable`` / ``config`` / ``model_missing`` → 400 with the
+        error message.
     """
     if provider == "openai":
         return _validate_openai_compat(api_key, base_url or _OPENAI_DEFAULT_BASE)
@@ -193,5 +261,8 @@ def validate(
     if provider == "gemini":
         return _validate_gemini(api_key)
     if provider == "ollama":
-        return _validate_ollama(base_url or _OLLAMA_DEFAULT_BASE)
+        return _validate_ollama(
+            base_url or _OLLAMA_DEFAULT_BASE,
+            default_model=default_model,
+        )
     return ValidationResult(False, f"Unknown provider: {provider}", "config")
