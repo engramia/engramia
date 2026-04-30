@@ -113,10 +113,14 @@ def engine(pg_url):
                 conn.execute(text(f"DELETE FROM {tbl}"))
             except Exception:
                 pass
-        # Insert the test tenant so FK references resolve.
+        # Insert the test tenant so FK references resolve. tenants.name is
+        # NOT NULL in the real schema (migration 003), pass a label.
         conn.execute(
-            text("INSERT INTO tenants (id) VALUES (:tid) ON CONFLICT DO NOTHING"),
-            {"tid": "tenant-1"},
+            text(
+                "INSERT INTO tenants (id, name) VALUES (:tid, :name) "
+                "ON CONFLICT DO NOTHING"
+            ),
+            {"tid": "tenant-1", "name": "tenant-1"},
         )
     try:
         yield eng

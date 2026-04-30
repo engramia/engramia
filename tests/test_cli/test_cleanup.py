@@ -119,13 +119,21 @@ def runner():
 
 
 def _insert_tenant(engine, tenant_id: str = "t-pending-1") -> str:
-    """Minimal tenants row — `cloud_users.tenant_id` FK requires it."""
+    """Minimal tenants row — `cloud_users.tenant_id` FK requires it.
+
+    `tenants.name` is NOT NULL in the real schema (migration 003), so we
+    pass a derivable label here even though the cleanup commands never
+    read it.
+    """
     from sqlalchemy import text
 
     with engine.begin() as conn:
         conn.execute(
-            text("INSERT INTO tenants (id) VALUES (:tid) ON CONFLICT DO NOTHING"),
-            {"tid": tenant_id},
+            text(
+                "INSERT INTO tenants (id, name) VALUES (:tid, :name) "
+                "ON CONFLICT DO NOTHING"
+            ),
+            {"tid": tenant_id, "name": tenant_id},
         )
     return tenant_id
 
