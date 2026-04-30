@@ -88,7 +88,12 @@ _ADMIN_PERMS: frozenset[str] = _EDITOR_PERMS | frozenset(
     }
 )
 
-# Owner has a wildcard — all current and future permissions.
+# Owner has a wildcard — all current and future permissions. Phase 6.6 #5
+# adds ``governance:backup_download``; it is owner-only by design (full
+# tenant data dump is the single most sensitive read; we want the same
+# audit weight as ``DELETE /auth/me``).  The wildcard means we don't
+# enumerate it here, but the perm string is documented so the route
+# handler and audit log share vocabulary.
 _OWNER_PERMS: frozenset[str] = frozenset({"*"})
 
 PERMISSIONS: dict[str, frozenset[str]] = {

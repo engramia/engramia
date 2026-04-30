@@ -13,6 +13,7 @@ Permissions required:
 """
 
 import logging
+from datetime import UTC
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -262,6 +263,210 @@ def export_scope(
         _stream(),
         media_type="application/x-ndjson",
         headers={"Content-Disposition": "attachment; filename=engramia_export.ndjson"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/governance/backup/download — Phase 6.6 #5 (Team+ paywall)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/backup/download",
+    dependencies=[require_permission("governance:backup_download")],
+)
+def backup_download(
+    request: Request,
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+):
+    """Stream a full tenant backup as NDJSON. Owner role + Team+ tier.
+
+    Three gates the request must pass before bytes flow:
+
+    1. **RBAC** — ``governance:backup_download`` is owner-only (the
+       wildcard in ``_OWNER_PERMS`` covers it; no other role has it).
+       Editor/admin keys hit 403 here.
+    2. **Tier** — Developer and Pro tenants get 402 Payment Required.
+       Team / Business / Enterprise are allowed.
+    3. **Rate limit** — at most one successful download per tenant per
+       24 hours, tracked in ``backup_download_log``. Hitting the limit
+       returns 429 with ``Retry-After``.
+
+    Output is NDJSON (``application/x-ndjson``) with a header / row /
+    footer envelope; absence of the footer line on the client side
+    indicates a truncated dump (re-request after the rate window).
+    """
+    import time
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+
+    from sqlalchemy import text as _sql_text
+
+    from engramia.governance.backup import BackupExporter
+
+    if auth_ctx is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+
+    engine = _get_engine(request)
+    if engine is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Backup download requires DB-backed storage; not available in JSON-storage mode.",
+        )
+
+    tenant_id = auth_ctx.tenant_id
+
+    # Tier gate: Team+ only.
+    billing_svc = getattr(request.app.state, "billing_service", None)
+    if billing_svc is not None:
+        sub = billing_svc.get_subscription(tenant_id)
+        if sub.plan_tier in ("developer", "sandbox", "pro"):
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={
+                    "error_code": "TIER_UPGRADE_REQUIRED",
+                    "detail": "Backup download is a Team-tier feature. Upgrade to Team or higher.",
+                    "current_tier": sub.plan_tier,
+                    "min_tier": "team",
+                },
+            )
+
+    # Rate-limit gate: 1 successful download / 24 h / tenant.
+    rate_window_hours = 24
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                _sql_text(
+                    "SELECT requested_at FROM backup_download_log "
+                    "WHERE tenant_id = :tid AND status = 'success' "
+                    "ORDER BY requested_at DESC LIMIT 1"
+                ),
+                {"tid": tenant_id},
+            ).fetchone()
+    except Exception:
+        # Migration 027 not applied yet — fail-open, log loudly.
+        _log.warning(
+            "backup_download: rate-limit lookup failed (migration 027 applied?)",
+            exc_info=True,
+        )
+        row = None
+
+    if row is not None:
+        last_ts = row[0]
+        if last_ts and last_ts.tzinfo is None:
+            last_ts = last_ts.replace(tzinfo=UTC)
+        elapsed = _dt.now(UTC) - last_ts
+        window = _td(hours=rate_window_hours)
+        if elapsed < window:
+            retry_after = int((window - elapsed).total_seconds())
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error_code": "BACKUP_RATE_LIMITED",
+                    "detail": (
+                        f"At most one backup download per {rate_window_hours} h. "
+                        f"Try again in {retry_after // 3600} h {(retry_after % 3600) // 60} min."
+                    ),
+                    "retry_after": retry_after,
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
+
+    log_event(AuditEvent.SCOPE_EXPORTED, kind="backup")
+    ip = request.client.host if request.client else "unknown"
+    log_db_event(
+        engine,
+        tenant_id=tenant_id,
+        project_id=auth_ctx.project_id,
+        key_id=auth_ctx.key_id,
+        action="backup_download_started",
+        resource_type="tenant_backup",
+        resource_id=tenant_id,
+        ip_address=ip,
+    )
+
+    exporter = BackupExporter(engine)
+    started_at = time.perf_counter()
+    bytes_streamed = 0
+    table_counts: dict[str, int] = {}
+    final_status = {"value": "in_progress", "error": None}
+
+    def _stream():
+        nonlocal bytes_streamed
+        try:
+            for line in exporter.stream(tenant_id):
+                bytes_streamed += len(line)
+                if line.startswith('{"version": 1, "kind": "footer"'):
+                    import json as _json
+
+                    try:
+                        envelope = _json.loads(line)
+                        table_counts.update(envelope.get("table_counts", {}))
+                    except Exception:
+                        pass
+                yield line
+            final_status["value"] = "success"
+        except Exception as exc:
+            final_status["value"] = "failed"
+            final_status["error"] = str(exc)
+            _log.exception("backup_download: stream failed for tenant=%s", tenant_id)
+            raise
+        finally:
+            duration = time.perf_counter() - started_at
+            try:
+                with engine.begin() as conn:
+                    conn.execute(
+                        _sql_text(
+                            "INSERT INTO backup_download_log "
+                            "(tenant_id, requested_by, status, bytes_streamed, "
+                            "tables_exported, error_message) "
+                            "VALUES (:tid, :rqb, :st, :bs, :tc, :err)"
+                        ),
+                        {
+                            "tid": tenant_id,
+                            "rqb": auth_ctx.key_id or "unknown",
+                            "st": final_status["value"],
+                            "bs": bytes_streamed,
+                            "tc": len(table_counts),
+                            "err": final_status["error"],
+                        },
+                    )
+            except Exception:
+                _log.warning(
+                    "backup_download: failed to write log row for tenant=%s",
+                    tenant_id,
+                    exc_info=True,
+                )
+            log_db_event(
+                engine,
+                tenant_id=tenant_id,
+                project_id=auth_ctx.project_id,
+                key_id=auth_ctx.key_id,
+                action="backup_download_completed",
+                resource_type="tenant_backup",
+                resource_id=tenant_id,
+                ip_address=ip,
+            )
+            _log.info(
+                "backup_download tenant=%s status=%s bytes=%d tables=%d duration=%.2fs",
+                tenant_id,
+                final_status["value"],
+                bytes_streamed,
+                len(table_counts),
+                duration,
+            )
+
+    filename = f"engramia-backup-{tenant_id[:8]}-{int(time.time())}.ndjson"
+    return StreamingResponse(
+        _stream(),
+        media_type="application/x-ndjson",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Cache-Control": "no-store",
+        },
     )
 
 
