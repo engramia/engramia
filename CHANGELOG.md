@@ -9,6 +9,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Added — Phase 6.6 #1 Hosted MCP server (Streamable HTTP transport)
+
+Engramia Cloud now exposes its MCP tools over HTTP at `/v1/mcp` so MCP
+clients (Claude Desktop, Cursor, Windsurf, custom agents) can connect
+without installing the `engramia-mcp` stdio binary. Mounted behind
+the `ENGRAMIA_MCP_HOSTED_ENABLED` feature flag (default off); paywalled
+to Team tier and above per the pricing matrix.
+
+- **`engramia/mcp/`** — new modules: `tools.py` (shared 9-tool catalog
+  with `ToolEntry` carrying RBAC permission, minimum tier, and quota
+  kind per tool), `dispatch.py` (transport-neutral sync dispatch shared
+  with the stdio server), `errors.py` (`MCPError` taxonomy:
+  `TierGateError`, `ConnectionLimitExceeded`, `ToolNotFoundError`,
+  `ToolPermissionError`), `tier_gate.py` (`ConnectionLimiter` Protocol
+  with `InMemoryConnectionLimiter` default; per-tier session caps
+  5/25/100 for Team/Business/Enterprise, fail-fast HTTP 429 when full),
+  `session.py` (per-MCP-session metadata via contextvar handshake into
+  the SDK lifespan callback), `http_server.py` (Starlette sub-app
+  mounted at `/v1/mcp` with auth + tier-gate + connection-limit ASGI
+  handler delegating to `mcp.server.streamable_http_manager`),
+  `metrics.py` (Prometheus collectors: active sessions, tool calls,
+  evictions, rejections, durations).
+- **`engramia/mcp/server.py`** — refactored to source the tool catalog
+  and dispatch logic from the new shared modules. Module-level
+  `_dispatch`, `_ALL_TOOLS`, `_TOOL_*` exports preserved for
+  backward compatibility with tests and any external imports. Stdio
+  now exposes the full 9-tool catalog (was 7) — the two new tools
+  (`engramia_evolve`, `engramia_analyze_failures`) wrap the existing
+  `Memory.evolve_prompt` and `Memory.analyze_failures` methods that
+  the REST API already exposed at `/v1/evolve` and
+  `/v1/analyze-failures`.
+- **`engramia/api/app.py`** — mounts the hosted MCP sub-app from
+  `_register_routers` when `ENGRAMIA_MCP_HOSTED_ENABLED=true`. Reuses
+  existing `Depends(require_auth)` for Bearer / cloud JWT auth and
+  `app.state.memory` for tenant-scoped Memory access via the scope
+  contextvar (BYOK credentials resolve automatically through the
+  existing `TenantScopedLLMProvider` wrapper from `_factory.py`).
+- **`Caddyfile`** — adds an `@mcp` matcher for `/v1/mcp` with
+  `flush_interval -1` (disable response buffering) and
+  `response_header_timeout 30m` for long-lived SSE legs. Other
+  `/v1/*` routes remain on default short timeouts.
+- **`pyproject.toml`** — bumps the `mcp` extra to `mcp>=1.20,<2` so
+  `mcp.server.streamable_http_manager.StreamableHTTPSessionManager`
+  is available (the SDK's session lifecycle and idle-timeout
+  manager).
+- **`docs/integrations/mcp.md`** — documents both transports
+  side-by-side: stdio for self-host single-tenant, hosted Streamable
+  HTTP for cloud Team+ tenants. Adds tier×tool matrix and self-host
+  Caddy snippet.
+- **Architecture spec** — full pre-implementation design lives in the
+  `engramia-ops` repo at `internal/hosted-mcp-architecture.md`
+  (private; 13 sections including 9 components, 4 sequence diagrams,
+  8 ADRs, 7 risks, OQ-001 and OQ-002 resolved).
+
+Tests: +45 new (`tests/test_mcp_tier_gate.py`,
+`tests/test_mcp_tools_catalog.py`, `tests/test_mcp_dispatch.py`,
+`tests/test_mcp_http_server.py`); existing stdio suite updated for the
+9-tool catalog and refactored sys.modules import-isolation between
+test files.
+
+Env vars (all optional with sane defaults):
+- `ENGRAMIA_MCP_HOSTED_ENABLED` (default `false`)
+- `ENGRAMIA_MCP_SESSION_IDLE_SECONDS` (default `1800`)
+- `ENGRAMIA_MCP_LIMITER_BACKEND` (default `inmemory`; `redis` reserved)
+- `ENGRAMIA_MCP_LIMITS_TEAM` / `_BUSINESS` / `_ENTERPRISE` (default 5/25/100)
+
+### Fixed
+
+- **License audit drift after `mcp` dep bump** — regenerated
+  `docs/legal/DEPENDENCY_LICENSES.md` so the audit script's drift
+  check passes (commit `3893168`).
+- **Preexisting ruff lint warnings cleared** —
+  `engramia/providers/tenant_scoped.py` and
+  `engramia/telemetry/metrics.py` had U+00D7 MULTIPLICATION SIGN in
+  comments (RUF002, RUF003); replaced with ASCII `x`.
+  `engramia/billing/entitlements.py` and
+  `engramia/credentials/store.py` had annotation-only imports outside
+  the `TYPE_CHECKING` block (TC001, TC003); moved them in. CI lint
+  step now passes (commit `3893168`).
+
 ### Added — Phase 6.6 Bring-Your-Own-Key (BYOK) credential subsystem
 
 Engramia Cloud now requires tenants to supply their own LLM provider
