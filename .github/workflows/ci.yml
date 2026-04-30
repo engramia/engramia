@@ -210,6 +210,6 @@ jobs:
           retention-days: 30
 
       - name: Secret scanning (trufflehog)
-        uses: trufflesecurity/trufflehog@v3.94.3
+        uses: trufflesecurity/trufflehog@v3.95.2
         with:
           extra_args: --only-verified
