@@ -34,8 +34,8 @@ def api_client(tmp_path, monkeypatch):
     _mock_llm = MagicMock()
     _mock_llm.call.return_value = EVOLVE_RESPONSE
 
-    monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None: mock_embeddings)
-    monkeypatch.setattr(factory, "make_llm", lambda resolver=None: _mock_llm)
+    monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None, **_kw: mock_embeddings)
+    monkeypatch.setattr(factory, "make_llm", lambda resolver=None, **_kw: _mock_llm)
 
     from engramia.api.app import create_app
 
@@ -55,13 +55,13 @@ def api_client_no_llm(tmp_path, monkeypatch):
     mock_embeddings = MagicMock()
     mock_embeddings.embed.return_value = [0.1] * 1536
 
-    monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None: mock_embeddings)
-    monkeypatch.setattr(factory, "make_llm", lambda resolver=None: None)
+    monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None, **_kw: mock_embeddings)
+    monkeypatch.setattr(factory, "make_llm", lambda resolver=None, **_kw: None)
 
     from engramia.api import app as app_module
 
-    monkeypatch.setattr(app_module, "make_llm", lambda resolver=None: None)
-    monkeypatch.setattr(app_module, "make_embeddings", lambda resolver=None: mock_embeddings)
+    monkeypatch.setattr(app_module, "make_llm", lambda resolver=None, **_kw: None)
+    monkeypatch.setattr(app_module, "make_embeddings", lambda resolver=None, **_kw: mock_embeddings)
 
     app = app_module.create_app()
     return TestClient(app)

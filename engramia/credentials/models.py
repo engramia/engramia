@@ -130,6 +130,7 @@ class TenantCredential(BaseModel):
     default_embed_model: str | None = None
     role_models: dict[str, str] = Field(default_factory=dict)
     failover_chain: list[str] = Field(default_factory=list)
+    role_cost_limits: dict[str, int] = Field(default_factory=dict)
     status: StatusType = "active"
     last_used_at: datetime | None = None
     last_validated_at: datetime | None = None
@@ -161,6 +162,18 @@ class TenantCredential(BaseModel):
         if role in self.role_models:
             return self.role_models[role]
         return self.default_model or default_model_for(self.provider)
+
+    def cost_ceiling_for_role(self, role: str) -> int | None:
+        """Return the per-month cents cap for ``role``, or ``None`` if uncapped.
+
+        The cap **only applies when the role has an override** in
+        ``role_models``. If the role would already resolve to
+        ``default_model``, the ceiling is moot — there is no cheaper
+        target to fall back to.
+        """
+        if role not in self.role_models:
+            return None
+        return self.role_cost_limits.get(role)
 
     def aad(self) -> bytes:
         """Return the AAD bytes used by the AES-GCM cipher for this row.
@@ -196,6 +209,7 @@ class CredentialPublicView(BaseModel):
     default_embed_model: str | None = None
     role_models: dict[str, str] = Field(default_factory=dict)
     failover_chain: list[str] = Field(default_factory=list)
+    role_cost_limits: dict[str, int] = Field(default_factory=dict)
     status: StatusType
     last_used_at: datetime | None = None
     last_validated_at: datetime | None = None
@@ -280,6 +294,73 @@ class RoleModelsUpdate(BaseModel):
             if not _MODEL_NAME_RE.match(model):
                 raise ValueError(f"invalid model name: {model!r}")
             out[role] = model
+        return out
+
+
+_ROLE_COST_LIMIT_MAX_CENTS: Final = 10_000_000  # $100 000 / month / role
+
+
+class RoleCostLimitsUpdate(BaseModel):
+    """Input shape for ``PATCH /v1/credentials/{id}/role-cost-limits``.
+
+    Full-replace semantics: the body is the new map in its entirety.
+    Send ``{}`` to clear all ceilings. Mandatory ``If-Match`` header.
+
+    The map is ``{role: max_cents_per_month}``. When the role's
+    accumulated spend in the current UTC month reaches the cap,
+    Engramia falls back to ``default_model`` for that role until the
+    calendar month rolls. There is no 429 — service continuity wins
+    over rigid caps.
+
+    Validation:
+
+    * Keys lowercased and matched against the canonical role-name regex
+      (same as ``RoleModelsUpdate``).
+    * Values must be positive integers in cents. Hard upper bound at
+      $100 000 / month / role — anything higher signals an off-by-1 000
+      mistake (someone typed dollars instead of cents).
+    * Hard cap at 16 entries — same envelope as ``role_models``.
+
+    Empty {} clear is allowed on every tier (downgrade exit). A non-
+    empty body triggers the ``byok.role_cost_ceiling`` entitlement
+    check.
+    """
+
+    role_cost_limits: dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("role_cost_limits", mode="before")
+    @classmethod
+    def _normalise_and_validate(cls, v: Any) -> dict[str, int]:
+        if v is None:
+            return {}
+        if not isinstance(v, dict):
+            raise ValueError("role_cost_limits must be a JSON object")
+        if len(v) > _ROLE_MODELS_MAX_ENTRIES:
+            raise ValueError(
+                f"role_cost_limits supports max {_ROLE_MODELS_MAX_ENTRIES} entries (got {len(v)})"
+            )
+        out: dict[str, int] = {}
+        for raw_role, cents in v.items():
+            if not isinstance(raw_role, str):
+                raise ValueError("role_cost_limits keys must be strings")
+            role = raw_role.lower()
+            if not _ROLE_NAME_RE.match(role):
+                raise ValueError(
+                    f"invalid role name: {raw_role!r} (lowercase letters/digits/underscore, 1-32 chars)"
+                )
+            if not isinstance(cents, int) or isinstance(cents, bool):
+                raise ValueError(f"role_cost_limits[{role!r}] must be an integer (cents)")
+            if cents <= 0:
+                raise ValueError(
+                    f"role_cost_limits[{role!r}] must be positive (got {cents}); "
+                    f"send {{}} to clear all ceilings"
+                )
+            if cents > _ROLE_COST_LIMIT_MAX_CENTS:
+                raise ValueError(
+                    f"role_cost_limits[{role!r}]={cents} exceeds the safety ceiling "
+                    f"of {_ROLE_COST_LIMIT_MAX_CENTS} cents — did you mean cents not dollars?"
+                )
+            out[role] = cents
         return out
 
 

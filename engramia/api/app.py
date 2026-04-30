@@ -418,7 +418,14 @@ def _setup_byok(app: FastAPI, engine):
     app.state.credential_store = store
     app.state.credential_resolver = resolver
     app.state.credential_cipher = cipher
-    _log.info("BYOK credential subsystem initialised (master key loaded, cache TTL 1 h).")
+
+    # Phase 6.6 #2b: per-role cost ceiling. The role_meter shares the
+    # same engine as the rest of the BYOK subsystem; both must succeed
+    # together or fail together (no half-on state).
+    from engramia.billing.role_metering import RoleMeter
+
+    app.state.role_meter = RoleMeter(engine)
+    _log.info("BYOK credential subsystem initialised (master key loaded, cache TTL 1 h, role meter enabled).")
     return resolver
 
 
@@ -593,7 +600,14 @@ def create_app() -> FastAPI:
             "503 ProviderError. Set ENGRAMIA_EMBEDDING_MODEL and install 'engramia[openai]' "
             "to enable semantic search."
         )
-    llm = make_llm(resolver=byok_resolver)
+    # Pass store + role_meter so the BYOK wrapper can resolve failover
+    # chains (#2) and enforce per-role cost ceilings (#2b). Both are
+    # silently optional when BYOK is off.
+    llm = make_llm(
+        resolver=byok_resolver,
+        store=getattr(app.state, "credential_store", None),
+        role_meter=getattr(app.state, "role_meter", None),
+    )
 
     # Redaction is enabled by default to protect PII/secrets at rest.
     # Set ENGRAMIA_REDACTION=false to disable (dev/local use only).

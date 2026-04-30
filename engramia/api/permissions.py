@@ -84,6 +84,7 @@ _ADMIN_PERMS: frozenset[str] = _EDITOR_PERMS | frozenset(
         # underlying credential).
         "credentials:role_models:write",
         "credentials:failover_chain:write",
+        "credentials:role_cost_limits:write",
     }
 )
 

@@ -51,6 +51,7 @@ from engramia.credentials import (
     CredentialUpdate,
     FailoverChainUpdate,
     PatchOutcome,
+    RoleCostLimitsUpdate,
     RoleModelsUpdate,
     StoredCredential,
     fingerprint_for,
@@ -113,6 +114,7 @@ def _to_public_view(row: StoredCredential) -> CredentialPublicView:
         default_embed_model=row.default_embed_model,
         role_models=row.role_models or {},
         failover_chain=row.failover_chain or [],
+        role_cost_limits=row.role_cost_limits or {},
         status=row.status,
         last_used_at=row.last_used_at,
         last_validated_at=row.last_validated_at,
@@ -244,6 +246,23 @@ def _role_models_diff(
     investigating a bill spike can see exactly which role flipped to
     which model. Returns three buckets — added / removed / changed —
     each empty when there is nothing in that category.
+    """
+    added = {k: after[k] for k in after if k not in before}
+    removed = sorted([k for k in before if k not in after])
+    changed = {
+        k: [before[k], after[k]] for k in before if k in after and before[k] != after[k]
+    }
+    return {"added": added, "removed": removed, "changed": changed}
+
+
+def _role_cost_limits_diff(
+    before: dict[str, int], after: dict[str, int]
+) -> dict[str, Any]:
+    """Audit diff for ``credential_role_cost_limits_updated`` events.
+
+    Same shape as the role-models diff — kept separate so the values are
+    typed as ints (cents) and the audit consumer doesn't accidentally
+    parse them as model strings.
     """
     added = {k: after[k] for k in after if k not in before}
     removed = sorted([k for k in before if k not in after])
@@ -649,6 +668,98 @@ def update_role_models(
             "credential_id": credential_id,
             "role_models_diff": diff,
         },
+    )
+
+    row = store.get_by_id(tenant_id, credential_id)
+    assert row is not None
+    response.headers["ETag"] = _etag_from(row)
+    return _to_public_view(row)
+
+
+# ---------------------------------------------------------------------------
+# PATCH /v1/credentials/{id}/role-cost-limits — Business+ only, mandatory If-Match
+# ---------------------------------------------------------------------------
+
+
+@router.patch(
+    "/{credential_id}/role-cost-limits",
+    response_model=CredentialPublicView,
+    dependencies=[require_permission("credentials:role_cost_limits:write")],
+)
+def update_role_cost_limits(
+    credential_id: str,
+    body: RoleCostLimitsUpdate,
+    request: Request,
+    response: Response,
+    auth_ctx: AuthContext | None = Depends(get_auth_context),
+) -> CredentialPublicView:
+    """Set per-role monthly $ ceilings for this credential (Business+).
+
+    Map shape: ``{role: max_cents_per_month}``. When a role's spend
+    reaches its cap in the current UTC month, the runtime falls back
+    to ``default_model`` for that role until the calendar month rolls
+    over. Service continuity wins over rigid caps — there is no 429.
+
+    The ceiling protects the **role override** in ``role_models``. It
+    does not apply when the role has no override (the call would already
+    use ``default_model`` regardless). This is a deliberate design choice
+    documented in the per-role-routing docs.
+
+    Same gating shape as the role-models endpoint: tier check on
+    non-empty body, mandatory If-Match, admin+ only, audit diff in
+    structured logs. Empty {} clears all ceilings on any tier (downgrade
+    exit).
+    """
+    store, resolver, _cipher = _byok_components(request)
+    tenant_id = (auth_ctx.tenant_id if auth_ctx else None) or get_scope().tenant_id
+
+    existing = store.get_by_id(tenant_id, credential_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_code": ErrorCode.CREDENTIAL_NOT_FOUND, "detail": "Credential not found."},
+        )
+
+    if body.role_cost_limits:
+        sub = _get_subscription(request, tenant_id)
+        require_feature(sub, "byok.role_cost_ceiling")
+
+    if_match = _require_if_match(request, existing)
+
+    outcome = store.patch(
+        tenant_id=tenant_id,
+        credential_id=credential_id,
+        role_cost_limits=body.role_cost_limits,
+        if_match_updated_at=if_match,
+    )
+    if outcome == PatchOutcome.PRECONDITION_FAILED:
+        refreshed = store.get_by_id(tenant_id, credential_id)
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail={
+                "error_code": ErrorCode.PRECONDITION_FAILED,
+                "detail": "Credential was modified concurrently — re-read and retry.",
+                "current_etag": _etag_from(refreshed) if refreshed else None,
+            },
+        )
+    if outcome == PatchOutcome.NOT_FOUND:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_code": ErrorCode.CREDENTIAL_NOT_FOUND, "detail": "Credential not found."},
+        )
+
+    resolver.invalidate(tenant_id)
+    _invalidate_provider_cache(request, tenant_id)
+
+    diff = _role_cost_limits_diff(
+        existing.role_cost_limits or {},
+        body.role_cost_limits,
+    )
+    _audit_credential_event(
+        request,
+        action="credential_role_cost_limits_updated",
+        tenant_id=tenant_id,
+        detail={"credential_id": credential_id, "role_cost_limits_diff": diff},
     )
 
     row = store.get_by_id(tenant_id, credential_id)

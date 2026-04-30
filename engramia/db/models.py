@@ -494,6 +494,11 @@ class TenantCredential(Base):
     # when this credential's primary call hits a transient error.
     # Auth errors never trigger failover. NULL means no failover.
     failover_chain: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # Per-role monthly cost ceiling in cents (Business+ tier, #2b).
+    # E.g. {"coder": 5000} = $50/mo cap on the 'coder' role override;
+    # when reached, the runtime falls back to ``default_model`` for that
+    # role until the calendar month rolls. NULL means no ceilings.
+    role_cost_limits: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="active")
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -507,3 +512,39 @@ tenant_credentials_tenant_index = Index(
     "idx_tenant_credentials_tenant",
     TenantCredential.tenant_id,
 )
+
+
+class RoleSpendCounter(Base):
+    """Per-(tenant, credential, role, month) accumulator of LLM cost.
+
+    Backs the Phase 6.6 #2b cost ceiling. Incremented after every LLM call
+    by ``billing.role_metering.increment_spend`` (UPSERT on the composite
+    PK), read by the preflight ceiling gate in
+    :class:`engramia.providers.tenant_scoped.TenantScopedLLMProvider`.
+
+    The table is intentionally separate from ``tenant_credentials``:
+    the high-write rate (one INSERT per LLM call) would invalidate the
+    LRU+TTL credential cache on every call if the column lived on the
+    parent row. Composite PK is the natural UPSERT target.
+
+    Month is ``YYYY-MM`` UTC — same shape as ``billing.metering`` so
+    Grafana can join the two on the same calendar grouping.
+    """
+
+    __tablename__ = "role_spend_counters"
+    __table_args__ = (
+        Index("idx_role_spend_counters_tenant_month", "tenant_id", "month"),
+    )
+
+    tenant_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    credential_id: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("tenant_credentials.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    role: Mapped[str] = mapped_column(Text, primary_key=True)
+    month: Mapped[str] = mapped_column(Text, primary_key=True)  # YYYY-MM
+    spend_cents: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    tokens_in: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    tokens_out: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

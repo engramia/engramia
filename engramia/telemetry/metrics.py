@@ -30,6 +30,7 @@ LLM_CALL_DURATION: Any = None  # Histogram: provider, model, role
 EMBEDDING_DURATION: Any = None  # Histogram: provider
 STORAGE_OP_DURATION: Any = None  # Histogram: backend, operation
 LLM_FAILOVER: Any = None  # Counter: fallback_position
+ROLE_CEILING_FALLBACK: Any = None  # Counter: role
 
 PATTERN_COUNT: Any = None  # Gauge:     (unlabelled — global aggregate)
 RECALL_HITS: Any = None  # Counter
@@ -53,7 +54,7 @@ def init_metrics() -> None:
     global _enabled
     global REQUEST_DURATION, REQUEST_COUNT
     global LLM_CALL_DURATION, EMBEDDING_DURATION, STORAGE_OP_DURATION
-    global LLM_FAILOVER
+    global LLM_FAILOVER, ROLE_CEILING_FALLBACK
     global PATTERN_COUNT, RECALL_HITS, RECALL_MISSES
     global JOB_SUBMITTED, JOB_COMPLETED
 
@@ -93,6 +94,11 @@ def init_metrics() -> None:
         "engramia_llm_failover_total",
         "Provider failover events — primary call failed transient and chain advanced",
         ["fallback_position"],
+    )
+    ROLE_CEILING_FALLBACK = Counter(
+        "engramia_role_ceiling_fallback_total",
+        "Per-role cost ceiling reached — call routed to default_model instead",
+        ["role"],
     )
     EMBEDDING_DURATION = Histogram(
         "engramia_embedding_duration_seconds",
@@ -162,6 +168,18 @@ def observe_failover(tenant_id: str, fallback_position: int) -> None:
     if not _enabled:
         return
     LLM_FAILOVER.labels(str(fallback_position)).inc()
+
+
+def observe_role_ceiling_fallback(tenant_id: str, role: str) -> None:
+    """Record a cost-ceiling fallback — role spend reached cap, used default.
+
+    Same cardinality discipline as ``observe_failover``: ``tenant_id`` is
+    not labelled. The ``role`` label is bounded by KNOWN_ROLES + a small
+    long tail of Enterprise custom roles, well within Prometheus comfort.
+    """
+    if not _enabled:
+        return
+    ROLE_CEILING_FALLBACK.labels(role).inc()
 
 
 def observe_embedding(provider: str, duration_s: float) -> None:

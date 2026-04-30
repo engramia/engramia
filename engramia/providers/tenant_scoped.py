@@ -44,6 +44,7 @@ from __future__ import annotations
 import collections
 import logging
 import threading
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
 from engramia._context import get_scope
@@ -53,6 +54,7 @@ from engramia.providers.demo import DemoProvider
 from engramia.providers.roles import KNOWN_ROLES
 
 if TYPE_CHECKING:
+    from engramia.billing.role_metering import RoleMeter
     from engramia.credentials.models import TenantCredential
     from engramia.credentials.resolver import CredentialResolver
     from engramia.credentials.store import CredentialStore
@@ -69,6 +71,22 @@ _PROVIDER_CACHE_MAX: Final[int] = 4096
 # layer enforces this at PATCH time; this constant is the read-side guard
 # against a hand-edited DB row exceeding it.
 _FAILOVER_CHAIN_MAX_LEN: Final[int] = 3
+
+
+@dataclass
+class _ChainEntry:
+    """One node in a failover chain — provider plus the metadata the
+    cost-ceiling meter needs after a successful call.
+
+    Keeping ``credential_id`` / ``provider_type`` / ``model`` alongside
+    the provider instance avoids re-resolving them from the resolver
+    cache after every call.
+    """
+
+    provider: LLMProvider
+    credential_id: str
+    provider_type: str
+    model: str
 
 
 def _build_one_llm(cred: TenantCredential, role: str) -> LLMProvider:
@@ -117,26 +135,29 @@ def _build_llm_chain(
     role: str,
     store: CredentialStore | None,
     resolver: CredentialResolver,
-) -> list[LLMProvider]:
+) -> list[_ChainEntry]:
     """Build the ordered failover chain for a primary credential.
 
-    The chain is ``[primary]`` plus one provider per active credential
+    Each entry carries the provider instance plus the metadata the
+    cost-ceiling meter needs (credential_id, provider_type, resolved
+    model) so the caller does not have to re-resolve them after a
+    successful call.
+
+    The chain is ``[primary]`` plus one entry per active credential
     referenced in ``cred.failover_chain``. Inactive (revoked/invalid),
     cross-tenant, or unresolvable references are silently skipped — the
     chain is best-effort, not strictly enforced. A primary that can't
     even be built (e.g. unknown provider after a downgrade) raises;
     the call would have failed regardless.
-
-    Args:
-        cred: Primary credential resolved for this tenant.
-        role: Role hint applied to every chain entry independently.
-        store: Optional credential store for fallback id->credential
-            lookup. When ``None`` (no DB engine), the chain is just the
-            primary.
-        resolver: Used to fetch failover credentials with the same
-            decryption pipeline as the primary.
     """
-    chain: list[LLMProvider] = [_build_one_llm(cred, role)]
+    chain: list[_ChainEntry] = [
+        _ChainEntry(
+            provider=_build_one_llm(cred, role),
+            credential_id=cred.id,
+            provider_type=cred.provider,
+            model=cred.model_for_role(role),
+        )
+    ]
     if not cred.failover_chain or store is None:
         return chain
     seen: set[str] = {cred.id}
@@ -157,7 +178,14 @@ def _build_llm_chain(
         if fallback is None or fallback.status != "active":
             continue
         try:
-            chain.append(_build_one_llm(fallback, role))
+            chain.append(
+                _ChainEntry(
+                    provider=_build_one_llm(fallback, role),
+                    credential_id=fallback.id,
+                    provider_type=fallback.provider,
+                    model=fallback.model_for_role(role),
+                )
+            )
         except (ValueError, ImportError) as exc:
             _log.warning(
                 "failover.build_skipped tenant=%s fallback_id=%s provider=%s reason=%s",
@@ -223,6 +251,11 @@ class TenantScopedLLMProvider(LLMProvider):
         store: Optional :class:`CredentialStore` for failover_chain
             resolution. When ``None`` (no DB engine, dev mode) failover
             is silently disabled — chain is always just the primary.
+        role_meter: Optional :class:`RoleMeter` for the per-role cost
+            ceiling preflight (Phase 6.6 #2b). When ``None`` (no DB
+            engine), the gate is silently disabled — ceilings are not
+            enforced. When the gate fires, the runtime swaps the role's
+            model selection to ``default_model`` for that one call.
         fallback: Provider used when the resolver returns ``None``.
             Defaults to a fresh :class:`DemoProvider` per app instance.
     """
@@ -231,13 +264,15 @@ class TenantScopedLLMProvider(LLMProvider):
         self,
         resolver: CredentialResolver,
         store: CredentialStore | None = None,
+        role_meter: RoleMeter | None = None,
         fallback: LLMProvider | None = None,
     ) -> None:
         self._resolver = resolver
         self._store = store
+        self._role_meter = role_meter
         self._fallback = fallback or DemoProvider()
-        # Cache stores chains (list[LLMProvider]) keyed by primary credential.
-        self._cache: collections.OrderedDict[tuple[str, str, str], list[LLMProvider]] = collections.OrderedDict()
+        # Cache stores chains keyed by primary (tenant, provider, role).
+        self._cache: collections.OrderedDict[tuple[str, str, str], list[_ChainEntry]] = collections.OrderedDict()
         self._lock = threading.Lock()
 
     def call(
@@ -260,12 +295,26 @@ class TenantScopedLLMProvider(LLMProvider):
         if cred is None:
             return self._fallback.call(prompt, system=system, role=role)
 
-        chain = self._get_or_build_chain(cred, role)
+        # Preflight cost ceiling gate (Phase 6.6 #2b).
+        # If this credential has a role_cost_limit for the requested role
+        # AND the current month's spend has reached it, swap the call's
+        # role to "default" so the chain build uses ``default_model``
+        # instead of the (more expensive) override. The credential row
+        # is unchanged; only this single call routes to default.
+        effective_role = self._apply_cost_ceiling(cred, role, scope.tenant_id)
+
+        chain = self._get_or_build_chain(cred, effective_role)
 
         last_transient: Exception | None = None
-        for index, provider in enumerate(chain):
+        for index, entry in enumerate(chain):
             try:
-                return provider.call(prompt, system=system, role=role)
+                result = entry.provider.call(prompt, system=system, role=effective_role)
+                self._meter_after_call(
+                    entry=entry,
+                    role=effective_role,
+                    tenant_id=scope.tenant_id,
+                )
+                return result
             except Exception as exc:
                 if is_auth_error(exc):
                     # Fail fast — never failover on auth-class errors.
@@ -305,7 +354,7 @@ class TenantScopedLLMProvider(LLMProvider):
             for k in keys:
                 del self._cache[k]
 
-    def _get_or_build_chain(self, cred: TenantCredential, role: str) -> list[LLMProvider]:
+    def _get_or_build_chain(self, cred: TenantCredential, role: str) -> list[_ChainEntry]:
         key = (cred.tenant_id, cred.provider, role)
         with self._lock:
             existing = self._cache.get(key)
@@ -331,6 +380,125 @@ class TenantScopedLLMProvider(LLMProvider):
                 observer(tenant_id, fallback_position)
         except Exception:
             pass  # telemetry never breaks the hot path
+
+    def _meter_after_call(
+        self,
+        *,
+        entry: _ChainEntry,
+        role: str,
+        tenant_id: str,
+    ) -> None:
+        """Read the just-completed call's usage from the provider TLS and
+        write it into the role spend counter (Phase 6.6 #2b).
+
+        Reads from ``provider._tls.last_usage`` (set by the provider
+        after a successful API response) and clears it so a subsequent
+        retry path on the same thread cannot double-count. When the
+        provider does not expose usage (Ollama, custom openai_compat
+        endpoints) or the rate card has no entry for the
+        ``(provider_type, model)`` pair, the meter call is a silent
+        no-op — the gate logs a warning at most.
+
+        Failures here never propagate: the response was already produced
+        and metering must not retroactively invalidate it.
+        """
+        if self._role_meter is None:
+            return
+        tls = getattr(entry.provider, "_tls", None)
+        if tls is None:
+            return
+        usage = getattr(tls, "last_usage", None)
+        if usage is None:
+            return
+        # Clear immediately so the next call on this thread cannot reuse
+        # a stale read if the provider response path skips the assignment
+        # (e.g. mocked SDK in tests).
+        tls.last_usage = None
+        try:
+            from engramia.billing.rate_cards import cost_for
+
+            cost_cents = cost_for(
+                entry.provider_type,
+                entry.model,
+                int(usage.get("tokens_in", 0)),
+                int(usage.get("tokens_out", 0)),
+            )
+            if cost_cents is None:
+                return  # provider/model not on rate card — silently skip
+            self._role_meter.increment_spend(
+                tenant_id=tenant_id,
+                credential_id=entry.credential_id,
+                role=role,
+                cost_cents=cost_cents,
+                tokens_in=int(usage.get("tokens_in", 0)),
+                tokens_out=int(usage.get("tokens_out", 0)),
+            )
+        except Exception:
+            _log.debug("post-call metering failed (non-fatal)", exc_info=True)
+
+    def _apply_cost_ceiling(
+        self,
+        cred: TenantCredential,
+        role: str,
+        tenant_id: str,
+    ) -> str:
+        """Decide whether the role override is still under its monthly budget.
+
+        Returns ``role`` unchanged when:
+        - There is no ``RoleMeter`` (no DB engine).
+        - The role has no override (``role`` not in ``role_models``) — the
+          ceiling does not protect ``default_model`` against itself.
+        - The role override has no ``role_cost_limits`` entry.
+        - Current month's spend is below the cap.
+
+        Returns ``"default"`` when the cap has been reached. The chain
+        builder then uses ``default_model`` for this one call. The
+        credential row is **not** mutated — the next month rolls over
+        naturally because the counter key includes ``YYYY-MM``.
+
+        Fail-open: if the meter read raises (DB blip), we let the call
+        through with the original role. One over-budget call is a
+        cheaper failure than blocking traffic on a transient DB issue.
+        """
+        if self._role_meter is None:
+            return role
+        cap = cred.cost_ceiling_for_role(role)
+        if cap is None:
+            return role
+        try:
+            spend = self._role_meter.get_spend(
+                tenant_id=tenant_id,
+                credential_id=cred.id,
+                role=role,
+            )
+        except Exception:
+            _log.debug(
+                "role_meter.get_spend failed — fail-open tenant=%s role=%s",
+                tenant_id,
+                role,
+                exc_info=True,
+            )
+            return role
+        if spend < cap:
+            return role
+        # Ceiling reached — log + audit + Prometheus, then fall back.
+        _log.warning(
+            "ROLE_CEILING_EXCEEDED tenant=%s cred=%s role=%s spend=%d cap=%d — falling back to default_model",
+            tenant_id,
+            cred.id,
+            role,
+            spend,
+            cap,
+        )
+        try:
+            from engramia.telemetry import metrics as _metrics
+
+            observer = getattr(_metrics, "observe_role_ceiling_fallback", None)
+            if observer is not None:
+                observer(tenant_id, role)
+        except Exception:
+            pass
+        return "default"
 
 
 class TenantScopedEmbeddingProvider(EmbeddingProvider):

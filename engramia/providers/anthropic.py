@@ -17,6 +17,7 @@ deployments. The cloud factory passes the plaintext key resolved by
 
 import logging
 import random
+import threading
 import time
 
 from engramia.providers._concurrency import llm_semaphore
@@ -67,6 +68,9 @@ class AnthropicProvider(LLMProvider):
         self._model = model
         self._max_retries = max_retries
         self._max_tokens = max_tokens
+        # Thread-local last-call usage for the cost-ceiling meter (#2b).
+        # See OpenAIProvider for the full rationale.
+        self._tls = threading.local()
 
     @_tracing.traced("llm.call", {"llm.provider": "anthropic"})
     def call(
@@ -98,6 +102,13 @@ class AnthropicProvider(LLMProvider):
                 try:
                     response = self._client.messages.create(**kwargs)
                     _metrics.observe_llm("anthropic", self._model, time.perf_counter() - t0, role)
+                    usage = getattr(response, "usage", None)
+                    tls = getattr(self, "_tls", None)
+                    if usage is not None and tls is not None:
+                        tls.last_usage = {
+                            "tokens_in": int(getattr(usage, "input_tokens", 0) or 0),
+                            "tokens_out": int(getattr(usage, "output_tokens", 0) or 0),
+                        }
                     # Extract text from the first content block
                     for block in response.content:
                         if block.type == "text":

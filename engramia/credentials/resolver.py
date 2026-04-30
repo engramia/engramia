@@ -183,6 +183,7 @@ class CredentialResolver:
             default_embed_model=row.default_embed_model,
             role_models=row.role_models or {},
             failover_chain=row.failover_chain or [],
+            role_cost_limits=row.role_cost_limits or {},
             status=row.status,
             last_used_at=row.last_used_at,
             last_validated_at=row.last_validated_at,

@@ -17,6 +17,7 @@ parameter on every call (the validator pings ``?key=`` only).
 
 import logging
 import random
+import threading
 import time
 from typing import Any
 
@@ -63,6 +64,9 @@ class GeminiProvider(LLMProvider):
         self._model = model
         self._max_retries = max_retries
         self._max_tokens = max_tokens
+        # Thread-local last-call usage for the cost-ceiling meter (#2b).
+        # See OpenAIProvider for the full rationale.
+        self._tls = threading.local()
 
     @_tracing.traced("llm.call", {"llm.provider": "gemini"})
     def call(
@@ -92,6 +96,13 @@ class GeminiProvider(LLMProvider):
                         config=config,
                     )
                     _metrics.observe_llm("gemini", self._model, time.perf_counter() - t0, role)
+                    usage_meta = getattr(response, "usage_metadata", None)
+                    tls = getattr(self, "_tls", None)
+                    if usage_meta is not None and tls is not None:
+                        tls.last_usage = {
+                            "tokens_in": int(getattr(usage_meta, "prompt_token_count", 0) or 0),
+                            "tokens_out": int(getattr(usage_meta, "candidates_token_count", 0) or 0),
+                        }
                     return response.text or ""
                 except (
                     _genai_errors.ClientError,

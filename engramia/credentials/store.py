@@ -89,13 +89,17 @@ class StoredCredential:
     created_by: str | None
     failover_chain: list[str] = None  # type: ignore[assignment]
     updated_at: datetime.datetime | None = None
+    role_cost_limits: dict[str, int] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        # ``failover_chain=None`` is the on-disk representation when the
-        # column is NULL; downstream code assumes an empty list. Normalise
-        # at construction so every reader sees the same shape.
+        # ``failover_chain=None`` and ``role_cost_limits=None`` are the
+        # on-disk representations when their columns are NULL; downstream
+        # code assumes empty list / dict. Normalise here so every reader
+        # sees the same shape regardless of column nullability.
         if self.failover_chain is None:
             self.failover_chain = []
+        if self.role_cost_limits is None:
+            self.role_cost_limits = {}
 
 
 _SELECT_COLUMNS = (
@@ -103,7 +107,7 @@ _SELECT_COLUMNS = (
     "encrypted_key, nonce, auth_tag, key_version, key_fingerprint, "
     "base_url, default_model, default_embed_model, role_models, failover_chain, "
     "status, last_used_at, last_validated_at, last_validation_error, "
-    "created_at, created_by, updated_at"
+    "created_at, created_by, updated_at, role_cost_limits"
 )
 
 
@@ -131,6 +135,7 @@ def _row_to_stored(row: Any) -> StoredCredential:
         created_at=row[18],
         created_by=row[19],
         updated_at=row[20],
+        role_cost_limits=row[21] if len(row) > 21 else None,
     )
 
 
@@ -352,6 +357,7 @@ class CredentialStore:
         default_embed_model: str | None = None,
         role_models: dict[str, str] | None = None,
         failover_chain: list[str] | None = None,
+        role_cost_limits: dict[str, int] | None = None,
         if_match_updated_at: datetime.datetime | None = None,
     ) -> PatchOutcome:
         """Update non-secret fields. Returns :class:`PatchOutcome`.
@@ -404,6 +410,9 @@ class CredentialStore:
         if failover_chain is not None:
             sets.append("failover_chain = :fc")
             params["fc"] = failover_chain
+        if role_cost_limits is not None:
+            sets.append("role_cost_limits = :rcl")
+            params["rcl"] = role_cost_limits
         if not sets:
             return PatchOutcome.EMPTY_BODY
         sets.append("updated_at = now()")

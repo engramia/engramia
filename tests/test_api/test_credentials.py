@@ -145,13 +145,22 @@ class _FakeStore(CredentialStore):
         default_embed_model: str | None = None,
         role_models: dict[str, str] | None = None,
         failover_chain: list[str] | None = None,
+        role_cost_limits: dict[str, int] | None = None,
         if_match_updated_at: datetime.datetime | None = None,
     ):
         row = self.get_by_id(tenant_id, credential_id)
         if row is None:
             return PatchOutcome.NOT_FOUND
         if all(
-            v is None for v in (base_url, default_model, default_embed_model, role_models, failover_chain)
+            v is None
+            for v in (
+                base_url,
+                default_model,
+                default_embed_model,
+                role_models,
+                failover_chain,
+                role_cost_limits,
+            )
         ):
             return PatchOutcome.EMPTY_BODY
         if if_match_updated_at is not None and if_match_updated_at != row.updated_at:
@@ -171,6 +180,9 @@ class _FakeStore(CredentialStore):
             default_embed_model=(default_embed_model if default_embed_model is not None else row.default_embed_model),
             role_models=role_models if role_models is not None else row.role_models,
             failover_chain=failover_chain if failover_chain is not None else row.failover_chain,
+            role_cost_limits=(
+                role_cost_limits if role_cost_limits is not None else row.role_cost_limits
+            ),
             status=row.status,
             last_used_at=row.last_used_at,
             last_validated_at=row.last_validated_at,
@@ -251,7 +263,11 @@ def app_with_byok(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Any:
     mock_llm = MagicMock()
     mock_llm.call.return_value = "{}"
     monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None: mock_embeddings)
-    monkeypatch.setattr(factory, "make_llm", lambda resolver=None: mock_llm)
+    monkeypatch.setattr(
+        factory,
+        "make_llm",
+        lambda resolver=None, store=None, role_meter=None: mock_llm,
+    )
 
     from engramia.api.app import create_app
 

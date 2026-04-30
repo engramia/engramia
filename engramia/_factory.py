@@ -33,7 +33,9 @@ import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from engramia.billing.role_metering import RoleMeter
     from engramia.credentials.resolver import CredentialResolver
+    from engramia.credentials.store import CredentialStore
     from engramia.providers.base import EmbeddingProvider, LLMProvider
 
 _log = logging.getLogger(__name__)
@@ -87,7 +89,11 @@ def make_embeddings(resolver: CredentialResolver | None = None) -> EmbeddingProv
         return None
 
 
-def make_llm(resolver: CredentialResolver | None = None) -> LLMProvider | None:
+def make_llm(
+    resolver: CredentialResolver | None = None,
+    store: CredentialStore | None = None,
+    role_meter: RoleMeter | None = None,
+) -> LLMProvider | None:
     """Create an LLM provider.
 
     Args:
@@ -98,6 +104,12 @@ def make_llm(resolver: CredentialResolver | None = None) -> LLMProvider | None:
             BYOK / cloud mode.
             When ``None`` (default), falls back to the env-var-driven
             single-instance path used by self-hosted deployments.
+        store: Optional credential store for failover_chain resolution
+            (Phase 6.6 #2). Without it, failover is silently disabled.
+        role_meter: Optional :class:`RoleMeter` enabling the per-role
+            cost ceiling preflight gate (Phase 6.6 #2b). Without it,
+            ceilings are not enforced — useful in dev / JSON-storage
+            mode where there is no DB to back the spend counter.
 
     Returns:
         An :class:`LLMProvider` or ``None`` when
@@ -112,7 +124,11 @@ def make_llm(resolver: CredentialResolver | None = None) -> LLMProvider | None:
         from engramia.providers.tenant_scoped import TenantScopedLLMProvider
 
         _log.info("LLM provider: TenantScopedLLMProvider (BYOK mode).")
-        return TenantScopedLLMProvider(resolver=resolver)
+        return TenantScopedLLMProvider(
+            resolver=resolver,
+            store=store,
+            role_meter=role_meter,
+        )
 
     provider = os.environ.get("ENGRAMIA_LLM_PROVIDER", "openai").lower()
     model = os.environ.get("ENGRAMIA_LLM_MODEL", "gpt-4.1")

@@ -77,6 +77,7 @@ nav:
       - Ollama: byok/ollama.md
       - Per-role routing (Business+): byok/per-role-routing.md
       - Provider failover chain (Business+): byok/failover-chain.md
+      - Per-role cost ceiling (Business+): byok/cost-ceiling.md
   - Integrations:
       - Overview & Examples: integrations/examples.md
       - LangChain: integrations/langchain.md

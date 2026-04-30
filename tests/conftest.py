@@ -140,7 +140,11 @@ def app_client(tmp_path, monkeypatch):
     # Accept the new BYOK ``resolver`` kwarg added in Phase 6.6 — the
     # mocks ignore it because the fixture intentionally bypasses BYOK.
     monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None: mock_embeddings)
-    monkeypatch.setattr(factory, "make_llm", lambda resolver=None: _mock_llm)
+    monkeypatch.setattr(
+        factory,
+        "make_llm",
+        lambda resolver=None, store=None, role_meter=None: _mock_llm,
+    )
 
     from engramia.api.app import create_app
 

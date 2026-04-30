@@ -17,6 +17,7 @@ plaintext key resolved by :class:`engramia.credentials.resolver.CredentialResolv
 
 import logging
 import random
+import threading
 import time
 from typing import Any, cast
 
@@ -69,6 +70,13 @@ class OpenAIProvider(LLMProvider):
         self._api_key = api_key
         self._base_url = base_url
         self._client_cache: Any = None
+        # Thread-local last-call usage for the cost-ceiling meter (#2b).
+        # Reading provider._tls.last_usage after `call()` returns gives
+        # the wrapper {tokens_in, tokens_out} of *this* call without
+        # cross-thread races between concurrent requests sharing the
+        # same provider instance. Set by every successful response;
+        # cleared by the wrapper after readout.
+        self._tls = threading.local()
 
     @property
     def _client(self) -> Any:
@@ -111,6 +119,13 @@ class OpenAIProvider(LLMProvider):
                         messages=cast("list[Any]", messages),
                     )
                     _metrics.observe_llm("openai", self._model, time.perf_counter() - t0, role)
+                    usage = getattr(response, "usage", None)
+                    tls = getattr(self, "_tls", None)
+                    if usage is not None and tls is not None:
+                        tls.last_usage = {
+                            "tokens_in": int(getattr(usage, "prompt_tokens", 0) or 0),
+                            "tokens_out": int(getattr(usage, "completion_tokens", 0) or 0),
+                        }
                     return response.choices[0].message.content or ""
                 except (AuthenticationError, BadRequestError, PermissionDeniedError):
                     raise

@@ -63,7 +63,11 @@ def app_with_byok_billing(tmp_path, monkeypatch: pytest.MonkeyPatch) -> Any:
     mock_llm = MagicMock()
     mock_llm.call.return_value = "{}"
     monkeypatch.setattr(factory, "make_embeddings", lambda resolver=None: mock_embeddings)
-    monkeypatch.setattr(factory, "make_llm", lambda resolver=None: mock_llm)
+    monkeypatch.setattr(
+        factory,
+        "make_llm",
+        lambda resolver=None, store=None, role_meter=None: mock_llm,
+    )
 
     from engramia.api.app import create_app
     from engramia.credentials import AESGCMCipher, CredentialResolver
