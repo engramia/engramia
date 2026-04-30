@@ -104,7 +104,19 @@ for _name, _mod in [
 ]:
     sys.modules[_name] = _mod
 
-sys.modules.pop("engramia.mcp.server", None)  # force fresh import below
+# Force fresh import of all engramia.mcp modules so they pick up the real
+# _Tool / _TextContent stubs registered above. The shared catalog
+# (engramia.mcp.tools) and dispatch shim must be re-imported too — otherwise
+# a previous test module (e.g. test_mcp.py with MagicMock-stubbed Tool) may
+# have cached them. We must delete both the sys.modules entry AND the
+# attribute on the engramia.mcp package, because ``from engramia.mcp import
+# tools`` first checks the parent package's __dict__ before sys.modules.
+import engramia.mcp as _engramia_mcp_pkg  # noqa: E402
+
+for _submod in ("server", "tools", "dispatch"):
+    sys.modules.pop(f"engramia.mcp.{_submod}", None)
+    if hasattr(_engramia_mcp_pkg, _submod):
+        delattr(_engramia_mcp_pkg, _submod)
 
 import engramia.mcp.server as _server_mod  # noqa: E402
 from engramia.mcp.server import (  # noqa: E402
@@ -148,15 +160,19 @@ _EXPECTED_TOOL_NAMES = {
     "engramia_feedback",
     "engramia_metrics",
     "engramia_aging",
+    # Phase 6.6 ADR-003: stdio shares the catalog with hosted MCP, so the
+    # two tools added for the hosted transport are also visible here.
+    "engramia_evolve",
+    "engramia_analyze_failures",
 }
 
 
 class TestListTools:
-    """list_tools() returns the 7 registered MCP tools with correct metadata."""
+    """list_tools() returns the 9 registered MCP tools with correct metadata."""
 
-    async def test_returns_seven_tools(self, real_tool):
+    async def test_returns_nine_tools(self, real_tool):
         tools = await list_tools()
-        assert len(tools) == 7
+        assert len(tools) == 9
 
     async def test_all_expected_tool_names_present(self, real_tool):
         tools = await list_tools()

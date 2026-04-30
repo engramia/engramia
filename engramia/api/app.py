@@ -438,6 +438,20 @@ def _register_routers(app: FastAPI, storage) -> None:
     app.include_router(credentials_router, prefix="/v1")
 
     # ------------------------------------------------------------------
+    # Hosted MCP server (Streamable HTTP transport at /v1/mcp).
+    # Phase 6.6 #1 — gated by ENGRAMIA_MCP_HOSTED_ENABLED feature flag.
+    # The mount is no-op when the flag is off; safe to call unconditionally.
+    # ------------------------------------------------------------------
+    try:
+        from engramia.mcp.http_server import mount_hosted_mcp
+
+        mount_hosted_mcp(app)
+    except ImportError:
+        # mcp SDK not installed (extras not selected). Hosted MCP is part
+        # of the engramia[mcp] extra; self-host without it is fine.
+        _log.info("Hosted MCP skipped — mcp SDK not installed (install engramia[mcp]).")
+
+    # ------------------------------------------------------------------
     # Prometheus /metrics endpoint (opt-in via ENGRAMIA_METRICS=true)
     # Exposes Python process metrics + custom Engramia Gauges:
     #   engramia_pattern_count, engramia_avg_eval_score,

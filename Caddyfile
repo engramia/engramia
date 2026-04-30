@@ -67,7 +67,27 @@
 
 {$DOMAIN_API} {
 	import secure_defaults
-	reverse_proxy {$UPSTREAM_API:engramia-api:8000}
+
+	# Hosted MCP (Streamable HTTP transport at /v1/mcp) — long-lived SSE
+	# streams need flush_interval -1 (no buffering) and a generous read
+	# timeout that comfortably exceeds the session idle timeout configured
+	# in the API (ENGRAMIA_MCP_SESSION_IDLE_SECONDS, default 30 min).
+	# See Ops/internal/hosted-mcp-architecture.md §8.1.
+	@mcp path /v1/mcp /v1/mcp/*
+	handle @mcp {
+		reverse_proxy {$UPSTREAM_API:engramia-api:8000} {
+			flush_interval -1
+			transport http {
+				response_header_timeout 30m
+				read_buffer 8KiB
+			}
+		}
+	}
+
+	# Default — short-lived REST endpoints.
+	handle {
+		reverse_proxy {$UPSTREAM_API:engramia-api:8000}
+	}
 }
 
 {$DOMAIN_APP} {

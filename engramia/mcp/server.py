@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Marek Čermák
-"""MCP server for Engramia.
+"""MCP server for Engramia (stdio transport).
 
 Exposes Engramia operations as MCP tools for use with Claude Desktop, Cursor,
 Windsurf, VS Code Copilot, and any other MCP-compatible client.
@@ -28,6 +28,16 @@ Claude Desktop config (~/.config/claude/claude_desktop_config.json):
         }
       }
     }
+
+Architecture note:
+    Tool definitions and dispatch logic live in ``engramia/mcp/tools.py`` and
+    ``engramia/mcp/dispatch.py`` so the hosted Streamable HTTP transport
+    (``engramia/mcp/http_server.py``) can share them without duplication. This
+    module is the **stdio glue** — it wires the shared catalog/dispatch into
+    the stdio MCP transport and runs the asyncio event loop. The legacy
+    module-level symbols (``_dispatch``, ``_ALL_TOOLS``, ``_TOOL_*``) remain
+    exported for tests and any external code that imported them prior to the
+    refactor.
 """
 
 import asyncio
@@ -41,6 +51,8 @@ from mcp.server.models import InitializationOptions
 
 from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
+from engramia.mcp import dispatch as _shared_dispatch
+from engramia.mcp import tools as _shared_tools
 
 _log = logging.getLogger(__name__)
 
@@ -60,148 +72,21 @@ def _get_mem() -> Memory:
 
 
 # ---------------------------------------------------------------------------
-# Tool definitions
+# Backward-compatible exports — pre-refactor callers (mostly tests) imported
+# these module-level names directly. Now sourced from the shared catalog.
 # ---------------------------------------------------------------------------
 
-_TOOL_LEARN = types.Tool(
-    name="engramia_learn",
-    description=(
-        "Record a successful agent run so Engramia can store it as a reusable pattern. "
-        "Stores the task, code, and eval score."
-    ),
-    inputSchema={
-        "type": "object",
-        "properties": {
-            "task": {"type": "string", "description": "Natural language task description."},
-            "code": {"type": "string", "description": "Agent source code / solution."},
-            "eval_score": {
-                "type": "number",
-                "description": "Quality score 0-10.",
-                "minimum": 0,
-                "maximum": 10,
-            },
-            "output": {"type": "string", "description": "Captured stdout (optional)."},
-        },
-        "required": ["task", "code", "eval_score"],
-    },
-)
+_TOOL_LEARN = _shared_tools.get_entry("engramia_learn").tool  # type: ignore[union-attr]
+_TOOL_RECALL = _shared_tools.get_entry("engramia_recall").tool  # type: ignore[union-attr]
+_TOOL_EVALUATE = _shared_tools.get_entry("engramia_evaluate").tool  # type: ignore[union-attr]
+_TOOL_COMPOSE = _shared_tools.get_entry("engramia_compose").tool  # type: ignore[union-attr]
+_TOOL_FEEDBACK = _shared_tools.get_entry("engramia_feedback").tool  # type: ignore[union-attr]
+_TOOL_METRICS = _shared_tools.get_entry("engramia_metrics").tool  # type: ignore[union-attr]
+_TOOL_AGING = _shared_tools.get_entry("engramia_aging").tool  # type: ignore[union-attr]
 
-_TOOL_RECALL = types.Tool(
-    name="engramia_recall",
-    description=(
-        "Find stored patterns most relevant to a new task using semantic "
-        "search with optional eval-score weighting and recency bias."
-    ),
-    inputSchema={
-        "type": "object",
-        "properties": {
-            "task": {"type": "string", "description": "Task to find relevant patterns for."},
-            "limit": {
-                "type": "integer",
-                "description": "Max results (1-50).",
-                "minimum": 1,
-                "maximum": 50,
-                "default": 5,
-            },
-            "recency_weight": {
-                "type": "number",
-                "description": (
-                    "Bias toward recently-stored patterns via exponential "
-                    "half-life decay. 0.0 = off (default), 1.0 = full decay."
-                ),
-                "minimum": 0.0,
-                "maximum": 1.0,
-                "default": 0.0,
-            },
-            "recency_half_life_days": {
-                "type": "number",
-                "description": "Half-life of the recency decay, in days.",
-                "exclusiveMinimum": 0.0,
-                "default": 30.0,
-            },
-        },
-        "required": ["task"],
-    },
-)
-
-_TOOL_EVALUATE = types.Tool(
-    name="engramia_evaluate",
-    description=("Run N independent LLM evaluations on an agent run and return median score, variance, and feedback."),
-    inputSchema={
-        "type": "object",
-        "properties": {
-            "task": {"type": "string"},
-            "code": {"type": "string"},
-            "output": {"type": "string", "description": "Captured stdout (optional)."},
-            "num_evals": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 3,
-            },
-        },
-        "required": ["task", "code"],
-    },
-)
-
-_TOOL_COMPOSE = types.Tool(
-    name="engramia_compose",
-    description=(
-        "[Experimental] Decompose a high-level task into a validated multi-agent pipeline. "
-        "Each stage is matched against stored patterns."
-    ),
-    inputSchema={
-        "type": "object",
-        "properties": {
-            "task": {"type": "string", "description": "High-level task to decompose."},
-        },
-        "required": ["task"],
-    },
-)
-
-_TOOL_FEEDBACK = types.Tool(
-    name="engramia_feedback",
-    description="Return top recurring quality issues suitable for injection into agent prompts.",
-    inputSchema={
-        "type": "object",
-        "properties": {
-            "task_type": {
-                "type": "string",
-                "description": "Filter by task type prefix (optional).",
-            },
-            "limit": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 20,
-                "default": 4,
-            },
-        },
-    },
-)
-
-_TOOL_METRICS = types.Tool(
-    name="engramia_metrics",
-    description="Return aggregate Engramia statistics: runs, success rate, pattern count, reuse rate.",
-    inputSchema={"type": "object", "properties": {}},
-)
-
-_TOOL_AGING = types.Tool(
-    name="engramia_aging",
-    description=(
-        "Apply time-based decay to all stored patterns (2%/week) and prune those below the minimum threshold."
-    ),
-    inputSchema={"type": "object", "properties": {}},
-)
-
-_ALL_TOOLS: list[types.Tool] = [
-    _TOOL_LEARN,
-    _TOOL_RECALL,
-    _TOOL_EVALUATE,
-    _TOOL_COMPOSE,
-    _TOOL_FEEDBACK,
-    _TOOL_METRICS,
-    _TOOL_AGING,
-]
+# Stdio is unscoped self-host — exposes the full catalog (including the two
+# tools added in Phase 6.6 for the hosted transport: evolve, analyze_failures).
+_ALL_TOOLS: list[types.Tool] = _shared_tools.stdio_tools()
 
 
 @server.list_tools()
@@ -228,91 +113,14 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
 
 def _dispatch(mem: Memory, name: str, arguments: dict) -> object:
-    """Synchronous dispatch — runs in a thread via asyncio.to_thread."""
-    if name == "engramia_learn":
-        result = mem.learn(
-            task=arguments["task"],
-            code=arguments["code"],
-            eval_score=float(arguments["eval_score"]),
-            output=arguments.get("output"),
-        )
-        return {"stored": result.stored, "pattern_count": result.pattern_count}
+    """Synchronous dispatch — runs in a thread via asyncio.to_thread.
 
-    if name == "engramia_recall":
-        matches = mem.recall(
-            task=arguments["task"],
-            limit=int(arguments.get("limit", 5)),
-            recency_weight=float(arguments.get("recency_weight", 0.0)),
-            recency_half_life_days=float(arguments.get("recency_half_life_days", 30.0)),
-        )
-        return [
-            {
-                "similarity": m.similarity,
-                "reuse_tier": m.reuse_tier,
-                "pattern_key": m.pattern_key,
-                "task": m.pattern.task,
-                "success_score": m.pattern.success_score,
-                "code": m.pattern.design.get("code"),
-            }
-            for m in matches
-        ]
-
-    if name == "engramia_evaluate":
-        ev = mem.evaluate(
-            task=arguments["task"],
-            code=arguments["code"],
-            output=arguments.get("output"),
-            num_evals=int(arguments.get("num_evals", 3)),
-        )
-        return {
-            "median_score": ev.median_score,
-            "variance": ev.variance,
-            "high_variance": ev.high_variance,
-            "feedback": ev.feedback,
-            "adversarial_detected": ev.adversarial_detected,
-        }
-
-    if name == "engramia_compose":
-        pipeline = mem.compose(task=arguments["task"])
-        return {
-            "task": pipeline.task,
-            "valid": pipeline.valid,
-            "contract_errors": pipeline.contract_errors,
-            "stages": [
-                {
-                    "name": s.name,
-                    "task": s.task,
-                    "reads": s.reads,
-                    "writes": s.writes,
-                    "reuse_tier": s.reuse_tier,
-                }
-                for s in pipeline.stages
-            ],
-        }
-
-    if name == "engramia_feedback":
-        feedback = mem.get_feedback(
-            task_type=arguments.get("task_type"),
-            limit=int(arguments.get("limit", 4)),
-        )
-        return {"feedback": feedback}
-
-    if name == "engramia_metrics":
-        m = mem.metrics
-        reuse_rate = m.pipeline_reuse / m.runs if m.runs > 0 else 0.0
-        return {
-            "runs": m.runs,
-            "success_rate": m.success_rate,
-            "avg_eval_score": m.avg_eval_score,
-            "pattern_count": m.pattern_count,
-            "reuse_rate": reuse_rate,
-        }
-
-    if name == "engramia_aging":
-        pruned = mem.run_aging()
-        return {"pruned": pruned}
-
-    raise ValueError(f"Unknown tool: {name!r}")
+    Thin shim over :func:`engramia.mcp.dispatch.dispatch_to_memory`. The shim
+    exists for backward compatibility with tests that monkeypatch
+    ``engramia.mcp.server._dispatch``; new code should call
+    ``dispatch.dispatch_to_memory`` directly.
+    """
+    return _shared_dispatch.dispatch_to_memory(mem, name, arguments)
 
 
 # ---------------------------------------------------------------------------
