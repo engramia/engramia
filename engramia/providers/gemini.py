@@ -91,7 +91,7 @@ class GeminiProvider(LLMProvider):
                         contents=contents,
                         config=config,
                     )
-                    _metrics.observe_llm("gemini", self._model, time.perf_counter() - t0)
+                    _metrics.observe_llm("gemini", self._model, time.perf_counter() - t0, role)
                     return response.text or ""
                 except (
                     _genai_errors.ClientError,

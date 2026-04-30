@@ -25,6 +25,8 @@ Design rules:
 
 from __future__ import annotations
 
+import datetime
+import enum
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -33,9 +35,22 @@ import sqlalchemy.exc
 from sqlalchemy import text
 
 if TYPE_CHECKING:
-    import datetime
-
     from engramia.credentials.models import ProviderType, PurposeType, StatusType
+
+
+class PatchOutcome(enum.Enum):
+    """Result categories for :meth:`CredentialStore.patch`.
+
+    The credentials route handlers map each outcome to a distinct HTTP
+    response so the dashboard can react correctly (412 -> reload prompt,
+    404 -> "deleted by another admin", 422 -> "your form is empty").
+    """
+
+    UPDATED = "updated"
+    NOT_FOUND = "not_found"
+    EMPTY_BODY = "empty_body"
+    PRECONDITION_FAILED = "precondition_failed"  # If-Match mismatch
+    NO_DB = "no_db"  # engine is None — dev/JSON storage
 
 _log = logging.getLogger(__name__)
 
@@ -44,9 +59,13 @@ _log = logging.getLogger(__name__)
 class StoredCredential:
     """Raw row data as returned by SELECT — encrypted, not yet usable.
 
-    Fields mirror the migration 023 schema. The store returns these to the
-    resolver, which decrypts ``encrypted_key`` and constructs a
-    :class:`engramia.credentials.models.TenantCredential` for downstream use.
+    Fields mirror the migrations 023 + 025 schema. The store returns these
+    to the resolver, which decrypts ``encrypted_key`` and constructs a
+    :class:`engramia.credentials.models.TenantCredential` for downstream
+    use. Defaults are set for fields added in later migrations
+    (``failover_chain`` from 025, ``updated_at`` from 023) so test
+    fixtures that pre-date the change keep working without explicit
+    keyword args.
     """
 
     id: str
@@ -68,14 +87,23 @@ class StoredCredential:
     last_validation_error: str | None
     created_at: datetime.datetime | None
     created_by: str | None
+    failover_chain: list[str] = None  # type: ignore[assignment]
+    updated_at: datetime.datetime | None = None
+
+    def __post_init__(self) -> None:
+        # ``failover_chain=None`` is the on-disk representation when the
+        # column is NULL; downstream code assumes an empty list. Normalise
+        # at construction so every reader sees the same shape.
+        if self.failover_chain is None:
+            self.failover_chain = []
 
 
 _SELECT_COLUMNS = (
     "id, tenant_id, provider, purpose, "
     "encrypted_key, nonce, auth_tag, key_version, key_fingerprint, "
-    "base_url, default_model, default_embed_model, role_models, "
+    "base_url, default_model, default_embed_model, role_models, failover_chain, "
     "status, last_used_at, last_validated_at, last_validation_error, "
-    "created_at, created_by"
+    "created_at, created_by, updated_at"
 )
 
 
@@ -95,12 +123,14 @@ def _row_to_stored(row: Any) -> StoredCredential:
         default_model=row[10],
         default_embed_model=row[11],
         role_models=row[12] or {},
-        status=row[13],
-        last_used_at=row[14],
-        last_validated_at=row[15],
-        last_validation_error=row[16],
-        created_at=row[17],
-        created_by=row[18],
+        failover_chain=row[13] or [],
+        status=row[14],
+        last_used_at=row[15],
+        last_validated_at=row[16],
+        last_validation_error=row[17],
+        created_at=row[18],
+        created_by=row[19],
+        updated_at=row[20],
     )
 
 
@@ -321,16 +351,42 @@ class CredentialStore:
         default_model: str | None = None,
         default_embed_model: str | None = None,
         role_models: dict[str, str] | None = None,
-    ) -> bool:
-        """Update non-secret fields. Returns True if a row was updated.
+        failover_chain: list[str] | None = None,
+        if_match_updated_at: datetime.datetime | None = None,
+    ) -> PatchOutcome:
+        """Update non-secret fields. Returns :class:`PatchOutcome`.
 
-        ``api_key`` is intentionally NOT a parameter — rotation must go
-        through :meth:`upsert` so the encryption path is exercised and the
-        old fingerprint is preserved in the audit log.
+        Per-role routing (Phase 6.6 #2) and failover chain are persisted via
+        this method. ``api_key`` is intentionally NOT a parameter — rotation
+        must go through :meth:`upsert` so the encryption path is exercised
+        and the old fingerprint is preserved in the audit log.
+
+        Optimistic-concurrency guard: when ``if_match_updated_at`` is
+        provided, the UPDATE includes ``AND updated_at = :etag``. If no
+        row matches, the method probes for the credential and returns
+        ``PatchOutcome.PRECONDITION_FAILED`` (caller maps to HTTP 412) or
+        ``PatchOutcome.NOT_FOUND``. The new endpoints require this guard;
+        the legacy main PATCH leaves it as ``None`` for backward compat.
+
+        Args:
+            tenant_id: Active tenant; enforced in WHERE clause.
+            credential_id: Row primary key.
+            base_url, default_model, default_embed_model: Optional non-secret
+                fields to patch. ``None`` means "leave unchanged" (per-field
+                no-op semantic).
+            role_models: Full-replace map. ``None`` = no-op, ``{}`` = clear.
+            failover_chain: Full-replace list of credential ids. ``None`` =
+                no-op, ``[]`` = clear. The list must reference other
+                credential ids in the same tenant; cross-tenant validation
+                happens at the API layer (defence in depth).
+            if_match_updated_at: ETag basis. When set, UPDATE only succeeds
+                if the row's current ``updated_at`` matches.
+
+        Returns:
+            :class:`PatchOutcome` describing the result.
         """
         if self._engine is None:
-            return False
-        # Build a partial UPDATE so unset fields are not nulled out.
+            return PatchOutcome.NO_DB
         sets: list[str] = []
         params: dict[str, Any] = {"id": credential_id, "tid": tenant_id}
         if base_url is not None:
@@ -344,15 +400,27 @@ class CredentialStore:
             params["dem"] = default_embed_model
         if role_models is not None:
             sets.append("role_models = :rm")
-            # SQLAlchemy maps Python dict to JSONB on PostgreSQL.
             params["rm"] = role_models
+        if failover_chain is not None:
+            sets.append("failover_chain = :fc")
+            params["fc"] = failover_chain
         if not sets:
-            return False
+            return PatchOutcome.EMPTY_BODY
         sets.append("updated_at = now()")
-        sql = "UPDATE tenant_credentials SET " + ", ".join(sets) + " WHERE id = :id AND tenant_id = :tid"
+        where = "WHERE id = :id AND tenant_id = :tid"
+        if if_match_updated_at is not None:
+            where += " AND updated_at = :etag"
+            params["etag"] = if_match_updated_at
+        sql = "UPDATE tenant_credentials SET " + ", ".join(sets) + " " + where
         with self._engine.begin() as conn:
             result = conn.execute(text(sql), params)
-        return (result.rowcount or 0) > 0
+        if (result.rowcount or 0) > 0:
+            return PatchOutcome.UPDATED
+        if if_match_updated_at is None:
+            return PatchOutcome.NOT_FOUND
+        # ETag-aware path: distinguish missing row from stale ETag.
+        existing = self.get_by_id(tenant_id, credential_id)
+        return PatchOutcome.PRECONDITION_FAILED if existing else PatchOutcome.NOT_FOUND
 
     def revoke(self, tenant_id: str, credential_id: str) -> bool:
         """Soft-delete: mark status='revoked'. Audit row preserved.

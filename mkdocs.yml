@@ -75,6 +75,8 @@ nav:
       - Anthropic: byok/anthropic.md
       - Google Gemini: byok/gemini.md
       - Ollama: byok/ollama.md
+      - Per-role routing (Business+): byok/per-role-routing.md
+      - Provider failover chain (Business+): byok/failover-chain.md
   - Integrations:
       - Overview & Examples: integrations/examples.md
       - LangChain: integrations/langchain.md

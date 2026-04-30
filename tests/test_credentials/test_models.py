@@ -199,10 +199,13 @@ class TestCredentialUpdate:
         assert "api_key" not in CredentialUpdate.model_fields
 
     def test_all_fields_optional(self) -> None:
-        # An empty PATCH is a no-op, not an error
+        # An empty PATCH is a no-op, not an error.
+        # Note: ``role_models`` is no longer on CredentialUpdate (moved
+        # to its own tier-gated PATCH /role-models endpoint in #2).
         upd = CredentialUpdate()
         assert upd.base_url is None
-        assert upd.role_models is None
+        assert upd.default_model is None
+        assert upd.default_embed_model is None
 
 
 # ---------------------------------------------------------------------------

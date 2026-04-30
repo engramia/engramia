@@ -56,12 +56,15 @@ def _make_row(
     plaintext: str = "sk-test-1234567890",
     cipher: AESGCMCipher | None = None,
     default_model: str | None = None,
+    role_models: dict[str, str] | None = None,
+    failover_chain: list[str] | None = None,
+    row_id: str | None = None,
 ) -> StoredCredential:
     cipher = cipher or AESGCMCipher(_TEST_KEY)
     aad = f"{tenant_id}:{provider}:{purpose}".encode()
     ct, nonce, tag = cipher.encrypt(plaintext, aad)
     return StoredCredential(
-        id=f"row-{tenant_id}-{provider}",
+        id=row_id or f"row-{tenant_id}-{provider}",
         tenant_id=tenant_id,
         provider=provider,  # type: ignore[arg-type]
         purpose=purpose,  # type: ignore[arg-type]
@@ -73,13 +76,15 @@ def _make_row(
         base_url=None,
         default_model=default_model,
         default_embed_model=None,
-        role_models={},
+        role_models=role_models or {},
+        failover_chain=failover_chain or [],
         status="active",
         last_used_at=None,
         last_validated_at=None,
         last_validation_error=None,
         created_at=datetime.datetime.now(datetime.UTC),
         created_by="test",
+        updated_at=datetime.datetime.now(datetime.UTC),
     )
 
 
@@ -131,7 +136,7 @@ class TestTenantScopedLLM:
         mock_llm = MagicMock()
         mock_llm.call.return_value = "real response"
 
-        with patch("engramia.providers.tenant_scoped._build_llm", return_value=mock_llm) as mock_build:
+        with patch("engramia.providers.tenant_scoped._build_one_llm", return_value=mock_llm) as mock_build:
             provider = TenantScopedLLMProvider(resolver=resolver)
             token = set_scope(Scope(tenant_id="tenant-A", project_id="p"))
             try:
@@ -149,7 +154,7 @@ class TestTenantScopedLLM:
         constructed concrete provider — not rebuild the SDK client."""
         store.upsert_row(_make_row(tenant_id="tenant-A", cipher=cipher))
 
-        with patch("engramia.providers.tenant_scoped._build_llm", return_value=MagicMock()) as mock_build:
+        with patch("engramia.providers.tenant_scoped._build_one_llm", return_value=MagicMock()) as mock_build:
             provider = TenantScopedLLMProvider(resolver=resolver)
             token = set_scope(Scope(tenant_id="tenant-A", project_id="p"))
             try:
@@ -164,7 +169,7 @@ class TestTenantScopedLLM:
     def test_invalidate_clears_tenant_cache(self, store, resolver, cipher) -> None:
         store.upsert_row(_make_row(tenant_id="tenant-A", cipher=cipher))
 
-        with patch("engramia.providers.tenant_scoped._build_llm", return_value=MagicMock()) as mock_build:
+        with patch("engramia.providers.tenant_scoped._build_one_llm", return_value=MagicMock()) as mock_build:
             provider = TenantScopedLLMProvider(resolver=resolver)
             token = set_scope(Scope(tenant_id="tenant-A", project_id="p"))
             try:
@@ -188,7 +193,7 @@ class TestTenantScopedLLM:
             seen_keys.append(cred.api_key)
             return MagicMock()
 
-        with patch("engramia.providers.tenant_scoped._build_llm", side_effect=_capture):
+        with patch("engramia.providers.tenant_scoped._build_one_llm", side_effect=_capture):
             provider = TenantScopedLLMProvider(resolver=resolver)
             token_a = set_scope(Scope(tenant_id="tenant-A", project_id="p"))
             try:

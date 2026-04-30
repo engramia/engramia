@@ -22,6 +22,7 @@ from engramia.credentials import (
     AESGCMCipher,
     CredentialResolver,
     CredentialStore,
+    PatchOutcome,
     StoredCredential,
 )
 from tests.factories import make_auth_dep
@@ -77,12 +78,14 @@ class _FakeStore(CredentialStore):
                     default_model=default_model,
                     default_embed_model=default_embed_model,
                     role_models={},
+                    failover_chain=[],
                     status="active",
                     last_used_at=None,
                     last_validated_at=None,
                     last_validation_error=None,
                     created_at=datetime.datetime.now(datetime.UTC),
                     created_by=created_by,
+                    updated_at=datetime.datetime.now(datetime.UTC),
                 )
                 return rid
         new_id = f"cred-{self._next_id:04d}"
@@ -101,12 +104,14 @@ class _FakeStore(CredentialStore):
             default_model=default_model,
             default_embed_model=default_embed_model,
             role_models={},
+            failover_chain=[],
             status="active",
             last_used_at=None,
             last_validated_at=None,
             last_validation_error=None,
             created_at=datetime.datetime.now(datetime.UTC),
             created_by=created_by,
+            updated_at=datetime.datetime.now(datetime.UTC),
         )
         self._tenant_index[tenant_id].append(new_id)
         return new_id
@@ -139,12 +144,18 @@ class _FakeStore(CredentialStore):
         default_model: str | None = None,
         default_embed_model: str | None = None,
         role_models: dict[str, str] | None = None,
-    ) -> bool:
+        failover_chain: list[str] | None = None,
+        if_match_updated_at: datetime.datetime | None = None,
+    ):
         row = self.get_by_id(tenant_id, credential_id)
         if row is None:
-            return False
-        if all(v is None for v in (base_url, default_model, default_embed_model, role_models)):
-            return False
+            return PatchOutcome.NOT_FOUND
+        if all(
+            v is None for v in (base_url, default_model, default_embed_model, role_models, failover_chain)
+        ):
+            return PatchOutcome.EMPTY_BODY
+        if if_match_updated_at is not None and if_match_updated_at != row.updated_at:
+            return PatchOutcome.PRECONDITION_FAILED
         updated = StoredCredential(
             id=row.id,
             tenant_id=row.tenant_id,
@@ -159,15 +170,17 @@ class _FakeStore(CredentialStore):
             default_model=default_model if default_model is not None else row.default_model,
             default_embed_model=(default_embed_model if default_embed_model is not None else row.default_embed_model),
             role_models=role_models if role_models is not None else row.role_models,
+            failover_chain=failover_chain if failover_chain is not None else row.failover_chain,
             status=row.status,
             last_used_at=row.last_used_at,
             last_validated_at=row.last_validated_at,
             last_validation_error=row.last_validation_error,
             created_at=row.created_at,
             created_by=row.created_by,
+            updated_at=datetime.datetime.now(datetime.UTC),
         )
         self._rows[row.id] = updated
-        return True
+        return PatchOutcome.UPDATED
 
     def revoke(self, tenant_id: str, credential_id: str) -> bool:  # type: ignore[override]
         row = self.get_by_id(tenant_id, credential_id)
@@ -496,20 +509,28 @@ class TestPatch:
         assert resp.status_code == 200
         assert resp.json()["default_model"] == "gpt-5"
 
-    def test_role_models_round_trip(self, admin_client: TestClient, mock_validation_ok) -> None:
+    def test_role_models_field_no_longer_on_main_patch(
+        self, admin_client: TestClient, mock_validation_ok
+    ) -> None:
+        """Phase 6.6 #2 moved role_models to the dedicated sub-resource.
+
+        Sending it through the main PATCH is silently ignored (Pydantic
+        ``CredentialUpdate`` no longer declares the field) — this guards
+        against a regression that would re-introduce the old gateless path.
+        """
         cred = admin_client.post(
             "/v1/credentials",
             json={"provider": "openai", "api_key": "sk-test-1234567890ABCDEF"},
         ).json()
         resp = admin_client.patch(
             f"/v1/credentials/{cred['id']}",
-            json={"role_models": {"eval": "gpt-4.1-mini", "evolve": "claude-opus-4-7"}},
+            json={"role_models": {"eval": "gpt-4.1-mini"}, "default_model": "gpt-5"},
         )
         assert resp.status_code == 200
-        assert resp.json()["role_models"] == {
-            "eval": "gpt-4.1-mini",
-            "evolve": "claude-opus-4-7",
-        }
+        # default_model still applied; role_models silently dropped.
+        body = resp.json()
+        assert body["default_model"] == "gpt-5"
+        assert body["role_models"] == {}
 
     def test_404_for_unknown_id(self, admin_client: TestClient) -> None:
         resp = admin_client.patch(

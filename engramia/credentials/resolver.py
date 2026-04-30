@@ -125,7 +125,53 @@ class CredentialResolver:
             self._store.mark_invalid(row.id, "Decryption failed")
             return None
 
-        cred = TenantCredential(
+        cred = self._row_to_tenant_credential(row, plaintext)
+        self._cache_put(tenant_id, purpose, cred)
+        # Best-effort touch — non-blocking failure path.
+        self._store.touch_last_used(cred.id)
+        return cred
+
+    def resolve_by_id(self, tenant_id: str, credential_id: str) -> TenantCredential | None:
+        """Resolve a specific credential by id (used for failover chain build).
+
+        Unlike :meth:`resolve` (which queries by purpose and caches by
+        ``(tenant_id, purpose)``), this method targets one row directly. Used
+        by :func:`engramia.providers.tenant_scoped._build_llm_chain` to
+        materialise each fallback credential listed in
+        ``primary.failover_chain``.
+
+        No caching at this layer — the chain itself is cached one level up
+        in :class:`TenantScopedLLMProvider`, and adding another cache here
+        would just duplicate eviction logic. Decryption is per-call, but
+        the chain cache means it only happens on cold start / invalidation.
+        """
+        if self._cipher is None:
+            return None
+        row = self._store.get_by_id(tenant_id, credential_id)
+        if row is None:
+            return None
+        if row.status != "active":
+            return None
+        try:
+            plaintext = self._decrypt(row)
+        except DecryptionError:
+            _log.warning(
+                "CREDENTIAL_DECRYPT_FAILURE row_id=%s tenant=%s — failover skip",
+                row.id,
+                tenant_id,
+            )
+            self._store.mark_invalid(row.id, "Decryption failed")
+            return None
+        return self._row_to_tenant_credential(row, plaintext)
+
+    @staticmethod
+    def _row_to_tenant_credential(row: StoredCredential, plaintext: str) -> TenantCredential:
+        """Construct a :class:`TenantCredential` from a decrypted row.
+
+        Centralised here so :meth:`resolve` and :meth:`resolve_by_id`
+        cannot drift on field mappings.
+        """
+        return TenantCredential(
             id=row.id,
             tenant_id=row.tenant_id,
             provider=row.provider,
@@ -136,15 +182,13 @@ class CredentialResolver:
             default_model=row.default_model,
             default_embed_model=row.default_embed_model,
             role_models=row.role_models or {},
+            failover_chain=row.failover_chain or [],
             status=row.status,
             last_used_at=row.last_used_at,
             last_validated_at=row.last_validated_at,
             created_at=row.created_at,
+            updated_at=row.updated_at,
         )
-        self._cache_put(tenant_id, purpose, cred)
-        # Best-effort touch — non-blocking failure path.
-        self._store.touch_last_used(cred.id)
-        return cred
 
     def invalidate(self, tenant_id: str) -> None:
         """Drop all cached credentials for one tenant.

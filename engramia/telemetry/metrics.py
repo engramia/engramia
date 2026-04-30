@@ -26,9 +26,10 @@ _enabled: bool = False
 REQUEST_DURATION: Any = None  # Histogram: method, path, status_code
 REQUEST_COUNT: Any = None  # Counter:   method, path, status_code
 
-LLM_CALL_DURATION: Any = None  # Histogram: provider, model
+LLM_CALL_DURATION: Any = None  # Histogram: provider, model, role
 EMBEDDING_DURATION: Any = None  # Histogram: provider
 STORAGE_OP_DURATION: Any = None  # Histogram: backend, operation
+LLM_FAILOVER: Any = None  # Counter: fallback_position
 
 PATTERN_COUNT: Any = None  # Gauge:     (unlabelled — global aggregate)
 RECALL_HITS: Any = None  # Counter
@@ -52,6 +53,7 @@ def init_metrics() -> None:
     global _enabled
     global REQUEST_DURATION, REQUEST_COUNT
     global LLM_CALL_DURATION, EMBEDDING_DURATION, STORAGE_OP_DURATION
+    global LLM_FAILOVER
     global PATTERN_COUNT, RECALL_HITS, RECALL_MISSES
     global JOB_SUBMITTED, JOB_COMPLETED
 
@@ -77,10 +79,20 @@ def init_metrics() -> None:
         ["method", "path", "status_code"],
     )
 
+    # NB: tenant_id is intentionally NOT a label here. With per-role
+    # routing (Phase 6.6 #2) the dimensions are already
+    # provider × model × role; adding tenant would push series count
+    # into Prometheus warning zone. Use ROI analytics rollups
+    # (engramia/analytics/) for per-tenant breakdowns.
     LLM_CALL_DURATION = Histogram(
         "engramia_llm_call_duration_seconds",
         "LLM provider call duration",
-        ["provider", "model"],
+        ["provider", "model", "role"],
+    )
+    LLM_FAILOVER = Counter(
+        "engramia_llm_failover_total",
+        "Provider failover events — primary call failed transient and chain advanced",
+        ["fallback_position"],
     )
     EMBEDDING_DURATION = Histogram(
         "engramia_embedding_duration_seconds",
@@ -134,10 +146,22 @@ def observe_request(method: str, path: str, status_code: int, duration_s: float)
     REQUEST_COUNT.labels(*labels).inc()
 
 
-def observe_llm(provider: str, model: str, duration_s: float) -> None:
+def observe_llm(provider: str, model: str, duration_s: float, role: str = "default") -> None:
     if not _enabled:
         return
-    LLM_CALL_DURATION.labels(provider, model).observe(duration_s)
+    LLM_CALL_DURATION.labels(provider, model, role).observe(duration_s)
+
+
+def observe_failover(tenant_id: str, fallback_position: int) -> None:
+    """Record a failover event — primary call failed transient, chain advanced.
+
+    The ``tenant_id`` parameter is accepted for the call-site signature but
+    deliberately not used as a label (cardinality control). Tenant-scoped
+    failover analysis goes through analytics rollups instead.
+    """
+    if not _enabled:
+        return
+    LLM_FAILOVER.labels(str(fallback_position)).inc()
 
 
 def observe_embedding(provider: str, duration_s: float) -> None:

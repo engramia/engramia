@@ -60,6 +60,23 @@ Common setups:
   `purpose=both`. The default model is `gemini-2.5-flash` (cheap); set
   `default_model` to `gemini-2.5-pro` if you want premium quality.
 
+## Business-tier features
+
+Two BYOK extensions are gated to the Business and Enterprise plans:
+
+- [**Per-role model routing**](per-role-routing.md) — map each agent
+  role (`eval`, `architect`, `coder`, `evolve`) to a different model on
+  the same credential. Run cheap/fast for evaluation, premium for
+  evolution.
+- [**Provider failover chain**](failover-chain.md) — fall back to a
+  secondary credential (different provider, even) when the primary
+  hits a transient error. Auth errors fail fast; transients failover.
+
+Both are edited via dedicated `PATCH /v1/credentials/{id}/role-models`
+and `PATCH /v1/credentials/{id}/failover-chain` endpoints. They share
+the same admin-only permission gate, mandatory `If-Match` ETag, and
+audit-log shape — see the per-feature pages for details.
+
 ## Demo mode
 
 If you skip adding a key (or your key gets revoked at the provider

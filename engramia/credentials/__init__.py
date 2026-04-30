@@ -28,14 +28,16 @@ from engramia.credentials.models import (
     CredentialCreate,
     CredentialPublicView,
     CredentialUpdate,
+    FailoverChainUpdate,
     ProviderType,
     PurposeType,
+    RoleModelsUpdate,
     StatusType,
     TenantCredential,
     fingerprint_for,
 )
 from engramia.credentials.resolver import CredentialResolver
-from engramia.credentials.store import CredentialStore, StoredCredential
+from engramia.credentials.store import CredentialStore, PatchOutcome, StoredCredential
 from engramia.credentials.validator import ValidationResult, validate
 
 __all__ = [
@@ -49,8 +51,11 @@ __all__ = [
     # Store
     "CredentialStore",
     "CredentialUpdate",
+    "FailoverChainUpdate",
+    "PatchOutcome",
     "ProviderType",
     "PurposeType",
+    "RoleModelsUpdate",
     "StatusType",
     "StoredCredential",
     "TenantCredential",

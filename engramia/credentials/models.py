@@ -27,8 +27,9 @@ values at the API boundary.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime  # noqa: TC003 — Pydantic needs runtime type, not just type-checking
-from typing import Final, Literal
+from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
@@ -128,10 +129,12 @@ class TenantCredential(BaseModel):
     default_model: str | None = None
     default_embed_model: str | None = None
     role_models: dict[str, str] = Field(default_factory=dict)
+    failover_chain: list[str] = Field(default_factory=list)
     status: StatusType = "active"
     last_used_at: datetime | None = None
     last_validated_at: datetime | None = None
     created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     # Pydantic v2: do not allow ``api_key`` to be coerced from arbitrary
     # input. It must come from a controlled decryption call.
@@ -180,6 +183,8 @@ class CredentialPublicView(BaseModel):
 
     Has no ``api_key`` field by construction — even an accidental
     ``model_dump()`` cannot leak the plaintext because it isn't there.
+    The ``updated_at`` field is the basis for the ``ETag`` response
+    header on the per-role / failover endpoints.
     """
 
     id: str
@@ -190,11 +195,30 @@ class CredentialPublicView(BaseModel):
     default_model: str | None = None
     default_embed_model: str | None = None
     role_models: dict[str, str] = Field(default_factory=dict)
+    failover_chain: list[str] = Field(default_factory=list)
     status: StatusType
     last_used_at: datetime | None = None
     last_validated_at: datetime | None = None
     last_validation_error: str | None = None
     created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+# ---------------------------------------------------------------------------
+# Validation helpers shared by the role-models / failover-chain schemas
+# ---------------------------------------------------------------------------
+
+# Lowercase-only role names (server normalises before lookup). Reason: the
+# hot-path lookup is case-sensitive on JSONB key match — if we accept
+# ``"Eval"`` we silently fall through to ``default_model`` rather than the
+# tenant's intended override. Forcing lowercase at the API boundary makes
+# this impossible.
+_ROLE_NAME_RE: Final = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+_MODEL_NAME_RE: Final = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
+_CRED_ID_RE: Final = re.compile(r"^[A-Za-z0-9-]{1,64}$")  # uuid-ish
+
+_ROLE_MODELS_MAX_ENTRIES: Final = 16
+_FAILOVER_CHAIN_MAX_LEN: Final = 2  # excludes the primary credential itself
 
 
 class CredentialUpdate(BaseModel):
@@ -204,12 +228,99 @@ class CredentialUpdate(BaseModel):
     credential, which UPSERTs on ``(tenant_id, provider, purpose)``. This
     keeps the rotation path explicit (audit-loggable as a CREATE+REPLACE)
     rather than a silent UPDATE.
+
+    Note: ``role_models`` and ``failover_chain`` were removed from this
+    schema in Phase 6.6 #2 — they are now edited via dedicated tier-gated
+    endpoints (``/role-models``, ``/failover-chain``) so the entitlement
+    check happens at the route level rather than inside the handler.
     """
 
     base_url: str | None = Field(default=None, max_length=512)
     default_model: str | None = Field(default=None, max_length=128)
     default_embed_model: str | None = Field(default=None, max_length=128)
-    role_models: dict[str, str] | None = None
+
+
+class RoleModelsUpdate(BaseModel):
+    """Input shape for ``PATCH /v1/credentials/{id}/role-models``.
+
+    Full-replace semantics: the body is the new map in its entirety.
+    Send ``{}`` to clear all role overrides. The dashboard uses the
+    standard read-modify-write cycle with ``If-Match`` to avoid losing
+    concurrent edits.
+
+    Validation:
+
+    * Keys lowercased and matched against ``^[a-z][a-z0-9_]{0,31}$``.
+    * Values matched against ``^[A-Za-z0-9._:/-]{1,128}$`` — wide enough
+      for OpenAI/Anthropic/Gemini canonical IDs and openai_compat custom
+      identifiers like ``"models/together/llama-3.3-70b"``.
+    * Hard cap at 16 entries — the canonical role list is six; sixteen
+      gives Enterprise tenants room for custom roles without becoming a
+      cardinality risk in the provider cache.
+    """
+
+    role_models: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("role_models", mode="before")
+    @classmethod
+    def _normalise_and_validate(cls, v: Any) -> dict[str, str]:
+        if v is None:
+            return {}
+        if not isinstance(v, dict):
+            raise ValueError("role_models must be a JSON object")
+        if len(v) > _ROLE_MODELS_MAX_ENTRIES:
+            raise ValueError(f"role_models supports max {_ROLE_MODELS_MAX_ENTRIES} entries (got {len(v)})")
+        out: dict[str, str] = {}
+        for raw_role, model in v.items():
+            if not isinstance(raw_role, str) or not isinstance(model, str):
+                raise ValueError("role_models keys and values must be strings")
+            role = raw_role.lower()
+            if not _ROLE_NAME_RE.match(role):
+                raise ValueError(f"invalid role name: {raw_role!r} (lowercase letters/digits/underscore, 1-32 chars)")
+            if not _MODEL_NAME_RE.match(model):
+                raise ValueError(f"invalid model name: {model!r}")
+            out[role] = model
+        return out
+
+
+class FailoverChainUpdate(BaseModel):
+    """Input shape for ``PATCH /v1/credentials/{id}/failover-chain``.
+
+    Full-replace semantics: the body is the new ordered list in its
+    entirety. Send ``[]`` to disable failover.
+
+    Each entry must be the id of **another** active credential in the
+    same tenant. Self-reference is rejected at the application layer
+    (the route handler resolves ``{id}`` from the URL and compares).
+    Cross-tenant references are rejected by the store-side WHERE clause.
+    """
+
+    failover_chain: list[str] = Field(default_factory=list)
+
+    @field_validator("failover_chain", mode="before")
+    @classmethod
+    def _validate_chain(cls, v: Any) -> list[str]:
+        if v is None:
+            return []
+        if not isinstance(v, list):
+            raise ValueError("failover_chain must be a JSON array")
+        if len(v) > _FAILOVER_CHAIN_MAX_LEN:
+            raise ValueError(
+                f"failover_chain supports max {_FAILOVER_CHAIN_MAX_LEN} fallback entries "
+                f"(primary + {_FAILOVER_CHAIN_MAX_LEN} = {_FAILOVER_CHAIN_MAX_LEN + 1} total chain length)"
+            )
+        seen: set[str] = set()
+        out: list[str] = []
+        for entry in v:
+            if not isinstance(entry, str):
+                raise ValueError("failover_chain entries must be strings")
+            if not _CRED_ID_RE.match(entry):
+                raise ValueError(f"invalid credential id format: {entry!r}")
+            if entry in seen:
+                raise ValueError(f"duplicate credential id in chain: {entry!r}")
+            seen.add(entry)
+            out.append(entry)
+        return out
 
 
 # ---------------------------------------------------------------------------

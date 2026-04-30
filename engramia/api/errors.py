@@ -41,6 +41,12 @@ class ErrorCode(str):
     CREDENTIAL_NOT_FOUND = "CREDENTIAL_NOT_FOUND"
     BYOK_NOT_ENABLED = "BYOK_NOT_ENABLED"
 
+    # Phase 6.6 #2: per-role routing + failover chain (Business+ tier)
+    ENTITLEMENT_REQUIRED = "ENTITLEMENT_REQUIRED"  # 402 — needs higher tier
+    PRECONDITION_FAILED = "PRECONDITION_FAILED"  # 412 — If-Match mismatch
+    PRECONDITION_REQUIRED = "PRECONDITION_REQUIRED"  # 428 — If-Match header missing
+    FAILOVER_CHAIN_INVALID = "FAILOVER_CHAIN_INVALID"  # 422 — self-ref / unknown id
+
 
 # Maps HTTP status codes to a default ErrorCode when the exception detail
 # does not supply an explicit ``error_code``.

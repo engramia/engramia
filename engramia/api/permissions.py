@@ -77,6 +77,13 @@ _ADMIN_PERMS: frozenset[str] = _EDITOR_PERMS | frozenset(
         # extend to every paid model call).
         "credentials:read",
         "credentials:write",
+        # Phase 6.6 #2: per-role routing + failover chain (admin+ only —
+        # these directly affect billed LLM cost: a misrouted ``coder`` role
+        # to claude-opus-4-7 on a hot loop is a bill-shock incident, so
+        # editor-tier keys cannot touch it even though they can rotate the
+        # underlying credential).
+        "credentials:role_models:write",
+        "credentials:failover_chain:write",
     }
 )
 

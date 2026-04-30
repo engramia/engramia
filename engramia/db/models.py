@@ -489,6 +489,11 @@ class TenantCredential(Base):
     # {"eval": "gpt-4.1-mini", "evolve": "claude-opus-4-7"}.
     # NULL means use ``default_model`` for every role.
     role_models: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Provider failover chain (Business+ tier). Ordered list of OTHER
+    # tenant_credentials.id within the same tenant — fallback targets
+    # when this credential's primary call hits a transient error.
+    # Auth errors never trigger failover. NULL means no failover.
+    failover_chain: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="active")
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

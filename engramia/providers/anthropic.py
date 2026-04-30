@@ -97,7 +97,7 @@ class AnthropicProvider(LLMProvider):
             for attempt in range(self._max_retries):
                 try:
                     response = self._client.messages.create(**kwargs)
-                    _metrics.observe_llm("anthropic", self._model, time.perf_counter() - t0)
+                    _metrics.observe_llm("anthropic", self._model, time.perf_counter() - t0, role)
                     # Extract text from the first content block
                     for block in response.content:
                         if block.type == "text":
