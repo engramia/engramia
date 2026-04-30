@@ -177,9 +177,7 @@ def model_is_pulled(models: list[OllamaModel], wanted: str) -> bool:
     names = {m.name for m in models}
     if wanted in names:
         return True
-    if ":" not in wanted and f"{wanted}:latest" in names:
-        return True
-    return False
+    return ":" not in wanted and f"{wanted}:latest" in names
 
 
 # ---------------------------------------------------------------------------
