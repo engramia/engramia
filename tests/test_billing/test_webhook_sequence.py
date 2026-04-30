@@ -98,23 +98,31 @@ def pg_url():
 
 @pytest.fixture
 def engine(pg_url):
-    """Engine with billing-related tables wiped between tests."""
+    """Engine with billing-related tables wiped between tests.
+
+    Each DELETE runs in its own transaction so a missing optional table
+    (e.g. one that lives behind a feature flag) doesn't poison the
+    surrounding txn with InFailedSqlTransaction for every statement
+    that follows.
+    """
     from sqlalchemy import create_engine, text
 
     eng = create_engine(pg_url, pool_pre_ping=True)
-    with eng.begin() as conn:
-        for tbl in (
-            "processed_webhook_events",
-            "billing_subscriptions",
-            "tenant_eval_runs",
-            "tenants",
-        ):
-            try:
+
+    for tbl in (
+        "processed_webhook_events",
+        "billing_subscriptions",
+        "tenant_eval_runs",
+        "tenants",
+    ):
+        try:
+            with eng.begin() as conn:
                 conn.execute(text(f"DELETE FROM {tbl}"))
-            except Exception:
-                pass
-        # Insert the test tenant so FK references resolve. tenants.name is
-        # NOT NULL in the real schema (migration 003), pass a label.
+        except Exception:
+            pass  # Table may not exist in this branch / migration head.
+
+    # tenants.name is NOT NULL in the real schema (migration 003).
+    with eng.begin() as conn:
         conn.execute(
             text(
                 "INSERT INTO tenants (id, name) VALUES (:tid, :name) "

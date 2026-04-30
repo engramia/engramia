@@ -77,12 +77,14 @@ def engine(pg_url):
 
     eng = create_engine(pg_url, pool_pre_ping=True)
     # Wipe tenant/user-related rows before each test for full isolation.
-    with eng.begin() as conn:
-        for table in _TEST_TABLES:
-            try:
+    # Per-table txn so a missing/dropped table doesn't poison the rest
+    # with InFailedSqlTransaction.
+    for table in _TEST_TABLES:
+        try:
+            with eng.begin() as conn:
                 conn.execute(text(f"DELETE FROM {table}"))
-            except Exception:
-                pass  # table may not exist if a future migration removes it
+        except Exception:
+            pass  # table may not exist if a future migration removes it
     try:
         yield eng
     finally:
