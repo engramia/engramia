@@ -25,13 +25,15 @@ Design rules:
 
 from __future__ import annotations
 
-import datetime
 import enum
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import sqlalchemy.exc
+
+if TYPE_CHECKING:
+    import datetime
 from sqlalchemy import text
 
 if TYPE_CHECKING:

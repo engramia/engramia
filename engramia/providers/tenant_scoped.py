@@ -35,7 +35,7 @@ distinction.
 Cache invalidation is delegated to the resolver — when the resolver
 invalidates a tenant on credential change, the next call rebuilds the
 chain with the rotated key. The ``_PROVIDER_CACHE_MAX`` size accounts
-for ``tenants × providers × roles`` cardinality (post-#2 expansion);
+for ``tenants x providers x roles`` cardinality (post-#2 expansion);
 512 was sufficient pre-routing but now LRU-thrashes at scale.
 """
 
@@ -62,7 +62,7 @@ if TYPE_CHECKING:
 _log = logging.getLogger(__name__)
 
 # Bumped from 512 in #2: per-role expansion multiplies cache cardinality
-# (tenants × providers × roles). 4096 entries × ~250 B/entry ≈ 1 MB —
+# (tenants x providers x roles). 4096 entries x ~250 B/entry ≈ 1 MB —
 # acceptable, prevents LRU thrash for active tenants. Adjust if Prometheus
 # ``engramia_provider_cache_eviction_total`` shows sustained churn.
 _PROVIDER_CACHE_MAX: Final[int] = 4096

@@ -82,7 +82,7 @@ def init_metrics() -> None:
 
     # NB: tenant_id is intentionally NOT a label here. With per-role
     # routing (Phase 6.6 #2) the dimensions are already
-    # provider × model × role; adding tenant would push series count
+    # provider x model x role; adding tenant would push series count
     # into Prometheus warning zone. Use ROI analytics rollups
     # (engramia/analytics/) for per-tenant breakdowns.
     LLM_CALL_DURATION = Histogram(

@@ -15,9 +15,12 @@ than a magic-number rank — so inserting a new tier (e.g. a future
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import HTTPException, status
 
-from engramia.billing.models import BillingSubscription
+if TYPE_CHECKING:
+    from engramia.billing.models import BillingSubscription
 
 # Ordered tier list — increasing capability. Insertion-safe (add a new tier
 # in the right slot, no other module needs to change).
