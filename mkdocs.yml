@@ -88,6 +88,17 @@ nav:
       - PydanticAI: integrations/pydantic-ai.md
       - MCP Server: integrations/mcp.md
       - Webhook SDK: integrations/webhook.md
+  - Migrations:
+      - Overview: migrations/index.md
+      - From OpenAI Assistants:
+          - Overview: migrations/openai-assistants/index.md
+          - 1. Concept mapping: migrations/openai-assistants/01-concepts.md
+          - 2. Cutover code: migrations/openai-assistants/02-cutover.md
+          - 3. Export Threads from OpenAI: migrations/openai-assistants/03-export-threads.md
+          - 4. Bulk-import to Engramia: migrations/openai-assistants/04-import.md
+          - 5. Tools & files mapping: migrations/openai-assistants/05-tools-files.md
+          - 6. Dual-write & cutover: migrations/openai-assistants/06-dual-write.md
+          - 7. Verification & rollback: migrations/openai-assistants/07-verification.md
   - Administration:
       - Admin Guide: admin-guide.md
       - Environment Variables: environment-variables.md
