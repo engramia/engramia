@@ -20,6 +20,15 @@ from engramia.api.cloud_auth import router
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _enable_registration(monkeypatch):
+    """Open the self-serve registration gate for the legacy register/login
+    test suite. The gate (``ENGRAMIA_REGISTRATION_ENABLED``) defaults to
+    closed at public launch (cloud onboarding Variant A); these tests
+    pre-date that and exercise the open flow directly."""
+    monkeypatch.setenv("ENGRAMIA_REGISTRATION_ENABLED", "true")
+
+
 @pytest.fixture
 def mock_engine():
     engine = MagicMock()
@@ -172,6 +181,7 @@ def test_login_success(mock_tok, mock_verify, client, mock_engine):
         "$2b$fake_hash",
         "testuser",
         True,
+        False,  # must_change_password
     )
 
     resp = client.post(
@@ -201,6 +211,7 @@ def test_login_wrong_password(mock_log, mock_verify, client, mock_engine):
         "$2b$fake_hash",
         "testuser",
         True,
+        False,  # must_change_password
     )
 
     resp = client.post(
@@ -326,6 +337,7 @@ def test_login_unverified_returns_structured_error(mock_log, mock_verify, client
         "$2b$fake_hash",
         "testuser",
         False,  # email_verified = False
+        False,  # must_change_password
     )
 
     resp = client.post(

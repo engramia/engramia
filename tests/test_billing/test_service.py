@@ -281,10 +281,30 @@ class TestStripeUrls:
                 cancel_url="https://cancel",
             )
 
-    def test_create_portal_no_customer_raises(self):
-        svc = _billing_service(engine=None)
-        # sandbox_default has no stripe_customer_id
-        with pytest.raises(RuntimeError, match="no Stripe customer"):
+    def test_create_portal_no_customer_lazy_creates(self):
+        """No stripe_customer_id triggers a lazy-create attempt — Stripe
+        Customer is created on demand and the portal URL is returned in
+        the same call. Cloud onboarding Variant A — ADR-005."""
+        stripe = MagicMock()
+        stripe.create_customer.return_value = "cus_lazy"
+        stripe.create_customer_portal_session.return_value = (
+            "https://billing.stripe.com/session/lazy"
+        )
+        svc = _billing_service(engine=None, stripe_client=stripe)
+        url = svc.create_portal_url("t1", "https://return")
+        assert url == "https://billing.stripe.com/session/lazy"
+        stripe.create_customer.assert_called_once()
+        stripe.create_customer_portal_session.assert_called_once_with(
+            "cus_lazy", "https://return"
+        )
+
+    def test_create_portal_no_customer_stripe_unconfigured_raises(self):
+        """When Stripe is not configured, lazy-create returns None and we
+        raise RuntimeError so the route can surface 4xx/5xx to the caller."""
+        stripe = MagicMock()
+        stripe.create_customer.side_effect = RuntimeError("STRIPE_SECRET_KEY not set")
+        svc = _billing_service(engine=None, stripe_client=stripe)
+        with pytest.raises(RuntimeError, match="Stripe not configured"):
             svc.create_portal_url("t1", "https://return")
 
     def test_create_portal_delegates_to_stripe_when_customer_exists(self):
