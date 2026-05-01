@@ -14,8 +14,12 @@ import pytest
 
 from engramia.email.templates import (
     account_deletion_email,
+    credentials_email,
     reminder_email,
     verification_email,
+    waitlist_ack_email,
+    waitlist_admin_notify_email,
+    waitlist_rejection_email,
 )
 
 
@@ -190,6 +194,229 @@ class TestReminderEmail:
             days_until_delete=7,
         )
         assert '<img src=x onerror="alert(1)">' not in html
+
+
+# ---------------------------------------------------------------------------
+# waitlist_ack_email
+# ---------------------------------------------------------------------------
+
+
+class TestWaitlistAckEmail:
+    def test_returns_triple_with_2bd_promise(self):
+        subject, text, html = waitlist_ack_email(
+            recipient_name="Alice", plan_interest="pro"
+        )
+        assert subject == "We got your Engramia access request"
+        assert "2 business days" in text
+        assert "2 business days" in html
+
+    def test_plan_interest_appears_in_body(self):
+        _, text, html = waitlist_ack_email(
+            recipient_name=None, plan_interest="business"
+        )
+        assert "business" in text
+        assert "business" in html
+
+    def test_recipient_name_escaped(self):
+        _, _, html = waitlist_ack_email(
+            recipient_name=_XSS_NAME, plan_interest="pro"
+        )
+        assert '<img src=x onerror="alert(1)">' not in html
+
+    def test_no_name_uses_fallback_greeting(self):
+        _, text, html = waitlist_ack_email(
+            recipient_name=None, plan_interest="developer"
+        )
+        assert text.startswith("Hi,\n\n")
+
+
+# ---------------------------------------------------------------------------
+# waitlist_admin_notify_email
+# ---------------------------------------------------------------------------
+
+
+class TestWaitlistAdminNotifyEmail:
+    def test_subject_carries_email_and_plan(self):
+        subject, _, _ = waitlist_admin_notify_email(
+            request_id="req-123",
+            requester_email="user@example.com",
+            requester_name="Jane",
+            plan_interest="pro",
+            country="CZ",
+            use_case="Build a docs Q&A bot",
+            company_name="Acme",
+            referral_source="HN",
+        )
+        assert "user@example.com" in subject
+        assert "pro" in subject
+
+    def test_body_contains_all_fields(self):
+        _, text, html = waitlist_admin_notify_email(
+            request_id="req-abc",
+            requester_email="user@example.com",
+            requester_name="Jane",
+            plan_interest="team",
+            country="DE",
+            use_case="docs",
+            company_name="Acme",
+            referral_source="HN",
+        )
+        for needle in ("user@example.com", "Jane", "team", "DE", "docs", "Acme", "HN", "req-abc"):
+            assert needle in text
+            assert needle in html
+
+    def test_command_hints_present(self):
+        _, text, _ = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="developer",
+            country="CZ",
+            use_case=None,
+            company_name=None,
+            referral_source=None,
+        )
+        assert "engramia waitlist approve" in text
+        assert "engramia waitlist reject" in text
+
+    def test_use_case_html_escaped(self):
+        _, _, html = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="pro",
+            country="CZ",
+            use_case=_XSS,
+            company_name=None,
+            referral_source=None,
+        )
+        assert "<script>alert(1)</script>" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_optional_fields_show_dash(self):
+        _, text, html = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="developer",
+            country="CZ",
+            use_case=None,
+            company_name=None,
+            referral_source=None,
+        )
+        # Em-dash for missing optional fields.
+        assert "—" in text
+        assert "—" in html
+
+
+# ---------------------------------------------------------------------------
+# credentials_email
+# ---------------------------------------------------------------------------
+
+
+class TestCredentialsEmail:
+    def test_password_present_in_text_and_html(self):
+        _, text, html = credentials_email(
+            recipient_name="Alice",
+            login_email="alice@example.com",
+            one_time_password="OneTimePassXYZ",
+            dashboard_url="https://app.engramia.dev",
+            plan_tier="pro",
+        )
+        assert "OneTimePassXYZ" in text
+        assert "OneTimePassXYZ" in html
+
+    def test_force_change_warning_present(self):
+        _, text, html = credentials_email(
+            recipient_name=None,
+            login_email="x@e.cz",
+            one_time_password="pw",
+            dashboard_url="https://app.engramia.dev",
+            plan_tier="developer",
+        )
+        assert "one-time" in text.lower()
+        assert "one-time" in html.lower()
+        assert "set a new" in text.lower() or "set a new" in html.lower()
+
+    def test_dashboard_url_html_escaped(self):
+        _, _, html = credentials_email(
+            recipient_name=None,
+            login_email="u@e.cz",
+            one_time_password="pw",
+            dashboard_url=f"https://app{_XSS}",
+            plan_tier="pro",
+        )
+        assert "<script>alert(1)</script>" not in html
+        assert "&quot;" in html
+
+    def test_recipient_name_escaped(self):
+        _, _, html = credentials_email(
+            recipient_name=_XSS_NAME,
+            login_email="u@e.cz",
+            one_time_password="pw",
+            dashboard_url="https://app.engramia.dev",
+            plan_tier="pro",
+        )
+        assert '<img src=x onerror="alert(1)">' not in html
+
+    def test_password_html_escaped_too(self):
+        """Auto-generated password contains URL-safe chars but defence-in-depth."""
+        _, _, html = credentials_email(
+            recipient_name=None,
+            login_email="u@e.cz",
+            one_time_password="<script>x</script>",
+            dashboard_url="https://app.engramia.dev",
+            plan_tier="pro",
+        )
+        assert "<script>x</script>" not in html
+
+    def test_plan_tier_visible(self):
+        _, text, html = credentials_email(
+            recipient_name=None,
+            login_email="u@e.cz",
+            one_time_password="pw",
+            dashboard_url="https://app.engramia.dev",
+            plan_tier="business",
+        )
+        assert "business" in text
+        assert "business" in html
+
+
+# ---------------------------------------------------------------------------
+# waitlist_rejection_email
+# ---------------------------------------------------------------------------
+
+
+class TestWaitlistRejectionEmail:
+    def test_reason_interpolated_in_body(self):
+        _, text, html = waitlist_rejection_email(
+            recipient_name="Bob",
+            reason="Engramia isn't a fit for purely on-prem deployments yet.",
+        )
+        assert "on-prem deployments" in text
+        assert "on-prem deployments" in html
+
+    def test_reason_html_escaped(self):
+        _, _, html = waitlist_rejection_email(
+            recipient_name=None,
+            reason=_XSS,
+        )
+        assert "<script>alert(1)</script>" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_recipient_name_escaped(self):
+        _, _, html = waitlist_rejection_email(
+            recipient_name=_XSS_NAME,
+            reason="any",
+        )
+        assert '<img src=x onerror="alert(1)">' not in html
+
+    def test_reapply_link_present(self):
+        _, text, html = waitlist_rejection_email(
+            recipient_name=None, reason="any reason"
+        )
+        # Encourage re-application — reduces customer churn perception.
+        assert "submit a new request" in text.lower() or "request-access" in html
 
 
 # ---------------------------------------------------------------------------

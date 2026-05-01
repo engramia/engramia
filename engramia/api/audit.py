@@ -26,6 +26,7 @@ _audit_log = logging.getLogger("engramia.audit")
 
 class AuditEvent(StrEnum):
     AUTH_FAILURE = "auth_failure"
+    AUTH_SUCCESS = "auth_success"
     PATTERN_DELETED = "pattern_deleted"
     RATE_LIMITED = "rate_limited"
     BULK_IMPORT = "bulk_import"
@@ -39,6 +40,11 @@ class AuditEvent(StrEnum):
     RETENTION_APPLIED = "retention_applied"
     PII_REDACTED = "pii_redacted"
     DATA_EXPORTED = "data_exported"
+    # Phase 6.5: Cloud onboarding (Variant A — manual admin)
+    WAITLIST_SUBMITTED = "waitlist_submitted"
+    WAITLIST_APPROVED = "waitlist_approved"
+    WAITLIST_REJECTED = "waitlist_rejected"
+    FIRST_PASSWORD_CHANGED = "first_password_changed"
 
 
 def log_event(event: AuditEvent, **kwargs: Any) -> None:

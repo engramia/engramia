@@ -331,12 +331,44 @@ class BillingService:
     def create_portal_url(self, tenant_id: str, return_url: str) -> str:
         """Create a Stripe Customer Portal session URL.
 
-        Raises ``RuntimeError`` if Stripe is not configured or the tenant
-        has no Stripe customer ID (has never subscribed).
+        Lazily creates the Stripe customer record on the first call when the
+        tenant has been manually provisioned (no Checkout-driven customer
+        creation has happened yet) — see ADR-005 in
+        ``Ops/internal/cloud-onboarding-architecture.md``. Subsequent calls
+        reuse the persisted ``stripe_customer_id``.
+
+        Raises ``RuntimeError`` if Stripe is not configured AND the tenant
+        has no existing customer record (i.e. lazy create can't help).
         """
         sub = self.get_subscription(tenant_id)
         if not sub.stripe_customer_id:
-            raise RuntimeError("Tenant has no Stripe customer — subscribe first.")
+            # Lazy-create on first /billing/portal visit. Lookup the tenant's
+            # primary user email so the Stripe customer is recognisable in
+            # the dashboard and on receipts.
+            email: str | None = None
+            if self._engine is not None:
+                try:
+                    with self._engine.connect() as conn:
+                        row = conn.execute(
+                            text(
+                                "SELECT email FROM cloud_users "
+                                "WHERE tenant_id = :tid AND deleted_at IS NULL "
+                                "ORDER BY created_at ASC LIMIT 1"
+                            ),
+                            {"tid": tenant_id},
+                        ).fetchone()
+                    if row is not None:
+                        email = str(row[0])
+                except sqlalchemy.exc.SQLAlchemyError:
+                    _log.warning(
+                        "create_portal_url: failed to look up tenant email for lazy customer create",
+                        exc_info=True,
+                    )
+
+            customer_id = self.create_stripe_customer(tenant_id, email=email)
+            if not customer_id:
+                raise RuntimeError("Stripe not configured — cannot create customer record for portal.")
+            return self._stripe.create_customer_portal_session(customer_id, return_url)
         return self._stripe.create_customer_portal_session(sub.stripe_customer_id, return_url)
 
     # ------------------------------------------------------------------

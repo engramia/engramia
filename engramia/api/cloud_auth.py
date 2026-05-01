@@ -50,6 +50,12 @@ _log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Cloud Auth"])
 
+
+def _truthy(value: str) -> bool:
+    """Parse a string env var into a boolean. Mirrors engramia.email.sender."""
+    return value.strip().lower() in ("true", "1", "yes", "on")
+
+
 # ---------------------------------------------------------------------------
 # JWT helpers
 # ---------------------------------------------------------------------------
@@ -885,6 +891,40 @@ class LoginResponse(BaseModel):
     tenant_id: str
     access_token: str
     refresh_token: str
+    #: True for accounts provisioned manually via the waitlist CLI — the
+    #: Dashboard middleware redirects the user to /change-password until
+    #: this is cleared by POST /auth/change-password. See ADR-007 in
+    #: Ops/internal/cloud-onboarding-architecture.md.
+    must_change_password: bool = False
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=72)
+
+    @field_validator("new_password")
+    @classmethod
+    def _new_password_complexity(cls, v: str) -> str:
+        # Reuse the same complexity rules as RegisterRequest.
+        missing = []
+        if not re.search(r"[A-Z]", v):
+            missing.append("uppercase letter")
+        if not re.search(r"[a-z]", v):
+            missing.append("lowercase letter")
+        if not re.search(r"[0-9]", v):
+            missing.append("digit")
+        if not re.search(r"[^A-Za-z0-9]", v):
+            missing.append("special character")
+        if missing:
+            raise ValueError(f"Password must contain at least one: {', '.join(missing)}.")
+        if len(v.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 bytes when UTF-8 encoded.")
+        return v
+
+
+class ChangePasswordResponse(BaseModel):
+    access_token: str
+    must_change_password: bool = False
 
 
 class MeResponse(BaseModel):
@@ -942,6 +982,23 @@ class DeletionConfirmResponse(BaseModel):
     ),
 )
 def register(body: RegisterRequest, request: Request) -> CredentialsRegisterResponse:
+    # Manual-onboarding gate (Variant A — see ADR-001 + ADR-003 in
+    # Ops/internal/cloud-onboarding-architecture.md). When self-serve is
+    # closed the marketing site routes prospective customers through
+    # /v1/waitlist/request instead.
+    if not _truthy(os.environ.get("ENGRAMIA_REGISTRATION_ENABLED", "")):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error_code": "REGISTRATION_CLOSED",
+                "detail": (
+                    "Self-service registration is currently closed. Please request "
+                    "access at https://engramia.dev/request-access — we'll review "
+                    "and provision your account manually."
+                ),
+            },
+        )
+
     ip = request.client.host if request.client else "unknown"
     _check_register_rate(ip)
 
@@ -1018,7 +1075,9 @@ def login(body: LoginRequest, request: Request) -> LoginResponse:
     with engine.connect() as conn:
         row = conn.execute(
             text(
-                "SELECT id, password_hash, tenant_id, email_verified FROM cloud_users WHERE email = :email AND provider = 'credentials'"
+                "SELECT id, password_hash, tenant_id, email_verified, "
+                "must_change_password FROM cloud_users "
+                "WHERE email = :email AND provider = 'credentials'"
             ),
             {"email": email},
         ).fetchone()
@@ -1028,6 +1087,7 @@ def login(body: LoginRequest, request: Request) -> LoginResponse:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
 
     user_id, stored_hash, tenant_id, email_verified = str(row[0]), row[1], str(row[2]), bool(row[3])
+    must_change_password = bool(row[4])
 
     if not stored_hash or not _verify_password(body.password, stored_hash):
         log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="wrong_password")
@@ -1058,6 +1118,82 @@ def login(body: LoginRequest, request: Request) -> LoginResponse:
         tenant_id=tenant_id,
         access_token=access_token,
         refresh_token=refresh_token,
+        must_change_password=must_change_password,
+    )
+
+
+@router.post(
+    "/change-password",
+    response_model=ChangePasswordResponse,
+    summary="Change password — required after manual onboarding",
+    description=(
+        "Authenticated. Validates the current password, applies the new "
+        "password (same complexity rules as registration), and clears the "
+        "``must_change_password`` flag on the user row. Returns a fresh "
+        "access token whose claim no longer carries the flag."
+    ),
+)
+def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+) -> ChangePasswordResponse:
+    from sqlalchemy import text
+
+    from engramia.api.audit import AuditEvent, log_event
+
+    token = _bearer_token(request)
+    payload = _decode_token(token)
+    engine = _require_engine(request)
+    user_id = payload["sub"]
+    tenant_id = payload["tenant_id"]
+    email = payload["email"]
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT password_hash, must_change_password FROM cloud_users WHERE id = :id"),
+            {"id": user_id},
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    stored_hash = row[0]
+    if not stored_hash or not _verify_password(body.current_password, stored_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "current_password_mismatch",
+                "detail": "Current password is incorrect.",
+            },
+        )
+
+    if body.new_password == body.current_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "new_password_same_as_current",
+                "detail": "New password must differ from the current password.",
+            },
+        )
+
+    new_hash = _hash_password(body.new_password)
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE cloud_users SET password_hash = :hash, must_change_password = false WHERE id = :id"),
+            {"hash": new_hash, "id": user_id},
+        )
+
+    log_event(
+        AuditEvent.FIRST_PASSWORD_CHANGED,
+        actor=user_id,
+    )
+
+    # Issue a fresh access token so the Dashboard immediately drops the flag
+    # without waiting for the refresh cycle.
+    fresh_access = _make_token(user_id=user_id, tenant_id=tenant_id, email=email)
+
+    return ChangePasswordResponse(
+        access_token=fresh_access,
+        must_change_password=False,
     )
 
 
@@ -1540,6 +1676,16 @@ def delete_me(request: Request, token: str) -> DeletionConfirmResponse:
             {"h": token_hash},
         )
 
+    # Capture the email BEFORE the cascade anonymises it — we need it to
+    # wipe matching waitlist_requests rows for full GDPR Art.17 erasure
+    # (per D12 in cloud-onboarding-architecture.md).
+    with engine.connect() as conn:
+        email_row = conn.execute(
+            text("SELECT email FROM cloud_users WHERE id = :id"),
+            {"id": user_id},
+        ).fetchone()
+    captured_email = str(email_row[0]) if email_row else None
+
     # Phase 2 — best-effort Stripe cancel BEFORE wiping local data, so the
     # user is never billed again on a tenant we no longer have a row for.
     stripe_cancelled = False
@@ -1580,6 +1726,25 @@ def delete_me(request: Request, token: str) -> DeletionConfirmResponse:
         resource_id=user_id,
         ip_address=ip,
     )
+
+    # GDPR Art.17 — wipe matching waitlist_requests rows so no PII remains
+    # after the customer requested deletion. Match by email AND tenant_id so
+    # we catch both pre-approval entries (no tenant_id link) and the row
+    # linked at approve time. Best-effort — a failure here is logged but
+    # doesn't fail the deletion (the cascade above is the load-bearing part).
+    if captured_email:
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("DELETE FROM waitlist_requests WHERE email = :email OR tenant_id = :tid"),
+                    {"email": captured_email, "tid": tenant_id},
+                )
+        except Exception:
+            _log.warning(
+                "delete_me: failed to wipe waitlist_requests for tenant=%s",
+                tenant_id,
+                exc_info=True,
+            )
 
     # Best-effort: if the user kept their dashboard session open and used its
     # Bearer token to call DELETE /me directly, blocklist it. The mail-link

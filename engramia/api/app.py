@@ -54,6 +54,7 @@ from engramia.api.governance import router as governance_router
 from engramia.api.jobs import router as jobs_router
 from engramia.api.keys import router as keys_router
 from engramia.api.routes import meta_router, router
+from engramia.api.waitlist import router as waitlist_router
 from engramia.billing.webhooks import router as billing_router
 from engramia.exceptions import (
     AuthorizationError,
@@ -461,6 +462,7 @@ def _register_routers(app: FastAPI, storage) -> None:
     app.include_router(analytics_router, prefix="/v1")
     app.include_router(billing_router, prefix="/v1")
     app.include_router(credentials_router, prefix="/v1")
+    app.include_router(waitlist_router, prefix="/v1")
 
     # ------------------------------------------------------------------
     # Hosted MCP server (Streamable HTTP transport at /v1/mcp).

@@ -63,6 +63,12 @@ credentials_app = typer.Typer(
 )
 app.add_typer(credentials_app)
 
+waitlist_app = typer.Typer(
+    name="waitlist",
+    help="Cloud onboarding waitlist (Variant A — manual admin approval).",
+)
+app.add_typer(waitlist_app)
+
 console = Console()
 
 
@@ -1169,6 +1175,15 @@ def cloud_create_account(
                 {"plan": plan, "tid": result["tenant_id"]},
             )
 
+    # Manually-provisioned accounts use a one-time password — force the user
+    # to change it on first login (ADR-007). The Dashboard middleware blocks
+    # access to all routes until the user calls POST /auth/change-password.
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE cloud_users SET must_change_password = true WHERE id = :uid"),
+            {"uid": result["user_id"]},
+        )
+
     console.print()
     console.print("[green]Account created[/green]")
     console.print(f"  email      : {email}")
@@ -1374,6 +1389,372 @@ def credentials_migrate_to_vault(
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Waitlist (cloud onboarding Variant A — manual admin approval)
+# ---------------------------------------------------------------------------
+
+
+def _waitlist_engine_or_exit():
+    """Return SQLAlchemy engine for the cloud DB; exit 1 with a clear message
+    when ENGRAMIA_DATABASE_URL is unset."""
+    from sqlalchemy import create_engine
+
+    db_url = os.environ.get("ENGRAMIA_DATABASE_URL", "").strip()
+    if not db_url:
+        console.print("[red]ENGRAMIA_DATABASE_URL not set[/red]")
+        raise typer.Exit(1)
+    return create_engine(db_url, pool_pre_ping=True)
+
+
+@waitlist_app.command("list")
+def waitlist_list(
+    pending: bool = typer.Option(False, "--pending", help="Show only pending requests."),
+    approved: bool = typer.Option(False, "--approved", help="Show only approved requests."),
+    rejected: bool = typer.Option(False, "--rejected", help="Show only rejected requests."),
+) -> None:
+    """List waitlist requests with their status. Default: all."""
+    from sqlalchemy import text
+
+    engine = _waitlist_engine_or_exit()
+
+    where_clauses: list[str] = []
+    if pending:
+        where_clauses.append("status = 'pending'")
+    if approved:
+        where_clauses.append("status = 'approved'")
+    if rejected:
+        where_clauses.append("status = 'rejected'")
+    where_sql = " OR ".join(where_clauses) if where_clauses else "1=1"
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT id, email, name, plan_interest, country, status, "
+                "created_at, tenant_id FROM waitlist_requests "
+                f"WHERE {where_sql} "
+                "ORDER BY created_at DESC LIMIT 200"
+            )
+        ).fetchall()
+
+    if not rows:
+        console.print("[green]No requests match the filter[/green]")
+        return
+
+    table = Table(title=f"Waitlist requests ({len(rows)})")
+    table.add_column("id (short)", style="cyan")
+    table.add_column("email")
+    table.add_column("name")
+    table.add_column("plan", style="bold")
+    table.add_column("country")
+    table.add_column("status")
+    table.add_column("created")
+    table.add_column("tenant")
+    for r in rows:
+        rid = str(r[0])
+        status_color = {"pending": "yellow", "approved": "green", "rejected": "red"}.get(r[5], "white")
+        table.add_row(
+            rid[:8],
+            str(r[1]),
+            str(r[2]),
+            str(r[3]),
+            str(r[4]),
+            f"[{status_color}]{r[5]}[/{status_color}]",
+            r[6].strftime("%Y-%m-%d %H:%M") if r[6] else "—",
+            (str(r[7])[:8] if r[7] else "—"),
+        )
+    console.print(table)
+    console.print()
+    console.print(
+        '[yellow]Hint:[/yellow] use `engramia waitlist approve <full-id>` or `… reject <full-id> --reason "…"`.'
+    )
+
+
+@waitlist_app.command("approve")
+def waitlist_approve(
+    request_id: str = typer.Argument(..., help="Waitlist request UUID (full or unambiguous prefix)."),
+    plan: str | None = typer.Option(
+        None,
+        "--plan",
+        help="Override plan_tier. Defaults to the request's plan_interest. "
+        "(developer | pro | team | business | enterprise)",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen without provisioning."),
+) -> None:
+    """Provision a cloud account from a pending waitlist request.
+
+    Generates a one-time password, creates tenant+project+cloud_user+api_key
+    via _create_registration, sets must_change_password=true, marks the
+    waitlist row as approved, and emails credentials. The customer must
+    change the password on first login.
+    """
+    import secrets
+
+    from sqlalchemy import text
+
+    from engramia.api.audit import AuditEvent, log_event
+    from engramia.api.cloud_auth import _create_registration, _hash_password
+    from engramia.email import EmailNotConfigured, send_email
+    from engramia.email.templates import credentials_email
+
+    engine = _waitlist_engine_or_exit()
+    valid_plans = {"developer", "pro", "team", "business", "enterprise"}
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT id, email, name, plan_interest, status FROM waitlist_requests "
+                "WHERE id::text = :rid OR id::text LIKE :prefix "
+                "ORDER BY created_at DESC LIMIT 2"
+            ),
+            {"rid": request_id, "prefix": f"{request_id}%"},
+        ).fetchall()
+
+    if not row:
+        console.print(f"[red]No waitlist request matching:[/red] {request_id}")
+        raise typer.Exit(1)
+    if len(row) > 1:
+        console.print(f"[red]Ambiguous prefix '{request_id}' matched multiple rows. Use the full UUID.[/red]")
+        raise typer.Exit(1)
+
+    full_id, email, name, plan_interest, current_status = (
+        str(row[0][0]),
+        str(row[0][1]),
+        str(row[0][2]),
+        str(row[0][3]),
+        str(row[0][4]),
+    )
+
+    if current_status != "pending":
+        console.print(f"[red]Cannot approve — request is already {current_status}.[/red]")
+        raise typer.Exit(1)
+
+    target_plan = (plan or plan_interest).lower()
+    if target_plan not in valid_plans:
+        console.print(f"[red]Invalid plan:[/red] {target_plan}")
+        raise typer.Exit(1)
+
+    if dry_run:
+        console.print("[yellow]DRY-RUN[/yellow] Would provision:")
+        console.print(f"  email      : {email}")
+        console.print(f"  name       : {name}")
+        console.print(f"  plan       : {target_plan}")
+        console.print("  password   : (would be auto-generated, 16 chars)")
+        return
+
+    one_time_password = secrets.token_urlsafe(16)
+    password_hash = _hash_password(one_time_password)
+
+    result = _create_registration(
+        engine,
+        email=email,
+        password_hash=password_hash,
+        name=name,
+        provider="credentials",
+        provider_id=None,
+        email_verified=True,
+    )
+
+    with engine.begin() as conn:
+        if target_plan != "developer":
+            conn.execute(
+                text("UPDATE tenants SET plan_tier = :plan WHERE id = :tid"),
+                {"plan": target_plan, "tid": result["tenant_id"]},
+            )
+        conn.execute(
+            text("UPDATE cloud_users SET must_change_password = true WHERE id = :uid"),
+            {"uid": result["user_id"]},
+        )
+        conn.execute(
+            text(
+                "UPDATE waitlist_requests SET status='approved', approved_at=now(), "
+                "tenant_id = :tid WHERE id::text = :rid"
+            ),
+            {"tid": result["tenant_id"], "rid": full_id},
+        )
+
+    log_event(
+        AuditEvent.WAITLIST_APPROVED,
+        request_id=full_id,
+        tenant_id=result["tenant_id"],
+        plan=target_plan,
+    )
+
+    dashboard_url = os.environ.get("ENGRAMIA_DASHBOARD_URL", "https://app.engramia.dev").strip().rstrip("/")
+    try:
+        subj, txt, html = credentials_email(
+            recipient_name=name,
+            login_email=email,
+            one_time_password=one_time_password,
+            dashboard_url=dashboard_url,
+            plan_tier=target_plan,
+        )
+        send_email(to=email, subject=subj, html=html, text=txt)
+        email_status = "sent"
+    except EmailNotConfigured:
+        email_status = "skipped (SMTP not configured)"
+    except Exception as exc:
+        email_status = f"failed: {exc}"
+
+    console.print()
+    console.print(f"[green]Approved[/green] request {full_id[:8]}")
+    console.print(f"  email      : {email}")
+    console.print(
+        f"  password   : [bold]{one_time_password}[/bold] (one-time — customer forced to change on first login)"
+    )
+    console.print(f"  plan       : {target_plan}")
+    console.print(f"  tenant_id  : {result['tenant_id']}")
+    console.print(f"  api_key    : [bold]{result['api_key']}[/bold]")
+    console.print(f"  email      : {email_status}")
+
+
+@waitlist_app.command("reject")
+def waitlist_reject(
+    request_id: str = typer.Argument(..., help="Waitlist request UUID (full or unambiguous prefix)."),
+    reason: str = typer.Option(
+        ...,
+        "--reason",
+        help="Free-text reason — interpolated into the rejection email. Draft "
+        "the wording out-of-band (Claude works well as a co-writer).",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the rendered rejection email without sending."),
+) -> None:
+    """Reject a pending waitlist request and send the customer a polite email."""
+    from sqlalchemy import text
+
+    from engramia.api.audit import AuditEvent, log_event
+    from engramia.email import EmailNotConfigured, send_email
+    from engramia.email.templates import waitlist_rejection_email
+
+    engine = _waitlist_engine_or_exit()
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT id, email, name, status FROM waitlist_requests "
+                "WHERE id::text = :rid OR id::text LIKE :prefix "
+                "ORDER BY created_at DESC LIMIT 2"
+            ),
+            {"rid": request_id, "prefix": f"{request_id}%"},
+        ).fetchall()
+
+    if not row:
+        console.print(f"[red]No waitlist request matching:[/red] {request_id}")
+        raise typer.Exit(1)
+    if len(row) > 1:
+        console.print(f"[red]Ambiguous prefix '{request_id}' — use the full UUID.[/red]")
+        raise typer.Exit(1)
+
+    full_id, email, name, current_status = (
+        str(row[0][0]),
+        str(row[0][1]),
+        str(row[0][2]),
+        str(row[0][3]),
+    )
+
+    if current_status != "pending":
+        console.print(f"[red]Cannot reject — request is already {current_status}.[/red]")
+        raise typer.Exit(1)
+
+    subj, txt, html = waitlist_rejection_email(recipient_name=name, reason=reason)
+
+    if dry_run:
+        console.print("[yellow]DRY-RUN[/yellow] Would send:")
+        console.print(f"  to      : {email}")
+        console.print(f"  subject : {subj}")
+        console.print()
+        console.print(txt)
+        return
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE waitlist_requests SET status='rejected', "
+                "rejected_at=now(), rejection_reason=:reason "
+                "WHERE id::text = :rid"
+            ),
+            {"reason": reason, "rid": full_id},
+        )
+
+    log_event(AuditEvent.WAITLIST_REJECTED, request_id=full_id)
+
+    try:
+        send_email(to=email, subject=subj, html=html, text=txt)
+        email_status = "sent"
+    except EmailNotConfigured:
+        email_status = "skipped (SMTP not configured)"
+    except Exception as exc:
+        email_status = f"failed: {exc}"
+
+    console.print()
+    console.print(f"[red]Rejected[/red] request {full_id[:8]}")
+    console.print(f"  email      : {email}")
+    console.print(f"  notify     : {email_status}")
+
+
+@waitlist_app.command("export")
+def waitlist_export(
+    since: str | None = typer.Option(
+        None, "--since", help="ISO date — include only requests created on/after this date (e.g. 2026-04-01)."
+    ),
+    output: str | None = typer.Option(None, "--output", help="Write to file instead of stdout."),
+) -> None:
+    """Export waitlist rows as CSV — for hand-off / backup / analytics."""
+    import csv
+    import sys
+
+    from sqlalchemy import text
+
+    engine = _waitlist_engine_or_exit()
+
+    where_sql = "1=1"
+    params: dict = {}
+    if since:
+        where_sql = "created_at >= :since"
+        params["since"] = since
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT id, email, name, plan_interest, country, use_case, "
+                "company_name, referral_source, status, rejection_reason, "
+                "tenant_id, created_at, approved_at, rejected_at "
+                "FROM waitlist_requests "
+                f"WHERE {where_sql} ORDER BY created_at DESC"
+            ),
+            params,
+        ).fetchall()
+
+    fieldnames = [
+        "id",
+        "email",
+        "name",
+        "plan_interest",
+        "country",
+        "use_case",
+        "company_name",
+        "referral_source",
+        "status",
+        "rejection_reason",
+        "tenant_id",
+        "created_at",
+        "approved_at",
+        "rejected_at",
+    ]
+
+    def _write(stream) -> None:
+        writer = csv.writer(stream)
+        writer.writerow(fieldnames)
+        for r in rows:
+            writer.writerow([str(c) if c is not None else "" for c in r])
+
+    if output:
+        with open(output, "w", newline="", encoding="utf-8") as fh:
+            _write(fh)
+        console.print(f"[green]Exported {len(rows)} rows[/green] → {output}")
+    else:
+        _write(sys.stdout)
 
 
 def main() -> None:
