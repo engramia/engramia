@@ -77,11 +77,12 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install dependencies
-        # Must include cloud-auth (cryptography → JWT/credential tests) and
-        # billing (stripe SDK → webhook + service tests). Without these the
-        # credential and webhook test modules fail collection with
+        # Must include cloud-auth (cryptography → JWT/credential tests),
+        # billing (stripe SDK → webhook + service tests) and mcp (SDK →
+        # hosted-MCP HTTP server tests). Without these the credential,
+        # webhook and mcp test modules fail collection with
         # ModuleNotFoundError before pytest even runs.
-        run: pip install -e ".[dev,openai,api,cli,postgres,billing,cloud-auth]"
+        run: pip install -e ".[dev,openai,api,cli,postgres,billing,cloud-auth,mcp]"
       - name: Run full test suite
         run: pytest --cov=engramia --cov-fail-under=80 --cov-report=xml --junitxml=test-results-full.xml
         env:

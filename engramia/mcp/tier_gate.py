@@ -57,7 +57,7 @@ class AcquiredSlot:
         self._released = True
         cb = self._release_callback
         if cb is not None:
-            await cb()  # type: ignore[misc]
+            await cb()  # type: ignore[misc,operator]
 
 
 class ConnectionLimiter(Protocol):

@@ -26,6 +26,7 @@ Design rules:
 from __future__ import annotations
 
 import enum
+import json
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -139,11 +140,14 @@ class StoredCredential:
             raise TypeError(
                 "StoredCredential requires either 'ciphertext_blob' or 'encrypted_key' (back-compat alias)."
             )
+        # The check above guarantees at least one is non-None, so the merged
+        # value is always bytes — narrow the type for mypy.
+        merged_blob: bytes = ciphertext_blob if ciphertext_blob is not None else encrypted_key  # type: ignore[assignment]
         self.id = id
         self.tenant_id = tenant_id
         self.provider = provider
         self.purpose = purpose
-        self.ciphertext_blob = ciphertext_blob if ciphertext_blob is not None else encrypted_key
+        self.ciphertext_blob = merged_blob
         self.nonce = nonce
         self.auth_tag = auth_tag
         self.key_version = key_version
@@ -490,14 +494,16 @@ class CredentialStore:
             sets.append("default_embed_model = :dem")
             params["dem"] = default_embed_model
         if role_models is not None:
-            sets.append("role_models = :rm")
-            params["rm"] = role_models
+            # JSONB columns: psycopg2 can't auto-adapt Python dict/list, so
+            # JSON-stringify and cast in SQL.
+            sets.append("role_models = :rm::jsonb")
+            params["rm"] = json.dumps(role_models)
         if failover_chain is not None:
-            sets.append("failover_chain = :fc")
-            params["fc"] = failover_chain
+            sets.append("failover_chain = :fc::jsonb")
+            params["fc"] = json.dumps(failover_chain)
         if role_cost_limits is not None:
-            sets.append("role_cost_limits = :rcl")
-            params["rcl"] = role_cost_limits
+            sets.append("role_cost_limits = :rcl::jsonb")
+            params["rcl"] = json.dumps(role_cost_limits)
         if not sets:
             return PatchOutcome.EMPTY_BODY
         sets.append("updated_at = now()")

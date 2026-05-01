@@ -88,9 +88,10 @@ def _plan_tier_from_price_id(price_id: str | None) -> str | None:
 # Build a tuple of Stripe-related exception types at import time so that
 # except clauses stay readable.  Falls back to generic network errors when
 # the stripe SDK is not installed.
-_stripe_lib: Any = None
 try:
-    import stripe as _stripe_lib
+    import stripe as _stripe_module
+
+    _stripe_lib: Any = _stripe_module
 
     _STRIPE_ERRORS: tuple[type[Exception], ...] = (
         _stripe_lib.error.StripeError,
@@ -98,6 +99,7 @@ try:
         TimeoutError,
     )
 except ImportError:
+    _stripe_lib = None
     _STRIPE_ERRORS = (ConnectionError, TimeoutError, OSError)
 
 

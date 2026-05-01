@@ -94,7 +94,7 @@ class CredentialResolver:
                 # an already-built LocalAESGCMBackend (new code paths
                 # where someone passes a backend explicitly).
                 if hasattr(cipher, "backend_id"):
-                    backends[cipher.backend_id] = cipher  # type: ignore[index]
+                    backends[cipher.backend_id] = cipher  # type: ignore[index,assignment]
                 else:
                     backends["local"] = LocalAESGCMBackend(cipher)  # type: ignore[arg-type]
         self._backends: dict[str, CredentialBackend] = backends

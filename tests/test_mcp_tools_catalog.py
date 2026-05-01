@@ -12,10 +12,23 @@ Covers:
 - Reader role on Team sees only read-only tools.
 """
 
-import pytest
+import sys
 
-from engramia.api.permissions import PERMISSIONS
-from engramia.mcp.tools import (
+# tests/test_mcp.py registers MagicMock-based stubs for mcp.* modules so
+# the stdio server can be imported without the SDK. If pytest collects
+# that file first, the stubs leak into engramia.mcp.tools which then
+# instantiates ToolEntry objects whose .name is a MagicMock — every
+# membership assertion below fails. Wipe stub modules + the cached
+# engramia.mcp.tools so the real `mcp` package (installed via the
+# `mcp` extra) is imported below.
+for _m in [m for m in list(sys.modules) if m == "mcp" or m.startswith("mcp.")]:
+    sys.modules.pop(_m, None)
+sys.modules.pop("engramia.mcp.tools", None)
+
+import pytest  # noqa: E402
+
+from engramia.api.permissions import PERMISSIONS  # noqa: E402
+from engramia.mcp.tools import (  # noqa: E402
     ALL_TOOLS,
     MIN_TIER_FOR_HOSTED_MCP,
     get_entry,

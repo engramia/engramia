@@ -21,7 +21,7 @@ from typing import Any
 
 import pytest
 
-from engramia.credentials.store import CredentialStore
+from engramia.credentials.store import CredentialStore, PatchOutcome
 
 pytestmark = pytest.mark.postgres
 
@@ -209,12 +209,12 @@ class TestPatch:
             created_by="test",
         )
         assert row_id is not None
-        ok = store.patch(
+        outcome = store.patch(
             tenant_id="tenant-test",
             credential_id=row_id,
             default_model="gpt-5",
         )
-        assert ok is True
+        assert outcome is PatchOutcome.UPDATED
         row = store.get_by_id("tenant-test", row_id)
         assert row is not None
         assert row.default_model == "gpt-5"
@@ -394,6 +394,6 @@ class TestNoEngine:
         s = CredentialStore(engine=None)
         assert s.revoke("t", "id") is False
 
-    def test_no_engine_patch_returns_false(self) -> None:
+    def test_no_engine_patch_returns_no_db(self) -> None:
         s = CredentialStore(engine=None)
-        assert s.patch(tenant_id="t", credential_id="id") is False
+        assert s.patch(tenant_id="t", credential_id="id") is PatchOutcome.NO_DB

@@ -27,6 +27,7 @@ For Vault Transit / KMS backends, swap this module via dependency injection
 from __future__ import annotations
 
 import base64
+import binascii
 import os
 import secrets
 from typing import Final
@@ -99,7 +100,7 @@ class AESGCMCipher:
             )
         try:
             key_bytes = base64.b64decode(raw, validate=True)
-        except (ValueError, base64.binascii.Error) as exc:
+        except (ValueError, binascii.Error) as exc:
             raise MasterKeyError(f"{_MASTER_KEY_ENV} is not valid base64: {exc}") from exc
         return cls(key_bytes, key_version=key_version)
 
