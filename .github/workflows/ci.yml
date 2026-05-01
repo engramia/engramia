@@ -24,7 +24,9 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev,openai,api,cli,postgres,billing,cloud-auth]"
+        # mcp extra brings the SDK so test_mcp_*.py modules can be
+        # collected; without it the catalog tests crash at import.
+        run: pip install -e ".[dev,openai,api,cli,postgres,billing,cloud-auth,mcp]"
 
       - name: Lint (ruff)
         run: ruff check engramia/

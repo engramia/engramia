@@ -495,14 +495,15 @@ class CredentialStore:
             params["dem"] = default_embed_model
         if role_models is not None:
             # JSONB columns: psycopg2 can't auto-adapt Python dict/list, so
-            # JSON-stringify and cast in SQL.
-            sets.append("role_models = :rm::jsonb")
+            # JSON-stringify and cast via CAST (the `::jsonb` shorthand
+            # collides with SQLAlchemy's ``:param`` placeholder parsing).
+            sets.append("role_models = CAST(:rm AS jsonb)")
             params["rm"] = json.dumps(role_models)
         if failover_chain is not None:
-            sets.append("failover_chain = :fc::jsonb")
+            sets.append("failover_chain = CAST(:fc AS jsonb)")
             params["fc"] = json.dumps(failover_chain)
         if role_cost_limits is not None:
-            sets.append("role_cost_limits = :rcl::jsonb")
+            sets.append("role_cost_limits = CAST(:rcl AS jsonb)")
             params["rcl"] = json.dumps(role_cost_limits)
         if not sets:
             return PatchOutcome.EMPTY_BODY
