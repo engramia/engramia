@@ -418,6 +418,161 @@ rather than an LLM cost recovery.
 
 ---
 
+## [0.7.0] — 2026-05-01
+
+### Added — Cloud onboarding Variant A (manual admin + waitlist + force-change-password)
+
+Public-launch onboarding flow. Customers submit access requests through
+the marketing site form; the request lands in a Core DB waitlist table
+and pings the admin. The admin reviews each entry and provisions the
+account via the `engramia waitlist approve` CLI, which also flips a
+`must_change_password` flag on the new user. The credentials email
+contains a one-time plaintext password the customer must change on first
+login. Self-service `/auth/register` is feature-flagged off; switching
+to fully self-serve later is a single env-var flip.
+
+Architecture: `Ops/internal/cloud-onboarding-architecture.md` (10
+components, 8 ADRs, 5 sequence diagrams).
+
+- **`engramia/api/waitlist.py`** — new module. `POST /v1/waitlist/request`
+  is a public, rate-limited (5/min/IP) endpoint that validates the
+  submission via Pydantic (email regex, ISO-3166-1 alpha-2 country code,
+  `plan_interest` enum, `use_case` conditionally required for paid
+  plans), persists to `waitlist_requests`, and best-effort dispatches an
+  acknowledgement email to the requester + a notification to the admin
+  at `support@engramia.dev` (override via `ENGRAMIA_WAITLIST_ADMIN_EMAIL`).
+- **`engramia/api/cloud_auth.py`** — `POST /auth/register` gated by the
+  new `ENGRAMIA_REGISTRATION_ENABLED` env var (default `false`). When
+  closed, returns `503` with structured `{error_code: "REGISTRATION_CLOSED",
+  detail: "…request access at engramia.dev/request-access…"}`. Existing
+  self-serve registration logic is preserved unchanged behind the gate;
+  switching to self-serve later is a SOPS env-flip + redeploy.
+- **`engramia/api/cloud_auth.py`** — `LoginResponse` extended with
+  `must_change_password: bool`. New `POST /auth/change-password`
+  Bearer-authed endpoint validates the current password, applies the new
+  one (same complexity rules as registration), clears the flag, and
+  returns a fresh JWT.
+- **`engramia/cli/main.py`** — new `engramia waitlist {list,approve,reject,export}`
+  Typer subcommands. `approve` reuses `_create_registration`, sets
+  `must_change_password=true`, emails one-time credentials. `reject
+  --reason "<text>"` interpolates an admin-supplied message into the
+  rejection template. `export [--since <date>]` produces CSV. Existing
+  `engramia cloud create-account` extended to set
+  `must_change_password=true` for consistency.
+- **`engramia/billing/service.py`** — `create_portal_url()` lazy-creates
+  the Stripe customer record on first `/billing/portal` visit when no
+  `stripe_customer_id` exists yet (manually-onboarded tenants don't go
+  through Checkout).
+- **`engramia/email/templates.py`** — four new templates:
+  `waitlist_ack_email` (2-business-day promise),
+  `waitlist_admin_notify_email` (full submission detail + CLI command
+  hints), `credentials_email` (one-time password + force-change
+  instruction), `waitlist_rejection_email` (admin-drafted reason
+  interpolated into a polite frame).
+- **`engramia/api/cloud_auth.py`** — `DELETE /me` (GDPR Art.17) extended
+  to wipe matching `waitlist_requests` rows by email + tenant_id match,
+  so customer-requested deletion truly purges all PII.
+- **`engramia/api/audit.py`** — `AuditEvent` enum gains
+  `WAITLIST_SUBMITTED`, `WAITLIST_APPROVED`, `WAITLIST_REJECTED`,
+  `FIRST_PASSWORD_CHANGED`, `AUTH_SUCCESS` for the new audit trail.
+- **Migration `029_waitlist_and_force_password_change`** — new
+  `waitlist_requests` table (id, email, name, plan_interest, country,
+  use_case, company_name, referral_source, status, rejection_reason,
+  tenant_id FK, timestamps) + new boolean
+  `cloud_users.must_change_password` column (`NOT NULL DEFAULT FALSE`).
+  Non-destructive: existing self-registered users keep `false`. Indexes
+  on `(status, created_at)` for admin queue queries and `(email)` for
+  the GDPR Art.17 cleanup.
+
+Tests: `tests/test_api/test_waitlist.py` (24 cases) +
+`tests/test_cloud_auth_force_change_password.py` (16 cases). Pre-existing
+`tests/test_cloud_auth.py` adapted: autouse fixture sets
+`ENGRAMIA_REGISTRATION_ENABLED=true` so legacy register/login tests
+exercise the open flow; login mock tuples extended for the new column.
+
+### Added — Audit-driven test additions (2026-04-30 audit gaps)
+
+A test audit identified high-leverage gaps in production-critical paths.
+This release closes the most important ones — 145 new test cases across
+seven test files:
+
+- **`tests/test_cli/test_cleanup.py`** (18 cases, testcontainers Postgres) —
+  `cleanup unverified-users` (reminder + delete windows, dry-run no-op,
+  OAuth/verified guards, idempotent re-run) + `cleanup deleted-accounts`
+  (grace-period hard-delete, custom flag, idempotent).
+- **`tests/test_cloud_auth_oauth.py`** (23 cases) — Google tokeninfo
+  audience validation (5 cases), Apple `NotImplementedError`,
+  `/auth/oauth` route (first-time login, returning user, email
+  lowercasing), `/auth/logout` JWT blocklist (8 cases incl. idempotent
+  double-call, garbage token, blocklist internals).
+- **`tests/test_governance_backup.py`** (24 cases) — `BackupExporter`
+  class-level guarantees: excluded tables (`tenant_credentials`,
+  `audit_log`, `billing_subscriptions`, `api_keys`, `cloud_users`)
+  NEVER appear in any SELECT; every query binds `:tid`; envelope is
+  header → rows → footer; NDJSON terminators; error envelope on
+  per-table failure; datetime/Decimal serialised via `default=str`.
+- **`tests/test_api/test_dsr_routes.py`** (31 cases) — POST/GET/PATCH
+  `/v1/governance/dsr` integration via FastAPI TestClient: RBAC matrix,
+  tenant isolation (cross-tenant 403 not 404 to prevent enumeration),
+  Pydantic validation, status state machine.
+- **`tests/test_billing/test_webhook_sequence.py`** (8 cases,
+  testcontainers Postgres) — drives `BillingService` through the ordered
+  Stripe sequence (checkout → subscription.created → invoice.paid →
+  payment_failed → recovery → subscription.deleted) against real
+  Postgres + alembic head. Covers out-of-order delivery + idempotent
+  replay.
+- **`tests/test_email_sender.py`** (15 cases) — STARTTLS / SMTPS /
+  plaintext branching, recipient-rejected propagation, EmailMessage
+  envelope.
+- **`tests/test_email_templates.py`** — 27 new cases covering all seven
+  templates' HTML escaping (XSS guard for `recipient_name`,
+  `verify_url`, `confirm_url`), interpolation, and template-specific
+  structure.
+
+CI Test (Python 3.12 + 3.13) and Full Test Suite (Postgres + alembic
+head) both green after this release.
+
+### Fixed — Pre-existing CI breakage on `main` (8+ commits red)
+
+The Core CI workflow had been red on `main` for at least eight commits
+prior to this release, blocking validation of incoming work. Fixed:
+
+- **`engramia/credentials/crypto.py:102`** — `base64.binascii.Error` is
+  not a real attribute. Switched to `import binascii` + `except
+  binascii.Error`. Mypy + runtime were both broken on Python 3.13.
+- **`engramia/mcp/tier_gate.py:60`** — `await cb()` on `object`-typed
+  attribute. Added `# type: ignore[misc,operator]` (runtime invariant
+  enforced by the limiter).
+- **`engramia/credentials/store.py:146`** — `bytes | None` assignment to
+  a `bytes` field after a non-None check. Extracted to a narrowed local
+  variable.
+- **`engramia/credentials/resolver.py:97`** — `object → CredentialBackend`
+  assignment after a `hasattr` check. Added `# type: ignore[index,assignment]`.
+- **`engramia/billing/service.py:91-103`** — `_stripe_lib: Any = None`
+  followed by `import stripe as _stripe_lib` triggered a mypy
+  redefinition error. Rewrote: import as `_stripe_module`, then assign
+  `_stripe_lib: Any = _stripe_module`; the ImportError branch sets
+  `_stripe_lib = None`.
+- **`engramia/credentials/store.py.patch`** — JSONB columns
+  (`role_models`, `failover_chain`, `role_cost_limits`) sent as raw
+  Python dict/list to psycopg2 raised `can't adapt type 'dict'`.
+  Switched to `json.dumps()` + `CAST(:param AS jsonb)` (the
+  `:param::jsonb` shorthand collides with SQLAlchemy's `:param`
+  placeholder parsing).
+- **`engramia/providers/_ollama_native.py:180`** — SIM103 ruff lint:
+  `if X: return True; return False` → `return X`.
+- **16 files reformatted** by `ruff format` — pure formatting, no
+  behaviour change.
+- **`.github/workflows/ci.yml`** — `Test (Python 3.x)` and `Full Test
+  Suite` jobs now install `cloud-auth + billing + mcp` extras so ~20
+  test modules don't fail collection with `ModuleNotFoundError` before
+  pytest runs anything.
+- **`engramia/api/audit.py`** — added `AUTH_SUCCESS` to the `AuditEvent`
+  enum (referenced by the new change-password handler and existing
+  call sites).
+
+---
+
 ## [0.6.5] — 2026-04-04
 
 ### Fixed — Security Audit P0–P2 (2026-04-04 audit)
