@@ -140,9 +140,8 @@ def waitlist_ack_email(
         f"will review it within 2 business days.\n\n"
         f"You requested the {plan_interest} plan. We'll either provision your account "
         "and send credentials, or reply with a follow-up question.\n\n"
-        "If you don't hear from us in that window, please reply to this email — "
-        "your request may have been caught by a spam filter on our side.\n\n"
-        "— The Engramia team\n"
+        "Thank you for your interest\n"
+        "Marek from Engramia\n"
     )
     html = f"""<!doctype html>
 <html>
@@ -150,8 +149,7 @@ def waitlist_ack_email(
   <p>{safe_greeting}</p>
   <p>Thanks for requesting access to <strong>Engramia</strong>. We received your submission and will review it within <strong>2 business days</strong>.</p>
   <p>You requested the <strong>{safe_plan}</strong> plan. We'll either provision your account and send credentials, or reply with a follow-up question.</p>
-  <p style="color:#64748b; font-size:13px;">If you don't hear from us in that window, please reply to this email — your request may have been caught by a spam filter on our side.</p>
-  <p style="color:#94a3b8; font-size:12px; margin-top:32px;">— The Engramia team</p>
+  <p style="color:#94a3b8; font-size:12px; margin-top:32px;">Thank you for your interest<br>Marek from Engramia</p>
 </body>
 </html>
 """
