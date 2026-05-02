@@ -232,8 +232,8 @@
           Evaluating Engramia for a commercial project
           <small>POC, integration test, internal demo — time-limited</small>
         </div>
-        <span class="matrix-verdict verdict-free">✓ Sandbox (Cloud)</span>
-        <span class="matrix-tier">30-day evaluation</span>
+        <span class="matrix-verdict verdict-free">✓ Developer (Cloud)</span>
+        <span class="matrix-tier">free, BYOK</span>
       </div>
 
       <div class="matrix-row">
@@ -299,56 +299,74 @@
     <div class="plans">
 
       <div class="plan-card">
-        <div class="plan-name">Sandbox</div>
+        <div class="plan-name">Developer</div>
         <div class="plan-price">$0 <span>/ month</span></div>
-        <div class="plan-desc">Try the hosted API. No credit card required. Non-commercial evaluation only.</div>
+        <div class="plan-desc">Free tier for hobby and adoption. Bring your own LLM key. No credit card required.</div>
         <ul class="plan-limits">
-          <li>1 project</li>
-          <li>500 eval runs / month</li>
-          <li>5 000 patterns</li>
+          <li>2 projects</li>
+          <li>5 000 eval runs / month</li>
+          <li>10 000 patterns</li>
+          <li>BYOK: OpenAI, Anthropic, Gemini, Ollama</li>
           <li>Community support</li>
         </ul>
-        <a class="cta-btn cta-secondary" href="https://api.engramia.dev/docs">Try Free</a>
+        <a class="cta-btn cta-secondary" href="https://api.engramia.dev/docs">Start Free</a>
       </div>
 
-      <div class="plan-card highlight">
+      <div class="plan-card">
         <div class="plan-name">Pro</div>
-        <div class="plan-price">$29 <span>/ month</span></div>
-        <div class="plan-desc">For individual developers and small teams. Commercial use included.</div>
+        <div class="plan-price">$19 <span>/ month</span></div>
+        <div class="plan-desc">Solo dev in production — analytics, evolution, webhooks. Yearly $14/mo (-25 %).</div>
         <ul class="plan-limits">
-          <li>3 projects</li>
-          <li>3 000 eval runs / month</li>
-          <li>50 000 patterns</li>
-          <li>Webhooks + Evaluation insights</li>
-          <li>Overage: +$5 / 500 runs (opt-in)</li>
+          <li>10 projects</li>
+          <li>50 000 eval runs / month</li>
+          <li>100 000 patterns</li>
+          <li>Eval insights + ROI rollups</li>
+          <li>Prompt evolution + outbound webhooks</li>
+          <li>Overage: +$5 / 5 000 runs (opt-in)</li>
         </ul>
         <a class="cta-btn cta-primary" href="https://api.engramia.dev/v1/billing/checkout?plan=pro">Get Pro</a>
       </div>
 
-      <div class="plan-card">
+      <div class="plan-card highlight">
         <div class="plan-name">Team</div>
-        <div class="plan-price">$99 <span>/ month</span></div>
-        <div class="plan-desc">For growing teams that need more capacity and governance.</div>
+        <div class="plan-price">$59 <span>/ month</span></div>
+        <div class="plan-desc">Production team — RBAC, audit, async, hosted MCP. Yearly $44/mo (-25 %).</div>
         <ul class="plan-limits">
-          <li>15 projects</li>
-          <li>15 000 eval runs / month</li>
-          <li>500 000 patterns</li>
-          <li>Async jobs + GDPR export</li>
-          <li>Overage: +$25 / 5 000 runs (opt-in, budget cap)</li>
+          <li>50 projects</li>
+          <li>250 000 eval runs / month</li>
+          <li>1 000 000 patterns</li>
+          <li>RBAC (4 roles) + full audit log</li>
+          <li>Async jobs + hosted MCP server</li>
+          <li>Overage: +$25 / 50 000 runs (opt-in, budget cap)</li>
         </ul>
         <a class="cta-btn cta-primary" href="https://api.engramia.dev/v1/billing/checkout?plan=team">Get Team</a>
       </div>
 
       <div class="plan-card">
-        <div class="plan-name">Enterprise Cloud</div>
+        <div class="plan-name">Business</div>
+        <div class="plan-price">$199 <span>/ month</span></div>
+        <div class="plan-desc">Organisation scale — SSO, cross-agent memory, role routing. Yearly $149/mo (-25 %).</div>
+        <ul class="plan-limits">
+          <li>250 projects</li>
+          <li>1 000 000 eval runs / month</li>
+          <li>10 000 000 patterns</li>
+          <li>SSO / OIDC + 7-year audit retention</li>
+          <li>Per-role model routing + cross-agent memory</li>
+          <li>Overage: +$100 / 250 000 runs (opt-in, budget cap)</li>
+        </ul>
+        <a class="cta-btn cta-primary" href="https://api.engramia.dev/v1/billing/checkout?plan=business">Get Business</a>
+      </div>
+
+      <div class="plan-card">
+        <div class="plan-name">Enterprise</div>
         <div class="plan-price" style="font-size:1.15rem; padding-top:0.3rem;">Custom</div>
-        <div class="plan-desc">Unlimited projects, cross-agent memory, SSO, VPC, SLA, DPA.</div>
+        <div class="plan-desc">Regulated, on-prem, air-gapped — Vault, SOC 2, signed DPA, SLA.</div>
         <ul class="plan-limits">
           <li>Unlimited projects &amp; patterns</li>
-          <li>Custom eval quotas</li>
-          <li>Cross-agent memory sharing</li>
-          <li>SSO / OIDC, audit log</li>
-          <li>Data residency / VPC</li>
+          <li>HashiCorp Vault Transit credential backend</li>
+          <li>On-prem / VPC / air-gapped deploy</li>
+          <li>Signed DPA + SOC 2 control mapping</li>
+          <li>Dedicated SLA 99.95 % + Slack channel</li>
         </ul>
         <a class="cta-btn cta-muted" href="mailto:sales@engramia.dev">Contact Sales</a>
       </div>
@@ -414,8 +432,8 @@
       <div class="faq-item">
         <div class="faq-q">Can I try it commercially before buying?</div>
         <div class="faq-a">
-          Yes. The Cloud Sandbox plan is free and lets you evaluate the full API.
-          It is not intended for sustained commercial production use — upgrade to Pro before you ship.
+          Yes. The free Cloud Developer plan lets you evaluate the full API with BYOK.
+          It is not intended for sustained commercial production use — upgrade to Pro or Team before you ship.
         </div>
       </div>
 

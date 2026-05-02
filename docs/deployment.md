@@ -581,7 +581,7 @@ Manage failed payments):**
 days 3, 5, and 7 maximises recovery before the customer loses access.  A final
 retry on day 14 catches customers who updated their card late.  Cancelling
 after all retries fires `customer.subscription.deleted`, which Engramia
-handles by downgrading the tenant to the sandbox tier.
+handles by downgrading the tenant to the Developer free tier (the legacy "sandbox" alias still resolves for any pre-6.6 row).
 
 **Dunning notification events** are emitted as structured log entries at the
 `WARNING` level with the key `dunning_event`.  Hook an email provider (e.g.

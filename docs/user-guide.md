@@ -71,10 +71,11 @@ Use the hosted Engramia cloud at `https://api.engramia.dev`.
 ### Step 1: Register and Get an API Key
 
 1. Go to `https://api.engramia.dev/docs` — this opens the Swagger UI.
-2. The **Sandbox** tier is free, no credit card required. You get:
-   - 1 project
-   - 500 eval runs / month
-   - 5,000 patterns
+2. The **Developer** tier is free, no credit card required. You get:
+   - 2 projects
+   - 5,000 eval runs / month
+   - 10,000 patterns
+   - Bring your own LLM key (OpenAI, Anthropic, Gemini, Ollama)
 
 ### Step 2: Store Your First Pattern (Learn)
 
@@ -349,8 +350,11 @@ All configuration is via environment variables. No config files needed.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STRIPE_SECRET_KEY` | — | Stripe API key. Without it, billing runs in no-op mode (all tenants get Sandbox). |
+| `STRIPE_SECRET_KEY` | — | Stripe API key. Without it, billing runs in no-op mode (all tenants get the Developer free tier). |
 | `STRIPE_WEBHOOK_SECRET` | — | Stripe webhook signing secret. |
+| `STRIPE_PRICE_PRO_MONTHLY` / `STRIPE_PRICE_PRO_YEARLY` | — | Stripe Price IDs for Pro tier. |
+| `STRIPE_PRICE_TEAM_MONTHLY` / `STRIPE_PRICE_TEAM_YEARLY` | — | Stripe Price IDs for Team tier. |
+| `STRIPE_PRICE_BUSINESS_MONTHLY` / `STRIPE_PRICE_BUSINESS_YEARLY` | — | Stripe Price IDs for Business tier. |
 
 ### Async Jobs
 
@@ -800,24 +804,30 @@ The Engramia cloud service uses Stripe-based billing with four plan tiers.
 
 ### Plan Tiers
 
-| Feature | Sandbox | Pro | Team | Enterprise |
-|---------|---------|-----|------|------------|
-| **Price** | $0/mo | $29/mo ($23/mo yearly) | $99/mo ($79/mo yearly) | Custom |
-| **Projects** | 1 | 3 | 15 | Unlimited |
-| **Eval Runs/mo** | 500 | 3,000 | 15,000 | Custom |
-| **Patterns** | 5,000 | 50,000 | 500,000 | Unlimited |
-| **Overage** | — | +$5 / 500 runs (opt-in) | +$25 / 5,000 runs + budget cap | Custom |
-| **Async Jobs** | — | — | Yes | Yes |
-| **GDPR Export** | — | — | Yes | Yes |
-| **SSO / OIDC** | — | — | — | Yes |
+| Feature | Developer | Pro | Team | Business | Enterprise |
+|---------|-----------|-----|------|----------|------------|
+| **Price** | $0/mo | $19/mo ($14/mo yearly) | $59/mo ($44/mo yearly) | $199/mo ($149/mo yearly) | Custom |
+| **Projects** | 2 | 10 | 50 | 250 | Unlimited |
+| **Eval Runs/mo** | 5,000 | 50,000 | 250,000 | 1,000,000 | Custom |
+| **Patterns** | 10,000 | 100,000 | 1,000,000 | 10,000,000 | Unlimited |
+| **Users** | 1 | 1 | 10 | 50 | Unlimited |
+| **Overage** | — | +$5 / 5,000 runs (opt-in) | +$25 / 50,000 runs + cap | +$100 / 250,000 runs + cap | Pre-paid |
+| **Async Jobs** | — | — | Yes (3 concurrent) | Yes (10 concurrent) | Yes |
+| **Hosted MCP server** | — | — | Yes | Yes | Yes |
+| **RBAC + audit log** | — | — | Yes | Yes | Yes |
+| **SSO / OIDC** | — | — | — | Yes | Yes |
+| **Cross-agent memory + role routing** | — | — | — | Yes | Yes |
 
-### Sandbox
+Yearly billing saves 25 % on every paid tier.
 
-The Sandbox tier is the default for all new tenants. No credit card required. Limits:
-- 1 project, 500 eval runs/month, 5,000 patterns.
-- When you hit the limit, API returns HTTP 429 with a `reset_date` indicating when the quota resets (first day of next month).
+### Developer
 
-### Upgrading to Pro or Team
+The Developer tier is the default for all new tenants (replaces the legacy "sandbox" tier name). No credit card required. Limits:
+- 2 projects, 5,000 eval runs/month, 10,000 patterns.
+- BYOK across OpenAI, Anthropic, Gemini, Ollama; local sentence-transformer embeddings included.
+- When you hit the limit, the API returns HTTP 429 with a `reset_date` indicating when the quota resets (first day of next month).
+
+### Upgrading to Pro, Team, or Business
 
 ```bash
 # Create a Stripe Checkout session
@@ -846,13 +856,13 @@ curl https://api.engramia.dev/v1/billing/status \
   "plan_tier": "pro",
   "status": "active",
   "billing_interval": "month",
-  "eval_runs_used": 1250,
-  "eval_runs_limit": 3000,
-  "patterns_used": 12000,
-  "patterns_limit": 50000,
-  "projects_used": 2,
-  "projects_limit": 3,
-  "period_end": "2026-05-01T00:00:00Z",
+  "eval_runs_used": 12500,
+  "eval_runs_limit": 50000,
+  "patterns_used": 24000,
+  "patterns_limit": 100000,
+  "projects_used": 4,
+  "projects_limit": 10,
+  "period_end": "2026-06-01T00:00:00Z",
   "overage_enabled": false,
   "overage_budget_cap_cents": null
 }
@@ -870,10 +880,11 @@ curl -X PATCH https://api.engramia.dev/v1/billing/overage \
   -d '{"enabled": true, "budget_cap_cents": 5000}'
 ```
 
-- **Pro:** $5 per 500 additional eval runs.
-- **Team:** $25 per 5,000 additional eval runs, with an optional budget cap.
+- **Pro:** $5 per 5,000 additional eval runs.
+- **Team:** $25 per 50,000 additional eval runs, with an optional budget cap.
+- **Business:** $100 per 250,000 additional eval runs, with an optional budget cap.
 - When the budget cap is reached, API returns HTTP 429 (`overage_budget_cap_reached`).
-- Set `budget_cap_cents` to `null` to remove the cap (Team only).
+- Set `budget_cap_cents` to `null` to remove the cap (Team and Business only).
 
 ### Customer Portal
 
@@ -892,7 +903,7 @@ If a payment fails:
 2. You have a **7-day grace period** — API continues to work normally.
 3. From day 5, warning logs are emitted.
 4. After 7 days without payment, API returns **HTTP 402 Payment Required**.
-5. After all Stripe retry attempts (day 3, 5, 7, 14), the subscription is canceled and you are downgraded to Sandbox.
+5. After all Stripe retry attempts (day 3, 5, 7, 14), the subscription is canceled and you are downgraded to the Developer free tier.
 
 ---
 
@@ -1021,12 +1032,12 @@ Disable only in development environments: `ENGRAMIA_REDACTION=false`.
 
 ### Plan Limits
 
-| Resource | Sandbox | Pro | Team | Enterprise |
-|----------|---------|-----|------|------------|
-| Projects | 1 | 3 | 15 | Unlimited |
-| Eval Runs / month | 500 | 3,000 | 15,000 | Custom |
-| Stored Patterns | 5,000 | 50,000 | 500,000 | Unlimited |
-| Overage | No | $5/500 runs | $25/5K runs + cap | Custom |
+| Resource | Developer | Pro | Team | Business | Enterprise |
+|----------|-----------|-----|------|----------|------------|
+| Projects | 2 | 10 | 50 | 250 | Unlimited |
+| Eval Runs / month | 5,000 | 50,000 | 250,000 | 1,000,000 | Custom |
+| Stored Patterns | 10,000 | 100,000 | 1,000,000 | 10,000,000 | Unlimited |
+| Overage | No | $5/5K runs | $25/50K runs + cap | $100/250K runs + cap | Pre-paid |
 
 ### Rate Limits
 

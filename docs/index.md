@@ -15,7 +15,7 @@ what works, forget what does not, reuse proven solutions, and improve over time.
 | :material-book-open-variant:{ .lg } **[Concepts](concepts.md)** | Understand how memory, evaluation, scopes, and composition work together. |
 | :material-api:{ .lg } **[API Reference](api-reference.md)** | Python SDK, REST endpoints, stability guarantees, and versioning. |
 | :material-puzzle:{ .lg } **[Integrations](integrations/examples.md)** | Connect to LangChain, CrewAI, Anthropic Agents, OpenAI Agents, MCP, and more. |
-| :material-currency-usd:{ .lg } **[Pricing](pricing.md)** | Sandbox (free), Pro, Team, Enterprise plans. |
+| :material-currency-usd:{ .lg } **[Pricing](pricing.md)** | Developer (free), Pro, Team, Business, Enterprise plans. |
 | :material-cog:{ .lg } **[CLI](cli.md)** | `engramia init / serve / status / recall / aging` |
 
 ---
@@ -33,7 +33,7 @@ what works, forget what does not, reuse proven solutions, and improve over time.
 ### I'm evaluating Engramia
 
 1. [Concepts & Architecture](concepts.md) — how it works
-2. [Pricing](pricing.md) — Sandbox (free), Pro, Team, Enterprise
+2. [Pricing](pricing.md) — Developer (free), Pro, Team, Business, Enterprise
 3. [REST API](rest-api.md) — full endpoint reference
 4. [API Stability](api-stability.md) — stability guarantees and deprecation policy
 
