@@ -40,8 +40,14 @@ def send_email(
     subject: str,
     html: str,
     text: str,
+    reply_to: str | None = None,
 ) -> None:
     """Send an email via SMTP. Blocks until the server ACKs or raises.
+
+    Args:
+        reply_to: Optional Reply-To header. Use when the From sender is a
+            noreply alias but replies should land elsewhere (e.g. founder
+            inbox for pilot-program acks).
 
     Raises:
         EmailNotConfigured: SMTP host not set.
@@ -66,6 +72,8 @@ def send_email(
     msg["From"] = sender
     msg["To"] = to
     msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg.set_content(text)
     msg.add_alternative(html, subtype="html")
 

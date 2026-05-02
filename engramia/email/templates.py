@@ -158,6 +158,122 @@ def waitlist_ack_email(
     return subject, text, html
 
 
+def waitlist_pilot_ack_email(
+    *,
+    recipient_name: str | None,
+    segment: str,
+) -> tuple[str, str, str]:
+    """Return (subject, text_body, html_body) for the Pilot Program ack email.
+
+    Sent to applicants whose ``referral_source`` starts with ``pilot-`` (the
+    Website's /pilot form tags submissions this way). The cross-link in the
+    body is shaped to the segment they self-selected so the email signals
+    we read the application before the human review.
+
+    The caller is expected to set ``Reply-To: pilot@engramia.dev`` on the
+    SMTP message so applicants reach the founder directly, not the generic
+    support queue.
+    """
+    greeting = f"Hi {recipient_name}," if recipient_name else "Hi,"
+    safe_greeting = escape(greeting)
+
+    # Per-segment cross-link — the *one* page most likely to address the
+    # applicant's underlying question while they wait. Falls back to two
+    # links for ``pilot-other`` or unrecognised segment values.
+    segment_links_text: dict[str, str] = {
+        "eu-compliance": (
+            "  EU compliance brief — GDPR Art. 17/20 mapping, audit log\n"
+            "  alignment with EU AI Act Art. 12, DPA template:\n"
+            "  https://engramia.dev/eu-compliance"
+        ),
+        "openai-migration": (
+            "  OpenAI Assistants migration path — drop-in replacement\n"
+            "  for thread persistence and the multi-LLM extension before\n"
+            "  the Aug 2026 sunset:\n"
+            "  https://engramia.dev/migrate/openai-assistants"
+        ),
+        "custom-memory": (
+            "  LongMemEval benchmark results — Engramia 97.8% with\n"
+            "  per-dimension breakdown vs. custom-memory baselines:\n"
+            "  https://engramia.dev/benchmarks"
+        ),
+    }
+    segment_link_text = segment_links_text.get(
+        segment,
+        "  EU compliance brief: https://engramia.dev/eu-compliance\n"
+        "  OpenAI Assistants migration: https://engramia.dev/migrate/openai-assistants",
+    )
+
+    segment_links_html: dict[str, str] = {
+        "eu-compliance": (
+            '<p style="margin:0;"><a href="https://engramia.dev/eu-compliance" '
+            'style="color:#4f46e5; text-decoration:none; font-weight:600;">'
+            "EU compliance brief</a> — GDPR Art. 17/20 mapping, audit log "
+            "alignment with EU AI Act Art. 12, DPA template.</p>"
+        ),
+        "openai-migration": (
+            '<p style="margin:0;"><a href="https://engramia.dev/migrate/openai-assistants" '
+            'style="color:#4f46e5; text-decoration:none; font-weight:600;">'
+            "OpenAI Assistants migration path</a> — drop-in replacement for "
+            "thread persistence and the multi-LLM extension before the Aug 2026 sunset.</p>"
+        ),
+        "custom-memory": (
+            '<p style="margin:0;"><a href="https://engramia.dev/benchmarks" '
+            'style="color:#4f46e5; text-decoration:none; font-weight:600;">'
+            "LongMemEval benchmark results</a> — Engramia 97.8% with full "
+            "per-dimension breakdown vs. custom-memory baselines.</p>"
+        ),
+    }
+    segment_link_html = segment_links_html.get(
+        segment,
+        '<p style="margin:0 0 8px 0;"><a href="https://engramia.dev/eu-compliance" '
+        'style="color:#4f46e5; text-decoration:none; font-weight:600;">EU compliance brief</a></p>'
+        '<p style="margin:0;"><a href="https://engramia.dev/migrate/openai-assistants" '
+        'style="color:#4f46e5; text-decoration:none; font-weight:600;">OpenAI Assistants migration path</a></p>',
+    )
+
+    subject = "Engramia Pilot — application received"
+    text = (
+        f"{greeting}\n\n"
+        "Thanks for applying to the Engramia Pilot Program. I read every "
+        "application personally — yours is in the queue.\n\n"
+        "Here's what happens next:\n\n"
+        "1. I review your application against the segment seats still open.\n"
+        "   You hear back within 5 business days.\n\n"
+        "2. If we are a match, I email you to book a 30-minute intro call.\n"
+        "   We discuss your migration path, timeline, and what success looks\n"
+        "   like for the first three months.\n\n"
+        "3. After the call, you either get an onboarding slot (start within\n"
+        "   5 business days) or a clear \"not a fit, here is why\" — never silence.\n\n"
+        "While you wait, this might be useful in your context:\n\n"
+        f"{segment_link_text}\n\n"
+        "Anything urgent or unclear? Reply directly to this email — it\n"
+        "reaches me, not a queue.\n\n"
+        "Marek\n"
+    )
+    html = f"""<!doctype html>
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:560px; margin:0 auto; padding:24px;">
+  <p>{safe_greeting}</p>
+  <p>Thanks for applying to the <strong>Engramia Pilot Program</strong>. I read every application personally — yours is in the queue.</p>
+  <p style="margin-top:16px; margin-bottom:8px;"><strong>Here's what happens next:</strong></p>
+  <ol style="padding-left:20px; margin-top:0; line-height:1.55;">
+    <li style="margin-bottom:10px;">I review your application against the segment seats still open. You hear back within <strong>5 business days</strong>.</li>
+    <li style="margin-bottom:10px;">If we are a match, I email you to book a 30-minute intro call. We discuss your migration path, timeline, and what success looks like for the first three months.</li>
+    <li style="margin-bottom:10px;">After the call, you either get an onboarding slot (start within 5 business days) or a clear "not a fit, here is why" — <strong>never silence</strong>.</li>
+  </ol>
+  <p style="margin-top:24px; margin-bottom:8px;"><strong>While you wait,</strong> this might be useful in your context:</p>
+  <div style="background:#f8fafc; border-left:3px solid #4f46e5; padding:12px 16px; border-radius:0 6px 6px 0;">
+    {segment_link_html}
+  </div>
+  <p style="margin-top:24px;">Anything urgent or unclear? Reply directly to this email — it reaches me, not a queue.</p>
+  <p style="margin-top:24px;">Marek</p>
+</body>
+</html>
+"""
+    return subject, text, html
+
+
 def waitlist_admin_notify_email(
     *,
     request_id: str,

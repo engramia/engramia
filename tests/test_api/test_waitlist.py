@@ -183,13 +183,28 @@ class TestWaitlistValidation:
             assert resp.status_code == 422, f"missing {missing} should fail"
 
     def test_excessive_use_case_length_rejected(self, client):
+        # 5000 is the cap; 5001 trips Pydantic max_length validation.
         body = {
             **_VALID_BODY,
             "plan_interest": "pro",
-            "use_case": "x" * 1001,
+            "use_case": "x" * 5001,
         }
         resp = client.post("/v1/waitlist/request", json=body)
         assert resp.status_code == 422
+
+    def test_pilot_long_use_case_accepted(self, client, captured_inserts):
+        # Pilot Program applications legitimately run long — structured
+        # metadata prefix + multi-paragraph free-text.
+        with patch("engramia.email.send_email"):
+            body = {
+                **_VALID_BODY,
+                "plan_interest": "team",
+                "referral_source": "pilot-eu-compliance",
+                "use_case": "[PILOT APPLICATION]\n" + ("x" * 4000),
+            }
+            resp = client.post("/v1/waitlist/request", json=body)
+        assert resp.status_code == 201
+        assert len(captured_inserts) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +254,108 @@ class TestWaitlistEmailDispatch:
         # DB row still persisted; endpoint returns 201.
         assert resp.status_code == 201
         assert len(captured_inserts) == 1
+
+
+# ---------------------------------------------------------------------------
+# Pilot Program path — referral_source = "pilot-{segment}" routes to the
+# founder-signed ack template with Reply-To set to pilot@engramia.dev.
+# ---------------------------------------------------------------------------
+
+
+class TestWaitlistPilotPath:
+    _PILOT_BODY = {
+        "email": "founder@startup.example",
+        "name": "Pilot Applicant",
+        "plan_interest": "team",
+        "country": "DE",
+        "use_case": (
+            "[PILOT APPLICATION]\nSegment: EU compliance team\n"
+            "Current memory layer: Custom Redis + summarizer\n\n"
+            "Use case: We run an internal docs Q&A agent across 4 EU subsidiaries."
+        ),
+        "company_name": "Acme GmbH",
+        "referral_source": "pilot-eu-compliance",
+    }
+
+    @patch("engramia.email.send_email")
+    def test_pilot_referral_uses_pilot_template(self, mock_send, client):
+        client.post("/v1/waitlist/request", json=self._PILOT_BODY)
+        ack_calls = [
+            c for c in mock_send.call_args_list
+            if c.kwargs.get("to") == "founder@startup.example"
+        ]
+        assert len(ack_calls) == 1
+        assert ack_calls[0].kwargs["subject"] == "Engramia Pilot — application received"
+
+    @patch("engramia.email.send_email")
+    def test_pilot_ack_sets_reply_to_pilot_alias(self, mock_send, client):
+        client.post("/v1/waitlist/request", json=self._PILOT_BODY)
+        ack_calls = [
+            c for c in mock_send.call_args_list
+            if c.kwargs.get("to") == "founder@startup.example"
+        ]
+        assert ack_calls[0].kwargs.get("reply_to") == "pilot@engramia.dev"
+
+    @patch("engramia.email.send_email")
+    def test_eu_compliance_segment_gets_eu_link(self, mock_send, client):
+        client.post("/v1/waitlist/request", json=self._PILOT_BODY)
+        ack = next(
+            c for c in mock_send.call_args_list
+            if c.kwargs.get("to") == "founder@startup.example"
+        )
+        assert "engramia.dev/eu-compliance" in ack.kwargs["text"]
+        assert "engramia.dev/migrate/openai-assistants" not in ack.kwargs["text"]
+
+    @patch("engramia.email.send_email")
+    def test_openai_segment_gets_migration_link(self, mock_send, client):
+        body = {**self._PILOT_BODY, "referral_source": "pilot-openai-migration"}
+        client.post("/v1/waitlist/request", json=body)
+        ack = next(
+            c for c in mock_send.call_args_list
+            if c.kwargs.get("to") == "founder@startup.example"
+        )
+        assert "engramia.dev/migrate/openai-assistants" in ack.kwargs["text"]
+        assert "engramia.dev/eu-compliance" not in ack.kwargs["text"]
+
+    @patch("engramia.email.send_email")
+    def test_custom_memory_segment_gets_benchmark_link(self, mock_send, client):
+        body = {**self._PILOT_BODY, "referral_source": "pilot-custom-memory"}
+        client.post("/v1/waitlist/request", json=body)
+        ack = next(
+            c for c in mock_send.call_args_list
+            if c.kwargs.get("to") == "founder@startup.example"
+        )
+        assert "engramia.dev/benchmarks" in ack.kwargs["text"]
+
+    @patch("engramia.email.send_email")
+    def test_other_segment_falls_back_to_two_default_links(self, mock_send, client):
+        body = {**self._PILOT_BODY, "referral_source": "pilot-other"}
+        client.post("/v1/waitlist/request", json=body)
+        ack = next(
+            c for c in mock_send.call_args_list
+            if c.kwargs.get("to") == "founder@startup.example"
+        )
+        # Unknown segment renders both EU + migration links as safe fallback.
+        assert "engramia.dev/eu-compliance" in ack.kwargs["text"]
+        assert "engramia.dev/migrate/openai-assistants" in ack.kwargs["text"]
+
+    @patch("engramia.email.send_email")
+    def test_non_pilot_referral_uses_standard_template(self, mock_send, client):
+        # "Hacker News" is the existing free-text referral pattern — must
+        # still hit the standard waitlist ack, not the pilot one.
+        body = {
+            **_VALID_BODY,
+            "plan_interest": "pro",
+            "use_case": "Standard signup flow.",
+            "referral_source": "Hacker News",
+        }
+        client.post("/v1/waitlist/request", json=body)
+        ack = next(
+            c for c in mock_send.call_args_list
+            if c.kwargs.get("to") == "user@example.com"
+        )
+        assert "Pilot" not in ack.kwargs["subject"]
+        assert ack.kwargs.get("reply_to") is None
 
 
 # ---------------------------------------------------------------------------

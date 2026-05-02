@@ -42,7 +42,10 @@ class WaitlistRequestBody(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     plan_interest: PlanInterest
     country: str = Field(..., min_length=2, max_length=2)
-    use_case: str | None = Field(default=None, max_length=1000)
+    # 5000 covers Pilot Program applications, which prefix structured
+    # metadata (segment, current memory, traffic, region, LLM providers)
+    # before the free-text use case — and may legitimately run long.
+    use_case: str | None = Field(default=None, max_length=5000)
     company_name: str | None = Field(default=None, max_length=200)
     referral_source: str | None = Field(default=None, max_length=200)
 
@@ -106,7 +109,11 @@ def submit_waitlist_request(
     from sqlalchemy import text
 
     from engramia.email import EmailNotConfigured, send_email
-    from engramia.email.templates import waitlist_ack_email, waitlist_admin_notify_email
+    from engramia.email.templates import (
+        waitlist_ack_email,
+        waitlist_admin_notify_email,
+        waitlist_pilot_ack_email,
+    )
 
     engine = _require_engine(request)
 
@@ -151,12 +158,38 @@ def submit_waitlist_request(
     # CLI, and the row itself surfaces in `engramia waitlist list --pending`.
     admin_email = os.environ.get(_ADMIN_NOTIFY_TO_ENV, _ADMIN_NOTIFY_DEFAULT).strip()
 
+    # Pilot Program applications carry referral_source = "pilot-{segment}"
+    # (set by the Website /pilot form). They get a founder-signed template
+    # with a segment-shaped cross-link and Reply-To routed to pilot@.
+    is_pilot = bool(
+        body.referral_source and body.referral_source.startswith("pilot-")
+    )
+
     try:
-        ack_subject, ack_text, ack_html = waitlist_ack_email(
-            recipient_name=body.name,
-            plan_interest=body.plan_interest,
-        )
-        send_email(to=body.email, subject=ack_subject, html=ack_html, text=ack_text)
+        if is_pilot:
+            segment = (body.referral_source or "pilot-other").removeprefix("pilot-")
+            ack_subject, ack_text, ack_html = waitlist_pilot_ack_email(
+                recipient_name=body.name,
+                segment=segment,
+            )
+            send_email(
+                to=body.email,
+                subject=ack_subject,
+                html=ack_html,
+                text=ack_text,
+                reply_to="pilot@engramia.dev",
+            )
+        else:
+            ack_subject, ack_text, ack_html = waitlist_ack_email(
+                recipient_name=body.name,
+                plan_interest=body.plan_interest,
+            )
+            send_email(
+                to=body.email,
+                subject=ack_subject,
+                html=ack_html,
+                text=ack_text,
+            )
     except EmailNotConfigured:
         _log.warning(
             "waitlist_ack_email_not_configured request_id=%s — SMTP not set",
