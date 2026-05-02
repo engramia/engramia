@@ -308,6 +308,99 @@ class TestWaitlistAdminNotifyEmail:
         assert "—" in text
         assert "—" in html
 
+    def test_prod_environment_renders_full_command(self):
+        """`environment=production` + real host → no placeholder, [PROD] tag."""
+        subject, text, html = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="developer",
+            country="CZ",
+            use_case=None,
+            company_name=None,
+            referral_source=None,
+            environment="production",
+            deploy_ssh_host="api.engramia.dev",
+        )
+        assert subject.startswith("[PROD]")
+        assert "ssh deploy@api.engramia.dev" in text
+        assert "ssh deploy@api.engramia.dev" in html
+        # Both approve and reject must show the SSH line.
+        assert text.count("ssh deploy@api.engramia.dev") == 2
+        # Old placeholder must be gone.
+        assert "<prod-vm>" not in text
+        assert "&lt;prod-vm&gt;" not in html
+
+    def test_staging_environment_tag_and_host(self):
+        subject, text, html = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="developer",
+            country="CZ",
+            use_case=None,
+            company_name=None,
+            referral_source=None,
+            environment="staging",
+            deploy_ssh_host="staging-api.engramia.dev",
+        )
+        assert subject.startswith("[STAGING]")
+        assert "ssh deploy@staging-api.engramia.dev" in text
+        assert "ssh deploy@staging-api.engramia.dev" in html
+        assert "(staging)" in text  # env label in approve/reject section
+
+    def test_unknown_environment_falls_back_to_placeholder(self):
+        """No env vars set (dev run) → placeholder host, [ENV?] tag."""
+        subject, text, html = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="developer",
+            country="CZ",
+            use_case=None,
+            company_name=None,
+            referral_source=None,
+            environment=None,
+            deploy_ssh_host=None,
+        )
+        assert subject.startswith("[ENV?]")
+        assert "ssh deploy@<unknown-vm>" in text
+        assert "ssh deploy@&lt;unknown-vm&gt;" in html
+
+    def test_env_set_but_host_missing_uses_env_placeholder(self):
+        """Half-configured: ENGRAMIA_ENV=production but no SSH host → `<prod-vm>`."""
+        _, text, html = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="developer",
+            country="CZ",
+            use_case=None,
+            company_name=None,
+            referral_source=None,
+            environment="production",
+            deploy_ssh_host=None,
+        )
+        assert "ssh deploy@<prod-vm>" in text
+        assert "ssh deploy@&lt;prod-vm&gt;" in html
+
+    def test_ssh_host_is_html_escaped(self):
+        """Host comes from env var, but defense-in-depth — escape it anyway."""
+        _, _, html = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="developer",
+            country="CZ",
+            use_case=None,
+            company_name=None,
+            referral_source=None,
+            environment="production",
+            deploy_ssh_host='evil.com"><script>alert(1)</script>',
+        )
+        assert "<script>alert(1)</script>" not in html
+        assert "&lt;script&gt;" in html
+
 
 # ---------------------------------------------------------------------------
 # credentials_email

@@ -272,6 +272,23 @@ def waitlist_pilot_ack_email(
     return subject, text, html
 
 
+def _normalize_environment(environment: str | None) -> str:
+    """Map raw `ENGRAMIA_ENV` values to a stable label used in email subjects.
+
+    Returns "prod" / "staging" / "unknown". The "unknown" branch is taken in
+    dev/local runs where the env var is unset — we still render the email with
+    placeholder hostnames so the operator can spot the misconfiguration.
+    """
+    if not environment:
+        return "unknown"
+    env = environment.strip().lower()
+    if env in ("production", "prod"):
+        return "prod"
+    if env == "staging":
+        return "staging"
+    return "unknown"
+
+
 def waitlist_admin_notify_email(
     *,
     request_id: str,
@@ -282,13 +299,25 @@ def waitlist_admin_notify_email(
     use_case: str | None,
     company_name: str | None,
     referral_source: str | None,
+    environment: str | None = None,
+    deploy_ssh_host: str | None = None,
 ) -> tuple[str, str, str]:
     """Return (subject, text_body, html_body) for the admin notification email.
 
     Sent to the admin (support@engramia.dev) on every form submit so they can
     triage without having to poll the CLI. Body is informational only — the
     actual provisioning happens via the CLI on the prod VM.
+
+    ``environment`` should be ``ENGRAMIA_ENV`` ("production" / "staging");
+    ``deploy_ssh_host`` should be ``ENGRAMIA_DEPLOY_SSH_HOST`` (the SSH
+    target where the operator runs the ``engramia waitlist`` CLI). Both
+    are optional — when missing, the email keeps a placeholder so dev runs
+    still render.
     """
+    env_label = _normalize_environment(environment)
+    env_tag = {"prod": "[PROD]", "staging": "[STAGING]", "unknown": "[ENV?]"}[env_label]
+    ssh_host = (deploy_ssh_host or "").strip() or f"<{env_label}-vm>"
+
     safe_email = escape(requester_email)
     safe_name = escape(requester_name)
     safe_plan = escape(plan_interest)
@@ -297,10 +326,12 @@ def waitlist_admin_notify_email(
     safe_company = escape(company_name or "—")
     safe_referral = escape(referral_source or "—")
     safe_request_id = escape(request_id)
+    safe_ssh_host = escape(ssh_host)
+    safe_env_tag = escape(env_tag)
 
-    subject = f"New waitlist: {requester_email} ({plan_interest})"
+    subject = f"{env_tag} New waitlist: {requester_email} ({plan_interest})"
     text = (
-        f"New access request:\n\n"
+        f"New access request ({env_label}):\n\n"
         f"  Request ID:    {request_id}\n"
         f"  Email:         {requester_email}\n"
         f"  Name:          {requester_name}\n"
@@ -309,16 +340,17 @@ def waitlist_admin_notify_email(
         f"  Company:       {company_name or '—'}\n"
         f"  Referral:      {referral_source or '—'}\n"
         f"  Use case:      {use_case or '—'}\n\n"
-        f"To approve:\n"
-        f"  ssh deploy@<prod-vm>\n"
+        f"To approve ({env_label}):\n"
+        f"  ssh deploy@{ssh_host}\n"
         f"  engramia waitlist approve {request_id} --plan {plan_interest}\n\n"
-        f"To reject (with reason):\n"
+        f"To reject ({env_label}):\n"
+        f"  ssh deploy@{ssh_host}\n"
         f'  engramia waitlist reject {request_id} --reason "<your reason here>"\n'
     )
     html = f"""<!doctype html>
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:640px; margin:0 auto; padding:24px;">
-  <h2 style="margin-top:0;">New waitlist request</h2>
+  <h2 style="margin-top:0;">New waitlist request <span style="font-size:13px; color:#64748b; font-weight:500;">{safe_env_tag}</span></h2>
   <table style="border-collapse:collapse; width:100%;">
     <tr><td style="padding:6px 12px 6px 0; color:#64748b; vertical-align:top;">Request&nbsp;ID</td><td style="padding:6px 0; font-family:monospace;">{safe_request_id}</td></tr>
     <tr><td style="padding:6px 12px 6px 0; color:#64748b; vertical-align:top;">Email</td><td style="padding:6px 0;">{safe_email}</td></tr>
@@ -329,11 +361,12 @@ def waitlist_admin_notify_email(
     <tr><td style="padding:6px 12px 6px 0; color:#64748b; vertical-align:top;">Referral</td><td style="padding:6px 0;">{safe_referral}</td></tr>
     <tr><td style="padding:6px 12px 6px 0; color:#64748b; vertical-align:top;">Use&nbsp;case</td><td style="padding:6px 0; white-space:pre-wrap;">{safe_use_case}</td></tr>
   </table>
-  <p style="margin-top:24px;">To approve:</p>
-  <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">ssh deploy@&lt;prod-vm&gt;
+  <p style="margin-top:24px;">To approve ({safe_env_tag}):</p>
+  <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">ssh deploy@{safe_ssh_host}
 engramia waitlist approve {safe_request_id} --plan {safe_plan}</pre>
-  <p>To reject:</p>
-  <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">engramia waitlist reject {safe_request_id} --reason "&lt;your reason&gt;"</pre>
+  <p>To reject ({safe_env_tag}):</p>
+  <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">ssh deploy@{safe_ssh_host}
+engramia waitlist reject {safe_request_id} --reason "&lt;your reason&gt;"</pre>
 </body>
 </html>
 """

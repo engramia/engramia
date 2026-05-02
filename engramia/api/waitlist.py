@@ -208,6 +208,14 @@ def submit_waitlist_request(
             use_case=body.use_case,
             company_name=body.company_name,
             referral_source=body.referral_source,
+            # ENGRAMIA_ENV is the dominant convention (cloud_auth, auth, tracing),
+            # ENGRAMIA_ENVIRONMENT is what Ops .env files actually set (api/app.py).
+            # Read both so we work whichever one is provisioned.
+            environment=(
+                os.environ.get("ENGRAMIA_ENV")
+                or os.environ.get("ENGRAMIA_ENVIRONMENT")
+            ),
+            deploy_ssh_host=os.environ.get("ENGRAMIA_DEPLOY_SSH_HOST"),
         )
         send_email(
             to=admin_email,
