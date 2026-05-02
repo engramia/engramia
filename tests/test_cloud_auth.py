@@ -169,6 +169,36 @@ def test_register_invalid_email(mock_rate, client, mock_engine):
 
 
 # ---------------------------------------------------------------------------
+# _generate_api_key prefix invariant
+# ---------------------------------------------------------------------------
+
+
+def test_generate_api_key_always_starts_with_engramia_prefix():
+    """Every generated key must start with 'engramia-'.
+
+    require_auth in api/auth.py dispatches Bearer tokens by prefix:
+      - 'engramia-' → api_key path
+      - 'eyJ'       → cloud-JWT path
+
+    If the generator ever produced a key starting with 'eyJ', the dispatch
+    would route real api_keys through the JWT decoder and silently 401.
+    1000 iterations is overkill for secrets.token_hex (entropy is sound),
+    but the cost is ~3 ms and it serves as an executable spec for the
+    invariant the assert in _generate_api_key now enforces.
+    """
+    from engramia.api.cloud_auth import _generate_api_key
+
+    for _ in range(1000):
+        full_key, display_prefix, key_hash = _generate_api_key()
+        assert full_key.startswith("engramia-"), f"missing prefix: {full_key!r}"
+        assert display_prefix.startswith("engramia-"), f"display drift: {display_prefix!r}"
+        # 'engramia-' (9) + 32 hex chars = 41
+        assert len(full_key) == 41, f"unexpected length {len(full_key)}: {full_key!r}"
+        # sha256 hex digest is 64 chars
+        assert len(key_hash) == 64
+
+
+# ---------------------------------------------------------------------------
 # test_login_success
 # ---------------------------------------------------------------------------
 

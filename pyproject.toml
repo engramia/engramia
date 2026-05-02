@@ -69,7 +69,13 @@ cloud-auth = [
     "PyJWT>=2.8",
     "cryptography>=42.0",
 ]
-billing = ["stripe>=15.0.1"]
+billing = [
+    # Pinned to the 15.x major: BillingService relies on the private
+    # StripeObject._to_dict_recursive() helper (see service.py and the
+    # test_stripe_sdk_compat safety-net test). Private API can move in a
+    # major bump; a covered minor/patch bump is verified by the test.
+    "stripe>=15.0.1,<16",
+]
 telemetry = [
     "opentelemetry-api>=1.41.0",
     "opentelemetry-sdk>=1.41.0",

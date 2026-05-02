@@ -246,26 +246,43 @@ def _cloud_jwt_auth(request: Request, token: str) -> None:
     project_id: str | None = None
 
     engine = getattr(request.app.state, "auth_engine", None)
-    if engine is not None:
-        try:
-            from sqlalchemy import text
+    if engine is None:
+        # JWT login is only issued by /auth/* endpoints, which require a DB.
+        # If the engine is missing here, the deploy is misconfigured.
+        log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="cloud_jwt_no_engine", tenant_id=tenant_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Cloud authentication unavailable: database engine not configured.",
+        )
 
-            with engine.connect() as conn:
-                row = conn.execute(
-                    text("SELECT id FROM projects WHERE tenant_id = :tid AND name = 'default' LIMIT 1"),
-                    {"tid": tenant_id},
-                ).fetchone()
-            if row is not None:
-                project_id = str(row[0])
-        except Exception as exc:
-            _log.warning("Cloud JWT auth: project lookup failed for tenant=%s: %s", tenant_id, exc)
+    try:
+        from sqlalchemy import text
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT id FROM projects WHERE tenant_id = :tid AND name = 'default' LIMIT 1"),
+                {"tid": tenant_id},
+            ).fetchone()
+        if row is not None:
+            project_id = str(row[0])
+    except Exception as exc:
+        _log.warning("Cloud JWT auth: project lookup failed for tenant=%s: %s", tenant_id, exc)
+        log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="cloud_jwt_project_lookup_error", tenant_id=tenant_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Cloud authentication failed: project lookup error.",
+        ) from exc
 
     if project_id is None:
-        # Fall back to a synthetic identifier so scope filtering remains tenant-
-        # tight even when the project row is missing. Most v1 endpoints only
-        # consult tenant_id, so failing closed at request time would surprise
-        # a freshly-registered user mid-session.
-        project_id = f"default-{tenant_id}"
+        # Every tenant must have a 'default' project provisioned at registration
+        # (see _create_registration in cloud_auth.py). A missing row means the
+        # tenant was created out-of-band — fail closed rather than synthesise a
+        # placeholder id that would silently desynchronise scope filtering.
+        log_event(AuditEvent.AUTH_FAILURE, ip=ip, reason="cloud_jwt_default_project_missing", tenant_id=tenant_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Cloud authentication failed: default project missing for tenant.",
+        )
 
     scope = Scope(tenant_id=tenant_id, project_id=project_id)
     request.state.auth_context = AuthContext(

@@ -468,6 +468,10 @@ def _generate_api_key() -> tuple[str, str, str]:
     full_key = f"engramia-{suffix}"
     display_prefix = f"engramia-{suffix[:8]}..."
     key_hash = hashlib.sha256(full_key.encode()).hexdigest()
+    # require_auth in api/auth.py routes "engramia-" prefixed tokens to the
+    # api_key path and "eyJ" prefixed tokens to the cloud-JWT path. If this
+    # invariant ever drifts, that dispatch silently breaks.
+    assert full_key.startswith("engramia-"), "api_key invariant violated: missing engramia- prefix"
     return full_key, display_prefix, key_hash
 
 
