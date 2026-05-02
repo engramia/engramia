@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Added — Pilot Program waitlist branch + founder-signed ack template
+
+Public-facing Pilot Program (GTM Phase B' B'7) routes its applications
+through the existing `/v1/waitlist/request` endpoint; this commit adds
+the segment-aware acknowledgement template and the `Reply-To` plumbing
+so applicants reach the founder, not the support queue. Zero schema
+changes — pilot leads piggy-back on the existing waitlist queue with a
+single SQL filter (`referral_source LIKE 'pilot-%'`).
+
+- **`engramia/email/templates.py`** — new `waitlist_pilot_ack_email()`
+  template with founder-signed copy, 3-step process explainer
+  ("never silence"), 5-business-day SLA. Per-segment cross-link in the
+  body: `pilot-eu-compliance` → `/eu-compliance` brief,
+  `pilot-openai-migration` → `/migrate/openai-assistants`,
+  `pilot-custom-memory` → `/benchmarks` (LongMemEval 97.8% with
+  per-dimension breakdown vs. custom-memory baselines). `pilot-other`
+  and unknown segments fall back to two default links (EU + Migration).
+- **`engramia/email/sender.py`** — `send_email()` gains optional
+  `reply_to: str | None = None` keyword argument. Adds the `Reply-To`
+  SMTP header when set, leaves the From sender untouched. Backward
+  compatible — all 9 existing callers (cloud_auth, cli, waitlist) keep
+  working without changes.
+- **`engramia/api/waitlist.py`** — `submit_waitlist_request` branches
+  on `referral_source.startswith("pilot-")`. Pilot applications get
+  the new template + `Reply-To: pilot@engramia.dev`; standard waitlist
+  flow is untouched. `WaitlistRequestBody.use_case` `max_length` bumped
+  `1000 → 5000` to fit pilot applications, which prefix structured
+  metadata (segment, current memory, traffic, region, LLM providers)
+  before the free-text use case and may legitimately run long.
+- **`tests/test_api/test_waitlist.py`** — new `TestWaitlistPilotPath`
+  class with 7 tests covering subject match, `reply_to` header, all
+  three known segments + the `pilot-other` fallback, and a regression
+  test that non-pilot referrals (e.g. `Hacker News`) still hit the
+  standard ack with no `reply_to`. Existing
+  `test_excessive_use_case_length_rejected` updated to the new 5001
+  boundary; new `test_pilot_long_use_case_accepted` exercises the
+  4000-char structured payload.
+- **Companion website**: https://engramia.dev/pilot — landing page
+  shipping in Website repo (separate commit), POSTs to this endpoint
+  with `referral_source: pilot-{segment}`.
+
+26/26 waitlist tests green, 96/96 email + cloud_auth tests green.
+
 ### Documentation — OpenAI Assistants migration guide + ReadTheDocs hosting
 
 7-part migration guide for teams moving off the OpenAI Assistants API
