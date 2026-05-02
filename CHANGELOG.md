@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Documentation — OpenAI Assistants migration guide + ReadTheDocs hosting
+
+7-part migration guide for teams moving off the OpenAI Assistants API
+(sunsets 2026-08-26) to Engramia + the OpenAI Agents SDK. Split into
+small focused units per the project's docs convention.
+
+- **`docs/migrations/`** — new top-level docs section with `index.md`
+  overview. First migration: `openai-assistants/` (8 files split into
+  focused units, ~80-150 lines each): `index.md` (overview + reading
+  order) + `01-concepts.md` (Threads/Messages/Files/Runs/Tools mapped
+  to Engramia primitives) + `02-cutover.md` (replace
+  `client.beta.assistants` with `Agent + EngramiaRunHooks +
+  engramia_instructions`) + `03-export-threads.md` (enumerate Threads
+  + dump to NDJSON via OpenAI API) + `04-import.md` (group
+  user/assistant pairs into `Memory.learn()` calls with scope
+  mapping, dedup, eval_score strategy) + `05-tools-files.md`
+  (function calling carries over, `file_search` becomes pgvector
+  embeddings, `code_interpreter` stays in Agents SDK) +
+  `06-dual-write.md` (shadow-write → shadow-read → flagged ramp →
+  retire) + `07-verification.md` (pre/post smoke checklist + rollback
+  path).
+- **`mkdocs.yml`** — adds `Migrations` nav block between
+  `Integrations` and `Administration`.
+- **`.gitignore`** — excludes `engramia_data_test/` (pytest residue).
+- **ReadTheDocs hosting** — project registered at
+  https://readthedocs.org/projects/engramia/. First build succeeded on
+  the existing `.readthedocs.yml` config (Python 3.12 +
+  mkdocs-material + docs/requirements.txt). Single Version mode
+  enabled — URLs without the `/en/latest/` prefix. Docs available at
+  https://engramia.readthedocs.io/. Custom domain `docs.engramia.dev`
+  swap pending (Cloudflare DNS A→CNAME + Caddyfile route removal).
+- **Companion landing page**: https://engramia.dev/migrate/openai-assistants
+  (cross-links to the RTD guide and the example repo).
+- **Companion example repo**: https://github.com/engramia/examples
+  (new combined hub repo, MIT license) with
+  `openai-assistants-migration/` subfolder containing runnable
+  `before/`, `after/`, and `backfill/` apps pinned to
+  `engramia==0.6.6`.
+
 ### Added — Phase 6.6 #6 HashiCorp Vault Transit credential backend
 
 Alternative to the local AES-256-GCM credential backend for Enterprise
