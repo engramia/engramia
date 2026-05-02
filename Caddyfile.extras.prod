@@ -1,19 +1,20 @@
 # Engramia — prod extras (mounted at /etc/caddy/extras.caddy on the
-# production CX23). Adds marketing apex + www redirect + hosted docs
-# + monitoring site blocks on top of the universal api + app site
-# blocks defined in Caddyfile.
+# production CX23). Adds marketing apex + www redirect + monitoring
+# site blocks on top of the universal api + app site blocks defined
+# in Caddyfile.
+#
+# docs.engramia.dev is served by Read the Docs (CNAME to
+# engramia.readthedocs.io) and is intentionally NOT routed through
+# Caddy — RTD provisions its own Let's Encrypt cert.
 #
 # Required env vars:
 #   DOMAIN_APEX         engramia.dev — marketing site.
 #   DOMAIN_WWW          www.engramia.dev — 301 to apex.
-#   DOMAIN_DOCS         docs.engramia.dev — static mkdocs output.
 #   DOMAIN_GRAFANA      grafana.engramia.dev — Grafana UI (own login).
 #   DOMAIN_STATUS       status.engramia.dev — Uptime Kuma (own login).
 #   UPSTREAM_WEBSITE    Defaults to website:3000.
 #   UPSTREAM_GRAFANA    Defaults to grafana:3000.
 #   UPSTREAM_STATUS     Defaults to uptime-kuma:3001.
-#   DOCS_ROOT           Filesystem path served by docs.engramia.dev;
-#                       defaults to /srv/docs.
 
 {$DOMAIN_APEX} {
 	import secure_defaults
@@ -23,15 +24,6 @@
 {$DOMAIN_WWW} {
 	import secure_defaults
 	redir https://{$DOMAIN_APEX}{uri} permanent
-}
-
-{$DOMAIN_DOCS} {
-	import secure_defaults
-	root * {$DOCS_ROOT:/srv/docs}
-	file_server
-	handle_errors {
-		respond "{err.status_code} {err.status_text}" {err.status_code}
-	}
 }
 
 {$DOMAIN_GRAFANA} {

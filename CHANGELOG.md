@@ -81,8 +81,10 @@ small focused units per the project's docs convention.
   the existing `.readthedocs.yml` config (Python 3.12 +
   mkdocs-material + docs/requirements.txt). Single Version mode
   enabled — URLs without the `/en/latest/` prefix. Docs available at
-  https://engramia.readthedocs.io/. Custom domain `docs.engramia.dev`
-  swap pending (Cloudflare DNS A→CNAME + Caddyfile route removal).
+  https://engramia.readthedocs.io/ and at the custom domain
+  https://docs.engramia.dev/ (Cloudflare CNAME → engramia.readthedocs.io,
+  RTD-issued Let's Encrypt cert; Caddy `docs` route removed from
+  `Caddyfile.extras.prod` and `docker-compose.prod.yml`).
 - **Companion landing page**: https://engramia.dev/migrate/openai-assistants
   (cross-links to the RTD guide and the example repo).
 - **Companion example repo**: https://github.com/engramia/examples
