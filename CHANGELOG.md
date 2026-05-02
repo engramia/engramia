@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Tooling — GitNexus cross-repo reindex 2026-05-02
+
+After the cross-repo Pilot Program bundle landed (Website `924e19a`,
+Core `4d76699` + `2bede0f`, Ops `9d82257`), all three indexed
+GitNexus repos were refreshed and the Contract Registry was re-synced
+so impact analysis on subsequent edits sees the new symbols.
+
+- **Core index**: 10 407 → **13 353 nodes** (+28%), 213 execution
+  flows, 447 clusters. Includes the new `waitlist_pilot_ack_email`
+  template + the `submit_waitlist_request` pilot branch.
+- **Dashboard index**: 690 → **956 nodes** (+39%), 75 flows.
+- **Website index**: 510 → **616 nodes** (+21%), 10 flows. New
+  symbols include `/pilot` page + form, `opengraph-image.tsx`,
+  `SolutionsDropdown` nav, BYOK `/pricing` cards.
+- **Group `engramia-stack`** sync: 92 → **109 contracts**, 26
+  cross-links retained (13 manual via `group.yaml` + 13 exact match),
+  last sync `2026-05-02T08:59:31Z`. Known upstream limits unchanged
+  (URL prefix mismatch, FTS read-only lock conflict, `group impact`
+  bridge writer bug).
+- **Tooling caveat**: `npx gitnexus impact/detect-changes/analyze`
+  segfaults on Node 24 + Windows + gitnexus 1.6.3. Workaround is
+  `MSYS_NO_PATHCONV=1 docker exec gitnexus-{repo} node
+  /app/gitnexus/dist/cli/index.js …` against the running containers
+  (Node 22 inside, stable). See `Ops/internal/roadmap.md`
+  Infrastructure section for full snapshot.
+
 ### Added — Pilot Program waitlist branch + founder-signed ack template
 
 Public-facing Pilot Program (GTM Phase B' B'7) routes its applications
