@@ -242,7 +242,7 @@ def waitlist_pilot_ack_email(
         "   We discuss your migration path, timeline, and what success looks\n"
         "   like for the first three months.\n\n"
         "3. After the call, you either get an onboarding slot (start within\n"
-        "   5 business days) or a clear \"not a fit, here is why\" — never silence.\n\n"
+        '   5 business days) or a clear "not a fit, here is why" — never silence.\n\n'
         "While you wait, this might be useful in your context:\n\n"
         f"{segment_link_text}\n\n"
         "Anything urgent or unclear? Reply directly to this email — it\n"

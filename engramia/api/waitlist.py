@@ -161,9 +161,7 @@ def submit_waitlist_request(
     # Pilot Program applications carry referral_source = "pilot-{segment}"
     # (set by the Website /pilot form). They get a founder-signed template
     # with a segment-shaped cross-link and Reply-To routed to pilot@.
-    is_pilot = bool(
-        body.referral_source and body.referral_source.startswith("pilot-")
-    )
+    is_pilot = bool(body.referral_source and body.referral_source.startswith("pilot-"))
 
     try:
         if is_pilot:
@@ -211,10 +209,7 @@ def submit_waitlist_request(
             # ENGRAMIA_ENV is the dominant convention (cloud_auth, auth, tracing),
             # ENGRAMIA_ENVIRONMENT is what Ops .env files actually set (api/app.py).
             # Read both so we work whichever one is provisioned.
-            environment=(
-                os.environ.get("ENGRAMIA_ENV")
-                or os.environ.get("ENGRAMIA_ENVIRONMENT")
-            ),
+            environment=(os.environ.get("ENGRAMIA_ENV") or os.environ.get("ENGRAMIA_ENVIRONMENT")),
             deploy_ssh_host=os.environ.get("ENGRAMIA_DEPLOY_SSH_HOST"),
         )
         send_email(
