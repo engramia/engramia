@@ -309,7 +309,12 @@ class TestWaitlistAdminNotifyEmail:
         assert "—" in html
 
     def test_prod_environment_renders_full_command(self):
-        """`environment=production` + real host → no placeholder, [PROD] tag."""
+        """`environment=production` + full SSH target → no placeholder, [PROD] tag.
+
+        ENGRAMIA_DEPLOY_SSH_HOST holds the FULL ssh target (user@host, or
+        just host when ~/.ssh/config picks the user). Template no longer
+        hardcodes `deploy@` because prod and staging may use different users.
+        """
         subject, text, html = waitlist_admin_notify_email(
             request_id="req-1",
             requester_email="u@e.cz",
@@ -320,14 +325,17 @@ class TestWaitlistAdminNotifyEmail:
             company_name=None,
             referral_source=None,
             environment="production",
-            deploy_ssh_host="api.engramia.dev",
+            deploy_ssh_host="root@178.104.100.91",
         )
         assert subject.startswith("[PROD]")
-        assert "ssh deploy@api.engramia.dev" in text
-        assert "ssh deploy@api.engramia.dev" in html
+        assert "ssh root@178.104.100.91" in text
+        assert "ssh root@178.104.100.91" in html
         # Both approve and reject must show the SSH line.
-        assert text.count("ssh deploy@api.engramia.dev") == 2
-        # Old placeholder must be gone.
+        assert text.count("ssh root@178.104.100.91") == 2
+        # Old hardcoded `deploy@` prefix must NOT appear.
+        assert "ssh deploy@" not in text
+        assert "ssh deploy@" not in html
+        # Placeholder must be gone.
         assert "<prod-vm>" not in text
         assert "&lt;prod-vm&gt;" not in html
 
@@ -342,12 +350,31 @@ class TestWaitlistAdminNotifyEmail:
             company_name=None,
             referral_source=None,
             environment="staging",
-            deploy_ssh_host="staging-api.engramia.dev",
+            deploy_ssh_host="root@91.99.172.242",
         )
         assert subject.startswith("[STAGING]")
-        assert "ssh deploy@staging-api.engramia.dev" in text
-        assert "ssh deploy@staging-api.engramia.dev" in html
+        assert "ssh root@91.99.172.242" in text
+        assert "ssh root@91.99.172.242" in html
         assert "(staging)" in text  # env label in approve/reject section
+
+    def test_host_only_target_renders_without_user(self):
+        """When the env var is just a host, `ssh <host>` is what we want
+        (lets ~/.ssh/config decide the user). Confirms we don't synthesise
+        a user prefix."""
+        _, text, _ = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="developer",
+            country="CZ",
+            use_case=None,
+            company_name=None,
+            referral_source=None,
+            environment="staging",
+            deploy_ssh_host="staging-api.engramia.dev",
+        )
+        assert "ssh staging-api.engramia.dev" in text
+        assert "ssh deploy@staging-api.engramia.dev" not in text
 
     def test_unknown_environment_falls_back_to_placeholder(self):
         """No env vars set (dev run) → placeholder host, [ENV?] tag."""
@@ -364,8 +391,8 @@ class TestWaitlistAdminNotifyEmail:
             deploy_ssh_host=None,
         )
         assert subject.startswith("[ENV?]")
-        assert "ssh deploy@<unknown-vm>" in text
-        assert "ssh deploy@&lt;unknown-vm&gt;" in html
+        assert "ssh <unknown-vm>" in text
+        assert "ssh &lt;unknown-vm&gt;" in html
 
     def test_env_set_but_host_missing_uses_env_placeholder(self):
         """Half-configured: ENGRAMIA_ENV=production but no SSH host → `<prod-vm>`."""
@@ -381,8 +408,8 @@ class TestWaitlistAdminNotifyEmail:
             environment="production",
             deploy_ssh_host=None,
         )
-        assert "ssh deploy@<prod-vm>" in text
-        assert "ssh deploy@&lt;prod-vm&gt;" in html
+        assert "ssh <prod-vm>" in text
+        assert "ssh &lt;prod-vm&gt;" in html
 
     def test_ssh_host_is_html_escaped(self):
         """Host comes from env var, but defense-in-depth — escape it anyway."""

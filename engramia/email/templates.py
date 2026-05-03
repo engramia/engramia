@@ -309,14 +309,16 @@ def waitlist_admin_notify_email(
     actual provisioning happens via the CLI on the prod VM.
 
     ``environment`` should be ``ENGRAMIA_ENV`` ("production" / "staging");
-    ``deploy_ssh_host`` should be ``ENGRAMIA_DEPLOY_SSH_HOST`` (the SSH
-    target where the operator runs the ``engramia waitlist`` CLI). Both
-    are optional — when missing, the email keeps a placeholder so dev runs
-    still render.
+    ``deploy_ssh_host`` should be ``ENGRAMIA_DEPLOY_SSH_HOST`` — the **full
+    SSH target** the operator copy-pastes (``user@host`` or just ``host`` if
+    the SSH config picks the user). The template no longer hardcodes a
+    ``deploy@`` prefix because production and staging may run as different
+    users (e.g. ``root@<ip>``). Both args are optional; when missing, the
+    email keeps a placeholder so dev runs still render.
     """
     env_label = _normalize_environment(environment)
     env_tag = {"prod": "[PROD]", "staging": "[STAGING]", "unknown": "[ENV?]"}[env_label]
-    ssh_host = (deploy_ssh_host or "").strip() or f"<{env_label}-vm>"
+    ssh_target = (deploy_ssh_host or "").strip() or f"<{env_label}-vm>"
 
     safe_email = escape(requester_email)
     safe_name = escape(requester_name)
@@ -326,7 +328,7 @@ def waitlist_admin_notify_email(
     safe_company = escape(company_name or "—")
     safe_referral = escape(referral_source or "—")
     safe_request_id = escape(request_id)
-    safe_ssh_host = escape(ssh_host)
+    safe_ssh_target = escape(ssh_target)
     safe_env_tag = escape(env_tag)
 
     subject = f"{env_tag} New waitlist: {requester_email} ({plan_interest})"
@@ -341,10 +343,10 @@ def waitlist_admin_notify_email(
         f"  Referral:      {referral_source or '—'}\n"
         f"  Use case:      {use_case or '—'}\n\n"
         f"To approve ({env_label}):\n"
-        f"  ssh deploy@{ssh_host}\n"
+        f"  ssh {ssh_target}\n"
         f"  engramia waitlist approve {request_id} --plan {plan_interest}\n\n"
         f"To reject ({env_label}):\n"
-        f"  ssh deploy@{ssh_host}\n"
+        f"  ssh {ssh_target}\n"
         f'  engramia waitlist reject {request_id} --reason "<your reason here>"\n'
     )
     html = f"""<!doctype html>
@@ -362,10 +364,10 @@ def waitlist_admin_notify_email(
     <tr><td style="padding:6px 12px 6px 0; color:#64748b; vertical-align:top;">Use&nbsp;case</td><td style="padding:6px 0; white-space:pre-wrap;">{safe_use_case}</td></tr>
   </table>
   <p style="margin-top:24px;">To approve ({safe_env_tag}):</p>
-  <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">ssh deploy@{safe_ssh_host}
+  <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">ssh {safe_ssh_target}
 engramia waitlist approve {safe_request_id} --plan {safe_plan}</pre>
   <p>To reject ({safe_env_tag}):</p>
-  <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">ssh deploy@{safe_ssh_host}
+  <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">ssh {safe_ssh_target}
 engramia waitlist reject {safe_request_id} --reason "&lt;your reason&gt;"</pre>
 </body>
 </html>
