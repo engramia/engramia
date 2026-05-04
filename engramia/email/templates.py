@@ -301,6 +301,7 @@ def waitlist_admin_notify_email(
     referral_source: str | None,
     environment: str | None = None,
     deploy_ssh_host: str | None = None,
+    deploy_cli_prefix: str | None = None,
 ) -> tuple[str, str, str]:
     """Return (subject, text_body, html_body) for the admin notification email.
 
@@ -313,12 +314,22 @@ def waitlist_admin_notify_email(
     SSH target** the operator copy-pastes (``user@host`` or just ``host`` if
     the SSH config picks the user). The template no longer hardcodes a
     ``deploy@`` prefix because production and staging may run as different
-    users (e.g. ``root@<ip>``). Both args are optional; when missing, the
-    email keeps a placeholder so dev runs still render.
+    users (e.g. ``root@<ip>``).
+
+    ``deploy_cli_prefix`` should be ``ENGRAMIA_DEPLOY_CLI_PREFIX`` — the
+    invocation rendered verbatim before ``waitlist approve|reject``. The CLI
+    itself ships only inside the API container, so on a real deploy this
+    needs ``docker exec <container> engramia`` (container name varies per
+    env: ``engramia-api-staging`` vs ``engramia-engramia-api-1`` on prod).
+    Defaults to plain ``engramia`` for local dev where the CLI is on PATH.
+
+    All three are optional; when missing, the email keeps placeholders so
+    dev runs still render.
     """
     env_label = _normalize_environment(environment)
     env_tag = {"prod": "[PROD]", "staging": "[STAGING]", "unknown": "[ENV?]"}[env_label]
     ssh_target = (deploy_ssh_host or "").strip() or f"<{env_label}-vm>"
+    cli_prefix = (deploy_cli_prefix or "").strip() or "engramia"
 
     safe_email = escape(requester_email)
     safe_name = escape(requester_name)
@@ -329,6 +340,7 @@ def waitlist_admin_notify_email(
     safe_referral = escape(referral_source or "—")
     safe_request_id = escape(request_id)
     safe_ssh_target = escape(ssh_target)
+    safe_cli_prefix = escape(cli_prefix)
     safe_env_tag = escape(env_tag)
 
     subject = f"{env_tag} New waitlist: {requester_email} ({plan_interest})"
@@ -338,16 +350,16 @@ def waitlist_admin_notify_email(
         f"  Email:         {requester_email}\n"
         f"  Name:          {requester_name}\n"
         f"  Plan interest: {plan_interest}\n"
-        f"  Country:       {country}\n"
         f"  Company:       {company_name or '—'}\n"
+        f"  Country:       {country}\n"
         f"  Referral:      {referral_source or '—'}\n"
         f"  Use case:      {use_case or '—'}\n\n"
         f"To approve ({env_label}):\n"
         f"  ssh {ssh_target}\n"
-        f"  engramia waitlist approve {request_id} --plan {plan_interest}\n\n"
+        f"  {cli_prefix} waitlist approve {request_id} --plan {plan_interest}\n\n"
         f"To reject ({env_label}):\n"
         f"  ssh {ssh_target}\n"
-        f'  engramia waitlist reject {request_id} --reason "<your reason here>"\n'
+        f'  {cli_prefix} waitlist reject {request_id} --reason "<your reason here>"\n'
     )
     html = f"""<!doctype html>
 <html>
@@ -365,10 +377,10 @@ def waitlist_admin_notify_email(
   </table>
   <p style="margin-top:24px;">To approve ({safe_env_tag}):</p>
   <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">ssh {safe_ssh_target}
-engramia waitlist approve {safe_request_id} --plan {safe_plan}</pre>
+{safe_cli_prefix} waitlist approve {safe_request_id} --plan {safe_plan}</pre>
   <p>To reject ({safe_env_tag}):</p>
   <pre style="background:#f8fafc; padding:12px; border-radius:6px; font-size:12px; overflow-x:auto;">ssh {safe_ssh_target}
-engramia waitlist reject {safe_request_id} --reason "&lt;your reason&gt;"</pre>
+{safe_cli_prefix} waitlist reject {safe_request_id} --reason "&lt;your reason&gt;"</pre>
 </body>
 </html>
 """

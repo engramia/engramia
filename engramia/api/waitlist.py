@@ -211,6 +211,7 @@ def submit_waitlist_request(
             # Read both so we work whichever one is provisioned.
             environment=(os.environ.get("ENGRAMIA_ENV") or os.environ.get("ENGRAMIA_ENVIRONMENT")),
             deploy_ssh_host=os.environ.get("ENGRAMIA_DEPLOY_SSH_HOST"),
+            deploy_cli_prefix=os.environ.get("ENGRAMIA_DEPLOY_CLI_PREFIX"),
         )
         send_email(
             to=admin_email,

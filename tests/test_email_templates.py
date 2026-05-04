@@ -68,16 +68,12 @@ class TestVerificationEmail:
         assert "&lt;img" in html
 
     def test_no_name_uses_fallback_greeting(self):
-        _, text, html = verification_email(
-            verify_url="https://app/verify?token=t", recipient_name=None
-        )
+        _, text, html = verification_email(verify_url="https://app/verify?token=t", recipient_name=None)
         assert text.startswith("Hi,\n\n")
         assert "<p>Hi,</p>" in html
 
     def test_named_recipient_uses_personal_greeting(self):
-        _, text, html = verification_email(
-            verify_url="https://app/verify?token=t", recipient_name="Bob"
-        )
+        _, text, html = verification_email(verify_url="https://app/verify?token=t", recipient_name="Bob")
         assert text.startswith("Hi Bob,\n\n")
         assert "Hi Bob," in html
 
@@ -135,17 +131,13 @@ class TestAccountDeletionEmail:
 
     def test_destructive_disclosure_lists_each_data_class(self):
         """Users must know exactly what disappears — keep this list explicit."""
-        _, text, html = account_deletion_email(
-            confirm_url="https://app/c?t=x", recipient_name=None
-        )
+        _, text, html = account_deletion_email(confirm_url="https://app/c?t=x", recipient_name=None)
         for kind in ("patterns", "API keys", "tenant"):
             assert kind.lower() in text.lower()
             assert kind.lower() in html.lower()
 
     def test_recipient_name_escaped(self):
-        _, _, html = account_deletion_email(
-            confirm_url="https://app/c?t=x", recipient_name=_XSS_NAME
-        )
+        _, _, html = account_deletion_email(confirm_url="https://app/c?t=x", recipient_name=_XSS_NAME)
         assert '<img src=x onerror="alert(1)">' not in html
 
 
@@ -203,30 +195,22 @@ class TestReminderEmail:
 
 class TestWaitlistAckEmail:
     def test_returns_triple_with_2bd_promise(self):
-        subject, text, html = waitlist_ack_email(
-            recipient_name="Alice", plan_interest="pro"
-        )
+        subject, text, html = waitlist_ack_email(recipient_name="Alice", plan_interest="pro")
         assert subject == "We got your Engramia access request"
         assert "2 business days" in text
         assert "2 business days" in html
 
     def test_plan_interest_appears_in_body(self):
-        _, text, html = waitlist_ack_email(
-            recipient_name=None, plan_interest="business"
-        )
+        _, text, html = waitlist_ack_email(recipient_name=None, plan_interest="business")
         assert "business" in text
         assert "business" in html
 
     def test_recipient_name_escaped(self):
-        _, _, html = waitlist_ack_email(
-            recipient_name=_XSS_NAME, plan_interest="pro"
-        )
+        _, _, html = waitlist_ack_email(recipient_name=_XSS_NAME, plan_interest="pro")
         assert '<img src=x onerror="alert(1)">' not in html
 
     def test_no_name_uses_fallback_greeting(self):
-        _, text, html = waitlist_ack_email(
-            recipient_name=None, plan_interest="developer"
-        )
+        _, text, html = waitlist_ack_email(recipient_name=None, plan_interest="developer")
         assert text.startswith("Hi,\n\n")
 
 
@@ -309,11 +293,13 @@ class TestWaitlistAdminNotifyEmail:
         assert "—" in html
 
     def test_prod_environment_renders_full_command(self):
-        """`environment=production` + full SSH target → no placeholder, [PROD] tag.
+        """`environment=production` + full SSH target + cli prefix → real-deploy command.
 
-        ENGRAMIA_DEPLOY_SSH_HOST holds the FULL ssh target (user@host, or
-        just host when ~/.ssh/config picks the user). Template no longer
-        hardcodes `deploy@` because prod and staging may use different users.
+        ENGRAMIA_DEPLOY_SSH_HOST holds the FULL ssh target. The template no
+        longer hardcodes `deploy@` because prod/staging may use different
+        users. ENGRAMIA_DEPLOY_CLI_PREFIX wraps `engramia` so a real deploy
+        renders `docker exec <container> engramia ...` (the CLI ships only
+        inside the API container, not on the host).
         """
         subject, text, html = waitlist_admin_notify_email(
             request_id="req-1",
@@ -326,12 +312,17 @@ class TestWaitlistAdminNotifyEmail:
             referral_source=None,
             environment="production",
             deploy_ssh_host="root@178.104.100.91",
+            deploy_cli_prefix="docker exec engramia-engramia-api-1 engramia",
         )
         assert subject.startswith("[PROD]")
         assert "ssh root@178.104.100.91" in text
         assert "ssh root@178.104.100.91" in html
         # Both approve and reject must show the SSH line.
         assert text.count("ssh root@178.104.100.91") == 2
+        # CLI prefix renders verbatim before the subcommand.
+        assert "docker exec engramia-engramia-api-1 engramia waitlist approve req-1 --plan developer" in text
+        assert "docker exec engramia-engramia-api-1 engramia waitlist reject req-1" in text
+        assert "docker exec engramia-engramia-api-1 engramia waitlist approve req-1 --plan developer" in html
         # Old hardcoded `deploy@` prefix must NOT appear.
         assert "ssh deploy@" not in text
         assert "ssh deploy@" not in html
@@ -351,10 +342,12 @@ class TestWaitlistAdminNotifyEmail:
             referral_source=None,
             environment="staging",
             deploy_ssh_host="root@91.99.172.242",
+            deploy_cli_prefix="docker exec engramia-api-staging engramia",
         )
         assert subject.startswith("[STAGING]")
         assert "ssh root@91.99.172.242" in text
         assert "ssh root@91.99.172.242" in html
+        assert "docker exec engramia-api-staging engramia waitlist approve req-1" in text
         assert "(staging)" in text  # env label in approve/reject section
 
     def test_host_only_target_renders_without_user(self):
@@ -377,7 +370,7 @@ class TestWaitlistAdminNotifyEmail:
         assert "ssh deploy@staging-api.engramia.dev" not in text
 
     def test_unknown_environment_falls_back_to_placeholder(self):
-        """No env vars set (dev run) → placeholder host, [ENV?] tag."""
+        """No env vars set (dev run) → placeholder host, [ENV?] tag, plain `engramia`."""
         subject, text, html = waitlist_admin_notify_email(
             request_id="req-1",
             requester_email="u@e.cz",
@@ -389,10 +382,15 @@ class TestWaitlistAdminNotifyEmail:
             referral_source=None,
             environment=None,
             deploy_ssh_host=None,
+            deploy_cli_prefix=None,
         )
         assert subject.startswith("[ENV?]")
         assert "ssh <unknown-vm>" in text
         assert "ssh &lt;unknown-vm&gt;" in html
+        # Default CLI prefix is plain `engramia` (works for local dev where
+        # the CLI is installed on PATH).
+        assert "engramia waitlist approve req-1" in text
+        assert "docker exec" not in text
 
     def test_env_set_but_host_missing_uses_env_placeholder(self):
         """Half-configured: ENGRAMIA_ENV=production but no SSH host → `<prod-vm>`."""
@@ -424,6 +422,24 @@ class TestWaitlistAdminNotifyEmail:
             referral_source=None,
             environment="production",
             deploy_ssh_host='evil.com"><script>alert(1)</script>',
+        )
+        assert "<script>alert(1)</script>" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_cli_prefix_is_html_escaped(self):
+        """CLI prefix comes from env var too — must be escaped in HTML."""
+        _, _, html = waitlist_admin_notify_email(
+            request_id="req-1",
+            requester_email="u@e.cz",
+            requester_name="X",
+            plan_interest="developer",
+            country="CZ",
+            use_case=None,
+            company_name=None,
+            referral_source=None,
+            environment="production",
+            deploy_ssh_host="root@1.2.3.4",
+            deploy_cli_prefix='engramia"><script>alert(1)</script>',
         )
         assert "<script>alert(1)</script>" not in html
         assert "&lt;script&gt;" in html
@@ -532,9 +548,7 @@ class TestWaitlistRejectionEmail:
         assert '<img src=x onerror="alert(1)">' not in html
 
     def test_reapply_link_present(self):
-        _, text, html = waitlist_rejection_email(
-            recipient_name=None, reason="any reason"
-        )
+        _, text, html = waitlist_rejection_email(recipient_name=None, reason="any reason")
         # Encourage re-application — reduces customer churn perception.
         assert "submit a new request" in text.lower() or "request-access" in html
 
