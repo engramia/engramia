@@ -1291,7 +1291,7 @@ def cloud_delete_account(
     console.print()
 
     if dry_run:
-        console.print(f"[yellow]DRY-RUN[/yellow] no changes made. Re-run without --dry-run to execute.")
+        console.print("[yellow]DRY-RUN[/yellow] no changes made. Re-run without --dry-run to execute.")
         return
 
     if not yes:
