@@ -938,6 +938,12 @@ class MeResponse(BaseModel):
     name: str | None
     provider: str
     created_at: str
+    #: RBAC role from the access token. The Dashboard reads this on every
+    #: sign-in (see detectRole in Dashboard/src/lib/auth-helpers.ts) to
+    #: decide which sidebar entries and destructive actions to expose.
+    #: Without it the Dashboard fell back to the most restrictive role
+    #: (reader) and hid Keys + BYOK + role-gated UI from legitimate owners.
+    role: str
 
 
 class LogoutRequest(BaseModel):
@@ -1226,6 +1232,10 @@ def me(request: Request) -> MeResponse:
         name=row[3],
         provider=str(row[4]),
         created_at=str(row[5]),
+        # Role lives on the JWT (set by `_make_token`), not in cloud_users —
+        # the table only tracks identity, RBAC is a per-key concept. For the
+        # Dashboard's purposes the access-token role is authoritative.
+        role=str(payload.get("role", "owner")),
     )
 
 

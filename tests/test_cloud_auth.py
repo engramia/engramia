@@ -299,6 +299,10 @@ def test_me_with_valid_token(mock_decode, client, mock_engine):
     assert data["email"] == "test@example.com"
     assert data["tenant_id"] == "testuser"
     assert data["provider"] == "credentials"
+    # Role is sourced from the JWT payload so the Dashboard's detectRole()
+    # can hydrate the session without a second round-trip. Without this the
+    # Dashboard fell back to "reader" and hid Keys + BYOK from owners.
+    assert data["role"] == "owner"
     mock_decode.assert_called_once_with("valid.token.here")
 
 
