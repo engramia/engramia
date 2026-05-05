@@ -678,10 +678,20 @@ def _create_registration(
     provider: str,
     provider_id: str | None,
     email_verified: bool = False,
+    create_api_key: bool = True,
 ) -> dict:
-    """Create tenant, project, cloud_user, and API key in a single transaction.
+    """Create tenant, project, cloud_user, and (optionally) an API key.
 
-    Returns dict with user_id, tenant_id, project_id, api_key.
+    All inserts happen in a single transaction.
+
+    ``create_api_key=False`` skips the api_key INSERT and returns ``api_key=None``
+    in the result. Used by ``engramia waitlist approve`` so the operator never
+    sees a plaintext key meant for the customer; the customer creates their
+    own first key from the Dashboard /setup wizard after first login (where
+    the plaintext only ever lives in their own browser).
+
+    Returns dict with user_id, tenant_id, project_id, and api_key (None if
+    ``create_api_key=False``).
     """
     from sqlalchemy import text
 
@@ -689,8 +699,11 @@ def _create_registration(
     tenant_id = _make_tenant_slug(email_prefix, engine)
     project_id = str(uuid.uuid4())
     user_id = str(uuid.uuid4())
-    api_key_id = str(uuid.uuid4())
-    full_key, display_prefix, key_hash = _generate_api_key()
+
+    full_key: str | None = None
+    if create_api_key:
+        api_key_id = str(uuid.uuid4())
+        full_key, display_prefix, key_hash = _generate_api_key()
 
     with engine.begin() as conn:
         conn.execute(
@@ -722,22 +735,23 @@ def _create_registration(
                 "ev": email_verified,
             },
         )
-        conn.execute(
-            text(
-                "INSERT INTO api_keys "
-                "(id, tenant_id, project_id, name, key_prefix, key_hash, role, "
-                "max_patterns, created_at) "
-                "VALUES (:id, :tid, :pid, 'Default API Key', :prefix, :hash, 'owner', "
-                "NULL, now()::text)"
-            ),
-            {
-                "id": api_key_id,
-                "tid": tenant_id,
-                "pid": project_id,
-                "prefix": display_prefix,
-                "hash": key_hash,
-            },
-        )
+        if create_api_key:
+            conn.execute(
+                text(
+                    "INSERT INTO api_keys "
+                    "(id, tenant_id, project_id, name, key_prefix, key_hash, role, "
+                    "max_patterns, created_at) "
+                    "VALUES (:id, :tid, :pid, 'Default API Key', :prefix, :hash, 'owner', "
+                    "NULL, now()::text)"
+                ),
+                {
+                    "id": api_key_id,
+                    "tid": tenant_id,
+                    "pid": project_id,
+                    "prefix": display_prefix,
+                    "hash": key_hash,
+                },
+            )
 
     return {
         "user_id": user_id,

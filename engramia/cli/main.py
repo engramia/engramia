@@ -1554,6 +1554,11 @@ def waitlist_approve(
         provider="credentials",
         provider_id=None,
         email_verified=True,
+        # Skip the auto-generated default API key. The customer creates their
+        # own first key from the Dashboard /setup wizard after first login,
+        # so the plaintext only ever lives in their browser. Operator never
+        # holds it. See Ops/internal/cloud-onboarding-architecture.md ADR.
+        create_api_key=False,
     )
 
     with engine.begin() as conn:
@@ -1605,7 +1610,9 @@ def waitlist_approve(
     )
     console.print(f"  plan       : {target_plan}")
     console.print(f"  tenant_id  : {result['tenant_id']}")
-    console.print(f"  api_key    : [bold]{result['api_key']}[/bold]")
+    console.print(
+        "  api_key    : [dim]not provisioned — customer creates their first key in the Dashboard /setup wizard after first login[/dim]"
+    )
     console.print(f"  email      : {email_status}")
 
 
