@@ -162,6 +162,52 @@ engramia cleanup deleted-accounts --grace-period-days 30 --dry-run
 
 Idempotent and safe to run from cron daily.
 
+## Cloud accounts (`engramia cloud`)
+
+Operator subcommands for managing cloud accounts manually. Require `ENGRAMIA_DATABASE_URL` and run inside (or against) the API container — these touch the same DB the running API serves.
+
+### cloud create-account
+
+Manually onboard a tenant outside the waitlist flow. Creates tenant + project + cloud_user with `email_verified=true`, returns the plaintext API key. Used for pilot customers and direct relationships where the standard waitlist + email flow is overkill.
+
+```bash
+engramia cloud create-account user@example.com --plan pro --name "Jane Doe"
+engramia cloud create-account dev@example.com --password 'set-explicitly!' --plan developer
+```
+
+### cloud list-accounts
+
+Lists active cloud accounts (skips soft-deleted users). Optional `--plan` filter and `--limit` (default 50).
+
+```bash
+engramia cloud list-accounts
+engramia cloud list-accounts --plan team --limit 100
+```
+
+### cloud delete-account
+
+Deletes a cloud account by email. Two paths:
+
+- **Soft (default)** — calls `ScopedDeletion.delete_tenant(anonymise_users=True)`, the same pipeline as the customer-facing `DELETE /auth/me` self-service flow. Anonymises the cloud_user (email rewritten to `deleted-<uuid>@deleted.engramia.dev`, password/name/provider_id nulled), soft-deletes the tenant, revokes api_keys (key_hash retained for forensics), wipes project data. The 30-day grace cron (`cleanup deleted-accounts`) hard-deletes the rows after the window. **This is the GDPR Art. 17 path — use it for any real customer request.**
+- **Hard (`--hard`)** — immediate cascade DELETE in dependency order (api_keys → projects → cloud_users → tenants), plus matching `waitlist_requests` rows. Mirrors what `cleanup deleted-accounts` does to graced rows, just without the wait. Intended for ops/testing — use on staging to recycle a test account between E2E runs.
+
+Either mode also wipes `waitlist_requests` matching the email so the Art. 17 erasure is complete.
+
+```bash
+engramia cloud delete-account --email user@example.com               # soft, prompts y/n
+engramia cloud delete-account --email user@example.com --reason "Customer request 2026-05-05" --yes
+engramia cloud delete-account --email smoke@engramia.test --hard --yes  # staging reset
+engramia cloud delete-account --email user@example.com --dry-run       # preview only
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--email <e>` | (Required) Login email of the account. |
+| `--hard` | Skip the 30-day grace; cascade DELETE now. Ops/testing only. |
+| `--reason "<text>"` | Persist on `cloud_users.deletion_reason` (soft path only). |
+| `--yes` / `-y` | Skip the confirmation prompt. Required for non-interactive shells. |
+| `--dry-run` | Show what would happen, make no changes. |
+
 ## Environment variables
 
 The CLI uses the same environment variables as the REST API. See [Environment Variables](environment-variables.md) for the complete reference.

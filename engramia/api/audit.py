@@ -45,6 +45,11 @@ class AuditEvent(StrEnum):
     WAITLIST_APPROVED = "waitlist_approved"
     WAITLIST_REJECTED = "waitlist_rejected"
     FIRST_PASSWORD_CHANGED = "first_password_changed"
+    # Operator-driven account deletion via `engramia cloud delete-account`.
+    # `mode` kwarg distinguishes "soft" (GDPR Art. 17 path, 30d grace via
+    # cleanup deleted-accounts cron) from "hard" (immediate cascade DELETE,
+    # ops/testing only).
+    ACCOUNT_DELETED = "account_deleted"
 
 
 def log_event(event: AuditEvent, **kwargs: Any) -> None:

@@ -411,6 +411,115 @@ class TestCloudCreateAccount:
         assert "plan       : pro" in result.output
 
 
+class TestCloudDeleteAccount:
+    """Unit tests for `engramia cloud delete-account` — DB calls mocked."""
+
+    def _patch_engine(self, *, found: bool, already_deleted: bool = False):
+        """Build a mock engine where the lookup returns a row or None."""
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock
+
+        engine = MagicMock(name="engine")
+        if found:
+            row = ("user-uuid-1", "tenant-1", "2026-05-05T12:00:00" if already_deleted else None)
+        else:
+            row = None
+
+        @contextmanager
+        def _connect():
+            conn = MagicMock(name="conn")
+            conn.execute.return_value.fetchone.return_value = row
+            yield conn
+
+        @contextmanager
+        def _begin():
+            yield MagicMock(name="conn-begin")
+
+        engine.connect = _connect
+        engine.begin = _begin
+        return engine
+
+    def test_unknown_email_exits_1(self):
+        with patch("engramia.cli.main._make_db_engine") as eng:
+            eng.return_value = self._patch_engine(found=False)
+            result = runner.invoke(
+                app,
+                ["cloud", "delete-account", "--email", "nobody@example.com"],
+            )
+        assert result.exit_code == 1
+        assert "No account found" in result.output
+
+    def test_already_soft_deleted_returns_0_with_hint(self):
+        with patch("engramia.cli.main._make_db_engine") as eng:
+            eng.return_value = self._patch_engine(found=True, already_deleted=True)
+            result = runner.invoke(
+                app,
+                ["cloud", "delete-account", "--email", "x@y.z"],
+            )
+        assert result.exit_code == 0
+        assert "already soft-deleted" in result.output
+        assert "--hard" in result.output
+
+    def test_dry_run_does_not_call_scoped_deletion(self):
+        with (
+            patch("engramia.cli.main._make_db_engine") as eng,
+            patch("engramia.governance.deletion.ScopedDeletion") as sd,
+        ):
+            eng.return_value = self._patch_engine(found=True)
+            result = runner.invoke(
+                app,
+                ["cloud", "delete-account", "--email", "x@y.z", "--dry-run", "--yes"],
+            )
+        assert result.exit_code == 0
+        assert "DRY-RUN" in result.output
+        sd.assert_not_called()
+
+    def test_soft_delete_invokes_scoped_deletion(self):
+        from engramia.governance.deletion import DeletionResult
+
+        result_obj = DeletionResult(tenant_id="tenant-1", project_id="*")
+        result_obj.projects_deleted = 2
+        result_obj.patterns_deleted = 50
+        result_obj.jobs_deleted = 5
+        result_obj.keys_revoked = 3
+        result_obj.cloud_users_deleted = 1
+
+        with (
+            patch("engramia.cli.main._make_db_engine") as eng,
+            patch("engramia.governance.deletion.ScopedDeletion") as sd_class,
+        ):
+            eng.return_value = self._patch_engine(found=True)
+            instance = sd_class.return_value
+            instance.delete_tenant.return_value = result_obj
+            result = runner.invoke(
+                app,
+                ["cloud", "delete-account", "--email", "x@y.z", "--reason", "test", "--yes"],
+            )
+
+        assert result.exit_code == 0
+        assert "Soft-deleted" in result.output
+        instance.delete_tenant.assert_called_once()
+        kwargs = instance.delete_tenant.call_args.kwargs
+        assert kwargs["tenant_id"] == "tenant-1"
+        assert kwargs["anonymise_users"] is True
+        assert kwargs["deletion_reason"] == "test"
+
+    def test_hard_delete_skips_scoped_deletion(self):
+        with (
+            patch("engramia.cli.main._make_db_engine") as eng,
+            patch("engramia.governance.deletion.ScopedDeletion") as sd,
+        ):
+            eng.return_value = self._patch_engine(found=True)
+            result = runner.invoke(
+                app,
+                ["cloud", "delete-account", "--email", "x@y.z", "--hard", "--yes"],
+            )
+        assert result.exit_code == 0
+        assert "Hard-deleted" in result.output
+        # Hard path must NOT route through the soft anonymisation pipeline.
+        sd.assert_not_called()
+
+
 class TestCloudListAccounts:
     def test_list_empty(self):
         from contextlib import contextmanager

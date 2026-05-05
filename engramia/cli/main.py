@@ -1200,6 +1200,176 @@ def cloud_create_account(
     console.print("[yellow]Note:[/yellow] email_verified=True; the user can log in immediately.")
 
 
+@cloud_app.command("delete-account")
+def cloud_delete_account(
+    email: str = typer.Option(..., "--email", help="Login email of the account to delete."),
+    hard: bool = typer.Option(
+        False,
+        "--hard",
+        help=(
+            "Hard-delete immediately (skips the 30-day grace window). The whole "
+            "tenant + projects + cloud_user + api_keys + matching waitlist rows "
+            "are dropped from the DB. Use only for ops/testing — not GDPR-compliant "
+            "for real customer requests, since it bypasses the audit-log retention "
+            "policy that the soft path preserves."
+        ),
+    ),
+    reason: str | None = typer.Option(
+        None,
+        "--reason",
+        help="Free-text reason persisted on cloud_users.deletion_reason (soft path only).",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Skip the interactive confirmation. Required for non-interactive shells (cron, CI).",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen without making changes."),
+) -> None:
+    """Delete a cloud account by email.
+
+    Two paths:
+
+    * **Soft (default)** — calls the same ``ScopedDeletion.delete_tenant``
+      pipeline as the customer-facing ``DELETE /auth/me`` flow. The
+      cloud_user row is anonymised (email rewritten to
+      ``deleted-<uuid>@deleted.engramia.dev``, password/name/provider_id
+      nulled), the tenant is soft-deleted, projects are wiped, api_keys
+      revoked. The 30-day grace cron (``engramia cleanup deleted-accounts``)
+      hard-deletes the rows afterwards. This is the GDPR Art. 17 path —
+      use it for any real customer request.
+
+    * **Hard (``--hard``)** — immediate cascade DELETE in dependency order
+      (api_keys → projects → cloud_users → tenants), plus matching
+      waitlist_requests rows. Mirrors what
+      ``cleanup deleted-accounts`` does to graced rows, just without the
+      grace wait. Intended for ops/testing — use it on staging to recycle
+      a test account between E2E runs without waiting 30 days.
+
+    Either path also wipes ``waitlist_requests`` matching the email so the
+    GDPR Art. 17 erasure is complete (D12 in cloud-onboarding-architecture.md).
+    """
+    from sqlalchemy import text
+
+    from engramia.api.audit import AuditEvent, log_event
+
+    engine = _make_db_engine()
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT id, tenant_id, deleted_at FROM cloud_users WHERE email = :email AND provider = 'credentials'"),
+            {"email": email.strip().lower()},
+        ).fetchone()
+
+    if row is None:
+        console.print(f"[red]No account found with email[/red] {email}")
+        raise typer.Exit(1)
+
+    user_id, tenant_id, already_deleted = str(row[0]), str(row[1]), row[2]
+
+    if already_deleted is not None and not hard:
+        console.print(
+            f"[yellow]Account already soft-deleted at {already_deleted}.[/yellow] "
+            "Re-running the soft path is a no-op. Use --hard to drop the rows now."
+        )
+        raise typer.Exit(0)
+
+    mode = "HARD" if hard else "SOFT"
+    console.print()
+    console.print(f"About to {mode}-delete account:")
+    console.print(f"  email     : {email}")
+    console.print(f"  user_id   : {user_id}")
+    console.print(f"  tenant_id : {tenant_id}")
+    if reason:
+        console.print(f"  reason    : {reason}")
+    if hard:
+        console.print(
+            "[red]WARNING:[/red] --hard skips the 30-day grace window. "
+            "All rows for this tenant + matching waitlist entries will be deleted immediately."
+        )
+    console.print()
+
+    if dry_run:
+        console.print(f"[yellow]DRY-RUN[/yellow] no changes made. Re-run without --dry-run to execute.")
+        return
+
+    if not yes:
+        confirm = typer.confirm(f"Proceed with {mode} delete?", default=False)
+        if not confirm:
+            console.print("[dim]Aborted by operator.[/dim]")
+            raise typer.Exit(0)
+
+    if hard:
+        # Order matters: api_keys → projects → cloud_users → tenants. Tables
+        # with ON DELETE CASCADE on tenant_id (tenant_credentials,
+        # role_spend_counters, backup_download_log, audit_log,
+        # email_verification_tokens) follow the parent automatically.
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM account_deletion_requests WHERE user_id = :uid"),
+                {"uid": user_id},
+            )
+            conn.execute(text("DELETE FROM api_keys WHERE tenant_id = :tid"), {"tid": tenant_id})
+            conn.execute(text("DELETE FROM projects WHERE tenant_id = :tid"), {"tid": tenant_id})
+            conn.execute(text("DELETE FROM cloud_users WHERE id = :uid"), {"uid": user_id})
+            conn.execute(text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_id})
+            # GDPR Art. 17 — wipe waitlist rows too. Match by email AND
+            # tenant_id so we catch both pre-approval and post-approval rows.
+            conn.execute(
+                text("DELETE FROM waitlist_requests WHERE email = :email OR tenant_id = :tid"),
+                {"email": email.strip().lower(), "tid": tenant_id},
+            )
+        log_event(AuditEvent.ACCOUNT_DELETED, actor=user_id, mode="hard")
+        console.print(f"[red]Hard-deleted[/red] tenant={tenant_id} user={user_id}")
+        return
+
+    # Soft path — reuse the production pipeline.
+    from engramia.governance.deletion import ScopedDeletion
+
+    # The CLI doesn't have the Memory facade wired; pass a no-op storage so
+    # delete_tenant only touches the DB. (Storage-layer pattern data lives
+    # in PG anyway for cloud deploys, so the project-level DELETE FROM
+    # memory_data + memory_embeddings inside ScopedDeletion is what does
+    # the work.)
+    class _NullStorage:
+        def delete_scope(self, **_kwargs):
+            return 0
+
+    deletion = ScopedDeletion(engine=engine)
+    result = deletion.delete_tenant(
+        _NullStorage(),
+        tenant_id=tenant_id,
+        anonymise_users=True,
+        deletion_reason=reason,
+    )
+
+    # Wipe matching waitlist rows for full Art. 17 coverage. Same query as
+    # the self-service /DELETE /auth/me handler.
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM waitlist_requests WHERE email = :email OR tenant_id = :tid"),
+            {"email": email.strip().lower(), "tid": tenant_id},
+        )
+
+    log_event(AuditEvent.ACCOUNT_DELETED, actor=user_id, mode="soft")
+
+    console.print(f"[green]Soft-deleted[/green] tenant={tenant_id} user={user_id}")
+    console.print(
+        f"  projects   : {result.projects_deleted} wiped, patterns={result.patterns_deleted}, jobs={result.jobs_deleted}"
+    )
+    console.print(f"  api_keys   : {result.keys_revoked} revoked (key_hash retained for forensic audit)")
+    console.print(
+        f"  cloud_users: {result.cloud_users_deleted} anonymised "
+        "(email rewritten to deleted-<uuid>@deleted.engramia.dev)"
+    )
+    console.print()
+    console.print(
+        "[dim]30-day grace window applies — `engramia cleanup deleted-accounts` cron "
+        "will hard-delete the underlying rows after the window.[/dim]"
+    )
+
+
 @cloud_app.command("list-accounts")
 def cloud_list_accounts(
     limit: int = typer.Option(50, "--limit", help="Max rows to return."),
