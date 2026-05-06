@@ -1104,6 +1104,52 @@ def cleanup_deleted_accounts(
 # ---------------------------------------------------------------------------
 
 
+def _hard_delete_tenant_by_email(engine, email: str) -> dict | None:
+    """Cascade-DELETE the tenant + cloud_user + descendants matching ``email``.
+
+    Returns ``{"user_id": str, "tenant_id": str}`` if a row was deleted,
+    or ``None`` if no matching credentials-provider row existed (idempotent
+    no-op). This is the same operation ``cleanup deleted-accounts`` runs
+    against soft-deleted rows past the grace window, just gated by an
+    email lookup instead of a `deleted_at < ...` filter.
+
+    Tables with ``ON DELETE CASCADE`` on tenant_id (tenant_credentials,
+    role_spend_counters, backup_download_log, audit_log,
+    email_verification_tokens) follow the tenant DELETE automatically.
+
+    Shared by ``cloud delete-account --hard`` and ``cloud create-account
+    --reset`` — both want exactly this cascade with zero ceremony.
+    """
+    from sqlalchemy import text
+
+    normalised = email.strip().lower()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT id, tenant_id FROM cloud_users WHERE email = :email AND provider = 'credentials'"),
+            {"email": normalised},
+        ).fetchone()
+    if row is None:
+        return None
+    user_id, tenant_id = str(row[0]), str(row[1])
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM account_deletion_requests WHERE user_id = :uid"),
+            {"uid": user_id},
+        )
+        conn.execute(text("DELETE FROM api_keys WHERE tenant_id = :tid"), {"tid": tenant_id})
+        conn.execute(text("DELETE FROM projects WHERE tenant_id = :tid"), {"tid": tenant_id})
+        conn.execute(text("DELETE FROM cloud_users WHERE id = :uid"), {"uid": user_id})
+        conn.execute(text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_id})
+        # GDPR Art. 17 — wipe waitlist rows too. Match by email AND tenant_id
+        # so we catch both pre-approval and post-approval rows.
+        conn.execute(
+            text("DELETE FROM waitlist_requests WHERE email = :email OR tenant_id = :tid"),
+            {"email": normalised, "tid": tenant_id},
+        )
+    return {"user_id": user_id, "tenant_id": tenant_id}
+
+
 @cloud_app.command("create-account")
 def cloud_create_account(
     email: str = typer.Argument(..., help="User email address (also the login)."),
@@ -1118,12 +1164,52 @@ def cloud_create_account(
         "--plan",
         help="Plan tier (developer | pro | team | business | enterprise). Sets tenants.plan_tier.",
     ),
+    reset: bool = typer.Option(
+        False,
+        "--reset",
+        help=(
+            "If an account with this email already exists, hard-delete it first "
+            "(api_keys → projects → cloud_users → tenants → waitlist rows) and "
+            "then create the new one. Idempotent — safe to repeat. Intended for "
+            "ops/testing on staging where E2E test accounts get recycled. NOT "
+            "GDPR-compliant for real customer requests; use `cloud delete-account` "
+            "(soft path) for those."
+        ),
+    ),
+    no_api_key: bool = typer.Option(
+        False,
+        "--no-api-key",
+        help=(
+            "Skip the auto-generated 'Default API Key'. The /setup wizard will "
+            "create the user's first key inline on next sign-in (same path "
+            "waitlist users take). Recommended when testing the /setup flow — "
+            "without this the wizard's step-3 quickstart shows a placeholder "
+            "instead of a real plaintext key."
+        ),
+    ),
+    no_force_change: bool = typer.Option(
+        False,
+        "--no-force-change",
+        help=(
+            "Don't set must_change_password=true. The user signs in with --password "
+            "and uses it as their final password — no /change-password redirect. "
+            "Use together with --password and --reset for repeatable test "
+            "accounts on staging."
+        ),
+    ),
 ) -> None:
     """Manually onboard a cloud tenant — bypasses email verification and SMTP.
 
     Creates tenant + project + cloud_user (email_verified=True) + owner API key
     in a single transaction, then prints the credentials. Intended for pilot
     onboarding before self-serve registration is exposed publicly.
+
+    For repeatable staging test accounts (E2E walkthrough of the /setup wizard
+    with chosen credentials):
+
+        engramia cloud create-account test@example.com \\
+            --password 'MyP@ss!' --plan business \\
+            --reset --no-api-key --no-force-change
 
     Requires ``ENGRAMIA_DATABASE_URL`` to point at the cloud database.
     """
@@ -1146,6 +1232,16 @@ def cloud_create_account(
 
     engine = _make_db_engine()
 
+    if reset:
+        # Idempotent recreate: silently no-op when the email isn't present.
+        # When it is, cascade-delete the tenant first so the INSERT below
+        # doesn't trip the cloud_users.email UNIQUE.
+        deleted = _hard_delete_tenant_by_email(engine, email)
+        if deleted is not None:
+            console.print(
+                f"[dim]--reset: cleared previous account[/dim] tenant={deleted['tenant_id']} user={deleted['user_id']}"
+            )
+
     with engine.connect() as conn:
         existing = conn.execute(
             text("SELECT id FROM cloud_users WHERE email = :email AND deleted_at IS NULL"),
@@ -1153,6 +1249,7 @@ def cloud_create_account(
         ).fetchone()
     if existing is not None:
         console.print(f"[red]Account already exists[/red] for {email} (id={existing[0]})")
+        console.print("[dim]Hint: pass --reset to recreate idempotently.[/dim]")
         raise typer.Exit(1)
 
     plain_password = password or secrets.token_urlsafe(12)
@@ -1166,6 +1263,7 @@ def cloud_create_account(
         provider="credentials",
         provider_id=None,
         email_verified=True,
+        create_api_key=not no_api_key,
     )
 
     if plan != "developer":
@@ -1175,14 +1273,17 @@ def cloud_create_account(
                 {"plan": plan, "tid": result["tenant_id"]},
             )
 
-    # Manually-provisioned accounts use a one-time password — force the user
-    # to change it on first login (ADR-007). The Dashboard middleware blocks
-    # access to all routes until the user calls POST /auth/change-password.
-    with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE cloud_users SET must_change_password = true WHERE id = :uid"),
-            {"uid": result["user_id"]},
-        )
+    # Default: force the user to change the (potentially auto-generated) password
+    # on first login (ADR-007). The Dashboard middleware blocks access to every
+    # route until the user calls POST /auth/change-password. --no-force-change
+    # flips this to False so an operator-supplied --password is the user's
+    # final password — used by repeatable staging test accounts.
+    if not no_force_change:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE cloud_users SET must_change_password = true WHERE id = :uid"),
+                {"uid": result["user_id"]},
+            )
 
     console.print()
     console.print("[green]Account created[/green]")
@@ -1195,9 +1296,30 @@ def cloud_create_account(
     console.print(f"  tenant_id  : {result['tenant_id']}")
     console.print(f"  project_id : {result['project_id']}")
     console.print(f"  user_id    : {result['user_id']}")
-    console.print(f"  api_key    : [bold]{result['api_key']}[/bold]  (owner role — show once, store securely)")
+    if result.get("api_key"):
+        console.print(f"  api_key    : [bold]{result['api_key']}[/bold]  (owner role — show once, store securely)")
+    else:
+        console.print(
+            "  api_key    : [dim]not provisioned (--no-api-key) — /setup will create the first one inline[/dim]"
+        )
     console.print()
-    console.print("[yellow]Note:[/yellow] email_verified=True; the user can log in immediately.")
+
+    if no_api_key and not no_force_change:
+        # Test-flow recipe with the standard waitlist-style ceremony.
+        console.print(
+            "[yellow]Note:[/yellow] email_verified=True, must_change_password=true; sign in to /change-password "
+            "and the /setup wizard will fire after the password change."
+        )
+    elif no_force_change:
+        # Test-flow recipe with the chosen password as final.
+        dashboard_url = os.environ.get("ENGRAMIA_DASHBOARD_URL", "https://app.engramia.dev").strip().rstrip("/")
+        console.print(
+            "[yellow]Note:[/yellow] account is ready to sign in directly (no force-change-password). "
+            f"Open [bold]{dashboard_url}/login?setup=1[/bold] to also trigger the /setup wizard "
+            "after sign-in (mirrors waitlist onboarding without the email-link round-trip)."
+        )
+    else:
+        console.print("[yellow]Note:[/yellow] email_verified=True; the user can log in immediately.")
 
 
 @cloud_app.command("delete-account")
@@ -1301,27 +1423,15 @@ def cloud_delete_account(
             raise typer.Exit(0)
 
     if hard:
-        # Order matters: api_keys → projects → cloud_users → tenants. Tables
-        # with ON DELETE CASCADE on tenant_id (tenant_credentials,
-        # role_spend_counters, backup_download_log, audit_log,
-        # email_verification_tokens) follow the parent automatically.
-        with engine.begin() as conn:
-            conn.execute(
-                text("DELETE FROM account_deletion_requests WHERE user_id = :uid"),
-                {"uid": user_id},
-            )
-            conn.execute(text("DELETE FROM api_keys WHERE tenant_id = :tid"), {"tid": tenant_id})
-            conn.execute(text("DELETE FROM projects WHERE tenant_id = :tid"), {"tid": tenant_id})
-            conn.execute(text("DELETE FROM cloud_users WHERE id = :uid"), {"uid": user_id})
-            conn.execute(text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_id})
-            # GDPR Art. 17 — wipe waitlist rows too. Match by email AND
-            # tenant_id so we catch both pre-approval and post-approval rows.
-            conn.execute(
-                text("DELETE FROM waitlist_requests WHERE email = :email OR tenant_id = :tid"),
-                {"email": email.strip().lower(), "tid": tenant_id},
-            )
-        log_event(AuditEvent.ACCOUNT_DELETED, actor=user_id, mode="hard")
-        console.print(f"[red]Hard-deleted[/red] tenant={tenant_id} user={user_id}")
+        deleted = _hard_delete_tenant_by_email(engine, email)
+        if deleted is None:
+            # Race: row vanished between the lookup and the delete (concurrent
+            # admin?) — treat as a no-op. The lookup above already raised
+            # Exit(1) when the row was missing on first read.
+            console.print("[yellow]Account vanished between lookup and delete[/yellow] — nothing to do.")
+            return
+        log_event(AuditEvent.ACCOUNT_DELETED, actor=deleted["user_id"], mode="hard")
+        console.print(f"[red]Hard-deleted[/red] tenant={deleted['tenant_id']} user={deleted['user_id']}")
         return
 
     # Soft path — reuse the production pipeline.

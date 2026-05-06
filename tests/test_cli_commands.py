@@ -377,6 +377,97 @@ class TestCloudCreateAccount:
         assert "engramia-secret" in result.output
         assert "auto-generated" in result.output
 
+    def test_reset_recreates_existing_account(self):
+        """`--reset` calls the hard-delete helper before insert, so a duplicate
+        email is recycled instead of erroring with "Account already exists"."""
+        with (
+            patch("engramia.cli.main._make_db_engine") as eng,
+            patch("engramia.cli.main._hard_delete_tenant_by_email") as hard_delete,
+            patch("engramia.api.cloud_auth._hash_password", return_value="hash"),
+            patch(
+                "engramia.api.cloud_auth._create_registration",
+                return_value={
+                    "user_id": "uid-reset",
+                    "tenant_id": "tid-reset",
+                    "project_id": "pid-reset",
+                    "api_key": "engramia-reset-key",
+                },
+            ),
+        ):
+            eng.return_value = self._patch_engine(existing_email=False)
+            hard_delete.return_value = {"user_id": "uid-old", "tenant_id": "tid-old"}
+            result = runner.invoke(
+                app,
+                ["cloud", "create-account", "recycle@example.com", "--reset"],
+            )
+        assert result.exit_code == 0
+        hard_delete.assert_called_once()
+        # The hint about the recycled tenant lands in the output.
+        assert "cleared previous account" in result.output
+
+    def test_no_api_key_skips_auto_provisioning(self):
+        """`--no-api-key` propagates create_api_key=False to _create_registration
+        and the CLI output reflects 'not provisioned' instead of a key."""
+        with (
+            patch("engramia.cli.main._make_db_engine") as eng,
+            patch("engramia.api.cloud_auth._hash_password", return_value="hash"),
+            patch(
+                "engramia.api.cloud_auth._create_registration",
+                return_value={
+                    "user_id": "uid-nk",
+                    "tenant_id": "tid-nk",
+                    "project_id": "pid-nk",
+                    "api_key": None,
+                },
+            ) as create,
+        ):
+            eng.return_value = self._patch_engine(existing_email=False)
+            result = runner.invoke(
+                app,
+                ["cloud", "create-account", "nokey@example.com", "--no-api-key"],
+            )
+        assert result.exit_code == 0
+        # _create_registration was called with create_api_key=False.
+        kwargs = create.call_args.kwargs
+        assert kwargs["create_api_key"] is False
+        assert "not provisioned" in result.output
+
+    def test_no_force_change_skips_must_change_password_update(self):
+        """`--no-force-change` prints the /login?setup=1 recipe and the user
+        can sign in directly with the supplied password (no /change-password
+        redirect). The CLI text references the dashboard URL with the query
+        param so the operator just clicks it."""
+        with (
+            patch("engramia.cli.main._make_db_engine") as eng,
+            patch("engramia.api.cloud_auth._hash_password", return_value="hash"),
+            patch(
+                "engramia.api.cloud_auth._create_registration",
+                return_value={
+                    "user_id": "uid-nf",
+                    "tenant_id": "tid-nf",
+                    "project_id": "pid-nf",
+                    "api_key": None,
+                },
+            ),
+        ):
+            eng.return_value = self._patch_engine(existing_email=False)
+            result = runner.invoke(
+                app,
+                [
+                    "cloud",
+                    "create-account",
+                    "test@example.com",
+                    "--password",
+                    "TestP@ss!",
+                    "--reset",
+                    "--no-api-key",
+                    "--no-force-change",
+                ],
+            )
+        assert result.exit_code == 0
+        assert "/login?setup=1" in result.output
+        assert "ready to sign in directly" in result.output
+
     def test_success_with_explicit_password_and_pro_plan(self):
         with (
             patch("engramia.cli.main._make_db_engine") as eng,

@@ -175,6 +175,20 @@ engramia cloud create-account user@example.com --plan pro --name "Jane Doe"
 engramia cloud create-account dev@example.com --password 'set-explicitly!' --plan developer
 ```
 
+For repeatable staging E2E test accounts (chosen credentials, /setup wizard runs end-to-end on first sign-in):
+
+```bash
+engramia cloud create-account test@example.com \
+    --password 'TestP@ss!' --plan business \
+    --reset --no-api-key --no-force-change
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--reset` | If an account with this email already exists, hard-delete it first (idempotent recreate). Ops/testing only — not GDPR-compliant for real customer requests. |
+| `--no-api-key` | Skip the auto-generated 'Default API Key'. The /setup wizard creates the user's first key inline on first sign-in (same path waitlist users take). Recommended when testing the wizard — without it, step 3's quickstart shows a placeholder instead of a real plaintext key. |
+| `--no-force-change` | Don't set `must_change_password=true`. The user signs in with `--password` and uses it as their final password — no `/change-password` redirect. The CLI prints a `/login?setup=1` URL that triggers the /setup wizard after sign-in (mirrors waitlist onboarding without the email-link round-trip). |
+
 ### cloud list-accounts
 
 Lists active cloud accounts (skips soft-deleted users). Optional `--plan` filter and `--limit` (default 50).
