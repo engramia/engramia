@@ -4,9 +4,137 @@
 
 No Jinja or template engine — plain f-strings keep the dependency surface
 zero and make the rendered output trivially reviewable.
+
+All customer-facing HTML emails share the chrome produced by
+``_email_layout()``: a centred 600-px white card on a soft off-white
+background, an ``engram·ia`` wordmark header, system font stack, and a
+footer with the marketing-site link plus privacy / support links.
+Inline styles only — no ``<style>`` blocks, no flexbox, no media
+queries — so the rendering stays consistent across Gmail / Outlook /
+Apple Mail / mobile clients.
+
+The internal admin notification (``waitlist_admin_notify_email``) is
+deliberately *not* dressed in the customer chrome: it goes to
+support@engramia.dev with copy-paste-ready ssh + docker exec lines, and
+extra branding would just push the actionable content below the fold.
 """
 
 from html import escape
+
+# ---------------------------------------------------------------------------
+# Branded layout — shared by every customer-facing HTML email.
+# ---------------------------------------------------------------------------
+
+#: Marketing-site brand tokens, mirrored manually from
+#: ``Website/src/styles/globals.css``. They diverge from the marketing
+#: site's *dark* surface palette on purpose: emails render reliably only
+#: in light mode (Outlook + most webmail strip dark-mode overrides), so
+#: the card is white with the same accent purple for emphasis.
+_BRAND_ACCENT = "#6B5DC8"
+_BRAND_ACCENT_DARK = "#5040a3"  # used when text-on-light needs more contrast
+_PAGE_BG = "#f4f5fa"
+_CARD_BG = "#ffffff"
+_TEXT_PRIMARY = "#1a1d27"
+_TEXT_BODY = "#3a4150"
+_TEXT_MUTED = "#6b7280"
+_TEXT_SUBTLE = "#9ca3af"
+_BORDER_SUBTLE = "#e7e9ee"
+_DANGER = "#b91c1c"
+_FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+
+#: Marketing site URL used in the wordmark href and the footer link.
+_MARKETING_URL = "https://engramia.dev"
+_PRIVACY_URL = "https://engramia.dev/legal/privacy-policy"
+_SUPPORT_EMAIL = "support@engramia.dev"
+
+
+def _email_layout(*, content_html: str, preheader: str = "") -> str:
+    """Wrap inner HTML content in the standard branded chrome.
+
+    ``preheader`` is the snippet most webmail clients show next to the
+    subject in the inbox preview — keep it short (≤ 90 chars) and
+    information-dense. The hidden div trick (display:none + max-height:0
+    + zero-width spaces padding) prevents the rest of the body from
+    leaking into the preview.
+    """
+    safe_preheader = escape(preheader)
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Engramia</title>
+</head>
+<body style="margin:0; padding:0; background-color:{_PAGE_BG}; font-family:{_FONT_STACK}; color:{_TEXT_BODY}; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; visibility:hidden; opacity:0; color:transparent; font-size:1px; line-height:1px;">
+    {safe_preheader}&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+  </div>
+  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color:{_PAGE_BG}; padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" border="0" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:{_CARD_BG}; border-radius:14px; box-shadow:0 1px 3px rgba(15,17,23,0.06), 0 1px 2px rgba(15,17,23,0.04); border:1px solid {_BORDER_SUBTLE};">
+          <tr>
+            <td style="padding:32px 40px 8px 40px;">
+              <a href="{_MARKETING_URL}" style="text-decoration:none; color:{_TEXT_PRIMARY};">
+                <span style="font-size:26px; font-weight:700; letter-spacing:-0.02em; color:{_TEXT_PRIMARY};">engram<span style="color:{_BRAND_ACCENT};">ia</span></span>
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 40px 32px 40px; font-size:15px; line-height:1.6; color:{_TEXT_BODY};">
+              {content_html}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 40px 24px 40px; border-top:1px solid {_BORDER_SUBTLE}; font-size:12px; line-height:1.5; color:{_TEXT_SUBTLE};">
+              <p style="margin:0 0 6px 0; color:{_TEXT_MUTED};">Engramia — reusable agent execution memory and evaluation.</p>
+              <p style="margin:0;">
+                <a href="{_MARKETING_URL}" style="color:{_TEXT_MUTED}; text-decoration:underline;">engramia.dev</a>
+                &nbsp;·&nbsp;
+                <a href="{_PRIVACY_URL}" style="color:{_TEXT_MUTED}; text-decoration:underline;">Privacy</a>
+                &nbsp;·&nbsp;
+                <a href="mailto:{_SUPPORT_EMAIL}" style="color:{_TEXT_MUTED}; text-decoration:underline;">Support</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+
+def _button_html(*, href: str, label: str, danger: bool = False) -> str:
+    """Render a CTA button compatible with Outlook (table-wrapped, inline styles).
+
+    ``danger=True`` swaps the accent purple for a destructive red — used
+    for the account-deletion confirmation. Outlook ignores ``border-radius``
+    on anchor tags but still renders the colour and padding, so the
+    button degrades to a coloured rectangle there (acceptable).
+    """
+    bg = _DANGER if danger else _BRAND_ACCENT
+    safe_label = escape(label)
+    safe_href = escape(href, quote=True)
+    return (
+        '<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:8px 0;">'
+        "<tr>"
+        f'<td style="background-color:{bg}; border-radius:10px;">'
+        f'<a href="{safe_href}" style="display:inline-block; padding:12px 22px; '
+        f"font-family:{_FONT_STACK}; font-size:15px; font-weight:600; color:#ffffff; "
+        f'text-decoration:none; border-radius:10px;">{safe_label}</a>'
+        "</td>"
+        "</tr>"
+        "</table>"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Customer-facing templates
+# ---------------------------------------------------------------------------
 
 
 def verification_email(
@@ -29,20 +157,18 @@ def verification_email(
         "If you didn't create an Engramia account, you can safely ignore this email.\n\n"
         "— The Engramia team\n"
     )
-    html = f"""<!doctype html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:540px; margin:0 auto; padding:24px;">
-  <p>{safe_greeting}</p>
-  <p>Thanks for signing up for <strong>Engramia</strong>. Please confirm your email address to finish creating your account.</p>
-  <p style="margin:24px 0;">
-    <a href="{safe_url}" style="display:inline-block; background:#4f46e5; color:#ffffff; padding:12px 20px; border-radius:8px; text-decoration:none; font-weight:600;">Verify my email</a>
-  </p>
-  <p style="color:#64748b; font-size:13px;">Or paste this link into your browser: <br><span style="word-break:break-all;">{safe_url}</span></p>
-  <p style="color:#64748b; font-size:13px;">This link expires in {expires_hours} hours. If you didn't create an account, you can ignore this email.</p>
-  <p style="color:#94a3b8; font-size:12px; margin-top:32px;">— The Engramia team</p>
-</body>
-</html>
-"""
+    content = f"""
+      <p style="margin:0 0 16px 0;">{safe_greeting}</p>
+      <p style="margin:0 0 16px 0;">Thanks for signing up for <strong>Engramia</strong>. Please confirm your email address to finish creating your account.</p>
+      {_button_html(href=verify_url, label="Verify my email")}
+      <p style="margin:16px 0 8px 0; color:{_TEXT_MUTED}; font-size:13px;">Or paste this link into your browser:</p>
+      <p style="margin:0 0 24px 0; word-break:break-all;"><a href="{safe_url}" style="color:{_BRAND_ACCENT_DARK}; text-decoration:underline; font-size:13px;">{safe_url}</a></p>
+      <p style="margin:0; color:{_TEXT_MUTED}; font-size:13px;">This link expires in {expires_hours} hours. If you didn't create an account, you can ignore this email.</p>
+    """
+    html = _email_layout(
+        content_html=content,
+        preheader="Confirm your email to finish creating your Engramia account.",
+    )
     return subject, text, html
 
 
@@ -72,7 +198,7 @@ def account_deletion_email(
         else ""
     )
     sub_warning_html = (
-        '<p style="color:#b91c1c; font-size:14px;"><strong>This will also cancel '
+        f'<p style="margin:0 0 16px 0; color:{_DANGER}; font-size:14px;"><strong>This will also cancel '
         "your active paid subscription</strong> with no refund for the remainder "
         "of the billing period.</p>"
         if has_active_subscription
@@ -94,27 +220,25 @@ def account_deletion_email(
         "ignore this email — the link will expire automatically.\n\n"
         "— The Engramia team\n"
     )
-    html = f"""<!doctype html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:540px; margin:0 auto; padding:24px;">
-  <p>{safe_greeting}</p>
-  <p>We received a request to delete your <strong>Engramia</strong> account. To confirm, click the button below within {expires_hours} hours.</p>
-  <p style="margin:24px 0;">
-    <a href="{safe_url}" style="display:inline-block; background:#b91c1c; color:#ffffff; padding:12px 20px; border-radius:8px; text-decoration:none; font-weight:600;">Confirm account deletion</a>
-  </p>
-  <p style="color:#64748b; font-size:13px;">Or paste this link into your browser: <br><span style="word-break:break-all;">{safe_url}</span></p>
-  <p style="color:#1a1d27; font-size:14px;"><strong>Clicking the link will permanently delete:</strong></p>
-  <ul style="color:#1a1d27; font-size:14px;">
-    <li>All patterns, embeddings, jobs, and audit detail</li>
-    <li>All API keys and active sessions</li>
-    <li>Your tenant and projects</li>
-  </ul>
-  {sub_warning_html}
-  <p style="color:#64748b; font-size:13px;">This action cannot be undone. If you didn't request this, you can safely ignore this email — the link will expire in {expires_hours} hours.</p>
-  <p style="color:#94a3b8; font-size:12px; margin-top:32px;">— The Engramia team</p>
-</body>
-</html>
-"""
+    content = f"""
+      <p style="margin:0 0 16px 0;">{safe_greeting}</p>
+      <p style="margin:0 0 16px 0;">We received a request to delete your <strong>Engramia</strong> account. To confirm, click the button below within {expires_hours} hours.</p>
+      {_button_html(href=confirm_url, label="Confirm account deletion", danger=True)}
+      <p style="margin:16px 0 8px 0; color:{_TEXT_MUTED}; font-size:13px;">Or paste this link into your browser:</p>
+      <p style="margin:0 0 24px 0; word-break:break-all;"><a href="{safe_url}" style="color:{_BRAND_ACCENT_DARK}; text-decoration:underline; font-size:13px;">{safe_url}</a></p>
+      <p style="margin:0 0 8px 0; color:{_TEXT_PRIMARY}; font-size:14px;"><strong>Clicking the link will permanently delete:</strong></p>
+      <ul style="margin:0 0 16px 0; padding-left:20px; color:{_TEXT_BODY}; font-size:14px; line-height:1.6;">
+        <li>All patterns, embeddings, jobs, and audit detail</li>
+        <li>All API keys and active sessions</li>
+        <li>Your tenant and projects</li>
+      </ul>
+      {sub_warning_html}
+      <p style="margin:0; color:{_TEXT_MUTED}; font-size:13px;">This action cannot be undone. If you didn't request this, you can safely ignore this email — the link will expire in {expires_hours} hours.</p>
+    """
+    html = _email_layout(
+        content_html=content,
+        preheader=f"Confirm deletion within {expires_hours} hours. Otherwise the link expires automatically.",
+    )
     return subject, text, html
 
 
@@ -143,16 +267,16 @@ def waitlist_ack_email(
         "Thank you for your interest\n"
         "Marek from Engramia\n"
     )
-    html = f"""<!doctype html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:540px; margin:0 auto; padding:24px;">
-  <p>{safe_greeting}</p>
-  <p>Thanks for requesting access to <strong>Engramia</strong>. We received your submission and will review it within <strong>2 business days</strong>.</p>
-  <p>You requested the <strong>{safe_plan}</strong> plan. If we have any further questions we will contact you on this email.</p>
-  <p style="color:#94a3b8; font-size:12px; margin-top:32px;">Thank you for your interest<br>Marek from Engramia</p>
-</body>
-</html>
-"""
+    content = f"""
+      <p style="margin:0 0 16px 0;">{safe_greeting}</p>
+      <p style="margin:0 0 16px 0;">Thanks for requesting access to <strong>Engramia</strong>. We received your submission and will review it within <strong>2 business days</strong>.</p>
+      <p style="margin:0 0 16px 0;">You requested the <strong>{safe_plan}</strong> plan. If we have any further questions we will contact you on this email.</p>
+      <p style="margin:24px 0 0 0; color:{_TEXT_MUTED}; font-size:14px;">Thank you for your interest,<br>Marek from Engramia</p>
+    """
+    html = _email_layout(
+        content_html=content,
+        preheader="Thanks for requesting access — we'll review within 2 business days.",
+    )
     return subject, text, html
 
 
@@ -204,30 +328,30 @@ def waitlist_pilot_ack_email(
 
     segment_links_html: dict[str, str] = {
         "eu-compliance": (
-            '<p style="margin:0;"><a href="https://engramia.dev/eu-compliance" '
-            'style="color:#4f46e5; text-decoration:none; font-weight:600;">'
+            f'<p style="margin:0;"><a href="https://engramia.dev/eu-compliance" '
+            f'style="color:{_BRAND_ACCENT_DARK}; text-decoration:none; font-weight:600;">'
             "EU compliance brief</a> — GDPR Art. 17/20 mapping, audit log "
             "alignment with EU AI Act Art. 12, DPA template.</p>"
         ),
         "openai-migration": (
-            '<p style="margin:0;"><a href="https://engramia.dev/migrate/openai-assistants" '
-            'style="color:#4f46e5; text-decoration:none; font-weight:600;">'
+            f'<p style="margin:0;"><a href="https://engramia.dev/migrate/openai-assistants" '
+            f'style="color:{_BRAND_ACCENT_DARK}; text-decoration:none; font-weight:600;">'
             "OpenAI Assistants migration path</a> — drop-in replacement for "
             "thread persistence and the multi-LLM extension before the Aug 2026 sunset.</p>"
         ),
         "custom-memory": (
-            '<p style="margin:0;"><a href="https://engramia.dev/benchmarks" '
-            'style="color:#4f46e5; text-decoration:none; font-weight:600;">'
+            f'<p style="margin:0;"><a href="https://engramia.dev/benchmarks" '
+            f'style="color:{_BRAND_ACCENT_DARK}; text-decoration:none; font-weight:600;">'
             "LongMemEval benchmark results</a> — Engramia 97.8% with full "
             "per-dimension breakdown vs. custom-memory baselines.</p>"
         ),
     }
     segment_link_html = segment_links_html.get(
         segment,
-        '<p style="margin:0 0 8px 0;"><a href="https://engramia.dev/eu-compliance" '
-        'style="color:#4f46e5; text-decoration:none; font-weight:600;">EU compliance brief</a></p>'
-        '<p style="margin:0;"><a href="https://engramia.dev/migrate/openai-assistants" '
-        'style="color:#4f46e5; text-decoration:none; font-weight:600;">OpenAI Assistants migration path</a></p>',
+        f'<p style="margin:0 0 8px 0;"><a href="https://engramia.dev/eu-compliance" '
+        f'style="color:{_BRAND_ACCENT_DARK}; text-decoration:none; font-weight:600;">EU compliance brief</a></p>'
+        f'<p style="margin:0;"><a href="https://engramia.dev/migrate/openai-assistants" '
+        f'style="color:{_BRAND_ACCENT_DARK}; text-decoration:none; font-weight:600;">OpenAI Assistants migration path</a></p>',
     )
 
     subject = "Engramia Pilot — application received"
@@ -249,27 +373,32 @@ def waitlist_pilot_ack_email(
         "reaches me, not a queue.\n\n"
         "Marek\n"
     )
-    html = f"""<!doctype html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:560px; margin:0 auto; padding:24px;">
-  <p>{safe_greeting}</p>
-  <p>Thanks for applying to the <strong>Engramia Pilot Program</strong>. I read every application personally — yours is in the queue.</p>
-  <p style="margin-top:16px; margin-bottom:8px;"><strong>Here's what happens next:</strong></p>
-  <ol style="padding-left:20px; margin-top:0; line-height:1.55;">
-    <li style="margin-bottom:10px;">I review your application against the segment seats still open. You hear back within <strong>5 business days</strong>.</li>
-    <li style="margin-bottom:10px;">If we are a match, I email you to book a 30-minute intro call. We discuss your migration path, timeline, and what success looks like for the first three months.</li>
-    <li style="margin-bottom:10px;">After the call, you either get an onboarding slot (start within 5 business days) or a clear "not a fit, here is why" — <strong>never silence</strong>.</li>
-  </ol>
-  <p style="margin-top:24px; margin-bottom:8px;"><strong>While you wait,</strong> this might be useful in your context:</p>
-  <div style="background:#f8fafc; border-left:3px solid #4f46e5; padding:12px 16px; border-radius:0 6px 6px 0;">
-    {segment_link_html}
-  </div>
-  <p style="margin-top:24px;">Anything urgent or unclear? Reply directly to this email — it reaches me, not a queue.</p>
-  <p style="margin-top:24px;">Marek</p>
-</body>
-</html>
-"""
+    content = f"""
+      <p style="margin:0 0 16px 0;">{safe_greeting}</p>
+      <p style="margin:0 0 16px 0;">Thanks for applying to the <strong>Engramia Pilot Program</strong>. I read every application personally — yours is in the queue.</p>
+      <p style="margin:16px 0 8px 0;"><strong>Here's what happens next:</strong></p>
+      <ol style="padding-left:20px; margin:0 0 16px 0; line-height:1.6;">
+        <li style="margin-bottom:10px;">I review your application against the segment seats still open. You hear back within <strong>5 business days</strong>.</li>
+        <li style="margin-bottom:10px;">If we are a match, I email you to book a 30-minute intro call. We discuss your migration path, timeline, and what success looks like for the first three months.</li>
+        <li style="margin-bottom:10px;">After the call, you either get an onboarding slot (start within 5 business days) or a clear "not a fit, here is why" — <strong>never silence</strong>.</li>
+      </ol>
+      <p style="margin:24px 0 8px 0;"><strong>While you wait,</strong> this might be useful in your context:</p>
+      <div style="background:{_PAGE_BG}; border-left:3px solid {_BRAND_ACCENT}; padding:12px 16px; border-radius:0 6px 6px 0;">
+        {segment_link_html}
+      </div>
+      <p style="margin:24px 0 0 0;">Anything urgent or unclear? Reply directly to this email — it reaches me, not a queue.</p>
+      <p style="margin:24px 0 0 0;">Marek</p>
+    """
+    html = _email_layout(
+        content_html=content,
+        preheader="I read every Pilot application personally — yours is in the queue.",
+    )
     return subject, text, html
+
+
+# ---------------------------------------------------------------------------
+# Internal admin notification (NOT customer-facing — no branded chrome)
+# ---------------------------------------------------------------------------
 
 
 def _normalize_environment(environment: str | None) -> str:
@@ -325,6 +454,11 @@ def waitlist_admin_notify_email(
 
     All three are optional; when missing, the email keeps placeholders so
     dev runs still render.
+
+    This template is deliberately *not* wrapped in the customer-facing
+    branded chrome — it's an internal triage email, copy-paste-ready for
+    the operator on call. Branding here would just push the actionable
+    ssh + docker exec lines below the fold.
     """
     env_label = _normalize_environment(environment)
     env_tag = {"prod": "[PROD]", "staging": "[STAGING]", "unknown": "[ENV?]"}[env_label]
@@ -387,6 +521,11 @@ def waitlist_admin_notify_email(
     return subject, text, html
 
 
+# ---------------------------------------------------------------------------
+# More customer-facing templates (continued)
+# ---------------------------------------------------------------------------
+
+
 def credentials_email(
     *,
     recipient_name: str | None,
@@ -423,25 +562,31 @@ def credentials_email(
         "If you didn't request this account, please reply and we'll delete it.\n\n"
         "— The Engramia team\n"
     )
-    html = f"""<!doctype html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:540px; margin:0 auto; padding:24px;">
-  <p>{safe_greeting}</p>
-  <p>Your Engramia <strong>{safe_plan}</strong> account is provisioned and ready to use.</p>
-  <table style="border-collapse:collapse; width:100%; margin:16px 0; background:#f8fafc; border-radius:8px;">
-    <tr><td style="padding:10px 12px; color:#64748b;">Login</td><td style="padding:10px 12px;"><a href="{safe_url}/login" style="color:#4f46e5;">{safe_url}/login</a></td></tr>
-    <tr><td style="padding:10px 12px; color:#64748b;">Email</td><td style="padding:10px 12px; font-family:monospace;">{safe_email}</td></tr>
-    <tr><td style="padding:10px 12px; color:#64748b;">Password</td><td style="padding:10px 12px; font-family:monospace;">{safe_pw}</td></tr>
-  </table>
-  <p style="margin:24px 0;">
-    <a href="{safe_url}/login" style="display:inline-block; background:#4f46e5; color:#ffffff; padding:12px 20px; border-radius:8px; text-decoration:none; font-weight:600;">Log in to Engramia</a>
-  </p>
-  <p style="color:#b91c1c; font-size:14px;"><strong>Important — security:</strong> This is a one-time password. On your first login the dashboard will prompt you to set a new one before you can access the rest of the app. Please log in within 24 hours and complete the change.</p>
-  <p style="color:#64748b; font-size:13px;">If you didn't request this account, please reply and we'll delete it.</p>
-  <p style="color:#94a3b8; font-size:12px; margin-top:32px;">— The Engramia team</p>
-</body>
-</html>
-"""
+    content = f"""
+      <p style="margin:0 0 16px 0;">{safe_greeting}</p>
+      <p style="margin:0 0 16px 0;">Your Engramia <strong>{safe_plan}</strong> account is provisioned and ready to use.</p>
+      <table role="presentation" style="border-collapse:collapse; width:100%; margin:16px 0; background:{_PAGE_BG}; border-radius:10px; border:1px solid {_BORDER_SUBTLE};">
+        <tr>
+          <td style="padding:12px 16px; color:{_TEXT_MUTED}; font-size:13px; width:90px; border-bottom:1px solid {_BORDER_SUBTLE};">Login</td>
+          <td style="padding:12px 16px; font-size:14px; border-bottom:1px solid {_BORDER_SUBTLE};"><a href="{safe_url}/login" style="color:{_BRAND_ACCENT_DARK}; text-decoration:underline;">{safe_url}/login</a></td>
+        </tr>
+        <tr>
+          <td style="padding:12px 16px; color:{_TEXT_MUTED}; font-size:13px; border-bottom:1px solid {_BORDER_SUBTLE};">Email</td>
+          <td style="padding:12px 16px; font-family:'SFMono-Regular', Menlo, Consolas, monospace; font-size:14px; border-bottom:1px solid {_BORDER_SUBTLE};">{safe_email}</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 16px; color:{_TEXT_MUTED}; font-size:13px;">Password</td>
+          <td style="padding:12px 16px; font-family:'SFMono-Regular', Menlo, Consolas, monospace; font-size:14px;">{safe_pw}</td>
+        </tr>
+      </table>
+      {_button_html(href=f"{dashboard_url}/login", label="Log in to Engramia")}
+      <p style="margin:16px 0 8px 0; padding:12px 16px; background:#fef2f2; border-left:3px solid {_DANGER}; border-radius:0 6px 6px 0; color:{_TEXT_PRIMARY}; font-size:14px;"><strong style="color:{_DANGER};">Important — security:</strong> This is a one-time password. On your first login the dashboard will prompt you to set a new one before you can access the rest of the app. Please log in within 24 hours and complete the change.</p>
+      <p style="margin:16px 0 0 0; color:{_TEXT_MUTED}; font-size:13px;">If you didn't request this account, please reply and we'll delete it.</p>
+    """
+    html = _email_layout(
+        content_html=content,
+        preheader=f"Your Engramia {plan_tier} account is ready — log in within 24 hours.",
+    )
     return subject, text, html
 
 
@@ -472,17 +617,16 @@ def waitlist_rejection_email(
         "happy to take another look.\n\n"
         "— The Engramia team\n"
     )
-    html = f"""<!doctype html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:540px; margin:0 auto; padding:24px;">
-  <p>{safe_greeting}</p>
-  <p>Thanks again for your interest in <strong>Engramia</strong>. After reviewing your request, we won't be able to onboard you at this time.</p>
-  <p style="background:#f8fafc; padding:12px 16px; border-left:3px solid #94a3b8; white-space:pre-wrap; color:#1a1d27;">{safe_reason}</p>
-  <p>If your situation changes — different use case, different scale, different region — please feel free to <a href="https://engramia.dev/request-access" style="color:#4f46e5;">submit a new request</a>. We'd be happy to take another look.</p>
-  <p style="color:#94a3b8; font-size:12px; margin-top:32px;">— The Engramia team</p>
-</body>
-</html>
-"""
+    content = f"""
+      <p style="margin:0 0 16px 0;">{safe_greeting}</p>
+      <p style="margin:0 0 16px 0;">Thanks again for your interest in <strong>Engramia</strong>. After reviewing your request, we won't be able to onboard you at this time.</p>
+      <p style="margin:16px 0; padding:12px 16px; background:{_PAGE_BG}; border-left:3px solid {_TEXT_SUBTLE}; border-radius:0 6px 6px 0; white-space:pre-wrap; color:{_TEXT_PRIMARY};">{safe_reason}</p>
+      <p style="margin:16px 0 0 0;">If your situation changes — different use case, different scale, different region — please feel free to <a href="https://engramia.dev/request-access" style="color:{_BRAND_ACCENT_DARK}; text-decoration:underline;">submit a new request</a>. We'd be happy to take another look.</p>
+    """
+    html = _email_layout(
+        content_html=content,
+        preheader="Update on your Engramia access request.",
+    )
     return subject, text, html
 
 
@@ -508,18 +652,16 @@ def reminder_email(
         "pending account to keep our systems tidy. You can always sign up again later.\n\n"
         "— The Engramia team\n"
     )
-    html = f"""<!doctype html>
-<html>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:540px; margin:0 auto; padding:24px;">
-  <p>{safe_greeting}</p>
-  <p>You signed up for <strong>Engramia</strong> {days_since_signup} days ago but haven't confirmed your email yet.</p>
-  <p style="margin:24px 0;">
-    <a href="{safe_url}" style="display:inline-block; background:#4f46e5; color:#ffffff; padding:12px 20px; border-radius:8px; text-decoration:none; font-weight:600;">Verify my email</a>
-  </p>
-  <p style="color:#64748b; font-size:13px;">Or paste this link into your browser: <br><span style="word-break:break-all;">{safe_url}</span></p>
-  <p style="color:#64748b; font-size:13px;">If you don't confirm within {days_until_delete} days, we'll delete the pending account.</p>
-  <p style="color:#94a3b8; font-size:12px; margin-top:32px;">— The Engramia team</p>
-</body>
-</html>
-"""
+    content = f"""
+      <p style="margin:0 0 16px 0;">{safe_greeting}</p>
+      <p style="margin:0 0 16px 0;">You signed up for <strong>Engramia</strong> {days_since_signup} days ago but haven't confirmed your email yet.</p>
+      {_button_html(href=verify_url, label="Verify my email")}
+      <p style="margin:16px 0 8px 0; color:{_TEXT_MUTED}; font-size:13px;">Or paste this link into your browser:</p>
+      <p style="margin:0 0 24px 0; word-break:break-all;"><a href="{safe_url}" style="color:{_BRAND_ACCENT_DARK}; text-decoration:underline; font-size:13px;">{safe_url}</a></p>
+      <p style="margin:0; color:{_TEXT_MUTED}; font-size:13px;">If you don't confirm within {days_until_delete} days, we'll delete the pending account.</p>
+    """
+    html = _email_layout(
+        content_html=content,
+        preheader=f"Finish setting up your Engramia account within {days_until_delete} days.",
+    )
     return subject, text, html

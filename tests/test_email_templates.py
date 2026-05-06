@@ -70,7 +70,10 @@ class TestVerificationEmail:
     def test_no_name_uses_fallback_greeting(self):
         _, text, html = verification_email(verify_url="https://app/verify?token=t", recipient_name=None)
         assert text.startswith("Hi,\n\n")
-        assert "<p>Hi,</p>" in html
+        # Greeting renders as a styled <p ...>Hi,</p>; the chrome added inline
+        # margin styling so we match against the visible text rather than the
+        # exact opening tag.
+        assert ">Hi,</p>" in html
 
     def test_named_recipient_uses_personal_greeting(self):
         _, text, html = verification_email(verify_url="https://app/verify?token=t", recipient_name="Bob")
