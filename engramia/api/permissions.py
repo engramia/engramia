@@ -71,6 +71,13 @@ _ADMIN_PERMS: frozenset[str] = _EDITOR_PERMS | frozenset(
         "governance:delete",
         # Phase 6.0: Audit log access (dashboard audit viewer)
         "audit:read",
+        # Billing — admin+ can read subscription state and manage checkout/portal.
+        # The matching server-side dependency may be added on the billing routes
+        # in a follow-up; the perm string is defined here as the source of truth
+        # so the Dashboard sidebar gate (lib/permissions.ts) and any future
+        # require_permission() decorator stay aligned.
+        "billing:read",
+        "billing:manage",
         # Phase 6.6: BYOK credential management (admin+ only — these
         # endpoints write the LLM provider key the tenant uses, so the
         # blast radius of a compromised editor-tier key would otherwise

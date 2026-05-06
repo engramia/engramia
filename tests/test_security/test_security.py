@@ -65,12 +65,51 @@ def api_client(tmp_path, monkeypatch):
 
 
 class TestTimingSafeAuth:
-    def test_hmac_compare_digest_used(self):
-        """auth.py must use hmac.compare_digest, not ==."""
-        from engramia.api import auth
+    def test_hmac_compare_digest_used(self, tmp_path, monkeypatch):
+        """auth.py must call hmac.compare_digest for env-var token comparison.
 
-        source = inspect.getsource(auth)
-        assert "hmac.compare_digest" in source, "auth.py must use hmac.compare_digest for token comparison"
+        Behavioral check (not source grep): wrap hmac.compare_digest with a spy,
+        trigger a token check by hitting /v1/health with a bad bearer token,
+        and assert the spy was called. A regression that switched to ``==``
+        would leave the spy with zero calls and fail this test loudly.
+        """
+        import hmac as hmac_module
+        import os
+
+        os.environ["ENGRAMIA_API_KEYS"] = "test-key-abc"
+        try:
+            from engramia.providers.json_storage import JSONStorage
+            from tests.conftest import FakeEmbeddings
+
+            calls: list[tuple] = []
+            real_compare = hmac_module.compare_digest
+
+            def spy(a, b):
+                calls.append((a, b))
+                return real_compare(a, b)
+
+            monkeypatch.setattr(hmac_module, "compare_digest", spy)
+
+            app = FastAPI()
+            app.state.memory = Memory(
+                embeddings=FakeEmbeddings(),
+                storage=JSONStorage(path=tmp_path),
+            )
+            app.include_router(router, prefix="/v1")
+            client = TestClient(app)
+            client.get("/v1/health", headers={"Authorization": "Bearer wrong-token"})
+
+            assert len(calls) >= 1, (
+                "hmac.compare_digest was never called during token verification — "
+                "auth.py likely regressed to == comparison."
+            )
+            # Spy receives (token_from_request, configured_key); confirm one of
+            # those calls compared against the configured key.
+            assert any("test-key-abc" in (a, b) for a, b in calls), (
+                f"hmac.compare_digest was called but not with the configured key: {calls}"
+            )
+        finally:
+            os.environ.pop("ENGRAMIA_API_KEYS", None)
 
     def test_valid_token_accepted(self, tmp_path):
         import os
@@ -115,7 +154,14 @@ class TestRateLimiting:
         assert 429 in status_codes, f"Expected 429 in {status_codes}"
 
     def test_rate_limit_headers_present(self, fake_embeddings, storage):
-        """429 response must include Retry-After header."""
+        """429 response must include Retry-After header.
+
+        Configures default_limit=1, consumes the quota with the first request,
+        then asserts the second request returns 429 with a Retry-After header.
+        Both assertions are unconditional — a regression that broke the limiter
+        (returning 200 instead of 429) or stripped the header would surface as
+        a hard failure rather than a silent skip.
+        """
         from engramia.api.middleware import RateLimitMiddleware
 
         app = FastAPI()
@@ -126,8 +172,12 @@ class TestRateLimiting:
         client = TestClient(app, raise_server_exceptions=False)
         client.get("/v1/health")  # consume quota
         resp = client.get("/v1/health")
-        if resp.status_code == 429:
-            assert "Retry-After" in resp.headers
+        assert resp.status_code == 429, (
+            f"Expected 429 after consuming the rate-limit quota, got {resp.status_code}"
+        )
+        assert "Retry-After" in resp.headers, (
+            f"Expected Retry-After header on 429 response, got headers: {list(resp.headers)}"
+        )
 
 
 # ---------------------------------------------------------------------------

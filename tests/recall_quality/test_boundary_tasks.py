@@ -61,14 +61,20 @@ def test_boundary_task_matches_both_clusters(
         matched_a = any(m["pattern_key"] in cluster_keys[cluster_a] and m["similarity"] >= min_sim for m in matches)
         matched_b = any(m["pattern_key"] in cluster_keys[cluster_b] and m["similarity"] >= min_sim for m in matches)
 
-        passed = matched_a or matched_b
+        # The docstring promises BOTH contributing clusters surface in the
+        # top results — change `or` to `and` so the assertion enforces what
+        # the test name and docstring claim. A regression that loses an
+        # entire cluster from the embedding space (the bug a "boundary"
+        # test should detect) was previously masked by `or`.
+        passed = matched_a and matched_b
         quality_tracker.record_boundary(boundary_task, matched_a, matched_b, passed)
 
         top_info = [(round(m["similarity"], 3), m["pattern"]["task"][:50]) for m in matches[:3]]
         assert passed, (
             f"Boundary task '{boundary_task[:60]}'\n"
-            f"did not match either cluster {cluster_a} or {cluster_b} "
-            f"at similarity >= {min_sim}\n"
+            f"did not match BOTH clusters {cluster_a} and {cluster_b} "
+            f"at similarity >= {min_sim} "
+            f"(matched_a={matched_a}, matched_b={matched_b})\n"
             f"Top matches: {top_info}"
         )
 

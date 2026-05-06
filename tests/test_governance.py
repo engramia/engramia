@@ -924,93 +924,18 @@ class TestScopedDeletionWithMockEngine:
 
 
 # ---------------------------------------------------------------------------
-# RetentionManager — with mock engine
+# RetentionManager
 # ---------------------------------------------------------------------------
-
-
-class TestRetentionManagerWithMockEngine:
-    @pytest.fixture
-    def mock_engine(self):
-        from unittest.mock import MagicMock
-
-        engine = MagicMock()
-        conn = MagicMock()
-        engine.begin.return_value.__enter__ = lambda *a: conn
-        engine.begin.return_value.__exit__ = MagicMock(return_value=False)
-        engine.connect.return_value.__enter__ = lambda *a: conn
-        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
-        return engine, conn
-
-    def test_get_policy_with_mock_engine_returns_project_days(self, mock_engine):
-        engine, conn = mock_engine
-        from unittest.mock import MagicMock
-
-        row = MagicMock()
-        row.proj_days = 45
-        row.tenant_days = 90
-        conn.execute.return_value.fetchone.return_value = row
-
-        manager = RetentionManager(engine=engine)
-        days = manager.get_policy("t1", "p1")
-        assert days == 45
-
-    def test_get_policy_with_mock_engine_falls_back_to_tenant(self, mock_engine):
-        engine, conn = mock_engine
-        from unittest.mock import MagicMock
-
-        row = MagicMock()
-        row.proj_days = None
-        row.tenant_days = 180
-        conn.execute.return_value.fetchone.return_value = row
-
-        manager = RetentionManager(engine=engine)
-        days = manager.get_policy("t1", "p1")
-        assert days == 180
-
-    def test_get_policy_falls_back_on_exception(self, mock_engine):
-        engine, conn = mock_engine
-        conn.execute.side_effect = Exception("DB error")
-
-        manager = RetentionManager(engine=engine, default_retention_days=365)
-        days = manager.get_policy("t1", "p1")
-        assert days == 365
-
-    def test_set_project_policy_with_engine(self, mock_engine):
-        engine, conn = mock_engine
-        manager = RetentionManager(engine=engine)
-        # Should not raise
-        manager.set_project_policy("p1", "t1", days=90)
-        assert conn.execute.called
-
-    def test_set_tenant_policy_with_engine(self, mock_engine):
-        engine, conn = mock_engine
-        manager = RetentionManager(engine=engine)
-        manager.set_tenant_policy("t1", days=120)
-        assert conn.execute.called
-
-
-# ---------------------------------------------------------------------------
-# RetentionManager — policy setters + more paths
-# ---------------------------------------------------------------------------
-
-
-class TestRetentionPolicySetters:
-    def test_set_project_policy_no_engine_logs_warning(self):
-        manager = RetentionManager(engine=None, default_retention_days=365)
-        # Should not raise, just log warning
-        manager.set_project_policy("project1", "tenant1", days=90)
-
-    def test_set_project_policy_clear_no_engine(self):
-        manager = RetentionManager(engine=None)
-        manager.set_project_policy("project1", "tenant1", days=None)
-
-    def test_set_tenant_policy_no_engine_logs_warning(self):
-        manager = RetentionManager(engine=None)
-        manager.set_tenant_policy("tenant1", days=180)
-
-    def test_set_tenant_policy_clear_no_engine(self):
-        manager = RetentionManager(engine=None)
-        manager.set_tenant_policy("tenant1", days=None)
+#
+# Consolidated from three previous classes (TestRetentionManagerWithMockEngine,
+# TestRetentionPolicySetters, TestRetentionManagerMockEngine — all overlapping
+# with weak `conn.execute.called` asserts). The single class below covers
+# the full RetentionManager surface with stronger param-shape assertions on
+# the setters: a regression that swapped `days` into the `tenant_id` slot
+# would silently pass the old tests but now fails loudly.
+#
+# The `apply()` integration tests live in their own class lower in the
+# file — different concern, kept separate.
 
     def test_get_policy_returns_default_when_no_engine(self):
         manager = RetentionManager(engine=None, default_retention_days=999)
@@ -1385,83 +1310,144 @@ class TestLifecycleJobsMockEngine:
 
 
 class TestRetentionManagerMockEngine:
-    def test_get_policy_with_project_days(self):
+    """Mock-engine paths for ``get_policy`` / ``set_project_policy`` / ``set_tenant_policy``.
+
+    Consolidated from three previous overlapping classes — see comment
+    block above ``TestRetentionManager`` for the dedupe rationale. The
+    setter tests pin the SQL bind-param shape (days / project_id /
+    tenant_id slot identity) so a regression that shuffles params
+    between slots fails loudly. Old tests asserted only ``conn.execute.called``
+    which would silently pass.
+    """
+
+    @pytest.fixture
+    def mock_engine(self):
+        """Engine whose ``begin()`` and ``connect()`` both yield the same
+        mocked connection. Tests configure ``conn.execute.return_value``
+        per case."""
         from unittest.mock import MagicMock
 
         engine = MagicMock()
         conn = MagicMock()
+        engine.begin.return_value.__enter__ = lambda *a: conn
+        engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+        engine.connect.return_value.__enter__ = lambda *a: conn
+        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+        return engine, conn
+
+    # ── get_policy ──────────────────────────────────────────────────────
+
+    def test_get_policy_returns_project_days_when_set(self, mock_engine):
+        from unittest.mock import MagicMock
+
+        engine, conn = mock_engine
         row = MagicMock()
         row.proj_days = 60
         row.tenant_days = 90
-        engine.connect.return_value.__enter__ = lambda *a: conn
-        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
         conn.execute.return_value.fetchone.return_value = row
 
         mgr = RetentionManager(engine=engine)
-        days = mgr.get_policy("t1", "p1")
-        assert days == 60
+        assert mgr.get_policy("t1", "p1") == 60
 
-    def test_get_policy_fallback_to_tenant(self):
+    def test_get_policy_falls_back_to_tenant_when_project_null(self, mock_engine):
         from unittest.mock import MagicMock
 
-        engine = MagicMock()
-        conn = MagicMock()
+        engine, conn = mock_engine
         row = MagicMock()
         row.proj_days = None
         row.tenant_days = 180
-        engine.connect.return_value.__enter__ = lambda *a: conn
-        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
         conn.execute.return_value.fetchone.return_value = row
 
         mgr = RetentionManager(engine=engine)
-        days = mgr.get_policy("t1", "p1")
-        assert days == 180
+        assert mgr.get_policy("t1", "p1") == 180
 
-    def test_get_policy_row_none(self):
-        from unittest.mock import MagicMock
-
-        engine = MagicMock()
-        conn = MagicMock()
-        engine.connect.return_value.__enter__ = lambda *a: conn
-        engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+    def test_get_policy_falls_back_to_default_when_row_missing(self, mock_engine):
+        engine, conn = mock_engine
         conn.execute.return_value.fetchone.return_value = None
 
         mgr = RetentionManager(engine=engine, default_retention_days=999)
-        days = mgr.get_policy("t1", "p1")
-        assert days == 999
+        assert mgr.get_policy("t1", "p1") == 999
 
-    def test_set_project_policy_no_engine(self):
+    def test_get_policy_falls_back_to_default_on_db_exception(self, mock_engine):
+        engine, conn = mock_engine
+        conn.execute.side_effect = Exception("DB error")
+
+        mgr = RetentionManager(engine=engine, default_retention_days=365)
+        assert mgr.get_policy("t1", "p1") == 365
+
+    # ── set_project_policy ──────────────────────────────────────────────
+
+    def test_set_project_policy_no_engine_is_noop(self):
         mgr = RetentionManager(engine=None)
-        # No-op, no exception
+        # Must not raise — no-op + warning log path.
         mgr.set_project_policy("p1", "t1", 30)
+        mgr.set_project_policy("p1", "t1", None)
 
-    def test_set_tenant_policy_no_engine(self):
+    def test_set_project_policy_emits_correct_sql_and_bind_params(self, mock_engine):
+        engine, conn = mock_engine
+        mgr = RetentionManager(engine=engine)
+
+        mgr.set_project_policy(project_id="proj-A", tenant_id="tenant-X", days=45)
+
+        # SQL must target projects.retention_days, scoped by (id, tenant_id)
+        # so a tenant can never overwrite a sibling tenant's project.
+        sql = str(conn.execute.call_args[0][0]).upper()
+        assert "UPDATE PROJECTS" in sql
+        assert "RETENTION_DAYS" in sql
+        assert "TENANT_ID" in sql
+
+        # Bind params — strict identity check on each slot. A regression
+        # that swapped tenant_id and project_id would pass the old
+        # `assert called` check; here it fails.
+        params = conn.execute.call_args[0][1]
+        assert params == {"days": 45, "pid": "proj-A", "tid": "tenant-X"}
+
+    def test_set_project_policy_with_none_clears_value(self, mock_engine):
+        # Clearing (days=None) must still emit the UPDATE — projects with
+        # an existing policy need their retention_days reset to NULL so
+        # the resolver falls back to the tenant policy.
+        engine, conn = mock_engine
+        mgr = RetentionManager(engine=engine)
+
+        mgr.set_project_policy("p1", "t1", days=None)
+
+        params = conn.execute.call_args[0][1]
+        assert params["days"] is None
+        assert params["pid"] == "p1"
+        assert params["tid"] == "t1"
+
+    # ── set_tenant_policy ───────────────────────────────────────────────
+
+    def test_set_tenant_policy_no_engine_is_noop(self):
         mgr = RetentionManager(engine=None)
         mgr.set_tenant_policy("t1", 30)
+        mgr.set_tenant_policy("t1", None)
 
-    def test_set_project_policy_with_engine(self):
-        from unittest.mock import MagicMock
-
-        engine = MagicMock()
-        conn = MagicMock()
-        engine.begin.return_value.__enter__ = lambda *a: conn
-        engine.begin.return_value.__exit__ = MagicMock(return_value=False)
-
+    def test_set_tenant_policy_emits_correct_sql_and_bind_params(self, mock_engine):
+        engine, conn = mock_engine
         mgr = RetentionManager(engine=engine)
-        mgr.set_project_policy("p1", "t1", 45)
-        conn.execute.assert_called_once()
 
-    def test_set_tenant_policy_with_engine(self):
-        from unittest.mock import MagicMock
+        mgr.set_tenant_policy(tenant_id="tenant-Y", days=90)
 
-        engine = MagicMock()
-        conn = MagicMock()
-        engine.begin.return_value.__enter__ = lambda *a: conn
-        engine.begin.return_value.__exit__ = MagicMock(return_value=False)
+        sql = str(conn.execute.call_args[0][0]).upper()
+        assert "UPDATE TENANTS" in sql
+        assert "RETENTION_DAYS" in sql
 
+        # No project_id slot here — tenant-only update.
+        params = conn.execute.call_args[0][1]
+        assert params == {"days": 90, "tid": "tenant-Y"}
+
+    def test_set_tenant_policy_with_none_clears_value(self, mock_engine):
+        engine, conn = mock_engine
         mgr = RetentionManager(engine=engine)
-        mgr.set_tenant_policy("t1", 90)
-        conn.execute.assert_called_once()
+
+        mgr.set_tenant_policy("t1", days=None)
+
+        params = conn.execute.call_args[0][1]
+        assert params["days"] is None
+        assert params["tid"] == "t1"
+
+    # ── apply() Postgres path ───────────────────────────────────────────
 
     def test_apply_postgres_path(self, storage, fake_embeddings):
         from unittest.mock import MagicMock, patch

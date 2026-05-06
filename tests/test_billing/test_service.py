@@ -389,57 +389,119 @@ class TestHandleWebhookEvent:
             result = svc.handle_webhook_event(b"{}", "sig")
         assert result == "invoice.paid"
 
-    def test_subscription_created_calls_upsert(self):
-        data = {
-            "customer": "cus_x",
-            "id": "sub_x",
-            "status": "active",
-            "items": {"data": [{"plan": {"interval": "month"}}]},
-            "current_period_end": 1900000000,
-            "metadata": {"plan_tier": "pro"},
-        }
-        svc, _ = self._make_svc("customer.subscription.created", data)
-        with patch.object(svc, "_upsert_subscription") as mock_upsert:
-            svc.handle_webhook_event(b"{}", "sig")
-        mock_upsert.assert_called_once_with(data)
+    # Parametric dispatch table — every Stripe event type the webhook
+    # router knows about, paired with the exact handler method it MUST
+    # invoke and the EXACT arguments it MUST pass. A bug that swaps
+    # payloads between branches (e.g. routing subscription.updated
+    # through the .deleted handler) is caught here because the handler
+    # name AND the call args both have to match.
+    #
+    # Adding a new dispatch case = adding one tuple to this list. The
+    # contract is: (event_type, event_data_object, handler_attr, expected_call_args)
+    # where expected_call_args is the tuple/dict the handler must be
+    # called with.
+    _SUB_DATA_ACTIVE = {
+        "customer": "cus_x",
+        "id": "sub_x",
+        "status": "active",
+        "items": {"data": [{"plan": {"interval": "month"}}]},
+        "current_period_end": 1900000000,
+        "metadata": {"plan_tier": "pro"},
+    }
+    _SUB_DATA_UPDATED = {
+        "customer": "cus_y",
+        "id": "sub_y",
+        "status": "active",
+        "items": {"data": [{"plan": {"interval": "year"}}]},
+        "current_period_end": 1900000001,
+        "metadata": {"plan_tier": "team"},
+    }
 
-    def test_subscription_updated_calls_upsert(self):
-        data = {
-            "customer": "cus_x",
-            "id": "sub_x",
-            "status": "active",
-            "items": {"data": [{"plan": {"interval": "month"}}]},
-            "current_period_end": 1900000000,
-            "metadata": {},
-        }
-        svc, _ = self._make_svc("customer.subscription.updated", data)
-        with patch.object(svc, "_upsert_subscription") as mock_upsert:
-            svc.handle_webhook_event(b"{}", "sig")
-        mock_upsert.assert_called_once()
+    @pytest.mark.parametrize(
+        ("event_type", "data", "handler_attr", "expected_args"),
+        [
+            (
+                "customer.subscription.created",
+                _SUB_DATA_ACTIVE,
+                "_upsert_subscription",
+                (_SUB_DATA_ACTIVE,),
+            ),
+            (
+                "customer.subscription.updated",
+                _SUB_DATA_UPDATED,
+                "_upsert_subscription",
+                (_SUB_DATA_UPDATED,),
+            ),
+            (
+                "customer.subscription.deleted",
+                {"customer": "cus_x"},
+                "_downgrade_to_sandbox",
+                ("cus_x",),
+            ),
+            (
+                "invoice.payment_failed",
+                {"customer": "cus_x"},
+                "_set_status_by_customer",
+                ("cus_x", "past_due"),
+            ),
+            (
+                "invoice.paid",
+                {"customer": "cus_x"},
+                "_set_status_by_customer",
+                ("cus_x", "active"),
+            ),
+            (
+                "invoice.created",
+                {"customer": "cus_x"},
+                "_report_overage_for_customer",
+                ("cus_x",),
+            ),
+        ],
+        ids=lambda v: v if isinstance(v, str) else "_",
+    )
+    def test_handle_event_dispatch_table(
+        self, event_type, data, handler_attr, expected_args
+    ):
+        """Every dispatched event invokes its handler with exact-match args.
 
-    def test_subscription_deleted_calls_downgrade(self):
-        svc, _ = self._make_svc("customer.subscription.deleted", {"customer": "cus_x"})
-        with patch.object(svc, "_downgrade_to_sandbox") as mock_down:
-            svc.handle_webhook_event(b"{}", "sig")
-        mock_down.assert_called_once_with("cus_x")
+        A regression that swaps payloads between branches, drops a
+        positional argument, or routes an event to the wrong handler is
+        caught by either the `assert_called_once_with(*expected_args)`
+        check on the dispatched handler or the
+        `assert_not_called()` checks on the other handlers.
+        """
+        svc, _ = self._make_svc(event_type, data)
 
-    def test_invoice_payment_failed_sets_past_due(self):
-        svc, _ = self._make_svc("invoice.payment_failed", {"customer": "cus_x"})
-        with patch.object(svc, "_set_status_by_customer") as mock_status:
+        # Patch every dispatch target so we can assert which one fired
+        # AND assert that the others did not. Without the cross-handler
+        # not-called checks, a regression that fired BOTH the right and
+        # wrong handler would still pass the positive assertion.
+        all_handlers = (
+            "_upsert_subscription",
+            "_downgrade_to_sandbox",
+            "_set_status_by_customer",
+            "_report_overage_for_customer",
+        )
+        with (
+            patch.object(svc, "_upsert_subscription") as h_upsert,
+            patch.object(svc, "_downgrade_to_sandbox") as h_down,
+            patch.object(svc, "_set_status_by_customer") as h_status,
+            patch.object(svc, "_report_overage_for_customer") as h_overage,
+        ):
+            handlers = {
+                "_upsert_subscription": h_upsert,
+                "_downgrade_to_sandbox": h_down,
+                "_set_status_by_customer": h_status,
+                "_report_overage_for_customer": h_overage,
+            }
             svc.handle_webhook_event(b"{}", "sig")
-        mock_status.assert_called_once_with("cus_x", "past_due")
 
-    def test_invoice_paid_sets_active(self):
-        svc, _ = self._make_svc("invoice.paid", {"customer": "cus_x"})
-        with patch.object(svc, "_set_status_by_customer") as mock_status:
-            svc.handle_webhook_event(b"{}", "sig")
-        mock_status.assert_called_once_with("cus_x", "active")
+            handlers[handler_attr].assert_called_once_with(*expected_args)
 
-    def test_invoice_created_reports_overage(self):
-        svc, _ = self._make_svc("invoice.created", {"customer": "cus_x"})
-        with patch.object(svc, "_report_overage_for_customer") as mock_overage:
-            svc.handle_webhook_event(b"{}", "sig")
-        mock_overage.assert_called_once_with("cus_x")
+            for name in all_handlers:
+                if name == handler_attr:
+                    continue
+                handlers[name].assert_not_called()
 
     def test_unknown_event_type_returns_event_type(self):
         svc, _ = self._make_svc("some.unknown.event", {})
