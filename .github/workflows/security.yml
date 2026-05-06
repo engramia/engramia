@@ -29,7 +29,10 @@ jobs:
         # runner image. Build-time tooling only — the deployed Engramia container
         # ships its own pip via the base image. Re-evaluate when the runner ships
         # a fixed pip.
-        run: pip-audit --skip-editable --ignore-vuln GHSA-pjjw-68hj-v9mw --ignore-vuln CVE-2026-3219
+        # CVE-2026-6357: pip <26.1 self-update timing (newly disclosed 2026-05-06).
+        # Same scope as CVE-2026-3219 — runner-image build-time pip, not in our
+        # deployed container. Re-evaluate when the runner ships pip ≥ 26.1.
+        run: pip-audit --skip-editable --ignore-vuln GHSA-pjjw-68hj-v9mw --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2026-6357
 
   bandit:
     name: bandit (Python static security analysis)
