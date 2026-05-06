@@ -118,12 +118,26 @@ def submit_waitlist_request(
     engine = _require_engine(request)
 
     with engine.begin() as conn:
+        # Silent dedup via the partial unique index ``uq_waitlist_active``
+        # (migration 030) — if this email already has a row in flight
+        # (pending) or already accepted (approved), the INSERT below is a
+        # no-op and RETURNING yields nothing. We then re-fetch the
+        # existing row and return its id so the form behaves identically
+        # to a fresh submission. This is enumeration-safe: an attacker
+        # can't tell from the response whether a given email is already
+        # queued. ``status='rejected'`` is NOT covered by the index — a
+        # rejected applicant may legitimately resubmit with corrected
+        # info. The WHERE clause MUST stay byte-identical to the index
+        # predicate in migration 030 so PostgreSQL infers the arbiter
+        # index correctly.
         result = conn.execute(
             text(
                 "INSERT INTO waitlist_requests "
                 "(email, name, plan_interest, country, use_case, "
                 " company_name, referral_source) "
                 "VALUES (:email, :name, :plan, :country, :uc, :company, :ref) "
+                "ON CONFLICT (email) WHERE status IN ('pending', 'approved') "
+                "DO NOTHING "
                 "RETURNING id, created_at"
             ),
             {
@@ -137,12 +151,41 @@ def submit_waitlist_request(
             },
         ).fetchone()
 
-    if result is None:
-        # Defensive — INSERT … RETURNING shouldn't return None on success.
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to persist waitlist request.",
-        )
+        if result is None:
+            # Conflict — duplicate. Look up the existing active row and
+            # return its id; skip ack + admin notify. Same transaction so
+            # READ COMMITTED sees the winning row even if it was a
+            # concurrent INSERT (PG blocks ON CONFLICT until the winner
+            # commits).
+            existing = conn.execute(
+                text(
+                    "SELECT id, created_at FROM waitlist_requests "
+                    "WHERE email = :email "
+                    "AND status IN ('pending', 'approved') "
+                    "ORDER BY created_at ASC LIMIT 1"
+                ),
+                {"email": body.email},
+            ).fetchone()
+            if existing is None:
+                # Should not happen — ON CONFLICT only fires when a
+                # matching active row exists. Defensive 500.
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to persist waitlist request.",
+                )
+            request_id = str(existing[0])
+            created_at = existing[1].isoformat() if existing[1] else ""
+            _log.info(
+                "waitlist_duplicate_silently_dropped existing_request_id=%s plan_interest=%s",
+                request_id,
+                body.plan_interest,
+            )
+            return WaitlistRequestResponse(
+                request_id=request_id,
+                status="pending",
+                created_at=created_at,
+            )
+
     request_id = str(result[0])
     created_at = result[1].isoformat() if result[1] else ""
 

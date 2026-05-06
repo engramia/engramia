@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — targeting 0.6.7
 
+### Fixed — Waitlist / Pilot form silently dedups duplicate submissions (race-safe)
+
+`POST /v1/waitlist/request` previously inserted a fresh row and re-sent
+both the applicant ack and the admin notification on every submission —
+including resubmits of an email that was already pending review or had
+already been approved. Result: applicants who clicked "Submit" twice
+received N ack emails and the admin received N duplicate notifications,
+and the same lead surfaced repeatedly in `engramia waitlist list`.
+
+- **Migration `030_waitlist_active_unique_index`** — adds partial unique
+  index `uq_waitlist_active ON waitlist_requests(email) WHERE status IN
+  ('pending','approved')`. Pre-existing duplicates are collapsed before
+  the index goes on: within each email's pending/approved set the
+  canonical row is the earliest `approved` (admin already acted on it)
+  or, if none, the earliest `pending`; the rest are flipped to
+  `status='rejected'` with a synthetic `rejection_reason` so the audit
+  trail is preserved. `status='rejected'` is NOT covered by the index —
+  a rejected applicant may legitimately resubmit with corrected info.
+- **`engramia/api/waitlist.py`** — `submit_waitlist_request` now uses
+  `INSERT … ON CONFLICT (email) WHERE status IN ('pending','approved')
+  DO NOTHING RETURNING …`. When the conflict fires (the email is already
+  in flight or approved) the handler runs a recovery `SELECT` for the
+  existing row, returns `201` with that row's `request_id` and
+  `created_at`, and skips both ack and admin-notify emails. The WHERE
+  predicate must stay byte-identical to the index predicate above for
+  PostgreSQL to infer the arbiter index correctly.
+- The behaviour is enumeration-safe: an attacker can't tell from the
+  response whether a given email is already in the queue (same status
+  code, same response shape).
+- Race condition between two near-simultaneous POSTs is now closed at
+  the DB layer — the unique index makes one INSERT win, the loser
+  no-ops via ON CONFLICT, and PG's READ COMMITTED isolation guarantees
+  the loser's recovery SELECT sees the winning row.
+- **`tests/test_api/test_waitlist.py`** — `TestWaitlistSilentDedup`
+  class with 3 tests (pending duplicate → silent 201, mixed-case
+  duplicate hits dedup via Pydantic email lowercasing, fresh email
+  still inserts + emails normally). Fixture rewired with an
+  `existing_emails` map: when an email is in the map the simulated
+  INSERT returns `None` (= ON CONFLICT) and the recovery SELECT
+  returns the (id, created_at) row.
+
 ### Tooling — GitNexus cross-repo reindex 2026-05-02
 
 After the cross-repo Pilot Program bundle landed (Website `924e19a`,

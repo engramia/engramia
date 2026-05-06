@@ -30,19 +30,54 @@ def captured_inserts():
 
 
 @pytest.fixture
-def mock_engine(captured_inserts):
+def existing_emails():
+    """Map of lowercased email -> (id, created_at) simulating an active
+    (pending/approved) row already present in waitlist_requests. For
+    these emails the simulated INSERT triggers ON CONFLICT DO NOTHING
+    (returns None) and the recovery SELECT returns the (id, created_at).
+    Empty by default = no active row."""
+    return {}
+
+
+@pytest.fixture
+def mock_engine(captured_inserts, existing_emails):
     engine = MagicMock()
     conn = MagicMock()
 
     def _execute(stmt, params=None):
         result = MagicMock()
-        if params and "email" in (params or {}) and "plan" in (params or {}):
+        params = params or {}
+
+        # INSERT path — both :email and :plan present.
+        if "email" in params and "plan" in params:
+            email = params["email"]
+            if email in existing_emails:
+                # Simulated ON CONFLICT DO NOTHING — no row inserted.
+                result.fetchone.return_value = None
+                return result
             captured_inserts.append(dict(params))
             row = MagicMock()
             row.__getitem__ = lambda self, idx: (
                 uuid.uuid4() if idx == 0 else datetime.datetime(2026, 5, 1, 12, 0, 0)
             )
             result.fetchone.return_value = row
+            return result
+
+        # Recovery SELECT — only :email param, fired after an
+        # ON-CONFLICT INSERT. Returns the existing row if simulated.
+        if "email" in params and "plan" not in params:
+            email = params["email"]
+            if email in existing_emails:
+                rid, created = existing_emails[email]
+                row = MagicMock()
+                row.__getitem__ = lambda self, idx, _r=rid, _c=created: (
+                    _r if idx == 0 else _c
+                )
+                result.fetchone.return_value = row
+            else:
+                result.fetchone.return_value = None
+            return result
+
         return result
 
     conn.execute.side_effect = _execute
@@ -356,6 +391,70 @@ class TestWaitlistPilotPath:
         )
         assert "Pilot" not in ack.kwargs["subject"]
         assert ack.kwargs.get("reply_to") is None
+
+
+# ---------------------------------------------------------------------------
+# Silent dedup — duplicate email with a row already in flight (pending) or
+# already accepted (approved) returns 201 without re-inserting and without
+# re-sending ack/admin emails. Rejected rows are intentionally not deduped
+# so a rejected applicant can resubmit with corrected info.
+# ---------------------------------------------------------------------------
+
+
+class TestWaitlistSilentDedup:
+    @patch("engramia.email.send_email")
+    def test_duplicate_pending_email_returns_201_without_insert_or_email(
+        self, mock_send, client, captured_inserts, existing_emails
+    ):
+        existing_id = uuid.uuid4()
+        existing_at = datetime.datetime(2026, 4, 1, 9, 0, 0)
+        existing_emails["user@example.com"] = (existing_id, existing_at)
+
+        resp = client.post("/v1/waitlist/request", json=_VALID_BODY)
+
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["status"] == "pending"
+        assert body["request_id"] == str(existing_id)
+        assert body["created_at"].startswith("2026-04-01")
+        # No INSERT, no emails — silent.
+        assert len(captured_inserts) == 0
+        assert mock_send.call_count == 0
+
+    @patch("engramia.email.send_email")
+    def test_dedup_is_case_insensitive_via_email_normalisation(
+        self, mock_send, client, captured_inserts, existing_emails
+    ):
+        # Pydantic lowercases the incoming email before the dedup SELECT
+        # runs, so a mixed-case resubmit hits the existing row.
+        existing_id = uuid.uuid4()
+        existing_emails["mixed@example.com"] = (
+            existing_id,
+            datetime.datetime(2026, 4, 1, 9, 0, 0),
+        )
+
+        body = {**_VALID_BODY, "email": "MiXeD@Example.COM"}
+        resp = client.post("/v1/waitlist/request", json=body)
+
+        assert resp.status_code == 201
+        assert resp.json()["request_id"] == str(existing_id)
+        assert len(captured_inserts) == 0
+        assert mock_send.call_count == 0
+
+    @patch("engramia.email.send_email")
+    def test_first_time_email_inserts_and_sends_emails_normally(
+        self, mock_send, client, captured_inserts, existing_emails
+    ):
+        # existing_emails is empty — happy path regression check that
+        # the new dedup branch doesn't break first-time submissions.
+        assert existing_emails == {}
+
+        resp = client.post("/v1/waitlist/request", json=_VALID_BODY)
+
+        assert resp.status_code == 201
+        assert len(captured_inserts) == 1
+        # ack + admin notify.
+        assert mock_send.call_count == 2
 
 
 # ---------------------------------------------------------------------------
