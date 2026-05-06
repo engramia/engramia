@@ -138,8 +138,8 @@ def waitlist_ack_email(
         f"{greeting}\n\n"
         "Thanks for requesting access to Engramia. We received your submission and "
         f"will review it within 2 business days.\n\n"
-        f"You requested the {plan_interest} plan. We'll either provision your account "
-        "and send credentials, or reply with a follow-up question.\n\n"
+        f"You requested the {plan_interest} plan. If we have any further questions "
+        "we will contact you on this email.\n\n"
         "Thank you for your interest\n"
         "Marek from Engramia\n"
     )
@@ -148,7 +148,7 @@ def waitlist_ack_email(
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1a1d27; max-width:540px; margin:0 auto; padding:24px;">
   <p>{safe_greeting}</p>
   <p>Thanks for requesting access to <strong>Engramia</strong>. We received your submission and will review it within <strong>2 business days</strong>.</p>
-  <p>You requested the <strong>{safe_plan}</strong> plan. We'll either provision your account and send credentials, or reply with a follow-up question.</p>
+  <p>You requested the <strong>{safe_plan}</strong> plan. If we have any further questions we will contact you on this email.</p>
   <p style="color:#94a3b8; font-size:12px; margin-top:32px;">Thank you for your interest<br>Marek from Engramia</p>
 </body>
 </html>
