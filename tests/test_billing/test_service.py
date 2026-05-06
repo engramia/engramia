@@ -110,7 +110,32 @@ class TestGetSubscription:
         assert sub.eval_runs_limit == 50_000
 
     def test_db_row_missing_returns_sandbox(self):
-        engine, _ = _engine_with_row(None)
+        # Two Nones: first for billing_subscriptions lookup, second for the
+        # tenants.plan_tier admin-override lookup (added so waitlist /
+        # cloud-create-account assigned plans surface without a Stripe sub).
+        engine, _ = _engine_with_row(None, None)
+        svc = _billing_service(engine=engine)
+        sub = svc.get_subscription("t1")
+        assert sub.plan_tier == "developer"
+
+    def test_admin_assigned_tier_overrides_developer_default(self):
+        """`tenants.plan_tier='business'` without a billing_subscriptions row
+        surfaces as the effective plan — the path waitlist approve and
+        cloud create-account take when assigning a plan without Stripe."""
+        engine, _ = _engine_with_row(None, ("business",))
+        svc = _billing_service(engine=engine)
+        sub = svc.get_subscription("t1")
+        assert sub.plan_tier == "business"
+        assert sub.status == "active"
+        # Limits are seeded from PLAN_LIMITS so quota enforcement uses
+        # the assigned tier even without a Stripe sub.
+        assert sub.eval_runs_limit == 1_000_000  # Phase 6.6 Business
+
+    def test_admin_assigned_unknown_tier_falls_back_to_developer(self):
+        """If `tenants.plan_tier` holds something not in PLAN_LIMITS (typo,
+        legacy value), fall through to the developer default rather than
+        crashing — the operator sees a warning in the logs."""
+        engine, _ = _engine_with_row(None, ("legacy-mystery-tier",))
         svc = _billing_service(engine=engine)
         sub = svc.get_subscription("t1")
         assert sub.plan_tier == "developer"
@@ -123,9 +148,11 @@ class TestGetSubscription:
         assert sub.plan_tier == "developer"
 
     def test_tenant_id_passed_to_query(self):
-        engine, conn = _engine_with_row(None)
+        # Two Nones: billing_subscriptions + tenants admin-override lookup.
+        engine, conn = _engine_with_row(None, None)
         svc = _billing_service(engine=engine)
         svc.get_subscription("my-tenant")
+        # Both queries pass the same tenant id under the same param name.
         args = conn.execute.call_args[0][1]
         assert args["tid"] == "my-tenant"
 
@@ -287,16 +314,12 @@ class TestStripeUrls:
         the same call. Cloud onboarding Variant A — ADR-005."""
         stripe = MagicMock()
         stripe.create_customer.return_value = "cus_lazy"
-        stripe.create_customer_portal_session.return_value = (
-            "https://billing.stripe.com/session/lazy"
-        )
+        stripe.create_customer_portal_session.return_value = "https://billing.stripe.com/session/lazy"
         svc = _billing_service(engine=None, stripe_client=stripe)
         url = svc.create_portal_url("t1", "https://return")
         assert url == "https://billing.stripe.com/session/lazy"
         stripe.create_customer.assert_called_once()
-        stripe.create_customer_portal_session.assert_called_once_with(
-            "cus_lazy", "https://return"
-        )
+        stripe.create_customer_portal_session.assert_called_once_with("cus_lazy", "https://return")
 
     def test_create_portal_no_customer_stripe_unconfigured_raises(self):
         """When Stripe is not configured, lazy-create returns None and we
@@ -327,7 +350,9 @@ class TestSetOverage:
         svc.set_overage("t1", enabled=True, budget_cap_cents=None)  # must not raise
 
     def test_sandbox_plan_raises_value_error(self):
-        engine, _ = _engine_with_row(None)  # None row → sandbox plan
+        # None billing_subscriptions row + None tenants.plan_tier → developer
+        # default → set_overage rejects (developer doesn't have an OVERAGE_CONFIG entry).
+        engine, _ = _engine_with_row(None, None)
         svc = _billing_service(engine=engine)
         with pytest.raises(ValueError, match="not available for plan tier"):
             svc.set_overage("t1", enabled=True, budget_cap_cents=None)
@@ -459,9 +484,7 @@ class TestHandleWebhookEvent:
         ],
         ids=lambda v: v if isinstance(v, str) else "_",
     )
-    def test_handle_event_dispatch_table(
-        self, event_type, data, handler_attr, expected_args
-    ):
+    def test_handle_event_dispatch_table(self, event_type, data, handler_attr, expected_args):
         """Every dispatched event invokes its handler with exact-match args.
 
         A regression that swaps payloads between branches, drops a
@@ -853,7 +876,9 @@ class TestSubscriptionLifecycleEdgeCases:
     def test_upsert_subscription_db_error_does_not_propagate(self):
         """DB error in _upsert_subscription must be swallowed (logged, not raised)."""
         engine = MagicMock()
-        engine.connect.return_value.__enter__ = lambda s: MagicMock(execute=MagicMock(return_value=MagicMock(fetchone=MagicMock(return_value=("t1",)))))
+        engine.connect.return_value.__enter__ = lambda s: MagicMock(
+            execute=MagicMock(return_value=MagicMock(fetchone=MagicMock(return_value=("t1",))))
+        )
         engine.connect.return_value.__exit__ = MagicMock(return_value=False)
         engine.begin.side_effect = sqlalchemy.exc.OperationalError("stmt", {}, Exception("DB down"))
         svc = _billing_service(engine=engine)

@@ -158,11 +158,57 @@ class BillingService:
     # Subscription state
     # ------------------------------------------------------------------
 
+    def _admin_assigned_plan(self, tenant_id: str) -> str | None:
+        """Read ``tenants.plan_tier`` for tenants that don't have a Stripe sub.
+
+        Two operator paths set ``tenants.plan_tier`` directly without going
+        through Stripe:
+
+        - ``engramia waitlist approve --plan <tier>`` — the customer was
+          accepted with a specific tier (typically a pilot or comp'd
+          subscription) before any Stripe relationship exists.
+        - ``engramia cloud create-account --plan <tier>`` — manual onboarding
+          for direct-relationship customers and staging E2E test accounts.
+
+        Both write to ``tenants`` only; they don't seed ``billing_subscriptions``
+        because Stripe webhooks own that table for paying customers.
+        Returning the admin-assigned tier here lets ``get_subscription``
+        surface it as the effective plan for status / dashboard / quota
+        purposes when no Stripe sub exists. Returns None when there's no
+        usable override (no row, NULL, empty, "free", or "developer").
+        """
+        try:
+            with self._engine.connect() as conn:
+                row = conn.execute(
+                    text("SELECT plan_tier FROM tenants WHERE id = :tid"),
+                    {"tid": tenant_id},
+                ).fetchone()
+        except sqlalchemy.exc.SQLAlchemyError:
+            return None
+        if row is None:
+            return None
+        tier = (row[0] or "").strip().lower()
+        # "free" was the pre-Phase-6.6 free-tier marker; "developer" is the
+        # current default. Both mean "no admin override worth surfacing".
+        if not tier or tier in {"free", "developer"}:
+            return None
+        if tier not in PLAN_LIMITS:
+            _log.warning(
+                "BillingService: tenant=%s has unknown plan_tier=%r — falling back to developer",
+                tenant_id,
+                tier,
+            )
+            return None
+        return tier
+
     def get_subscription(self, tenant_id: str) -> BillingSubscription:
         """Return the current subscription for a tenant.
 
-        If no DB row exists (e.g. new tenant, or no engine), returns a
-        default sandbox subscription without touching the DB.
+        Lookup order:
+        1. ``billing_subscriptions`` row (Stripe-paying customers).
+        2. ``tenants.plan_tier`` admin override (waitlist / cloud
+           create-account assigned a pilot or comp'd tier).
+        3. Developer-tier default (BYOK free).
         """
         if self._engine is None:
             return BillingSubscription.sandbox_default(tenant_id)
@@ -183,6 +229,21 @@ class BillingService:
             return BillingSubscription.sandbox_default(tenant_id)
 
         if row is None:
+            # No Stripe subscription — check for an admin-assigned tier on
+            # the tenant row itself before falling back to developer-default.
+            admin_tier = self._admin_assigned_plan(tenant_id)
+            if admin_tier is not None:
+                limits = PLAN_LIMITS[admin_tier]
+                return BillingSubscription(
+                    tenant_id=tenant_id,
+                    plan_tier=admin_tier,
+                    # Operator-assigned plans are "active" by definition —
+                    # there's no Stripe sub to be past_due / canceled / etc.
+                    status="active",
+                    eval_runs_limit=limits["eval_runs"],
+                    patterns_limit=limits["patterns"],
+                    projects_limit=limits["projects"],
+                )
             return BillingSubscription.sandbox_default(tenant_id)
         return BillingSubscription(
             tenant_id=tenant_id,
