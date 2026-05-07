@@ -61,6 +61,8 @@ benchmarks/data/
 .cov_live.json
 htmlcov/
 coverage.xml
+junit.xml
+junit-*.xml
 tests/recall_quality/results/
 
 # Benchmark outputs (auto-generated runs — but published reference data is tracked)
