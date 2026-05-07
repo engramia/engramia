@@ -229,8 +229,8 @@ def _register_middleware(app: FastAPI) -> None:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=cors_origins,
-            allow_methods=["GET", "POST", "PUT", "DELETE"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
+            allow_headers=["Authorization", "Content-Type", "If-Match"],
         )
     app.add_middleware(MaintenanceModeMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
