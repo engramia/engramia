@@ -302,13 +302,16 @@ def _audit_credential_event(
     callers must guarantee no plaintext secret enters this dict.
     """
     try:
-        from engramia.api.audit import log_db_event
+        from engramia.api.audit import log_db_event, resolve_actor
 
         engine = getattr(request.app.state, "auth_engine", None)
         if engine is None:
             return  # No DB → no audit log; existing pattern in keys.py
         scope = get_scope()
         project_id = scope.project_id if scope.project_id != "default" else None
+        auth_ctx = getattr(request.state, "auth_context", None)
+        actor_user_id, actor_key_id = resolve_actor(auth_ctx)
+        ip = request.client.host if request.client else None
         log_db_event(
             engine,
             tenant_id=tenant_id,
@@ -316,10 +319,13 @@ def _audit_credential_event(
             action=action,
             resource_type="credential",
             resource_id=detail.get("credential_id"),
+            ip_address=ip,
+            actor_user_id=actor_user_id,
+            key_id=actor_key_id,
+            detail=detail,
         )
-        # The detail dict is logged separately via the structured logger
-        # so it lands in Loki without bloating the audit_log table. The
-        # log_redactor (PR2) scrubs anything that looks like a secret.
+        # Mirror the structured-detail entry to Loki for log-aggregation
+        # tooling (the DB row is now the canonical store).
         _log.info("audit_credential action=%s tenant=%s detail=%s", action, tenant_id, detail)
     except Exception:
         _log.warning("Audit log emit failed for action=%s (non-fatal)", action, exc_info=True)

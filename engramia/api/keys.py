@@ -32,7 +32,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from engramia.api.audit import AuditEvent, log_db_event, log_event
+from engramia.api.audit import AuditEvent, log_db_event, log_event, resolve_actor
 from engramia.api.auth import invalidate_key_cache, require_auth
 from engramia.api.permissions import require_permission
 
@@ -351,15 +351,18 @@ def create_key(body: KeyCreateRequest, request: Request) -> KeyCreateResponse:
     )
     ip = request.client.host if request.client else "unknown"
     log_event(AuditEvent.KEY_CREATED, key_id=result.id, role=body.role, ip=ip)
+    actor_user_id, actor_key_id = resolve_actor(ctx)
     log_db_event(
         engine,
         tenant_id=ctx.tenant_id,
         project_id=ctx.project_id,
-        key_id=ctx.key_id,
+        key_id=actor_key_id,
+        actor_user_id=actor_user_id,
         action="key_created",
         resource_type="api_key",
         resource_id=result.id,
         ip_address=ip,
+        detail={"role": body.role, "name": body.name},
     )
     return result
 
@@ -452,11 +455,13 @@ def revoke_key(key_id: str, request: Request) -> KeyRevokeResponse:
 
     ip = request.client.host if request.client else "unknown"
     log_event(AuditEvent.KEY_REVOKED, key_id=key_id, ip=ip)
+    actor_user_id, actor_key_id = resolve_actor(ctx)
     log_db_event(
         engine,
         tenant_id=ctx.tenant_id,
         project_id=ctx.project_id,
-        key_id=ctx.key_id,
+        key_id=actor_key_id,
+        actor_user_id=actor_user_id,
         action="key_revoked",
         resource_type="api_key",
         resource_id=key_id,
@@ -513,11 +518,13 @@ def rotate_key(key_id: str, request: Request) -> KeyRotateResponse:
 
     ip = request.client.host if request.client else "unknown"
     log_event(AuditEvent.KEY_ROTATED, key_id=key_id, ip=ip)
+    actor_user_id, actor_key_id = resolve_actor(ctx)
     log_db_event(
         engine,
         tenant_id=ctx.tenant_id,
         project_id=ctx.project_id,
-        key_id=ctx.key_id,
+        key_id=actor_key_id,
+        actor_user_id=actor_user_id,
         action="key_rotated",
         resource_type="api_key",
         resource_id=key_id,

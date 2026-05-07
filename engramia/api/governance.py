@@ -19,7 +19,7 @@ from typing import cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 
-from engramia.api.audit import AuditEvent, log_db_event, log_event
+from engramia.api.audit import AuditEvent, log_db_event, log_event, resolve_actor
 from engramia.api.auth import require_auth
 from engramia.api.deps import get_auth_context, get_memory
 from engramia.api.permissions import require_permission
@@ -188,15 +188,18 @@ def apply_retention(
     )
     if auth_ctx is not None:
         ip = request.client.host if request.client else "unknown"
+        actor_uid, actor_kid = resolve_actor(auth_ctx)
         log_db_event(
             engine,
             tenant_id=auth_ctx.tenant_id,
             project_id=auth_ctx.project_id,
-            key_id=auth_ctx.key_id,
+            key_id=actor_kid,
+            actor_user_id=actor_uid,
             action="retention_applied",
             resource_type="patterns",
             resource_id=f"purged={result.purged_count},dry_run={result.dry_run}",
             ip_address=ip,
+            detail={"purged": result.purged_count, "dry_run": result.dry_run},
         )
     return RetentionApplyResponse(purged_count=result.purged_count, dry_run=result.dry_run)
 
@@ -248,15 +251,18 @@ def export_scope(
     log_event(AuditEvent.SCOPE_EXPORTED, classification_filter=cls_filter)
     if auth_ctx is not None:
         ip = request.client.host if request.client else "unknown"
+        actor_uid, actor_kid = resolve_actor(auth_ctx)
         log_db_event(
             engine,
             tenant_id=auth_ctx.tenant_id,
             project_id=auth_ctx.project_id,
-            key_id=auth_ctx.key_id,
+            key_id=actor_kid,
+            actor_user_id=actor_uid,
             action="scope_exported",
             resource_type="patterns",
             resource_id=f"filter={','.join(cls_filter) if cls_filter else 'all'}",
             ip_address=ip,
+            detail={"classification_filter": cls_filter},
         )
 
     return StreamingResponse(
@@ -377,11 +383,13 @@ def backup_download(
 
     log_event(AuditEvent.SCOPE_EXPORTED, kind="backup")
     ip = request.client.host if request.client else "unknown"
+    actor_uid, actor_kid = resolve_actor(auth_ctx)
     log_db_event(
         engine,
         tenant_id=tenant_id,
         project_id=auth_ctx.project_id,
-        key_id=auth_ctx.key_id,
+        key_id=actor_kid,
+        actor_user_id=actor_uid,
         action="backup_download_started",
         resource_type="tenant_backup",
         resource_id=tenant_id,
@@ -444,11 +452,18 @@ def backup_download(
                 engine,
                 tenant_id=tenant_id,
                 project_id=auth_ctx.project_id,
-                key_id=auth_ctx.key_id,
+                key_id=actor_kid,
+                actor_user_id=actor_uid,
                 action="backup_download_completed",
                 resource_type="tenant_backup",
                 resource_id=tenant_id,
                 ip_address=ip,
+                detail={
+                    "status": final_status["value"],
+                    "bytes_streamed": bytes_streamed,
+                    "tables_exported": len(table_counts),
+                    "duration_seconds": round(duration, 3),
+                },
             )
             _log.info(
                 "backup_download tenant=%s status=%s bytes=%d tables=%d duration=%.2fs",
@@ -505,15 +520,18 @@ def classify_pattern(
     engine = getattr(request.app.state, "auth_engine", None)
     if engine is not None and auth_ctx is not None:
         ip = request.client.host if request.client else "unknown"
+        actor_uid, actor_kid = resolve_actor(auth_ctx)
         log_db_event(
             engine,
             tenant_id=auth_ctx.tenant_id,
             project_id=auth_ctx.project_id,
-            key_id=auth_ctx.key_id,
+            key_id=actor_kid,
+            actor_user_id=actor_uid,
             action="pattern_classified",
             resource_type="pattern",
             resource_id=f"{pattern_key}:{body.classification}",
             ip_address=ip,
+            detail={"pattern_key": pattern_key, "classification": body.classification},
         )
     return ClassifyPatternResponse(pattern_key=pattern_key, classification=body.classification)
 
@@ -578,15 +596,23 @@ def delete_project(
         ip=ip,
     )
     if auth_ctx is not None:
+        actor_uid, actor_kid = resolve_actor(auth_ctx)
         log_db_event(
             engine,
             tenant_id=scope.tenant_id,
             project_id=project_id,
-            key_id=auth_ctx.key_id,
+            key_id=actor_kid,
+            actor_user_id=actor_uid,
             action="scope_deleted",
             resource_type="project",
             resource_id=project_id,
             ip_address=ip,
+            detail={
+                "patterns_deleted": result.patterns_deleted,
+                "jobs_deleted": result.jobs_deleted,
+                "keys_revoked": result.keys_revoked,
+                "projects_deleted": result.projects_deleted,
+            },
         )
 
     return ScopedDeleteResponse(
@@ -643,15 +669,23 @@ def delete_tenant(
         ip=ip,
     )
     if auth_ctx is not None:
+        actor_uid, actor_kid = resolve_actor(auth_ctx)
         log_db_event(
             engine,
             tenant_id=tenant_id,
             project_id=auth_ctx.project_id,
-            key_id=auth_ctx.key_id,
+            key_id=actor_kid,
+            actor_user_id=actor_uid,
             action="scope_deleted",
             resource_type="tenant",
             resource_id=tenant_id,
             ip_address=ip,
+            detail={
+                "patterns_deleted": result.patterns_deleted,
+                "jobs_deleted": result.jobs_deleted,
+                "keys_revoked": result.keys_revoked,
+                "projects_deleted": result.projects_deleted,
+            },
         )
 
     return ScopedDeleteResponse(

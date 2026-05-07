@@ -523,7 +523,22 @@ class AuditEventOut(BaseModel):
 
     timestamp: str = Field(description="ISO-8601 timestamp when the event was recorded.")
     action: str = Field(description="Action name, e.g. 'learn', 'key_created', 'pattern_deleted'.")
-    actor: str | None = Field(default=None, description="Key ID of the caller, or null for anonymous events.")
+    actor: str | None = Field(
+        default=None,
+        description=(
+            "Display string for the caller. Prefers ``actor_user_id`` (cloud auth) "
+            "over ``actor_key_id`` (API-key auth); null for anonymous events. "
+            "Use ``actor_user_id`` / ``actor_key_id`` for typed filtering."
+        ),
+    )
+    actor_user_id: str | None = Field(
+        default=None,
+        description="UUID of the cloud user who initiated the event (cloud-JWT auth only).",
+    )
+    actor_key_id: str | None = Field(
+        default=None,
+        description="UUID of the API key used (DB key auth only).",
+    )
     resource_type: str | None = Field(default=None, description="Type of the affected resource (e.g. 'pattern').")
     resource_id: str | None = Field(default=None, description="Identifier of the affected resource.")
     ip: str | None = Field(default=None, description="Client IP address recorded at the time of the event.")

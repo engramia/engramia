@@ -1064,9 +1064,11 @@ def register(body: RegisterRequest, request: Request) -> CredentialsRegisterResp
         tenant_id=result["tenant_id"],
         project_id=result["project_id"],
         action="cloud_register",
+        actor_user_id=result["user_id"],
         resource_type="cloud_user",
         resource_id=result["user_id"],
         ip_address=ip,
+        detail={"email": email, "verification_email_sent": delivered},
     )
     _log.info(
         "Cloud user registered: %s tenant=%s verification_email_sent=%s",
@@ -1593,9 +1595,15 @@ def request_account_deletion(
         tenant_id=tenant_id,
         project_id=None,
         action="account_deletion_requested",
+        actor_user_id=user_id,
         resource_type="cloud_user",
         resource_id=user_id,
         ip_address=ip,
+        detail={
+            "email_delivered": delivered,
+            "has_active_subscription": has_active_subscription,
+            "reason": reason,
+        },
     )
     _log.warning(
         "Account deletion requested: user_id=%s tenant=%s active_sub=%s delivery=%s",
@@ -1750,9 +1758,18 @@ def delete_me(request: Request, token: str) -> DeletionConfirmResponse:
         tenant_id=tenant_id,
         project_id=None,
         action="account_deletion_completed",
+        actor_user_id=user_id,
         resource_type="cloud_user",
         resource_id=user_id,
         ip_address=ip,
+        detail={
+            "patterns_deleted": result.patterns_deleted,
+            "embeddings_deleted": result.embeddings_deleted,
+            "jobs_deleted": result.jobs_deleted,
+            "keys_revoked": result.keys_revoked,
+            "cloud_users_deleted": result.cloud_users_deleted,
+            "deletion_reason": reason,
+        },
     )
 
     # GDPR Art.17 — wipe matching waitlist_requests rows so no PII remains

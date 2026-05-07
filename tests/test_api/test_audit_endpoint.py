@@ -63,6 +63,7 @@ def audit_engine():
                     tenant_id TEXT NOT NULL,
                     project_id TEXT NOT NULL,
                     key_id TEXT,
+                    actor_user_id TEXT,
                     action TEXT NOT NULL,
                     resource_type TEXT,
                     resource_id TEXT,
@@ -82,15 +83,16 @@ def _seed(engine, rows: list[dict]) -> None:
             conn.execute(
                 text(
                     "INSERT INTO audit_log "
-                    "(tenant_id, project_id, key_id, action, resource_type, resource_id, "
-                    " ip_address, created_at, detail) "
-                    "VALUES (:tenant_id, :project_id, :key_id, :action, :resource_type, "
-                    " :resource_id, :ip_address, :created_at, :detail)"
+                    "(tenant_id, project_id, key_id, actor_user_id, action, resource_type, "
+                    " resource_id, ip_address, created_at, detail) "
+                    "VALUES (:tenant_id, :project_id, :key_id, :actor_user_id, :action, "
+                    " :resource_type, :resource_id, :ip_address, :created_at, :detail)"
                 ),
                 {
                     "tenant_id": r.get("tenant_id", "tenant-a"),
                     "project_id": r.get("project_id", "proj-a"),
                     "key_id": r.get("key_id"),
+                    "actor_user_id": r.get("actor_user_id"),
                     "action": r["action"],
                     "resource_type": r.get("resource_type"),
                     "resource_id": r.get("resource_id"),
@@ -352,6 +354,99 @@ class TestAuditResponseShape:
         by_action = {e["action"]: e for e in events}
         assert by_action["learn"]["detail"] == {"pattern_key": "patterns/xyz", "score": 8.5}
         assert by_action["health_check"]["detail"] is None
+
+
+# ---------------------------------------------------------------------------
+# Migration 031 — actor_user_id column + legacy cloud:UUID stripping
+# ---------------------------------------------------------------------------
+
+
+class TestAuditActorMigration031:
+    def test_actor_user_id_surfaces_typed_field(self, audit_engine, tmp_path):
+        _seed(
+            audit_engine,
+            [
+                {
+                    "action": "credential_role_models_updated",
+                    "actor_user_id": "user-uuid-1",
+                    "ip": "10.0.0.5",
+                    "detail": {"added": ["coder"]},
+                    "created_at": "2026-05-07T10:00:00Z",
+                },
+            ],
+        )
+        resp = _client(audit_engine, tmp_path=tmp_path).get("/v1/audit")
+        ev = resp.json()["events"][0]
+        assert ev["actor_user_id"] == "user-uuid-1"
+        assert ev["actor_key_id"] is None
+        # Display string prefers actor_user_id over key_id.
+        assert ev["actor"] == "user-uuid-1"
+
+    def test_legacy_cloud_prefix_in_key_id_stripped_for_display(
+        self, audit_engine, tmp_path
+    ):
+        _seed(
+            audit_engine,
+            [
+                {
+                    "action": "key_created",
+                    "key_id": "cloud:legacy-user-uuid",
+                    "created_at": "2026-04-01T10:00:00Z",
+                },
+            ],
+        )
+        resp = _client(audit_engine, tmp_path=tmp_path).get("/v1/audit")
+        ev = resp.json()["events"][0]
+        # Legacy row: cloud: prefix stripped, surfaced via actor display, but
+        # not promoted into actor_key_id (which is reserved for real API keys).
+        assert ev["actor"] == "legacy-user-uuid"
+        assert ev["actor_key_id"] is None
+
+    def test_modern_api_key_actor_split(self, audit_engine, tmp_path):
+        _seed(
+            audit_engine,
+            [
+                {
+                    "action": "pattern_deleted",
+                    "key_id": "real-api-key-uuid",
+                    "created_at": "2026-05-07T10:00:00Z",
+                },
+            ],
+        )
+        resp = _client(audit_engine, tmp_path=tmp_path).get("/v1/audit")
+        ev = resp.json()["events"][0]
+        assert ev["actor"] == "real-api-key-uuid"
+        assert ev["actor_key_id"] == "real-api-key-uuid"
+        assert ev["actor_user_id"] is None
+
+    def test_actor_filter_matches_either_column(self, audit_engine, tmp_path):
+        _seed(
+            audit_engine,
+            [
+                {
+                    "action": "credential_role_models_updated",
+                    "actor_user_id": "shared-uuid",
+                    "created_at": "2026-05-07T10:00:00Z",
+                },
+                {
+                    "action": "pattern_deleted",
+                    "key_id": "shared-uuid",
+                    "created_at": "2026-05-07T10:01:00Z",
+                },
+                {
+                    "action": "learn",
+                    "key_id": "other-key",
+                    "created_at": "2026-05-07T10:02:00Z",
+                },
+            ],
+        )
+        resp = _client(audit_engine, tmp_path=tmp_path).get(
+            "/v1/audit?actor=shared-uuid"
+        )
+        body = resp.json()
+        assert body["total"] == 2
+        actions = {e["action"] for e in body["events"]}
+        assert actions == {"credential_role_models_updated", "pattern_deleted"}
 
 
 # ---------------------------------------------------------------------------

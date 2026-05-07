@@ -152,12 +152,14 @@ def _make_audit_emitter(engine):  # type: ignore[no-untyped-def]
             return
 
         try:
+            actor_uid, actor_kid = _audit.resolve_actor(auth)
             _audit.log_db_event(
                 engine,
                 tenant_id=auth.tenant_id,
                 project_id=auth.project_id,
                 action=action,
-                key_id=auth.key_id,
+                key_id=actor_kid,
+                actor_user_id=actor_uid,
                 resource_type="mcp_session",
             )
         except Exception:  # pragma: no cover

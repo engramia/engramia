@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from engramia import Memory
-from engramia.api.audit import AuditEvent, log_db_event, log_event
+from engramia.api.audit import AuditEvent, log_db_event, log_event, resolve_actor
 from engramia.api.auth import require_auth
 from engramia.api.deps import get_auth_context, get_memory
 from engramia.api.errors import ErrorCode
@@ -189,14 +189,17 @@ def _check_quota(
                 )
                 engine = getattr(request.app.state, "auth_engine", None) if request else None
                 if engine is not None:
+                    actor_uid, actor_kid = resolve_actor(auth_ctx)
                     log_db_event(
                         engine,
                         tenant_id=auth_ctx.tenant_id,
                         project_id=auth_ctx.project_id,
-                        key_id=auth_ctx.key_id,
+                        key_id=actor_kid,
+                        actor_user_id=actor_uid,
                         action="quota_exceeded",
                         resource_type="patterns",
                         resource_id=f"metric=patterns,current={current},limit={project_cap},level=project",
+                        detail={"current": current, "limit": project_cap, "level": "project"},
                     )
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -228,14 +231,17 @@ def _check_quota(
         )
         engine = getattr(request.app.state, "auth_engine", None) if request else None
         if engine is not None:
+            actor_uid, actor_kid = resolve_actor(auth_ctx)
             log_db_event(
                 engine,
                 tenant_id=auth_ctx.tenant_id,
                 project_id=auth_ctx.project_id,
-                key_id=auth_ctx.key_id,
+                key_id=actor_kid,
+                actor_user_id=actor_uid,
                 action="quota_exceeded",
                 resource_type="patterns",
                 resource_id=f"metric=patterns,current={current},limit={auth_ctx.max_patterns},level=key",
+                detail={"current": current, "limit": auth_ctx.max_patterns, "level": "key"},
             )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -691,11 +697,13 @@ def delete_pattern(
         )
         engine = getattr(request.app.state, "auth_engine", None)
         if engine is not None and auth_ctx is not None:
+            actor_uid, actor_kid = resolve_actor(auth_ctx)
             log_db_event(
                 engine,
                 tenant_id=auth_ctx.tenant_id,
                 project_id=auth_ctx.project_id,
-                key_id=auth_ctx.key_id,
+                key_id=actor_kid,
+                actor_user_id=actor_uid,
                 action="pattern_deleted",
                 resource_type="pattern",
                 resource_id=pattern_key,
@@ -837,12 +845,16 @@ def get_audit_log(
         "action": action,
         "actor": actor,
     }
+    # The ``actor`` filter accepts either a cloud user UUID or an API key UUID
+    # — modern rows split the actor across two columns (migration 031), but
+    # legacy rows still pack ``cloud:USER_ID`` into ``key_id``. Match on either
+    # column so existing dashboards that filter ``?actor=<uuid>`` keep working.
     where = (
         "tenant_id = :tid AND project_id = :pid "
         "AND (CAST(:since AS TEXT) IS NULL OR created_at >= :since) "
         "AND (CAST(:until AS TEXT) IS NULL OR created_at <  :until) "
         "AND (CAST(:action AS TEXT) IS NULL OR action = :action) "
-        "AND (CAST(:actor  AS TEXT) IS NULL OR key_id = :actor)"
+        "AND (CAST(:actor  AS TEXT) IS NULL OR actor_user_id = :actor OR key_id = :actor)"
     )
 
     with engine.connect() as conn:
@@ -854,7 +866,8 @@ def get_audit_log(
 
         rows = conn.execute(
             text(
-                "SELECT created_at, action, key_id, resource_type, resource_id, ip_address, detail "
+                "SELECT created_at, action, key_id, actor_user_id, resource_type, "
+                "       resource_id, ip_address, detail "
                 "FROM audit_log WHERE " + where + " "
                 "ORDER BY created_at DESC, id DESC LIMIT :limit"
             ),
@@ -865,17 +878,38 @@ def get_audit_log(
         AuditEventOut(
             timestamp=row[0],
             action=row[1],
-            actor=row[2],
-            resource_type=row[3],
-            resource_id=row[4],
-            ip=row[5],
+            # ``actor`` is a display string. Prefer the typed user column,
+            # fall back to key_id (which historically also held ``cloud:UUID``
+            # strings — strip that prefix so the dashboard renders a clean
+            # UUID either way).
+            actor=row[3] or _strip_cloud_prefix(row[2]),
+            actor_user_id=row[3],
+            actor_key_id=None if (row[2] or "").startswith("cloud:") else row[2],
+            resource_type=row[4],
+            resource_id=row[5],
+            ip=row[6],
             # psycopg2 deserialises JSONB to dict directly; other drivers
             # (e.g. SQLite TEXT-backed schemas) hand us a string — parse it.
-            detail=_parse_detail(row[6]),
+            detail=_parse_detail(row[7]),
         )
         for row in rows
     ]
     return AuditResponse(events=events, total=total)
+
+
+def _strip_cloud_prefix(value: str | None) -> str | None:
+    """Strip the historical ``cloud:`` prefix from legacy ``key_id`` rows.
+
+    Pre-migration-031 rows packed cloud user UUIDs into ``key_id`` as
+    ``cloud:<uuid>``. Migration 031 added a dedicated column, but old rows
+    are intentionally not rewritten — strip the prefix at read time so the
+    dashboard sees consistent UUIDs across both shapes.
+    """
+    if value is None:
+        return None
+    if value.startswith("cloud:"):
+        return value.split(":", 1)[1] or None
+    return value
 
 
 def _parse_detail(raw) -> dict | None:
@@ -1216,15 +1250,18 @@ def import_patterns(
     )
     engine = getattr(request.app.state, "auth_engine", None)
     if engine is not None and auth_ctx is not None:
+        actor_uid, actor_kid = resolve_actor(auth_ctx)
         log_db_event(
             engine,
             tenant_id=auth_ctx.tenant_id,
             project_id=auth_ctx.project_id,
-            key_id=auth_ctx.key_id,
+            key_id=actor_kid,
+            actor_user_id=actor_uid,
             action="bulk_import",
             resource_type="patterns",
             resource_id=f"total={len(body.records)},imported={imported},overwrite={body.overwrite}",
             ip_address=ip,
+            detail={"total": len(body.records), "imported": imported, "overwrite": body.overwrite},
         )
     return ImportResponse(imported=imported, total=len(body.records))
 
@@ -1266,15 +1303,18 @@ def export_patterns(
     )
     engine = getattr(request.app.state, "auth_engine", None)
     if engine is not None and auth_ctx is not None:
+        actor_uid, actor_kid = resolve_actor(auth_ctx)
         log_db_event(
             engine,
             tenant_id=auth_ctx.tenant_id,
             project_id=auth_ctx.project_id,
-            key_id=auth_ctx.key_id,
+            key_id=actor_kid,
+            actor_user_id=actor_uid,
             action="data_exported",
             resource_type="patterns",
             resource_id=f"count={len(raw_records)}",
             ip_address=ip,
+            detail={"count": len(raw_records)},
         )
     from engramia.api.schemas import ImportRecord
 

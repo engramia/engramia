@@ -24,6 +24,30 @@ from typing import Any
 _audit_log = logging.getLogger("engramia.audit")
 
 
+def resolve_actor(auth_ctx: Any) -> tuple[str | None, str | None]:
+    """Split an :class:`AuthContext` into ``(actor_user_id, actor_key_id)``.
+
+    Cloud-JWT auth packs the cloud user UUID into ``auth_ctx.key_id`` as
+    ``cloud:USER_ID`` (see :mod:`engramia.api.auth`). Audit rows want the
+    user UUID in its own typed column so the dashboard can distinguish
+    cloud-auth callers from API-key callers cleanly.
+
+    Returns a tuple where exactly one (or neither) is populated:
+
+    - ``("USER_ID", None)`` for cloud-auth requests
+    - ``(None, "KEY_UUID")`` for API-key auth
+    - ``(None, None)`` when no auth context is present
+    """
+    if auth_ctx is None:
+        return None, None
+    kid = getattr(auth_ctx, "key_id", None)
+    if not kid:
+        return None, None
+    if kid.startswith("cloud:"):
+        return kid.split(":", 1)[1] or None, None
+    return None, kid
+
+
 class AuditEvent(StrEnum):
     AUTH_FAILURE = "auth_failure"
     AUTH_SUCCESS = "auth_success"
@@ -77,15 +101,16 @@ def log_db_event(
     project_id: str | None,
     action: str,
     key_id: str | None = None,
+    actor_user_id: str | None = None,
     resource_type: str | None = None,
     resource_id: str | None = None,
     ip_address: str | None = None,
+    detail: dict[str, Any] | None = None,
 ) -> None:
     """Write an audit event to the ``audit_log`` DB table.
 
-    Called from key management routes where the tenant/project context is
-    available. Failures are logged and silently swallowed — audit logging
-    must never interrupt the main request flow.
+    Failures are logged and silently swallowed — audit logging must never
+    interrupt the main request flow.
 
     Args:
         engine: SQLAlchemy engine (from app.state.auth_engine).
@@ -95,28 +120,57 @@ def log_db_event(
             migration 022.
         action: Event action string (e.g. 'key_created', 'key_revoked').
         key_id: UUID of the API key involved, if applicable.
+        actor_user_id: UUID of the cloud user who initiated the request.
+            Populated when auth was a cloud JWT (migration 031). Use
+            :func:`resolve_actor` to split an :class:`AuthContext`.
         resource_type: Type of resource affected (e.g. 'api_key').
         resource_id: ID of the affected resource.
         ip_address: Client IP address.
+        detail: Structured event context (diff, counts, reason). Stored as
+            JSONB on PostgreSQL via ``CAST(:detail AS jsonb)``; serialised
+            to text on SQLite (the SELECT path detects and parses it).
     """
     try:
         from sqlalchemy import text
 
+        # JSONB roundtrip — match the project-wide pattern noted in
+        # MEMORY.md ("CAST(:p AS jsonb)" + json.dumps; the ":p::jsonb"
+        # form collides with SQLAlchemy's named-param parser). SQLite has
+        # no JSONB so we fall back to plain TEXT and let the read path
+        # parse via ``_parse_detail``.
+        is_postgres = engine.dialect.name == "postgresql"
+        detail_payload = json.dumps(detail) if detail else None
+
+        if is_postgres:
+            sql = (
+                "INSERT INTO audit_log "
+                "(tenant_id, project_id, key_id, actor_user_id, action, "
+                " resource_type, resource_id, ip_address, detail, created_at) "
+                "VALUES (:tid, :pid, :kid, :uid, :action, :rtype, :rid, :ip, "
+                "        CAST(:detail AS jsonb), now()::text)"
+            )
+        else:
+            sql = (
+                "INSERT INTO audit_log "
+                "(tenant_id, project_id, key_id, actor_user_id, action, "
+                " resource_type, resource_id, ip_address, detail, created_at) "
+                "VALUES (:tid, :pid, :kid, :uid, :action, :rtype, :rid, :ip, "
+                "        :detail, now()::text)"
+            )
+
         with engine.begin() as conn:
             conn.execute(
-                text(
-                    "INSERT INTO audit_log "
-                    "(tenant_id, project_id, key_id, action, resource_type, resource_id, ip_address, created_at) "
-                    "VALUES (:tid, :pid, :kid, :action, :rtype, :rid, :ip, now()::text)"
-                ),
+                text(sql),
                 {
                     "tid": tenant_id,
                     "pid": project_id,
                     "kid": key_id,
+                    "uid": actor_user_id,
                     "action": action,
                     "rtype": resource_type,
                     "rid": resource_id,
                     "ip": ip_address,
+                    "detail": detail_payload,
                 },
             )
     except Exception as exc:

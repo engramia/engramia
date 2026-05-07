@@ -195,6 +195,9 @@ class AuditLogEntry(Base):
     # NULL for tenant-level events (e.g. account deletion) — see migration 022.
     project_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     key_id: Mapped[str | None] = mapped_column(Text, ForeignKey("api_keys.id"), nullable=True)
+    # Migration 031: cloud-JWT actors get a typed column instead of being
+    # packed into ``key_id`` as ``cloud:UUID``.
+    actor_user_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     action: Mapped[str] = mapped_column(Text, nullable=False)  # e.g. "learn", "key_created"
     resource_type: Mapped[str | None] = mapped_column(Text, nullable=True)
     resource_id: Mapped[str | None] = mapped_column(Text, nullable=True)
