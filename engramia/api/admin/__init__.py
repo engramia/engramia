@@ -18,6 +18,8 @@ from fastapi import APIRouter
 
 from engramia.api.admin.audit_viewer import router as audit_router
 from engramia.api.admin.auth import router as auth_router
+from engramia.api.admin.billing import router as billing_router
+from engramia.api.admin.ops import router as ops_router
 from engramia.api.admin.overview import router as overview_router
 from engramia.api.admin.pilots import router as pilots_router
 from engramia.api.admin.users import router as users_router
@@ -28,5 +30,7 @@ router.include_router(overview_router)
 router.include_router(users_router)
 router.include_router(pilots_router)
 router.include_router(audit_router)
+router.include_router(billing_router)
+router.include_router(ops_router)
 
 __all__ = ["router"]
