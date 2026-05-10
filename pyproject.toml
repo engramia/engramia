@@ -75,6 +75,9 @@ admin-auth = [
     "cryptography>=42.0",
     "pyotp>=2.9",
     "qrcode[pil]>=7.4",
+    # Required by pydantic.EmailStr in engramia.api.admin.schemas. Without it,
+    # FastAPI app startup fails on first import of the admin router.
+    "email-validator>=2.0",
 ]
 billing = [
     # Pinned to the 15.x major: BillingService relies on the private
