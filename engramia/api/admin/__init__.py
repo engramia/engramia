@@ -18,7 +18,7 @@ from fastapi import APIRouter
 from engramia.api.admin.audit_viewer import router as audit_router
 from engramia.api.admin.auth import router as auth_router
 from engramia.api.admin.billing import router as billing_router
-from engramia.api.admin.credentials import router as credentials_router
+from engramia.api.admin.byok import router as credentials_router
 from engramia.api.admin.governance import router as governance_router
 from engramia.api.admin.obs import router as obs_router
 from engramia.api.admin.ops import router as ops_router
