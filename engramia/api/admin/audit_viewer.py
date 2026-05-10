@@ -48,15 +48,11 @@ class TenantAuditEntry(BaseModel):
     resource_id: str | None = None
     ip_address: str | None = None
     detail: dict[str, Any] | None = None
-    # ``audit_log.created_at`` is a TEXT column populated via PostgreSQL's
-    # ``now()::text`` (see ``log_db_event`` in ``engramia/api/audit.py``),
-    # which renders ``YYYY-MM-DD HH:MM:SS.ffffff+TT`` — a 2-digit offset
-    # without colon that Pydantic v2's strict RFC 3339 parser rejects. Keep
-    # it ``str`` here, matching ``AuditEventOut.timestamp`` on the
-    # tenant-facing ``/v1/audit`` endpoint. The dashboard's ``new Date()``
-    # parses it. ``AdminAuditEntry.created_at`` below stays ``datetime``
-    # because ``admin_audit_log.created_at`` is TIMESTAMPTZ (migration 032).
-    created_at: str
+    # Parsed via ``_parse_audit_timestamp`` below — ``audit_log.created_at``
+    # is a TEXT column whose ``now()::text`` shape (``+TT`` offset without
+    # colon) Pydantic v2's strict RFC 3339 parser rejects, so the constructor
+    # pre-parses with ``datetime.fromisoformat`` (Python 3.11+).
+    created_at: datetime
 
 
 class TenantAuditListResponse(BaseModel):
