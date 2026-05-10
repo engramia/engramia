@@ -41,8 +41,10 @@ import os
 import sys
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError as PydanticValidationError
 
 from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
@@ -320,6 +322,55 @@ def _register_exception_handlers(app: FastAPI) -> None:
         body = _build_error_body(exc.status_code, exc.detail)
         headers = getattr(exc, "headers", None) or {}
         return JSONResponse(status_code=exc.status_code, content=body, headers=headers)
+
+    def _serialize_pydantic_issues(exc: PydanticValidationError) -> list[dict]:
+        return [
+            {
+                "loc": list(err.get("loc", ())),
+                "msg": err.get("msg", ""),
+                "type": err.get("type", ""),
+            }
+            for err in exc.errors()
+        ]
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(
+        request: Request, exc: RequestValidationError,
+    ) -> JSONResponse:
+        issues = _serialize_pydantic_issues(exc)
+        _log.warning(
+            "RequestValidationError in request %s %s: %s",
+            request.method, request.url.path, issues,
+        )
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error_code": ErrorCode.VALIDATION_ERROR,
+                "detail": "Request validation failed.",
+                "issues": issues,
+            },
+        )
+
+    @app.exception_handler(PydanticValidationError)
+    async def pydantic_validation_error_handler(
+        request: Request, exc: PydanticValidationError,
+    ) -> JSONResponse:
+        # Pydantic v2's ValidationError subclasses ValueError; without this
+        # dedicated handler it falls through to ``value_error_handler`` and
+        # the actual loc/msg payload is hidden behind a generic message.
+        issues = _serialize_pydantic_issues(exc)
+        _log.warning(
+            "PydanticValidationError in request %s %s: %s",
+            request.method, request.url.path, issues,
+        )
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error_code": ErrorCode.VALIDATION_ERROR,
+                "detail": "Pydantic validation failed.",
+                "issues": issues,
+            },
+        )
 
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
