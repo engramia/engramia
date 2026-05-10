@@ -48,7 +48,15 @@ class TenantAuditEntry(BaseModel):
     resource_id: str | None = None
     ip_address: str | None = None
     detail: dict[str, Any] | None = None
-    created_at: datetime
+    # ``audit_log.created_at`` is a TEXT column populated via PostgreSQL's
+    # ``now()::text`` (see ``log_db_event`` in ``engramia/api/audit.py``),
+    # which renders ``YYYY-MM-DD HH:MM:SS.ffffff+TT`` — a 2-digit offset
+    # without colon that Pydantic v2's strict RFC 3339 parser rejects. Keep
+    # it ``str`` here, matching ``AuditEventOut.timestamp`` on the
+    # tenant-facing ``/v1/audit`` endpoint. The dashboard's ``new Date()``
+    # parses it. ``AdminAuditEntry.created_at`` below stays ``datetime``
+    # because ``admin_audit_log.created_at`` is TIMESTAMPTZ (migration 032).
+    created_at: str
 
 
 class TenantAuditListResponse(BaseModel):
@@ -98,6 +106,21 @@ def _parse_detail(raw) -> dict | None:
         except json.JSONDecodeError:
             return {"raw": raw}
     return {"raw": str(raw)}
+
+
+def _parse_audit_timestamp(raw) -> datetime:
+    """Coerce ``audit_log.created_at`` to a real ``datetime``.
+
+    The column is ``TEXT`` populated by ``now()::text`` (see
+    ``engramia.api.audit:log_db_event``), which yields strings like
+    ``'2026-05-11 22:16:25.123456+00'``. Pydantic v2's strict ISO-8601
+    parser rejects the single-digit timezone offset; Python's
+    ``datetime.fromisoformat`` (3.11+) accepts it. Idempotent for
+    drivers that already return ``datetime``.
+    """
+    if isinstance(raw, datetime):
+        return raw
+    return datetime.fromisoformat(str(raw))
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +188,7 @@ async def list_tenant_audit(
                 resource_id=str(r[7]) if r[7] else None,
                 ip_address=str(r[8]) if r[8] else None,
                 detail=_parse_detail(r[9]),
-                created_at=r[10],
+                created_at=_parse_audit_timestamp(r[10]),
             )
             for r in rows
         ],
@@ -206,7 +229,7 @@ async def get_tenant_audit_entry(
         resource_id=str(row[7]) if row[7] else None,
         ip_address=str(row[8]) if row[8] else None,
         detail=_parse_detail(row[9]),
-        created_at=row[10],
+        created_at=_parse_audit_timestamp(row[10]),
     )
 
 
