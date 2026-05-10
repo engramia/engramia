@@ -21,12 +21,14 @@ services:
       - CADDY_LOG_LEVEL=${CADDY_LOG_LEVEL:-INFO}
       - DOMAIN_API=${DOMAIN_API:?DOMAIN_API must be set}
       - DOMAIN_APP=${DOMAIN_APP:?DOMAIN_APP must be set}
+      - DOMAIN_ADMIN=${DOMAIN_ADMIN:?DOMAIN_ADMIN must be set}
       - DOMAIN_APEX=${DOMAIN_APEX:?DOMAIN_APEX must be set}
       - DOMAIN_WWW=${DOMAIN_WWW:?DOMAIN_WWW must be set}
       - DOMAIN_GRAFANA=${DOMAIN_GRAFANA:?DOMAIN_GRAFANA must be set}
       - DOMAIN_STATUS=${DOMAIN_STATUS:?DOMAIN_STATUS must be set}
       - UPSTREAM_API=${UPSTREAM_API:-engramia-api:8000}
       - UPSTREAM_DASHBOARD=${UPSTREAM_DASHBOARD:-dashboard:3000}
+      - UPSTREAM_ADMIN=${UPSTREAM_ADMIN:-admin:3000}
       - UPSTREAM_WEBSITE=${UPSTREAM_WEBSITE:-website:3000}
       - UPSTREAM_GRAFANA=${UPSTREAM_GRAFANA:-grafana:3000}
       - UPSTREAM_STATUS=${UPSTREAM_STATUS:-uptime-kuma:3001}
@@ -83,6 +85,39 @@ services:
         reservations:
           cpus: "0.1"
           memory: 192M
+
+  # Admin operator dashboard — separate repo: https://github.com/engramia/engramia-admin
+  # Image is built and published by the admin repo's CI (GHCR). See
+  # Admin/ARCHITECTURE.md for the auth + audit subsystem behind /v1/admin/*.
+  admin:
+    image: ghcr.io/engramia/engramia-admin:${ADMIN_TAG:?ADMIN_TAG must be set}
+    restart: unless-stopped
+    environment:
+      - AUTH_URL=${ADMIN_URL:-https://admin.engramia.dev}
+      - AUTH_SECRET=${ADMIN_AUTH_SECRET}
+      - NEXT_PUBLIC_CORE_URL_STAGING=${STAGING_API_URL:-https://staging-api.engramia.dev}
+      - NEXT_PUBLIC_CORE_URL_PROD=${API_URL:-https://api.engramia.dev}
+      # Default to prod env on the prod-deployed instance so the operator
+      # lands on prod after fresh login (env switcher logout still gates
+      # any swap to staging). Staging instance overrides this to "staging".
+      - NEXT_PUBLIC_DEFAULT_ENV=prod
+    networks:
+      - engramia-net
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 192M
+        reservations:
+          cpus: "0.05"
+          memory: 96M
 
   website:
     image: ghcr.io/engramia/website:${WEBSITE_TAG:?WEBSITE_TAG must be set}

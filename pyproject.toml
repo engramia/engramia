@@ -69,6 +69,13 @@ cloud-auth = [
     "PyJWT>=2.8",
     "cryptography>=42.0",
 ]
+admin-auth = [
+    "bcrypt>=5.0.0",
+    "PyJWT>=2.8",
+    "cryptography>=42.0",
+    "pyotp>=2.9",
+    "qrcode[pil]>=7.4",
+]
 billing = [
     # Pinned to the 15.x major: BillingService relies on the private
     # StripeObject._to_dict_recursive() helper (see service.py and the
@@ -96,7 +103,7 @@ dev = [
     "pygments>=2.20.0",
 ]
 all = [
-    "engramia[openai,anthropic,local,postgres,api,cli,langchain,crewai,mcp,telemetry,cloud-auth]",
+    "engramia[openai,anthropic,local,postgres,api,cli,langchain,crewai,mcp,telemetry,cloud-auth,admin-auth]",
 ]
 
 [project.scripts]

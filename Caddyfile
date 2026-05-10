@@ -12,11 +12,14 @@
 #                       inbox for prod; local dev with CADDY_AUTO_HTTPS=off
 #                       can leave this empty).
 #   DOMAIN_API          Public hostname for the REST API.
-#   DOMAIN_APP          Public hostname for the admin dashboard.
+#   DOMAIN_APP          Public hostname for the tenant Dashboard.
+#   DOMAIN_ADMIN        Public hostname for the operator Admin Dashboard.
 #   UPSTREAM_API        Docker-network target for the API container
 #                       (host:port). Defaults to engramia-api:8000.
-#   UPSTREAM_DASHBOARD  Docker-network target for the dashboard
+#   UPSTREAM_DASHBOARD  Docker-network target for the tenant Dashboard
 #                       container. Defaults to dashboard:3000.
+#   UPSTREAM_ADMIN      Docker-network target for the Admin Dashboard
+#                       container. Defaults to admin:3000.
 #
 # Optional:
 #
@@ -93,6 +96,14 @@
 {$DOMAIN_APP} {
 	import secure_defaults
 	reverse_proxy {$UPSTREAM_DASHBOARD:dashboard:3000}
+}
+
+# Operator/super-admin Admin Dashboard (separate repo: engramia-admin).
+# Behind the same Caddy as Dashboard but on its own hostname so cookies
+# and CORS scope are isolated. See Admin/ARCHITECTURE.md.
+{$DOMAIN_ADMIN} {
+	import secure_defaults
+	reverse_proxy {$UPSTREAM_ADMIN:admin:3000}
 }
 
 # ---------------------------------------------------------------------------

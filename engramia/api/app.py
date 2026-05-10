@@ -46,6 +46,7 @@ from fastapi.responses import JSONResponse
 
 from engramia import Memory, __version__
 from engramia._factory import make_embeddings, make_llm, make_storage
+from engramia.api.admin import router as admin_router
 from engramia.api.analytics import router as analytics_router
 from engramia.api.cloud_auth import router as cloud_auth_router
 from engramia.api.credentials import router as credentials_router
@@ -463,6 +464,11 @@ def _register_routers(app: FastAPI, storage) -> None:
     app.include_router(billing_router, prefix="/v1")
     app.include_router(credentials_router, prefix="/v1")
     app.include_router(waitlist_router, prefix="/v1")
+
+    # Admin Dashboard endpoints. Operator/super-admin tooling — distinct
+    # auth (engramia-admin JWT issuer) and a separate audit trail
+    # (admin_audit_log table). See Admin/ARCHITECTURE.md.
+    app.include_router(admin_router, prefix="/v1")
 
     # ------------------------------------------------------------------
     # Hosted MCP server (Streamable HTTP transport at /v1/mcp).

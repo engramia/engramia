@@ -69,6 +69,12 @@ waitlist_app = typer.Typer(
 )
 app.add_typer(waitlist_app)
 
+admin_app = typer.Typer(
+    name="admin",
+    help="Admin Dashboard operator subcommands (Phase 1).",
+)
+app.add_typer(admin_app)
+
 console = Console()
 
 
@@ -2042,6 +2048,266 @@ def waitlist_export(
         console.print(f"[green]Exported {len(rows)} rows[/green] → {output}")
     else:
         _write(sys.stdout)
+
+
+# ---------------------------------------------------------------------------
+# Admin Dashboard subcommands
+# ---------------------------------------------------------------------------
+
+
+def _load_dotenv_into_environ(path: str = ".env") -> None:
+    """Best-effort load of a flat ``KEY=VALUE`` ``.env`` into ``os.environ``.
+
+    Mirrors what docker-compose / uvicorn[standard] do automatically but
+    without requiring those to be installed (the ``admin-auth`` extra is
+    independent of the ``api`` extra). Existing env vars win — the file
+    only fills in *missing* ones, so explicit ``$env:FOO=...`` always
+    overrides.
+
+    Quoted values, multi-line values, ``export`` prefix, and ``${VAR}``
+    interpolation are intentionally not supported. The Engramia ``.env``
+    format is flat by convention; if that changes, swap in
+    ``python-dotenv``.
+    """
+    import os as _os
+    from pathlib import Path as _Path
+
+    p = _Path(path)
+    if not p.is_file():
+        return
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if key and key not in _os.environ:
+                _os.environ[key] = value
+    except OSError:
+        # File present but unreadable — fail silently; the env-var checks
+        # below will surface a clear error to the operator.
+        return
+
+
+@admin_app.command("bootstrap")
+def admin_bootstrap(
+    email: str = typer.Argument(..., help="Email of the super-admin to create or re-enroll."),
+    password: str | None = typer.Option(
+        None,
+        "--password",
+        help=(
+            "Initial password. If omitted, you'll be prompted twice (recommended — "
+            "avoids shell history). Required for new users; ignored for re-enroll "
+            "of an existing admin (use `--reset-password` if you also want to "
+            "rotate the password)."
+        ),
+    ),
+    reset_password: bool = typer.Option(
+        False,
+        "--reset-password",
+        help="If admin already exists, also rotate the password.",
+    ),
+) -> None:
+    """Create the first super-admin (or re-enroll TOTP for an existing one).
+
+    Bootstrap is the only path to a super-admin account — there is no
+    self-service signup for the Admin Dashboard. The flow is:
+
+      1. Insert/load admin_users row (totp_enrolled=false until step 5).
+      2. Generate a fresh TOTP secret (RFC 6238, 20 bytes, base32).
+      3. Print provisioning URI + ASCII QR for Google Authenticator etc.
+      4. Prompt for the first 6-digit TOTP code.
+      5. On match, encrypt the secret with the credentials master key
+         (AES-GCM, AAD-bound to admin_user_id) and flip totp_enrolled=true.
+
+    Required environment:
+
+      * ENGRAMIA_DATABASE_URL    — Postgres URL.
+      * ENGRAMIA_CREDENTIALS_KEY — base64 32-byte AES-256 master key
+        (same one BYOK uses; run once per deploy).
+      * ENGRAMIA_ADMIN_JWT_SECRET — admin JWT signing secret (separate
+        from ENGRAMIA_JWT_SECRET tenant by ADR-007).
+    """
+    import getpass
+    from datetime import UTC, datetime
+
+    from sqlalchemy import text
+
+    # Lazy imports keep the cold-start cost off the rest of the CLI when
+    # admin commands are not in use.
+    try:
+        from engramia.admin_auth.passwords import hash_password
+        from engramia.admin_auth.totp import (
+            encrypt_totp_secret,
+            generate_totp_secret,
+            provisioning_uri,
+            verify_totp_code,
+        )
+    except ImportError as exc:
+        console.print(
+            f"[red]Admin auth dependencies not installed:[/red] {exc}\n"
+            "Install with: pip install 'engramia[admin-auth,postgres]'"
+        )
+        raise typer.Exit(1) from None
+
+    # Pull values from the local ``.env`` if PowerShell/Bash didn't set
+    # them in the session. ``$env:FOO=...`` and OS-level vars still win.
+    _load_dotenv_into_environ()
+
+    # Sanity-check the env vars before we touch anything.
+    for var in ("ENGRAMIA_CREDENTIALS_KEY", "ENGRAMIA_ADMIN_JWT_SECRET"):
+        if not os.environ.get(var, "").strip():
+            console.print(
+                f"[red]{var} is not set.[/red] Tried env + .env in current dir."
+            )
+            raise typer.Exit(1)
+
+    engine = _make_db_engine()
+    normalized_email = email.strip().lower()
+
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT id, totp_enrolled, status FROM admin_users WHERE email = :email"),
+            {"email": normalized_email},
+        ).first()
+
+    if row is None:
+        # New admin — password required.
+        if password is None:
+            password = getpass.getpass("Password: ")
+            confirm = getpass.getpass("Confirm:  ")
+            if password != confirm:
+                console.print("[red]Passwords did not match.[/red]")
+                raise typer.Exit(1)
+        if len(password) < 12:
+            console.print("[red]Password must be at least 12 characters.[/red]")
+            raise typer.Exit(1)
+        password_hash = hash_password(password)
+        with engine.begin() as conn:
+            new_id = conn.execute(
+                text(
+                    "INSERT INTO admin_users (email, password_hash, status, totp_enrolled) "
+                    "VALUES (:email, :hash, 'active', false) RETURNING id"
+                ),
+                {"email": normalized_email, "hash": password_hash},
+            ).scalar_one()
+        admin_user_id = int(new_id)
+        console.print(f"[green]Created admin_users row id={admin_user_id}[/green]")
+    else:
+        admin_user_id = int(row[0])
+        already_enrolled = bool(row[1])
+        if reset_password:
+            if password is None:
+                password = getpass.getpass("New password: ")
+                confirm = getpass.getpass("Confirm:      ")
+                if password != confirm:
+                    console.print("[red]Passwords did not match.[/red]")
+                    raise typer.Exit(1)
+            if len(password) < 12:
+                console.print("[red]Password must be at least 12 characters.[/red]")
+                raise typer.Exit(1)
+            password_hash = hash_password(password)
+            with engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE admin_users SET password_hash = :hash WHERE id = :id"),
+                    {"hash": password_hash, "id": admin_user_id},
+                )
+            console.print("[green]Password rotated.[/green]")
+        if already_enrolled:
+            console.print(
+                "[yellow]Admin already enrolled — proceeding will rotate the TOTP secret. "
+                "Old authenticator app entries will stop working.[/yellow]"
+            )
+
+    # ------------------------------------------------------------------
+    # TOTP enrollment
+    # ------------------------------------------------------------------
+    secret = generate_totp_secret()
+    uri = provisioning_uri(secret, normalized_email)
+
+    console.print()
+    console.print("[bold]Step 1[/bold] — scan this QR with Google Authenticator (or 1Password / Authy / Bitwarden).")
+    console.print()
+    try:
+        import qrcode  # type: ignore[import-untyped]
+
+        qr_obj = qrcode.QRCode(border=1)
+        qr_obj.add_data(uri)
+        qr_obj.make(fit=True)
+        # Print to stdout; the typer/rich console wraps poorly so use raw print.
+        qr_obj.print_ascii(invert=True)
+    except ImportError:
+        console.print("[yellow](qrcode not installed — copy the otpauth URI manually)[/yellow]")
+    console.print()
+    console.print(f"[dim]otpauth URI:[/dim] {uri}")
+    console.print(f"[dim]base32 secret:[/dim] {secret}")
+    console.print()
+    console.print("[bold]Step 2[/bold] — enter the current 6-digit code from the app.")
+
+    code = typer.prompt("TOTP code", hide_input=False)
+    if not verify_totp_code(secret, code):
+        console.print(
+            "[red]Code did not match.[/red] No changes written. Run the command "
+            "again — your authenticator entry from this run is not yet bound."
+        )
+        raise typer.Exit(1)
+
+    encrypted = encrypt_totp_secret(secret, admin_user_id)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE admin_users SET totp_secret_ciphertext = :ct, "
+                "totp_enrolled = true WHERE id = :id"
+            ),
+            {"ct": encrypted, "id": admin_user_id},
+        )
+
+    console.print()
+    console.print(
+        f"[green]Bootstrap complete.[/green] admin_user_id={admin_user_id}, "
+        f"email={normalized_email}, enrolled_at={datetime.now(UTC).isoformat(timespec='seconds')}"
+    )
+    console.print(
+        "Open https://admin.engramia.dev (or your dev URL) and sign in — "
+        "expect a TOTP prompt after the password step."
+    )
+
+
+@admin_app.command("reset-totp")
+def admin_reset_totp(
+    email: str = typer.Argument(..., help="Email of the super-admin whose TOTP should be cleared."),
+) -> None:
+    """Break-glass: clear an admin's TOTP enrollment so they can re-enroll.
+
+    Use when the admin lost their authenticator app and recovery codes.
+    Re-running ``engramia admin bootstrap <email>`` afterwards walks them
+    through enrollment again. Does NOT change the password — the next
+    login still requires the existing password.
+    """
+    from sqlalchemy import text
+
+    _load_dotenv_into_environ()
+    engine = _make_db_engine()
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE admin_users SET totp_enrolled = false, "
+                "totp_secret_ciphertext = NULL, status = 'active' "
+                "WHERE email = :email"
+            ),
+            {"email": email.strip().lower()},
+        )
+    if result.rowcount == 0:
+        console.print(f"[yellow]No admin found with email {email}[/yellow]")
+        raise typer.Exit(1)
+    console.print(
+        f"[green]TOTP cleared and status reset to 'active' for {email}.[/green] "
+        f"Run `engramia admin bootstrap {email}` to re-enroll."
+    )
 
 
 def main() -> None:
