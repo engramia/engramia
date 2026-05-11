@@ -111,6 +111,80 @@ def _configured_backend() -> str:
 
 
 # ---------------------------------------------------------------------------
+# GET /v1/admin/credentials/vault-health
+#
+# IMPORTANT: this MUST be declared before the ``/{tenant_id}`` path below,
+# otherwise FastAPI's first-match-wins routing treats "vault-health" as a
+# tenant_id parameter and the request 404s on "Tenant not found".
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/vault-health",
+    response_model=VaultHealthResponse,
+    summary="Vault Transit backend health per tenant",
+)
+async def vault_health(
+    _ctx: AdminContext = Depends(require_super_admin),
+    svc: AdminAuthService = Depends(get_admin_auth_service),
+) -> VaultHealthResponse:
+    backend = _configured_backend()
+
+    if backend != "vault":
+        # Local AES-GCM backend has no remote health — return empty.
+        return VaultHealthResponse(
+            backend_configured=backend,
+            entries=[],
+        )
+
+    # Vault Transit path — probe each tenant's transit key by attempting a
+    # no-op (sys/health endpoint via VaultTransitBackend.health() if it
+    # exposes that helper). Best-effort; surface failures per tenant.
+    engine = svc._engine  # noqa: SLF001
+    with engine.begin() as conn:
+        tenant_rows = conn.execute(
+            text("SELECT DISTINCT tenant_id FROM tenant_credentials"),
+        ).fetchall()
+
+    entries: list[VaultHealthEntry] = []
+    try:
+        from engramia.credentials.backends.vault import VaultTransitBackend
+
+        for r in tenant_rows:
+            tid = str(r[0])
+            try:
+                backend_inst = VaultTransitBackend.from_env()
+                if hasattr(backend_inst, "health"):
+                    healthy = bool(backend_inst.health(tenant_id=tid))
+                    note = None
+                else:
+                    healthy = True
+                    note = "Vault backend has no health() probe — reporting reachable"
+            except Exception as exc:  # noqa: BLE001
+                healthy = False
+                note = str(exc)[:200]
+            entries.append(
+                VaultHealthEntry(
+                    tenant_id=tid, backend="vault", healthy=healthy, note=note,
+                )
+            )
+    except ImportError:
+        return VaultHealthResponse(
+            backend_configured=backend,
+            entries=[
+                VaultHealthEntry(
+                    tenant_id="*",
+                    backend=backend,
+                    healthy=False,
+                    note="Vault backend module not installed (engramia[vault] extra).",
+                ),
+            ],
+        )
+
+    return VaultHealthResponse(backend_configured=backend, entries=entries)
+
+
+# ---------------------------------------------------------------------------
 # GET /v1/admin/credentials/{tenant_id}
 # ---------------------------------------------------------------------------
 
@@ -252,72 +326,3 @@ async def force_clear_credentials(
         raise
 
 
-# ---------------------------------------------------------------------------
-# GET /v1/admin/credentials/vault-health
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    "/vault-health",
-    response_model=VaultHealthResponse,
-    summary="Vault Transit backend health per tenant",
-)
-async def vault_health(
-    _ctx: AdminContext = Depends(require_super_admin),
-    svc: AdminAuthService = Depends(get_admin_auth_service),
-) -> VaultHealthResponse:
-    backend = _configured_backend()
-
-    if backend != "vault":
-        # Local AES-GCM backend has no remote health — return empty.
-        return VaultHealthResponse(
-            backend_configured=backend,
-            entries=[],
-        )
-
-    # Vault Transit path — probe each tenant's transit key by attempting a
-    # no-op (sys/health endpoint via VaultTransitBackend.health() if it
-    # exposes that helper). Best-effort; surface failures per tenant.
-    engine = svc._engine  # noqa: SLF001
-    with engine.begin() as conn:
-        tenant_rows = conn.execute(
-            text("SELECT DISTINCT tenant_id FROM tenant_credentials"),
-        ).fetchall()
-
-    entries: list[VaultHealthEntry] = []
-    try:
-        from engramia.credentials.backends.vault import VaultTransitBackend
-
-        for r in tenant_rows:
-            tid = str(r[0])
-            try:
-                backend_inst = VaultTransitBackend.from_env()
-                # Defensive — some backends might not have a .health() helper.
-                if hasattr(backend_inst, "health"):
-                    healthy = bool(backend_inst.health(tenant_id=tid))
-                    note = None
-                else:
-                    healthy = True
-                    note = "Vault backend has no health() probe — reporting reachable"
-            except Exception as exc:  # noqa: BLE001
-                healthy = False
-                note = str(exc)[:200]
-            entries.append(
-                VaultHealthEntry(
-                    tenant_id=tid, backend="vault", healthy=healthy, note=note,
-                )
-            )
-    except ImportError:
-        return VaultHealthResponse(
-            backend_configured=backend,
-            entries=[
-                VaultHealthEntry(
-                    tenant_id="*",
-                    backend=backend,
-                    healthy=False,
-                    note="Vault backend module not installed (engramia[vault] extra).",
-                ),
-            ],
-        )
-
-    return VaultHealthResponse(backend_configured=backend, entries=entries)
