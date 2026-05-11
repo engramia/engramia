@@ -67,7 +67,10 @@ class LogoutResponse(BaseModel):
 
 class MeResponse(BaseModel):
     id: int
-    email: EmailStr
+    # Display-only response — ``str`` so the admin UI never refuses to
+    # render its own profile because of strict email validation. Strict
+    # validation stays on the request side (``LoginRequest.email``).
+    email: str
     status: str
     totp_enrolled: bool
     last_login_at: datetime | None = None

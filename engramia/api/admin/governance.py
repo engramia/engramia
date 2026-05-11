@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from engramia.admin_auth.service import AdminAuthService
@@ -50,7 +50,7 @@ class DeletionRequest(BaseModel):
     kind: DeletionRequestKind
     id: str  # token_hash for account_deletion; id for dsr_requests
     user_id: str | None = None
-    user_email: EmailStr | None = None
+    user_email: str | None = None  # not EmailStr — read-only admin display
     tenant_id: str | None = None
     request_type: str | None = None  # for dsr_requests
     status: str  # pending | consumed | canceled | rejected | completed

@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from engramia.admin_auth.service import AdminAuthService
@@ -44,7 +44,8 @@ _VALID_PLANS = {"developer", "pro", "team", "business", "enterprise"}
 
 class PilotSummary(BaseModel):
     id: str  # uuid
-    email: EmailStr
+    # ``str`` not ``EmailStr`` — see UserSummary.email rationale.
+    email: str
     name: str
     plan_interest: str
     country: str

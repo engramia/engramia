@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from engramia.admin_auth.service import AdminAuthService
@@ -36,7 +36,11 @@ router = APIRouter(prefix="/admin/users", tags=["Admin Users"])
 
 class UserSummary(BaseModel):
     id: str  # uuid
-    email: EmailStr
+    # NOTE: ``str`` (not ``EmailStr``) — admin UI is read-only display; we
+    # must surface whatever the row holds even if it does not pass strict
+    # RFC validation. Strict email validation belongs at write time
+    # (registration / waitlist input), not when listing existing rows.
+    email: str
     name: str | None = None
     tenant_id: str
     plan_tier: str
